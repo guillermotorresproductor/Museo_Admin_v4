@@ -8,4 +8,4 @@ Sistema Administrativo Oficial del Museo de la Música de Puerto Rico.
 - JavaScript ES6
 - GitHub Pages
 
-Primera versión estática, preparada para evolucionar a Firebase/Supabase.
+Primera versión estática, preparada para evolucionar a Firebase/Supabase..
