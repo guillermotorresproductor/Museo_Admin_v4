@@ -1,92 +1,22 @@
-# Museo Admin v4
-
-Sistema Administrativo Oficial del Museo de la Música de Puerto Rico
+# PROJECT_SPEC
 
 ## Objetivo
-
-Crear una plataforma administrativa completa para la operación del Museo.
+Construir un sistema administrativo integral para el Museo de la Música de Puerto Rico.
 
 ## Tecnologías
+- HTML5
+- CSS3
+- JavaScript ES6
+- GitHub Pages
 
-HTML5
-CSS3
-JavaScript ES6
+## Usuario Demo
+admin
 
-GitHub Pages
+Password:
+123456
 
-Sin backend en esta primera etapa.
+PIN Finanzas:
+123456
 
-## Diseño
-
-Inspirado en:
-
-- Microsoft 365
-- Apple
-- Notion
-
-## Colores
-
-Sidebar negro
-
-Logo oficial horizontal
-
-Tarjetas blancas
-
-Iconografía grande
-
-Responsive
-
-## Módulos
-
-Dashboard
-
-Login
-
-Mi Cuenta
-
-Empleados
-
-Adiestramiento
-
-Registro
-
-Colecciones
-
-Donaciones
-
-Préstamos
-
-Mantenimiento
-
-Calendario
-
-Ruta Digital
-
-Boletería
-
-Membresías
-
-Gift Shop
-
-NAS
-
-Administración
-
-Reportes
-
-Finanzas
-
-Renta de Espacios
-
-Notificaciones
-
-Formularios
-
-Reglamento
-
-## Autor
-
-Guillermo Torres
-
-Director
-Museo de la Música de Puerto Rico
+## Logo
+Usar únicamente: images/logo-horizontal.jpg

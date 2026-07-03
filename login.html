@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Museo Admin v4.0 | Login</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" data-sidebar></aside>
+    <div class="sidebar-backdrop" data-sidebar-backdrop></div>
+    <div class="main-area">
+      <header class="site-header" data-header></header>
+      <main class="page-content">
+        <section class="page-hero">
+          <div>
+            <p class="page-kicker">Acceso</p>
+            <h2>Login Administrativo</h2>
+            <p>Entrada demo para la primera version estatica del sistema.</p>
+          </div>
+        </section>
+        <section class="card panel login-card">
+          <h3>Credenciales</h3>
+          <p>Use el usuario demo autorizado para entrar al dashboard.</p>
+          <form class="form-grid" data-login-form>
+            <div class="field">
+              <label for="username">Usuario</label>
+              <input id="username" name="username" type="text" autocomplete="username" value="admin" required>
+            </div>
+            <div class="field">
+              <label for="password">Password</label>
+              <input id="password" name="password" type="password" autocomplete="current-password" value="123456" required>
+            </div>
+            <button class="button" type="submit">Entrar</button>
+            <p class="login-help" data-login-message>PIN Finanzas demo: 123456</p>
+          </form>
+        </section>
+      </main>
+      <footer class="site-footer" data-footer></footer>
+    </div>
+  </div>
+  <script src="js/app.js"></script>
+</body>
+</html>
