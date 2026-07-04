@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Empleados</title>
-  <link rel="stylesheet" href="css/main.css?v=black-sidebar-final-20260704">
+  <title>Museo Admin v4.0 | Solicitud de Empleo</title>
+  <link rel="stylesheet" href="css/main.css?v=rrhh-empleados-20260704">
 </head>
 <body>
   <div class="app-shell">
@@ -16,24 +16,56 @@
         <section class="page-hero">
           <div>
             <p class="page-kicker">Recursos Humanos</p>
-            <h2>Empleados</h2>
-            <p>Pagina base para perfiles, accesos, numeros de empleado y niveles de autorizacion.</p>
+            <h2>Solicitud de Empleo</h2>
+            <p>Formulario para candidatos.</p>
           </div>
         </section>
-        <section class="placeholder-layout">
-          <article class="card panel">
-            <h3>Panel de empleados</h3>
-            <p>Area base para solicitud, adiestramiento, documentos, politicas y perfiles del personal.</p>
-            <ul class="placeholder-list">
-              <li>Directorio de empleados</li>
-              <li>Niveles de acceso</li>
-              <li>Mi Cuenta y cambio de password</li>
-            </ul>
-          </article>
-          <aside class="card panel">
-            <h3>V4.0 Base</h3>
-            <p>Estructura visual lista. Los formularios internos se integraran en una fase aprobada.</p>
-          </aside>
+        <section class="card panel form-panel">
+          <h3>Solicitud de Empleo</h3>
+          <form class="application-form" action="#" method="post" enctype="multipart/form-data">
+            <div class="form-row">
+              <div class="field">
+                <label for="nombre">Nombre completo</label>
+                <input id="nombre" name="nombre" type="text" autocomplete="name">
+              </div>
+              <div class="field">
+                <label for="direccion">Direccion</label>
+                <input id="direccion" name="direccion" type="text" autocomplete="street-address">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label for="telefono">Telefono</label>
+                <input id="telefono" name="telefono" type="tel" autocomplete="tel">
+              </div>
+              <div class="field">
+                <label for="correo">Correo electronico</label>
+                <input id="correo" name="correo" type="email" autocomplete="email">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label for="puesto">Puesto solicitado</label>
+                <select id="puesto" name="puesto">
+                  <option value="">Seleccione...</option>
+                  <option value="administracion">Administracion</option>
+                  <option value="mantenimiento">Mantenimiento</option>
+                  <option value="guia">Guia de museo</option>
+                  <option value="boleteria">Boleteria</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="resume">Resume PDF</label>
+                <input id="resume" name="resume" type="file" accept="application/pdf">
+              </div>
+            </div>
+            <div class="field">
+              <label for="experiencia">Experiencia</label>
+              <textarea id="experiencia" name="experiencia" rows="5"></textarea>
+            </div>
+            <button class="button submit-button" type="submit">Enviar solicitud</button>
+          </form>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>

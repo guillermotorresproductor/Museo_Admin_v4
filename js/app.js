@@ -12,8 +12,8 @@ const appPages = {
     subtitle: "Bienvenido al sistema administrativo del museo."
   },
   "empleados.html": {
-    title: "Empleados",
-    subtitle: "Solicitud, adiestramiento, documentos y politicas."
+    title: "Solicitud de Empleo",
+    subtitle: "Formulario para candidatos."
   },
   "mantenimiento.html": {
     title: "Mantenimiento",
@@ -29,7 +29,7 @@ const appPages = {
   },
   "administracion.html": {
     title: "Administracion",
-    subtitle: "Tareas, NAS, reportes, boletines y finanzas."
+    subtitle: "Tareas, NAS, reportes, finanzas y recursos humanos."
   },
   "reglamento.html": {
     title: "Reglamento",

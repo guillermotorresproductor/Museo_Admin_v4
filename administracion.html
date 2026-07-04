@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Administracion</title>
-  <link rel="stylesheet" href="css/main.css?v=black-sidebar-final-20260704">
+  <link rel="stylesheet" href="css/main.css?v=rrhh-empleados-20260704">
 </head>
 <body>
   <div class="app-shell">
@@ -17,13 +17,45 @@
           <div>
             <p class="page-kicker">Gestion interna</p>
             <h2>Administracion</h2>
-            <p>Pagina base para tareas, NAS, boletin, documentos, reportes y finanzas.</p>
+            <p>Tareas, NAS, boletin, documentos, reportes, finanzas y recursos humanos.</p>
           </div>
         </section>
-        <section class="grid module-grid">
-          <a class="card module-card" href="documentos.html"><span class="module-icon">DO</span><div><h3>Documentos</h3><p>Archivo administrativo.</p></div></a>
+        <section class="admin-tabs" aria-label="Areas de administracion">
+          <a class="admin-tab is-active" href="#recursos-humanos">Recursos Humanos</a>
+          <a class="admin-tab" href="#documentos-admin">Documentos</a>
+          <a class="admin-tab" href="#reportes-admin">Reportes</a>
+          <a class="admin-tab" href="#finanzas-admin">Finanzas</a>
+        </section>
+
+        <section id="recursos-humanos" class="card panel admin-tab-panel">
+          <p class="page-kicker">Recursos Humanos</p>
+          <h3>Panel de empleados</h3>
+          <p>Area administrativa para empleados, accesos, documentos, politicas y seguimiento interno del personal.</p>
+          <div class="grid module-grid compact-grid section-stack">
+            <a class="card module-card compact-card" href="empleados.html">
+              <span class="module-icon">SE</span>
+              <h3>Solicitud de Empleo</h3>
+              <p>Formulario para candidatos.</p>
+              <span class="card-action">Entrar -></span>
+            </a>
+            <article class="card module-card compact-card">
+              <span class="module-icon">DE</span>
+              <h3>Directorio</h3>
+              <p>Base para listado y perfiles del personal.</p>
+            </article>
+            <article class="card module-card compact-card">
+              <span class="module-icon">NA</span>
+              <h3>Niveles de Acceso</h3>
+              <p>Control administrativo de permisos.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="grid module-grid section-stack">
+          <a id="documentos-admin" class="card module-card" href="documentos.html"><span class="module-icon">DO</span><div><h3>Documentos</h3><p>Archivo administrativo.</p></div></a>
           <a class="card module-card" href="reglamento.html"><span class="module-icon">RG</span><div><h3>Reglamento</h3><p>Normas oficiales.</p></div></a>
-          <a class="card module-card" href="dashboard.html"><span class="module-icon">DB</span><div><h3>Reportes</h3><p>Resumen base.</p></div></a>
+          <a id="reportes-admin" class="card module-card" href="dashboard.html"><span class="module-icon">DB</span><div><h3>Reportes</h3><p>Resumen base.</p></div></a>
+          <article id="finanzas-admin" class="card module-card"><span class="module-icon">FI</span><div><h3>Finanzas</h3><p>Area restringida para fases futuras.</p></div></article>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
