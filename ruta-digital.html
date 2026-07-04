@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Ruta Digital</title>
-  <link rel="stylesheet" href="css/main.css?v=rrhh-empleados-20260704">
+  <title>Museo Admin v4.0 | Ruta Digital de Mantenimiento</title>
+  <link rel="stylesheet" href="css/main.css?v=mantenimiento-20260704">
 </head>
 <body>
   <div class="app-shell">
@@ -13,16 +13,65 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="page-hero">
-          <div>
-            <p class="page-kicker">Operaciones</p>
-            <h2>Ruta Digital</h2>
-            <p>Pagina base para organizar recorridos, areas y tareas asociadas a rutas internas.</p>
-          </div>
+        <section class="card panel form-panel">
+          <h3>Ruta Digital de Mantenimiento</h3>
+          <form class="application-form" action="#" method="post">
+            <div class="form-row">
+              <div class="field">
+                <label for="empleado-ruta">Empleado de Mantenimiento</label>
+                <select id="empleado-ruta" name="empleado">
+                  <option value="">Seleccione un empleado...</option>
+                  <option>Juan Perez</option>
+                  <option>Dora Ortiz</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="area-ruta">Area del Museo</label>
+                <select id="area-ruta" name="area">
+                  <option value="">Seleccione un area...</option>
+                  <option>Lobby Entrada</option>
+                  <option>Salas de Exhibicion</option>
+                  <option>Vitrinas</option>
+                  <option>Baños</option>
+                </select>
+              </div>
+            </div>
+            <label class="check-row"><span>Verificacion de vitrinas</span><input type="checkbox" name="ruta" value="vitrinas"></label>
+            <label class="check-row"><span>Verificacion de equipos</span><input type="checkbox" name="ruta" value="equipos"></label>
+            <label class="check-row"><span>Manchas o daños</span><input type="checkbox" name="ruta" value="danos"></label>
+            <label class="check-row"><span>Evaluacion del area de exhibicion</span><input type="checkbox" name="ruta" value="exhibicion"></label>
+            <label class="check-row"><span>Limpieza de sala</span><input type="checkbox" name="ruta" value="limpieza"></label>
+            <div class="field">
+              <label for="observaciones-ruta">Observaciones</label>
+              <textarea id="observaciones-ruta" name="observaciones" rows="4"></textarea>
+            </div>
+            <button class="button submit-button pale-button" type="submit">Registrar Inspeccion</button>
+          </form>
         </section>
-        <section class="card panel">
-          <h3>Panel de ruta digital</h3>
-          <p>Area base para recorridos, areas oficiales, tareas y seguimiento operacional.</p>
+        <section class="card panel section-stack table-panel">
+          <h3>Historial</h3>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Hora</th>
+                  <th>Empleado</th>
+                  <th>Area</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>01/07/2026</td>
+                  <td>8:35 AM</td>
+                  <td>Juan Perez</td>
+                  <td>Lobby Entrada</td>
+                  <td><span class="status-dot green"></span> Completado</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>

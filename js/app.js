@@ -17,11 +17,19 @@ const appPages = {
   },
   "mantenimiento.html": {
     title: "Mantenimiento",
-    subtitle: "Obras, materiales y ruta digital."
+    subtitle: "Operacion preventiva y correctiva."
+  },
+  "calendario-obras.html": {
+    title: "Calendario de Obras",
+    subtitle: "Asignacion de empleados, horarios y deberes."
+  },
+  "solicitud-materiales.html": {
+    title: "Solicitud de Materiales",
+    subtitle: "Registro de solicitudes de mantenimiento."
   },
   "ruta-digital.html": {
-    title: "Ruta Digital",
-    subtitle: "Recorridos, areas y seguimiento operacional."
+    title: "Ruta Digital de Mantenimiento",
+    subtitle: "Control de recorrido por areas."
   },
   "renta-espacios.html": {
     title: "Renta de Espacios",

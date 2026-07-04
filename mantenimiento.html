@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Mantenimiento</title>
-  <link rel="stylesheet" href="css/main.css?v=rrhh-empleados-20260704">
+  <link rel="stylesheet" href="css/main.css?v=mantenimiento-20260704">
 </head>
 <body>
   <div class="app-shell">
@@ -13,30 +13,22 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="page-hero">
-          <div>
-            <p class="page-kicker">Operaciones</p>
-            <h2>Mantenimiento</h2>
-            <p>Pagina base para calendario de obras, indicadores rojo y verde, checklist e historial automatico.</p>
-          </div>
-        </section>
-        <section class="placeholder-layout">
-          <article class="card panel">
-            <h3>Panel de mantenimiento</h3>
-            <p>Area base para obras, solicitud de materiales, ruta digital y seguimiento por estado.</p>
-            <ul class="placeholder-list">
-              <li>Calendario de obras</li>
-              <li>Checklist obligatorio</li>
-              <li>Historial de mantenimiento</li>
-            </ul>
-          </article>
-          <aside class="card panel">
-            <h3>Indicadores</h3>
-            <ul class="status-list">
-              <li class="status-item"><span>Operativo</span><span class="badge success">Verde</span></li>
-              <li class="status-item"><span>Atencion</span><span class="badge warning">Rojo</span></li>
-            </ul>
-          </aside>
+        <section class="grid module-grid maintenance-grid" aria-label="Modulos de mantenimiento">
+          <a class="card module-card maintenance-card" href="calendario-obras.html">
+            <span class="module-icon icon-tile" aria-hidden="true">📅</span>
+            <h3>Calendario de Obras</h3>
+            <p>Empleado, entrada, salida, deberes y estado rojo/verde.</p>
+          </a>
+          <a class="card module-card maintenance-card" href="solicitud-materiales.html">
+            <span class="module-icon icon-tile" aria-hidden="true">🧴</span>
+            <h3>Solicitud de Materiales</h3>
+            <p>Limpiador, paños, cepillos, escobas, mapos y otros.</p>
+          </a>
+          <a class="card module-card maintenance-card" href="ruta-digital.html">
+            <span class="module-icon icon-tile" aria-hidden="true">✅</span>
+            <h3>Ruta Digital de Mantenimiento</h3>
+            <p>Checklist por area con registro de inspeccion.</p>
+          </a>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
