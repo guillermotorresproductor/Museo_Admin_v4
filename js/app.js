@@ -511,10 +511,26 @@ function renderHeader() {
       </div>
     </div>
     <div class="header-right">
-      <button class="notification-button" type="button" aria-label="Notificaciones">
+      <button class="notification-button" type="button" aria-label="Notificaciones" data-notification-menu-button aria-expanded="false">
         ${iconSvg("bell")}
         <span class="notification-badge">3</span>
       </button>
+      <div class="notification-menu" data-notification-menu hidden>
+        <p class="page-kicker">Notificaciones</p>
+        <h3>Alertas del Sistema</h3>
+        <a href="notificaciones.html">
+          <strong>Temperatura y humedad</strong>
+          <span>Revise las alertas ambientales de exhibiciones.</span>
+        </a>
+        <a href="calendario.html">
+          <strong>Calendario de eventos</strong>
+          <span>Hay actividades administrativas pendientes de revisión.</span>
+        </a>
+        <a href="recursos-humanos.html">
+          <strong>Recursos Humanos</strong>
+          <span>Verifique asistencia, perfiles y accesos del personal.</span>
+        </a>
+      </div>
       <a class="account-button${loggedUser ? " is-logged-in" : ""}" href="${accountHref}">
         ${iconSvg("users")}
         <span>${safeHtml(accountLabel)}</span>
@@ -554,6 +570,26 @@ function bindSidebarToggle() {
     link.addEventListener("click", () => {
       document.body.classList.remove("sidebar-open");
     });
+  });
+}
+
+function bindNotificationMenu() {
+  const button = document.querySelector("[data-notification-menu-button]");
+  const menu = document.querySelector("[data-notification-menu]");
+  if (!button || !menu) return;
+
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const nextState = !menu.hidden;
+    menu.hidden = nextState;
+    button.setAttribute("aria-expanded", String(!nextState));
+  });
+
+  document.addEventListener("click", (event) => {
+    if (menu.hidden) return;
+    if (menu.contains(event.target) || button.contains(event.target)) return;
+    menu.hidden = true;
+    button.setAttribute("aria-expanded", "false");
   });
 }
 
@@ -1454,6 +1490,9 @@ function bindHumanResourcesModule() {
       const deleteButton = canDeleteEmployees()
         ? `<button type="button" data-employee-delete="${employee.id}">Eliminar</button>`
         : "";
+      const profileLink = canManageEmployees()
+        ? `<a href="perfil-empleado.html?empleado=${encodeURIComponent(employee.id)}">Ver Perfil</a>`
+        : "";
       const adminActions = canManageEmployees()
         ? `
           <button type="button" data-employee-edit="${employee.id}">Editar</button>
@@ -1471,7 +1510,7 @@ function bindHumanResourcesModule() {
             <span>${safeHtml(employee.posicion)} · ${safeHtml(employee.departamento || "Sin departamento")} · ${safeHtml(employee.estado || "Activo")}</span>
           </span>
           <span class="employee-actions">
-            <a href="perfil-empleado.html?empleado=${encodeURIComponent(employee.id)}">Ver Perfil</a>
+            ${profileLink}
             ${adminActions}
           </span>
         </article>
@@ -2080,9 +2119,23 @@ function bindEmployeeProfile() {
   const profileCard = document.querySelector(".employee-profile");
   if (!profileCard) return;
 
+  if (!canManageEmployees()) {
+    profileCard.innerHTML = `
+      <div class="module-placeholder">
+        <span class="module-icon theme-red" data-icon="shield"></span>
+        <h3>Acceso restringido</h3>
+        <p>El perfil administrativo de empleados solo está disponible para usuarios Ejecutivos y Administradores.</p>
+        <a class="button secondary" href="dashboard.html">Volver al dashboard</a>
+      </div>
+    `;
+    renderInlineIcons();
+    return;
+  }
+
   const params = new URLSearchParams(window.location.search);
   const id = params.get("empleado") || "guillermo-torres";
-  const profile = getEmployeeById(id);
+  let profile = getEmployeeById(id);
+  let pendingPhoto = profile.foto || "";
 
   const avatar = document.querySelector("[data-profile-avatar]");
   const name = document.querySelector("[data-profile-name]");
@@ -2091,6 +2144,14 @@ function bindEmployeeProfile() {
   const photoInput = document.querySelector("[data-employee-photo-input]");
   const photoRemove = document.querySelector("[data-employee-photo-remove]");
   const photoMessage = document.querySelector("[data-employee-photo-message]");
+  const saveButton = document.querySelector("[data-profile-save]");
+  const profileMessage = document.querySelector("[data-profile-message]");
+
+  const setProfileMessage = (text, type = "") => {
+    if (!profileMessage) return;
+    profileMessage.textContent = text;
+    profileMessage.className = `form-message ${type}`.trim();
+  };
 
   if (avatar) avatar.textContent = profile.avatar || employeeInitials(profile);
   if (name) name.textContent = employeeDisplayName(profile);
@@ -2108,7 +2169,7 @@ function bindEmployeeProfile() {
       photo.hidden = false;
       avatar.hidden = true;
       if (photoRemove) photoRemove.hidden = false;
-      if (photoMessage) photoMessage.textContent = "Foto guardada localmente para este perfil.";
+      if (photoMessage) photoMessage.textContent = "Foto lista para guardar con el perfil.";
       return;
     }
 
@@ -2134,14 +2195,9 @@ function bindEmployeeProfile() {
 
       const reader = new FileReader();
       reader.addEventListener("load", () => {
-        try {
-          const records = getEmployeeRecords().map((employee) => employee.id === profile.id ? { ...employee, foto: reader.result } : employee);
-          saveEmployeeRecords(records);
-          showPhoto(reader.result);
-        } catch (error) {
-          showPhoto(reader.result);
-          if (photoMessage) photoMessage.textContent = "La foto se puede ver, pero el navegador no permitio guardarla localmente.";
-        }
+        pendingPhoto = reader.result;
+        showPhoto(pendingPhoto);
+        setProfileMessage("Fotografía lista. Presione Guardar cambios para conservarla.", "success");
       });
       reader.readAsDataURL(file);
     });
@@ -2149,12 +2205,53 @@ function bindEmployeeProfile() {
 
   if (photoRemove) {
     photoRemove.addEventListener("click", () => {
-      const records = getEmployeeRecords().map((employee) => employee.id === profile.id ? { ...employee, foto: "" } : employee);
-      saveEmployeeRecords(records);
+      pendingPhoto = "";
       if (photoInput) photoInput.value = "";
       showPhoto("");
+      setProfileMessage("Fotografía removida. Presione Guardar cambios para conservar el cambio.", "success");
     });
   }
+
+  saveButton?.addEventListener("click", async () => {
+    const updatedProfile = { ...profile, foto: pendingPhoto };
+    document.querySelectorAll("[data-profile-field]").forEach((field) => {
+      updatedProfile[field.dataset.profileField] = field.value;
+    });
+    updatedProfile.nombreCompleto = `${updatedProfile.nombre || ""} ${updatedProfile.apellidos || ""}`.trim();
+    updatedProfile.avatar = employeeInitials(updatedProfile);
+
+    const records = getEmployeeRecords();
+    saveEmployeeRecords(records.map((employee) => employee.id === profile.id ? updatedProfile : employee));
+    localStorage.setItem(`museo-admin-employee-photo-${profile.id}`, pendingPhoto || "");
+    profile = updatedProfile;
+    if (avatar) avatar.textContent = profile.avatar;
+    if (name) name.textContent = employeeDisplayName(profile);
+    if (position) position.textContent = profile.posicion;
+
+    const session = getSupabaseSession();
+    if (session?.access_token && profile.source === "supabase") {
+      try {
+        const supabaseProfile = await fetchSupabaseProfile();
+        const payload = employeeToSupabasePayload(profile, supabaseProfile.museum_id);
+        const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(profile.id)}`, {
+          method: "PATCH",
+          headers: supabaseHeaders(true),
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.message || "No se pudo actualizar Supabase.");
+        }
+        setProfileMessage("Perfil guardado en Supabase.", "success");
+        return;
+      } catch (error) {
+        setProfileMessage("Perfil guardado localmente. Supabase no aceptó la actualización en este intento.", "error");
+        return;
+      }
+    }
+
+    setProfileMessage("Perfil guardado localmente.", "success");
+  });
 }
 
 function initApp() {
@@ -2168,6 +2265,7 @@ function initApp() {
   bindFinanceModule();
   bindEmployeeProfile();
   bindSidebarToggle();
+  bindNotificationMenu();
   bindLoginDemo();
   bindRentalForm();
   bindLoanReceiptForm();

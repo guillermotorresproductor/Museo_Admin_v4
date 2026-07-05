@@ -201,6 +201,7 @@ input {
 }
 
 .header-right {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1197,6 +1198,43 @@ body {
   color: #ffffff;
   font-size: 0.78rem;
   font-weight: 900;
+}
+
+.notification-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 40;
+  width: min(360px, calc(100vw - 40px));
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: var(--shadow);
+}
+
+.notification-menu h3 {
+  margin: 2px 0 12px;
+  color: var(--ink);
+}
+
+.notification-menu a {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 10px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.notification-menu a:hover {
+  background: #f5f7fb;
+}
+
+.notification-menu span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.35;
 }
 
 .account-button {
