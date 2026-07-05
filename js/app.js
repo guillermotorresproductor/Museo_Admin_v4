@@ -1,77 +1,63 @@
 const appPages = {
-  "index.html": {
-    title: "Dashboard Principal",
-    subtitle: "Bienvenido al sistema administrativo del museo."
-  },
-  "login.html": {
-    title: "Entrar a mi cuenta",
-    subtitle: "Acceso administrativo del Museo de la Musica."
-  },
-  "dashboard.html": {
-    title: "Dashboard Principal",
-    subtitle: "Bienvenido al sistema administrativo del museo."
-  },
-  "empleados.html": {
-    title: "Solicitud de Empleo",
-    subtitle: "Formulario para candidatos."
-  },
-  "mantenimiento.html": {
-    title: "Mantenimiento",
-    subtitle: "Operacion preventiva y correctiva."
-  },
-  "calendario-obras.html": {
-    title: "Calendario de Obras",
-    subtitle: "Asignacion de empleados, horarios y deberes."
-  },
-  "solicitud-materiales.html": {
-    title: "Solicitud de Materiales",
-    subtitle: "Registro de solicitudes de mantenimiento."
-  },
-  "ruta-digital.html": {
-    title: "Ruta Digital de Mantenimiento",
-    subtitle: "Control de recorrido por areas."
-  },
-  "renta-espacios.html": {
-    title: "Renta de Espacios",
-    subtitle: "Solicitud de areas y tarifas oficiales."
-  },
-  "administracion.html": {
-    title: "Administracion",
-    subtitle: "Tareas, NAS, reportes, finanzas y recursos humanos."
-  },
-  "reglamento.html": {
-    title: "Reglamento",
-    subtitle: "Normas oficiales, impresion y descarga."
-  },
-  "documentos.html": {
-    title: "Formularios y Papeleria",
-    subtitle: "Folleto institucional, stationary y formularios oficiales."
-  },
-  "recibo-prestamo.html": {
-    title: "Recibo de Prestamo",
-    subtitle: "Formulario digital de articulos de coleccion mediante prestamo."
-  }
+  "index.html": { title: "Dashboard", subtitle: "Bienvenido, Guillermo Torres" },
+  "dashboard.html": { title: "Dashboard", subtitle: "Bienvenido, Guillermo Torres" },
+  "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Musica." },
+  "empleados.html": { title: "Solicitud de Empleo", subtitle: "Formulario para candidatos." },
+  "mantenimiento.html": { title: "Mantenimiento", subtitle: "Operacion preventiva y correctiva." },
+  "calendario-obras.html": { title: "Calendario de Obras", subtitle: "Asignacion de empleados, horarios y deberes." },
+  "solicitud-materiales.html": { title: "Solicitud de Materiales", subtitle: "Registro de solicitudes de mantenimiento." },
+  "ruta-digital.html": { title: "Ruta Digital de Mantenimiento", subtitle: "Control de recorrido por areas." },
+  "renta-espacios.html": { title: "Renta de Espacios", subtitle: "Solicitud de areas y tarifas oficiales." },
+  "administracion.html": { title: "Administracion", subtitle: "Tareas, NAS, reportes, finanzas y recursos humanos." },
+  "reglamento.html": { title: "Reglamento", subtitle: "Normas oficiales, impresion y descarga." },
+  "documentos.html": { title: "Formularios y Papeleria", subtitle: "Folleto institucional, stationary y formularios oficiales." },
+  "recibo-prestamo.html": { title: "Recibo de Prestamo", subtitle: "Formulario digital de articulos de coleccion mediante prestamo." }
+};
+
+const iconPaths = {
+  dashboard: '<path d="M3 10.5 12 3l9 7.5"></path><path d="M5 10v10h5v-6h4v6h5V10"></path>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
+  wrench: '<path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.6 2.6-3-3 2.6-2.6Z"></path>',
+  briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M3 12h18"></path>',
+  calendar: '<rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M3 10h18"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M16 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path>',
+  bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path>',
+  file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h6"></path>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path><path d="M9 12l2 2 4-4"></path>',
+  megaphone: '<path d="m3 11 18-5v12L3 14v-3Z"></path><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path>',
+  clipboard: '<rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="m9 14 2 2 4-4"></path>',
+  building: '<path d="M3 21h18"></path><path d="M5 21V8l7-5 7 5v13"></path><path d="M9 21v-6h6v6"></path>',
+  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15Z"></path>',
+  chart: '<path d="M3 3v18h18"></path><path d="M8 17V9"></path><path d="M13 17V5"></path><path d="M18 17v-6"></path>',
+  dollar: '<path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"></path>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"></path>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path>',
+  chevron: '<path d="m6 9 6 6 6-6"></path>'
 };
 
 const navigationGroups = [
   {
     label: "Menu",
     items: [
-      { href: "dashboard.html", label: "Dashboard", icon: "🏠" },
-      { href: "empleados.html", label: "Empleados", icon: "👥" },
-      { href: "mantenimiento.html", label: "Mantenimiento", icon: "🛠️" },
-      { href: "ruta-digital.html", label: "Ruta Digital", icon: "🧭" },
-      { href: "renta-espacios.html", label: "Renta de Espacios", icon: "🏛️" },
-      { href: "administracion.html", label: "Administracion", icon: "⚙️" },
-      { href: "reglamento.html", label: "Reglamento", icon: "📘" },
-      { href: "login.html", label: "Mi cuenta", icon: "🔐" }
+      { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
+      { href: "empleados.html", label: "Empleados", icon: "users" },
+      { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench" },
+      { href: "ruta-digital.html", label: "Ruta Digital", icon: "clipboard" },
+      { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building" },
+      { href: "documentos.html", label: "Formularios y Papeleria", icon: "file" },
+      { href: "administracion.html", label: "Administracion", icon: "shield" },
+      { href: "reglamento.html", label: "Reglamento", icon: "book" },
+      { href: "login.html", label: "Mi cuenta", icon: "logout" }
     ]
   }
 ];
 
+function iconSvg(name) {
+  return `<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true">${iconPaths[name] || iconPaths.file}</svg>`;
+}
+
 function getCurrentPage() {
-  const page = window.location.pathname.split("/").pop() || "index.html";
-  return page === "" ? "index.html" : page;
+  return window.location.pathname.split("/").pop() || "index.html";
 }
 
 function resolvePageMeta() {
@@ -83,38 +69,34 @@ function renderSidebar() {
   if (!sidebar) return;
 
   const currentPage = getCurrentPage();
-  const groupsMarkup = navigationGroups
-    .map((group) => {
-      const links = group.items
-        .map((item) => {
-          const isActive = item.href === currentPage || (currentPage === "index.html" && item.href === "dashboard.html");
-          return `
-            <li>
-              <a class="nav-link${isActive ? " is-active" : ""}" href="${item.href}" aria-current="${isActive ? "page" : "false"}">
-                <span class="nav-icon" aria-hidden="true">${item.icon}</span>
-                <span>${item.label}</span>
-              </a>
-            </li>
-          `;
-        })
-        .join("");
-
+  const groupsMarkup = navigationGroups.map((group) => {
+    const links = group.items.map((item) => {
+      const isActive = item.href === currentPage || (currentPage === "index.html" && item.href === "dashboard.html");
       return `
-        <nav class="sidebar-section" aria-label="${group.label}">
-          <p class="sidebar-section-title">${group.label}</p>
-          <ul class="nav-list">${links}</ul>
-        </nav>
+        <li>
+          <a class="nav-link${isActive ? " is-active" : ""}" href="${item.href}" aria-current="${isActive ? "page" : "false"}">
+            <span class="nav-icon">${iconSvg(item.icon)}</span>
+            <span>${item.label}</span>
+          </a>
+        </li>
       `;
-    })
-    .join("");
+    }).join("");
+
+    return `
+      <nav class="sidebar-section" aria-label="${group.label}">
+        <p class="sidebar-section-title">${group.label}</p>
+        <ul class="nav-list">${links}</ul>
+      </nav>
+    `;
+  }).join("");
 
   sidebar.innerHTML = `
     <a class="brand" href="dashboard.html" aria-label="Museo de la Musica de Puerto Rico">
       <img class="brand-logo" src="images/logo-horizontal.jpg" alt="Museo de la Musica de Puerto Rico">
-      <span class="brand-mark" aria-hidden="true">♫</span>
+      <span class="brand-mark">${iconSvg("file")}</span>
       <span class="brand-copy">
         <span class="brand-title">Museo de la Musica</span>
-        <span class="brand-subtitle">Puerto Rico • Guaynabo</span>
+        <span class="brand-subtitle">Puerto Rico - Guaynabo</span>
       </span>
     </a>
     ${groupsMarkup}
@@ -123,9 +105,7 @@ function renderSidebar() {
   const logo = sidebar.querySelector(".brand-logo");
   const brand = sidebar.querySelector(".brand");
   if (logo && brand) {
-    if (logo.complete && logo.naturalWidth > 0) {
-      brand.classList.add("has-logo");
-    }
+    if (logo.complete && logo.naturalWidth > 0) brand.classList.add("has-logo");
     logo.addEventListener("load", () => brand.classList.add("has-logo"));
     logo.addEventListener("error", () => brand.classList.remove("has-logo"));
   }
@@ -139,7 +119,7 @@ function renderHeader() {
   header.innerHTML = `
     <div class="header-left">
       <button class="menu-toggle" type="button" aria-label="Abrir navegacion" data-menu-toggle>
-        <span class="menu-lines" aria-hidden="true"></span>
+        <span class="menu-lines"></span>
       </button>
       <div class="header-title">
         <h1>${meta.title}</h1>
@@ -147,14 +127,15 @@ function renderHeader() {
       </div>
     </div>
     <div class="header-right">
-      <a class="button secondary" href="login.html">Entrar a mi cuenta</a>
-      <div class="user-pill" aria-label="Usuario actual">
-        <span class="user-avatar" aria-hidden="true">GT</span>
-        <span class="user-meta">
-          <span class="user-name">Guillermo Torres</span>
-          <span class="user-role">Administrador</span>
-        </span>
-      </div>
+      <button class="notification-button" type="button" aria-label="Notificaciones">
+        ${iconSvg("bell")}
+        <span class="notification-badge">3</span>
+      </button>
+      <a class="account-button" href="login.html">
+        ${iconSvg("users")}
+        <span>Entrar a mi cuenta</span>
+        ${iconSvg("chevron")}
+      </a>
     </div>
   `;
 }
@@ -164,7 +145,7 @@ function renderFooter() {
   if (!footer) return;
 
   footer.innerHTML = `
-    <span>Museo de la Musica de Puerto Rico</span>
+    <span>© 2025 Museo de la Musica de Puerto Rico. Todos los derechos reservados.</span>
     <span>Sistema Administrativo v4.0</span>
   `;
 }
@@ -208,9 +189,7 @@ function bindLoginDemo() {
     }
 
     const message = document.querySelector("[data-login-message]");
-    if (message) {
-      message.textContent = "Credenciales demo: admin / 123456";
-    }
+    if (message) message.textContent = "Credenciales demo: admin / 123456";
   });
 }
 
@@ -228,9 +207,7 @@ function bindRentalForm() {
     });
 
     const email = form.querySelector("#rental-email");
-    if (email && email.value && !email.checkValidity()) {
-      invalidFields.push(email);
-    }
+    if (email && email.value && !email.checkValidity()) invalidFields.push(email);
 
     if (invalidFields.length > 0) {
       invalidFields[0].focus();
@@ -287,9 +264,7 @@ function bindLoanReceiptForm() {
     });
 
     const email = form.querySelector("#loan-email");
-    if (email && email.value && !email.checkValidity()) {
-      invalidFields.push(email);
-    }
+    if (email && email.value && !email.checkValidity()) invalidFields.push(email);
 
     if (invalidFields.length > 0) {
       invalidFields[0].focus();
@@ -340,10 +315,17 @@ function bindLoanReceiptForm() {
   });
 }
 
+function renderInlineIcons() {
+  document.querySelectorAll("[data-icon]").forEach((element) => {
+    element.innerHTML = iconSvg(element.dataset.icon);
+  });
+}
+
 function initApp() {
   renderSidebar();
   renderHeader();
   renderFooter();
+  renderInlineIcons();
   bindSidebarToggle();
   bindLoginDemo();
   bindRentalForm();

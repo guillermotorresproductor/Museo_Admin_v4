@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dashboard Principal | Museo Admin</title>
-  <link rel="stylesheet" href="css/main.css?v=recibo-prestamo-final-20260704">
+  <title>Dashboard | Museo Admin</title>
+  <link rel="stylesheet" href="css/main.css?v=visual-unificado-20260704">
 </head>
 <body>
   <div class="app-shell">
@@ -13,98 +13,67 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="card account-card" aria-label="Mi cuenta">
-          <span class="user-avatar" aria-hidden="true">GT</span>
-          <span class="user-meta">
-            <span class="user-name">Guillermo Torres</span>
-            <span class="user-role">Administrador</span>
-          </span>
-          <a class="card-action" href="login.html">Mi cuenta</a>
-        </section>
-
-        <section class="page-hero">
-          <p class="page-kicker">Panel Administrativo</p>
-          <h2>Sistema integral basado en el Reglamento para la Administracion del Museo de la Musica.</h2>
-        </section>
-
         <section class="grid module-grid" aria-label="Modulos administrativos">
-          <a class="card module-card" href="empleados.html">
-            <span class="module-icon" aria-hidden="true">👥</span>
+          <a class="card module-card theme-green" href="empleados.html">
+            <span class="module-icon" data-icon="users"></span>
             <h3>Empleados</h3>
-            <p>Solicitud, adiestramiento, documentos y politicas.</p>
-            <span class="card-action">Entrar →</span>
+            <p>Gestion de empleados, solicitud de empleo y asistencia.</p>
+            <span class="card-action">Ir al modulo -></span>
           </a>
-          <a class="card module-card" href="mantenimiento.html">
-            <span class="module-icon" aria-hidden="true">🛠️</span>
+
+          <a class="card module-card theme-orange" href="mantenimiento.html">
+            <span class="module-icon" data-icon="wrench"></span>
             <h3>Mantenimiento</h3>
-            <p>Obras, materiales y ruta digital.</p>
-            <span class="card-action">Entrar →</span>
+            <p>Listado de tareas, materiales, recorridos y control preventivo.</p>
+            <span class="card-action">Ir al modulo -></span>
           </a>
-          <a class="card module-card" href="documentos.html">
-            <span class="module-icon" aria-hidden="true">🏷️</span>
-            <h3>Registro</h3>
-            <p>Equipos electronicos, memorabilia y vitrinas.</p>
-            <span class="card-action">Entrar →</span>
+
+          <a class="card module-card theme-purple" href="documentos.html">
+            <span class="module-icon" data-icon="briefcase"></span>
+            <h3>Equipos</h3>
+            <p>Inventario de equipos, activos y documentos relacionados.</p>
+            <span class="card-action">Ir al modulo -></span>
           </a>
-          <a class="card module-card" href="documentos.html">
-            <span class="module-icon" aria-hidden="true">🎼</span>
-            <h3>Colecciones</h3>
-            <p>Inventario perpetuo, fotografias y ubicacion.</p>
-            <span class="card-action">Entrar →</span>
-          </a>
-          <a class="card module-card" href="documentos.html">
-            <span class="module-icon" aria-hidden="true">🤝</span>
-            <h3>Donaciones y Prestamos</h3>
-            <p>Donantes, prestamistas, valores y seguros.</p>
-            <span class="card-action">Entrar →</span>
-          </a>
-          <a class="card module-card" href="ruta-digital.html">
-            <span class="module-icon" aria-hidden="true">📅</span>
+
+          <a class="card module-card theme-green" href="calendario-obras.html">
+            <span class="module-icon" data-icon="calendar"></span>
             <h3>Calendario</h3>
-            <p>Eventos, recorridos, arrendamientos y agenda.</p>
-            <span class="card-action">Entrar →</span>
+            <p>Calendario de obras, horarios y gestion de eventos.</p>
+            <span class="card-action">Ir al modulo -></span>
           </a>
-          <a class="card module-card" href="renta-espacios.html">
-            <span class="module-icon" aria-hidden="true">🏛️</span>
-            <h3>Renta de Espacios</h3>
-            <p>Solicitud de areas y tarifas oficiales.</p>
-            <span class="card-action">Entrar →</span>
-          </a>
-          <a class="card module-card" href="documentos.html">
-            <span class="module-icon" aria-hidden="true">🔔</span>
+
+          <a class="card module-card theme-blue" href="documentos.html">
+            <span class="module-icon" data-icon="bell"></span>
             <h3>Notificaciones</h3>
-            <p>Humedad, temperatura, movimiento y ausencias.</p>
-            <span class="card-action">Entrar →</span>
+            <p>Alertas de temperatura, humedad, movimiento y ausencias.</p>
+            <span class="card-action">Ir al modulo -></span>
           </a>
-          <a class="card module-card" href="documentos.html">
-            <span class="module-icon" aria-hidden="true">📄</span>
+
+          <a class="card module-card theme-red" href="documentos.html">
+            <span class="module-icon" data-icon="file"></span>
             <h3>Formularios y Papeleria</h3>
-            <p>Documentos oficiales y descargas.</p>
-            <span class="card-action">Entrar →</span>
+            <p>Gestion de formularios, documentos y papeleria del museo.</p>
+            <span class="card-action">Ir al modulo -></span>
           </a>
-          <a class="card module-card" href="administracion.html">
-            <span class="module-icon" aria-hidden="true">⚙️</span>
+
+          <a class="card module-card theme-teal" href="administracion.html">
+            <span class="module-icon" data-icon="shield"></span>
             <h3>Administracion</h3>
-            <p>Tareas, NAS, reportes, boletines y finanzas.</p>
-            <span class="card-action">Entrar →</span>
+            <p>Ajustes generales, recursos humanos, reportes y preferencias.</p>
+            <span class="card-action">Ir al modulo -></span>
           </a>
-          <a class="card module-card" href="documentos.html">
-            <span class="module-icon" aria-hidden="true">🎟️</span>
-            <h3>Boleteria</h3>
-            <p>Entradas, metodos de pago y recibos.</p>
-            <span class="card-action">Entrar →</span>
-          </a>
-          <a class="card module-card" href="documentos.html">
-            <span class="module-icon" aria-hidden="true">⭐</span>
-            <h3>Membresias</h3>
-            <p>Categorias, beneficios, pagos y renovaciones.</p>
-            <span class="card-action">Entrar →</span>
+
+          <a class="card module-card theme-gold" href="administracion.html">
+            <span class="module-icon" data-icon="megaphone"></span>
+            <h3>Boletin Board</h3>
+            <p>Publicaciones, anuncios y comunicaciones internas.</p>
+            <span class="card-action">Ir al modulo -></span>
           </a>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=recibo-prestamo-final-20260704"></script>
+  <script src="js/app.js?v=visual-unificado-20260704"></script>
 </body>
 </html>

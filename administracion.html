@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Administracion</title>
-  <link rel="stylesheet" href="css/main.css?v=recibo-prestamo-final-20260704">
+  <link rel="stylesheet" href="css/main.css?v=visual-unificado-20260704">
 </head>
 <body>
   <div class="app-shell">
@@ -13,13 +13,6 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="page-hero">
-          <div>
-            <p class="page-kicker">Gestion interna</p>
-            <h2>Administracion</h2>
-            <p>Tareas, NAS, boletin, documentos, reportes, finanzas y recursos humanos.</p>
-          </div>
-        </section>
         <section class="admin-tabs" aria-label="Areas de administracion">
           <a class="admin-tab is-active" href="#recursos-humanos">Recursos Humanos</a>
           <a class="admin-tab" href="#documentos-admin">Formularios y Papeleria</a>
@@ -31,20 +24,23 @@
           <p class="page-kicker">Recursos Humanos</p>
           <h3>Panel de empleados</h3>
           <p>Area administrativa para empleados, accesos, documentos, politicas y seguimiento interno del personal.</p>
+
           <div class="grid module-grid compact-grid section-stack">
-            <a class="card module-card compact-card" href="empleados.html">
-              <span class="module-icon">SE</span>
+            <a class="card module-card compact-card theme-green" href="empleados.html">
+              <span class="module-icon" data-icon="users"></span>
               <h3>Solicitud de Empleo</h3>
               <p>Formulario para candidatos.</p>
-              <span class="card-action">Entrar -></span>
+              <span class="card-action">Ir al modulo -></span>
             </a>
-            <article class="card module-card compact-card">
-              <span class="module-icon">DE</span>
+
+            <article class="card module-card compact-card theme-blue">
+              <span class="module-icon" data-icon="file"></span>
               <h3>Directorio</h3>
               <p>Base para listado y perfiles del personal.</p>
             </article>
-            <article class="card module-card compact-card">
-              <span class="module-icon">NA</span>
+
+            <article class="card module-card compact-card theme-purple">
+              <span class="module-icon" data-icon="shield"></span>
               <h3>Niveles de Acceso</h3>
               <p>Control administrativo de permisos.</p>
             </article>
@@ -52,15 +48,37 @@
         </section>
 
         <section class="grid module-grid section-stack">
-          <a id="documentos-admin" class="card module-card" href="documentos.html"><span class="module-icon">DO</span><div><h3>Formularios y Papeleria</h3><p>Folleto institucional, stationary y formularios oficiales.</p></div></a>
-          <a class="card module-card" href="reglamento.html"><span class="module-icon">RG</span><div><h3>Reglamento</h3><p>Normas oficiales.</p></div></a>
-          <a id="reportes-admin" class="card module-card" href="dashboard.html"><span class="module-icon">DB</span><div><h3>Reportes</h3><p>Resumen base.</p></div></a>
-          <article id="finanzas-admin" class="card module-card"><span class="module-icon">FI</span><div><h3>Finanzas</h3><p>Area restringida para fases futuras.</p></div></article>
+          <a id="documentos-admin" class="card module-card theme-red" href="documentos.html">
+            <span class="module-icon" data-icon="file"></span>
+            <h3>Formularios y Papeleria</h3>
+            <p>Folleto institucional, stationary y formularios oficiales.</p>
+            <span class="card-action">Ir al modulo -></span>
+          </a>
+
+          <a class="card module-card theme-gold" href="reglamento.html">
+            <span class="module-icon" data-icon="book"></span>
+            <h3>Reglamento</h3>
+            <p>Normas oficiales.</p>
+            <span class="card-action">Ir al modulo -></span>
+          </a>
+
+          <a id="reportes-admin" class="card module-card theme-blue" href="dashboard.html">
+            <span class="module-icon" data-icon="chart"></span>
+            <h3>Reportes</h3>
+            <p>Resumen base.</p>
+            <span class="card-action">Ir al modulo -></span>
+          </a>
+
+          <article id="finanzas-admin" class="card module-card theme-teal">
+            <span class="module-icon" data-icon="dollar"></span>
+            <h3>Finanzas</h3>
+            <p>Area restringida para fases futuras.</p>
+          </article>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=recibo-prestamo-final-20260704"></script>
+  <script src="js/app.js?v=visual-unificado-20260704"></script>
 </body>
 </html>
