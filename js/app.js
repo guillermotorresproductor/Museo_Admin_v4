@@ -45,7 +45,7 @@ const appPages = {
   },
   "documentos.html": {
     title: "Formularios y Papeleria",
-    subtitle: "Documentos oficiales y descargas."
+    subtitle: "Folleto institucional, stationary y formularios oficiales."
   }
 };
 
@@ -58,7 +58,6 @@ const navigationGroups = [
       { href: "mantenimiento.html", label: "Mantenimiento", icon: "🛠️" },
       { href: "ruta-digital.html", label: "Ruta Digital", icon: "🧭" },
       { href: "renta-espacios.html", label: "Renta de Espacios", icon: "🏛️" },
-      { href: "documentos.html", label: "Formularios", icon: "📄" },
       { href: "administracion.html", label: "Administracion", icon: "⚙️" },
       { href: "reglamento.html", label: "Reglamento", icon: "📘" },
       { href: "login.html", label: "Mi cuenta", icon: "🔐" }

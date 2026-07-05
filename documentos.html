@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Documentos</title>
-  <link rel="stylesheet" href="css/main.css?v=renta-espacios-20260704">
+  <title>Museo Admin v4.0 | Formularios y Papeleria</title>
+  <link rel="stylesheet" href="css/main.css?v=formularios-admin-20260704">
 </head>
 <body>
   <div class="app-shell">
@@ -15,14 +15,35 @@
       <main class="page-content">
         <section class="page-hero">
           <div>
-            <p class="page-kicker">Archivo</p>
-            <h2>Documentos</h2>
-            <p>Pagina base para documentos administrativos, PDF, reglamentos, reportes y archivos internos.</p>
+            <p class="page-kicker">Administracion</p>
+            <h2>Formularios y Papeleria</h2>
+            <p>Biblioteca administrativa de documentos oficiales, identidad visual y formularios institucionales.</p>
           </div>
         </section>
-        <section class="card panel">
-          <h3>Formularios y papeleria</h3>
-          <p>Area base para documentos oficiales, descargas, reglamentos, reportes y archivos internos.</p>
+
+        <section class="grid module-grid document-grid" aria-label="Formularios y papeleria">
+          <a class="card document-card" href="docs/folleto-institucional-reglamento-museo.docx" download>
+            <span class="module-icon">FI</span>
+            <h3>Folleto Institucional</h3>
+            <p>Reglamento del Museo de la Musica de Puerto Rico.</p>
+            <span class="card-action">Descargar documento -></span>
+          </a>
+
+          <a class="card document-card document-preview-card" href="assets/stationary-ejemplo.png" target="_blank" rel="noopener">
+            <img class="document-preview" src="assets/stationary-ejemplo.png" alt="Ejemplo de stationary institucional del Museo de la Musica">
+            <div>
+              <h3>Stationary</h3>
+              <p>Ejemplo de identidad visual y papeleria institucional.</p>
+              <span class="card-action">Ver imagen -></span>
+            </div>
+          </a>
+
+          <a class="card document-card" href="docs/formulario-recibo-articulos-coleccion-prestamo.docx" download>
+            <span class="module-icon">FR</span>
+            <h3>Formulario de Recibo de Articulos de Coleccion Mediante Prestamo</h3>
+            <p>Documento oficial para recibo de articulos de coleccion mediante prestamo.</p>
+            <span class="card-action">Descargar formulario -></span>
+          </a>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>

@@ -815,6 +815,42 @@ input {
   color: var(--green);
 }
 
+.document-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.document-card {
+  min-height: 260px;
+  padding: 20px;
+}
+
+.document-card h3 {
+  margin: 0 0 10px;
+  color: var(--ink);
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.document-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.document-preview-card {
+  display: grid;
+  gap: 16px;
+}
+
+.document-preview {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  background: #111111;
+}
+
 .site-footer {
   display: flex;
   align-items: center;
@@ -884,6 +920,10 @@ input {
   .maintenance-grid {
     grid-template-columns: 1fr;
     max-width: none;
+  }
+
+  .document-grid {
+    grid-template-columns: 1fr;
   }
 }
 
