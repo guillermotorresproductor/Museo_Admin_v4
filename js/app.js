@@ -46,6 +46,10 @@ const appPages = {
   "documentos.html": {
     title: "Formularios y Papeleria",
     subtitle: "Folleto institucional, stationary y formularios oficiales."
+  },
+  "recibo-prestamo.html": {
+    title: "Recibo de Prestamo",
+    subtitle: "Formulario digital de articulos de coleccion mediante prestamo."
   }
 };
 
@@ -269,6 +273,73 @@ function bindRentalForm() {
   });
 }
 
+function bindLoanReceiptForm() {
+  const form = document.querySelector("#loan-receipt-form");
+  if (!form) return;
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const message = document.querySelector("[data-loan-message]");
+    const requiredFields = Array.from(form.querySelectorAll("[required]"));
+    const invalidFields = requiredFields.filter((field) => {
+      if (field.type === "checkbox") return !field.checked;
+      return !field.value.trim();
+    });
+
+    const email = form.querySelector("#loan-email");
+    if (email && email.value && !email.checkValidity()) {
+      invalidFields.push(email);
+    }
+
+    if (invalidFields.length > 0) {
+      invalidFields[0].focus();
+      if (message) {
+        message.textContent = "Complete todos los campos requeridos correctamente antes de enviar.";
+        message.className = "form-message error";
+      }
+      return;
+    }
+
+    const data = new FormData(form);
+    const body = [
+      "Formulario de Recibo de Articulos de Coleccion Mediante Prestamo",
+      "",
+      `Prestamista: ${data.get("prestamista")}`,
+      `Correo electronico: ${data.get("correo")}`,
+      `Telefono: ${data.get("telefono")}`,
+      `Direccion postal: ${data.get("direccion")}`,
+      `Fecha de recibo: ${data.get("fecha")}`,
+      "",
+      "Articulo",
+      `Nombre o titulo: ${data.get("articulo")}`,
+      `Categoria: ${data.get("categoria")}`,
+      `Descripcion: ${data.get("descripcion")}`,
+      `Condicion: ${data.get("condicion")}`,
+      `Valor estimado: ${data.get("valor")}`,
+      "",
+      "Prestamo",
+      `Fecha de inicio: ${data.get("inicio")}`,
+      `Fecha estimada de devolucion: ${data.get("devolucion")}`,
+      `Proposito: ${data.get("proposito")}`,
+      "",
+      `Observaciones: ${data.get("observaciones") || "N/A"}`,
+      "",
+      "El prestamista certifica que la informacion suministrada es correcta."
+    ].join("\n");
+
+    const mailto = new URL("mailto:guillermotorrespr@gmail.com");
+    mailto.searchParams.set("subject", `Recibo de prestamo - ${data.get("articulo")}`);
+    mailto.searchParams.set("body", body);
+
+    if (message) {
+      message.textContent = "Formulario validado. Se abrira el correo para enviar la informacion al administrador.";
+      message.className = "form-message success";
+    }
+
+    window.location.href = mailto.toString();
+  });
+}
+
 function initApp() {
   renderSidebar();
   renderHeader();
@@ -276,6 +347,7 @@ function initApp() {
   bindSidebarToggle();
   bindLoginDemo();
   bindRentalForm();
+  bindLoanReceiptForm();
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
