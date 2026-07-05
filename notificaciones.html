@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Notificaciones</title>
-  <link rel="stylesheet" href="css/main.css?v=hr-accounts-20260705">
+  <link rel="stylesheet" href="css/main.css?v=notifications-module-20260705">
 </head>
 <body>
   <div class="app-shell">
@@ -13,21 +13,50 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="card panel placeholder-panel">
-          <span class="module-icon theme-blue" data-icon="bell"></span>
-          <h3>Notificaciones</h3>
-          <p>Este módulo queda dentro de Administración y se programará para alertas internas del museo.</p>
+        <section class="card panel notifications-panel" data-notifications-module>
+          <div class="panel-heading-inline">
+            <div>
+              <p class="page-kicker">Administración de Alertas</p>
+              <h3>Notificaciones del Sistema</h3>
+              <p>Configure qué empleados, ejecutivos y administradores recibirán alertas automáticas del portal administrativo.</p>
+            </div>
+          </div>
+
+          <div class="notification-sources">
+            <span>Sensores ambientales</span>
+            <span>Sensores de movimiento</span>
+            <span>Ponche electrónico</span>
+            <span>Sistema de seguridad</span>
+            <span>Banco de información del museo</span>
+          </div>
+
+          <div class="table-wrap section-stack">
+            <table class="data-table notifications-table">
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th>Rol</th>
+                  <th>Temp./Humedad</th>
+                  <th>Movimiento</th>
+                  <th>Ponche</th>
+                  <th>Seguridad</th>
+                  <th>Actividades</th>
+                </tr>
+              </thead>
+              <tbody data-notifications-list>
+                <tr>
+                  <td colspan="7">Cargando usuarios...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="form-message" data-notifications-message></p>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=hr-accounts-20260705"></script>
+  <script src="js/app.js?v=notifications-module-20260705"></script>
 </body>
 </html>
-
-
-
-
-
-

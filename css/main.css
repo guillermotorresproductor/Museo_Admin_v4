@@ -1449,6 +1449,74 @@ body {
   margin-bottom: 18px;
 }
 
+.notifications-panel {
+  padding: 34px;
+}
+
+.notification-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.notification-sources span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #eef2f6;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.notifications-table th,
+.notifications-table td {
+  vertical-align: middle;
+}
+
+.table-subtext {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.switch-control {
+  display: inline-flex;
+  min-width: 54px;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #eef2f6;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.switch-control input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.switch-control:has(input:checked) {
+  background: #dff5e7;
+  color: #159447;
+}
+
+.switch-control:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .profile-heading {
   display: flex;
   align-items: center;

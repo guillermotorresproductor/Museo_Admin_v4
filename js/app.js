@@ -199,6 +199,7 @@ const defaultEmployeeProfiles = {
 };
 
 const employeeStorageKey = "museo-admin-employee-records";
+const notificationStorageKey = "museo-admin-notification-preferences";
 const currentAccessLevel = () => localStorage.getItem("museo-admin-access-level") || "Administrador";
 const canManageEmployees = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
 const canDeleteEmployees = () => currentAccessLevel() === "Administrador";
@@ -211,6 +212,14 @@ function getEmployeeRecords() {
 
 function saveEmployeeRecords(records) {
   localStorage.setItem(employeeStorageKey, JSON.stringify(records));
+}
+
+function getNotificationPreferences() {
+  return JSON.parse(localStorage.getItem(notificationStorageKey) || "{}");
+}
+
+function saveNotificationPreferences(preferences) {
+  localStorage.setItem(notificationStorageKey, JSON.stringify(preferences));
 }
 
 function getEmployeeById(id) {
@@ -1182,6 +1191,86 @@ function populateSystemDataSelects() {
   });
 }
 
+function bindNotificationsModule() {
+  const module = document.querySelector("[data-notifications-module]");
+  if (!module) return;
+
+  const list = module.querySelector("[data-notifications-list]");
+  const message = module.querySelector("[data-notifications-message]");
+  const canEdit = canManageEmployees();
+  const notificationTypes = [
+    { key: "temperatura", label: "Temp./Humedad", source: "Sensores ambientales" },
+    { key: "movimiento", label: "Movimiento", source: "Sensores de movimiento" },
+    { key: "ponche", label: "Ponche", source: "Sistema de ponche electrónico" },
+    { key: "seguridad", label: "Seguridad", source: "Sistema de seguridad" },
+    { key: "actividades", label: "Actividades", source: "Banco de información del museo" }
+  ];
+
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text;
+    message.className = `form-message ${type}`.trim();
+  };
+
+  const employeePreferences = (preferences, employeeId) => {
+    return preferences[employeeId] || {
+      temperatura: true,
+      movimiento: true,
+      ponche: true,
+      seguridad: true,
+      actividades: true
+    };
+  };
+
+  const renderToggle = (employee, type, enabled) => `
+    <label class="switch-control" title="${safeHtml(type.source)}">
+      <input type="checkbox" data-notification-toggle data-employee-id="${safeHtml(employee.id)}" data-notification-type="${safeHtml(type.key)}"${enabled ? " checked" : ""}${canEdit ? "" : " disabled"}>
+      <span>${enabled ? "Sí" : "No"}</span>
+    </label>
+  `;
+
+  const render = () => {
+    const employees = getEmployeeRecords();
+    const preferences = getNotificationPreferences();
+    list.innerHTML = employees.map((employee) => {
+      const prefs = employeePreferences(preferences, employee.id);
+      return `
+        <tr>
+          <td>
+            <strong>${safeHtml(employeeDisplayName(employee))}</strong>
+            <span class="table-subtext">${safeHtml(employee.posicion || "Empleado")} · ${safeHtml(employee.departamento || "Sin departamento")}</span>
+          </td>
+          <td>${safeHtml(employee.acceso || "Empleado")}</td>
+          ${notificationTypes.map((type) => `<td>${renderToggle(employee, type, Boolean(prefs[type.key]))}</td>`).join("")}
+        </tr>
+      `;
+    }).join("");
+
+    setMessage(canEdit
+      ? "Configuración lista para integrarse con sensores, ponche electrónico, seguridad y bases de datos."
+      : "Su rol permite consultar estas configuraciones, pero no modificarlas."
+    );
+  };
+
+  module.addEventListener("change", (event) => {
+    const toggle = event.target.closest("[data-notification-toggle]");
+    if (!toggle || !canEdit) return;
+
+    const preferences = getNotificationPreferences();
+    const employeeId = toggle.dataset.employeeId;
+    const type = toggle.dataset.notificationType;
+    preferences[employeeId] = employeePreferences(preferences, employeeId);
+    preferences[employeeId][type] = toggle.checked;
+    saveNotificationPreferences(preferences);
+
+    const label = toggle.closest(".switch-control")?.querySelector("span");
+    if (label) label.textContent = toggle.checked ? "Sí" : "No";
+    setMessage("Preferencia de notificación actualizada.", "success");
+  });
+
+  render();
+}
+
 function bindEmployeeProfile() {
   const profileCard = document.querySelector(".employee-profile");
   if (!profileCard) return;
@@ -1270,6 +1359,7 @@ function initApp() {
   renderInlineIcons();
   populateSystemDataSelects();
   bindHumanResourcesModule();
+  bindNotificationsModule();
   bindEmployeeProfile();
   bindSidebarToggle();
   bindLoginDemo();
