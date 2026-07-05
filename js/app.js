@@ -85,73 +85,161 @@ const officialMuseumAreas = [
   "Escaleras de salida"
 ];
 
-const employeeProfiles = {
+const defaultEmployeeProfiles = {
   "guillermo-torres": {
+    id: "guillermo-torres",
     avatar: "GT",
-    nombre: "Guillermo Torres",
+    nombre: "Guillermo",
+    apellidos: "Torres",
+    nombreCompleto: "Guillermo Torres",
     direccion: "Guaynabo, Puerto Rico",
     telefono: "787-000-0000",
     correo: "guillermotorrespr@gmail.com",
     educacion: "Graduado",
     condicion: "Ninguna registrada",
     posicion: "Administrador",
+    departamento: "Administración",
     horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
     notificaciones: "Recibe notificaciones administrativas, cambios de horario y alertas internas.",
-    acceso: "Administrador"
+    acceso: "Administrador",
+    usuario: "gtorres",
+    passwordTemporal: "Temporal-2026",
+    fechaContratacion: "2026-07-01",
+    estado: "Activo",
+    foto: ""
   },
   "juan-perez": {
+    id: "juan-perez",
     avatar: "JP",
-    nombre: "Juan Perez",
+    nombre: "Juan",
+    apellidos: "Pérez",
+    nombreCompleto: "Juan Pérez",
     direccion: "Guaynabo, Puerto Rico",
     telefono: "787-000-0000",
     correo: "juan.perez@museodelamusica.pr",
     educacion: "Graduado",
     condicion: "Ninguna registrada",
     posicion: "Mantenimiento",
+    departamento: "Mantenimiento",
     horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
     notificaciones: "Recibe avisos de ruta digital, materiales y calendario de obras.",
-    acceso: "Empleado"
+    acceso: "Empleado",
+    usuario: "jperez",
+    passwordTemporal: "Temporal-2026",
+    fechaContratacion: "2026-07-01",
+    estado: "Activo",
+    foto: ""
   },
   "dora-ortiz": {
+    id: "dora-ortiz",
     avatar: "DO",
-    nombre: "Dora Ortiz",
+    nombre: "Dora",
+    apellidos: "Ortiz",
+    nombreCompleto: "Dora Ortiz",
     direccion: "Guaynabo, Puerto Rico",
     telefono: "787-000-0000",
     correo: "dora.ortiz@museodelamusica.pr",
     educacion: "Estudiante",
     condicion: "Ninguna registrada",
     posicion: "Mantenimiento",
+    departamento: "Mantenimiento",
     horario: "Martes a sábado, 8:00 AM - 4:00 PM",
     notificaciones: "Recibe avisos de inspección, mantenimiento preventivo y tareas asignadas.",
-    acceso: "Empleado"
+    acceso: "Empleado",
+    usuario: "dortiz",
+    passwordTemporal: "Temporal-2026",
+    fechaContratacion: "2026-07-01",
+    estado: "Activo",
+    foto: ""
   },
   "ana-rivera": {
+    id: "ana-rivera",
     avatar: "AR",
-    nombre: "Ana Rivera",
+    nombre: "Ana",
+    apellidos: "Rivera",
+    nombreCompleto: "Ana Rivera",
     direccion: "Guaynabo, Puerto Rico",
     telefono: "787-000-0000",
     correo: "ana.rivera@museodelamusica.pr",
     educacion: "Graduado",
     condicion: "Ninguna registrada",
     posicion: "Ujier",
+    departamento: "Operaciones",
     horario: "Según calendario de eventos",
     notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
-    acceso: "Empleado"
+    acceso: "Empleado",
+    usuario: "arivera",
+    passwordTemporal: "Temporal-2026",
+    fechaContratacion: "2026-07-01",
+    estado: "Activo",
+    foto: ""
   },
   "carlos-mendez": {
+    id: "carlos-mendez",
     avatar: "CM",
-    nombre: "Carlos Méndez",
+    nombre: "Carlos",
+    apellidos: "Méndez",
+    nombreCompleto: "Carlos Méndez",
     direccion: "Guaynabo, Puerto Rico",
     telefono: "787-000-0000",
     correo: "carlos.mendez@museodelamusica.pr",
     educacion: "Estudiante",
     condicion: "Ninguna registrada",
     posicion: "Ujier",
+    departamento: "Operaciones",
     horario: "Según calendario de eventos",
     notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
-    acceso: "Empleado"
+    acceso: "Empleado",
+    usuario: "cmendez",
+    passwordTemporal: "Temporal-2026",
+    fechaContratacion: "2026-07-01",
+    estado: "Activo",
+    foto: ""
   }
 };
+
+const employeeStorageKey = "museo-admin-employee-records";
+const currentAccessLevel = () => localStorage.getItem("museo-admin-access-level") || "Administrador";
+const canManageEmployees = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
+const canDeleteEmployees = () => currentAccessLevel() === "Administrador";
+
+function getEmployeeRecords() {
+  const stored = JSON.parse(localStorage.getItem(employeeStorageKey) || "null");
+  if (Array.isArray(stored) && stored.length) return stored;
+  return Object.values(defaultEmployeeProfiles);
+}
+
+function saveEmployeeRecords(records) {
+  localStorage.setItem(employeeStorageKey, JSON.stringify(records));
+}
+
+function getEmployeeById(id) {
+  return getEmployeeRecords().find((employee) => employee.id === id) || getEmployeeRecords()[0];
+}
+
+function buildEmployeeId(nombre, apellidos) {
+  const base = `${nombre}-${apellidos}`.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  const records = getEmployeeRecords();
+  let id = base || `empleado-${Date.now()}`;
+  let index = 2;
+  while (records.some((employee) => employee.id === id)) {
+    id = `${base}-${index}`;
+    index += 1;
+  }
+  return id;
+}
+
+function employeeInitials(employee) {
+  const source = `${employee.nombre || ""} ${employee.apellidos || ""}`.trim() || employee.nombreCompleto || "Empleado";
+  return source.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+}
+
+function employeeDisplayName(employee) {
+  return employee.nombreCompleto || `${employee.nombre || ""} ${employee.apellidos || ""}`.trim();
+}
 
 function iconSvg(name) {
   return `<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true">${iconPaths[name] || iconPaths.file}</svg>`;
@@ -669,8 +757,11 @@ function bindCalendarModules() {
 
   const populateUshers = () => {
     if (!usherSelect) return;
-    const ushers = Object.values(employeeProfiles).filter((employee) => employee.posicion === "Ujier");
-    const options = ushers.map((employee) => `<option value="${escapeHtml(employee.nombre)}">${escapeHtml(employee.nombre)}</option>`).join("");
+    const ushers = getEmployeeRecords().filter((employee) => employee.posicion === "Ujier" && employee.estado !== "Inactivo");
+    const options = ushers.map((employee) => {
+      const name = employeeDisplayName(employee);
+      return `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+    }).join("");
     usherSelect.innerHTML = `<option value="">Seleccione un ujier...</option>${options}`;
   };
 
@@ -864,13 +955,240 @@ function renderInlineIcons() {
   });
 }
 
+function safeHtml(value) {
+  return String(value || "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  })[character]);
+}
+
+function bindHumanResourcesModule() {
+  const module = document.querySelector("[data-hr-module]");
+  if (!module) return;
+
+  const directory = module.querySelector("[data-employee-directory]");
+  const form = module.querySelector("[data-employee-form]");
+  const submitButton = module.querySelector("[data-employee-submit]");
+  const cancelButton = module.querySelector("[data-employee-cancel]");
+  const message = module.querySelector("[data-employee-message]");
+  const photoInput = module.querySelector("[data-employee-photo-picker]");
+  let selectedPhoto = "";
+
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text;
+    message.className = `form-message ${type}`.trim();
+  };
+
+  const renderPhoto = (employee) => {
+    if (employee.foto) {
+      return `<img class="employee-row-photo" src="${employee.foto}" alt="Foto de ${safeHtml(employeeDisplayName(employee))}">`;
+    }
+    return `<span class="employee-avatar">${safeHtml(employeeInitials(employee))}</span>`;
+  };
+
+  const renderDirectory = () => {
+    const records = getEmployeeRecords();
+    directory.innerHTML = records.map((employee) => {
+      const isInactive = employee.estado === "Inactivo";
+      const deleteButton = canDeleteEmployees()
+        ? `<button type="button" data-employee-delete="${employee.id}">Eliminar</button>`
+        : "";
+      const adminActions = canManageEmployees()
+        ? `
+          <button type="button" data-employee-edit="${employee.id}">Editar</button>
+          <button type="button" data-employee-reset="${employee.id}">Restablecer contraseña</button>
+          <button type="button" data-employee-toggle="${employee.id}">${isInactive ? "Activar" : "Desactivar"}</button>
+          ${deleteButton}
+        `
+        : "";
+
+      return `
+        <article class="employee-row${isInactive ? " is-inactive" : ""}">
+          ${renderPhoto(employee)}
+          <span class="employee-info">
+            <strong>${safeHtml(employeeDisplayName(employee))}</strong>
+            <span>${safeHtml(employee.posicion)} · ${safeHtml(employee.departamento || "Sin departamento")} · ${safeHtml(employee.estado || "Activo")}</span>
+          </span>
+          <span class="employee-actions">
+            <a href="perfil-empleado.html?empleado=${encodeURIComponent(employee.id)}">Ver Perfil</a>
+            ${adminActions}
+          </span>
+        </article>
+      `;
+    }).join("");
+  };
+
+  const resetForm = () => {
+    form.reset();
+    form.elements.id.value = "";
+    selectedPhoto = "";
+    if (photoInput) photoInput.value = "";
+    if (submitButton) submitButton.textContent = "Crear Empleado";
+    if (cancelButton) cancelButton.hidden = true;
+  };
+
+  const loadForm = (employee) => {
+    Object.entries(employee).forEach(([key, value]) => {
+      const field = form.elements[key];
+      if (field && key !== "foto") field.value = value || "";
+    });
+    form.elements.id.value = employee.id;
+    selectedPhoto = employee.foto || "";
+    if (submitButton) submitButton.textContent = "Actualizar Empleado";
+    if (cancelButton) cancelButton.hidden = false;
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  if (!canManageEmployees()) {
+    form.hidden = true;
+  }
+
+  if (photoInput) {
+    photoInput.addEventListener("change", () => {
+      const file = photoInput.files && photoInput.files[0];
+      if (!file) return;
+      if (!file.type.startsWith("image/")) {
+        setMessage("Seleccione un archivo de imagen válido.", "error");
+        photoInput.value = "";
+        return;
+      }
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        selectedPhoto = reader.result;
+        setMessage("Fotografía lista para guardar con el empleado.", "success");
+      });
+      reader.readAsDataURL(file);
+    });
+  }
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!canManageEmployees()) {
+      setMessage("Su rol no tiene permiso para crear o editar empleados.", "error");
+      return;
+    }
+
+    const data = new FormData(form);
+    const id = data.get("id") || buildEmployeeId(data.get("nombre"), data.get("apellidos"));
+    const existing = getEmployeeRecords().find((employee) => employee.id === id);
+    const employee = {
+      id,
+      avatar: existing?.avatar || employeeInitials({ nombre: data.get("nombre"), apellidos: data.get("apellidos") }),
+      nombre: data.get("nombre").trim(),
+      apellidos: data.get("apellidos").trim(),
+      nombreCompleto: `${data.get("nombre").trim()} ${data.get("apellidos").trim()}`,
+      foto: selectedPhoto || existing?.foto || "",
+      posicion: data.get("posicion").trim(),
+      departamento: data.get("departamento").trim(),
+      correo: data.get("correo").trim(),
+      telefono: data.get("telefono").trim(),
+      direccion: data.get("direccion").trim(),
+      fechaContratacion: data.get("fechaContratacion"),
+      horario: data.get("horario").trim(),
+      educacion: data.get("educacion"),
+      condicion: data.get("condicion").trim(),
+      usuario: data.get("usuario").trim(),
+      passwordTemporal: data.get("passwordTemporal").trim(),
+      acceso: data.get("acceso"),
+      estado: data.get("estado"),
+      notificaciones: data.get("notificaciones").trim()
+    };
+
+    if (!employee.nombre || !employee.apellidos || !employee.posicion || !employee.departamento || !employee.correo || !employee.usuario || !employee.passwordTemporal) {
+      setMessage("Complete los campos obligatorios antes de crear el empleado.", "error");
+      return;
+    }
+
+    const records = getEmployeeRecords();
+    const nextRecords = existing
+      ? records.map((item) => item.id === id ? employee : item)
+      : [...records, employee];
+    saveEmployeeRecords(nextRecords);
+    renderDirectory();
+    resetForm();
+    setMessage(existing ? "Empleado actualizado correctamente." : "Empleado creado y agregado al directorio.", "success");
+  });
+
+  directory.addEventListener("click", (event) => {
+    const editButton = event.target.closest("[data-employee-edit]");
+    const resetButton = event.target.closest("[data-employee-reset]");
+    const toggleButton = event.target.closest("[data-employee-toggle]");
+    const deleteButton = event.target.closest("[data-employee-delete]");
+    const records = getEmployeeRecords();
+
+    if (editButton) {
+      const employee = records.find((item) => item.id === editButton.dataset.employeeEdit);
+      if (employee) loadForm(employee);
+    }
+
+    if (resetButton) {
+      const employee = records.find((item) => item.id === resetButton.dataset.employeeReset);
+      if (!employee) return;
+      const password = prompt("Nueva contraseña temporal:", "Temporal-2026");
+      if (!password) return;
+      saveEmployeeRecords(records.map((item) => item.id === employee.id ? { ...item, passwordTemporal: password } : item));
+      setMessage(`Contraseña temporal restablecida para ${employeeDisplayName(employee)}.`, "success");
+    }
+
+    if (toggleButton) {
+      const employee = records.find((item) => item.id === toggleButton.dataset.employeeToggle);
+      if (!employee) return;
+      const estado = employee.estado === "Inactivo" ? "Activo" : "Inactivo";
+      saveEmployeeRecords(records.map((item) => item.id === employee.id ? { ...item, estado } : item));
+      renderDirectory();
+      setMessage(`Empleado ${estado.toLowerCase()} correctamente.`, "success");
+    }
+
+    if (deleteButton) {
+      if (!canDeleteEmployees()) return;
+      const employee = records.find((item) => item.id === deleteButton.dataset.employeeDelete);
+      if (!employee || !confirm(`¿Eliminar a ${employeeDisplayName(employee)} del directorio?`)) return;
+      saveEmployeeRecords(records.filter((item) => item.id !== employee.id));
+      renderDirectory();
+      setMessage("Empleado eliminado del directorio.", "success");
+    }
+  });
+
+  cancelButton?.addEventListener("click", () => {
+    resetForm();
+    setMessage("");
+  });
+
+  renderDirectory();
+}
+
+function populateSystemDataSelects() {
+  document.querySelectorAll("[data-employee-select]").forEach((select) => {
+    const filter = select.dataset.employeeFilter;
+    const employees = getEmployeeRecords().filter((employee) => {
+      if (employee.estado === "Inactivo") return false;
+      if (!filter) return true;
+      return employee.posicion === filter || employee.departamento === filter;
+    });
+    const options = employees.map((employee) => {
+      const name = employeeDisplayName(employee);
+      return `<option value="${safeHtml(name)}">${safeHtml(name)}</option>`;
+    }).join("");
+    select.innerHTML = `<option value="">Seleccione un empleado...</option>${options}`;
+  });
+
+  document.querySelectorAll("[data-area-select]").forEach((select) => {
+    const options = officialMuseumAreas.map((area) => `<option value="${safeHtml(area)}">${safeHtml(area)}</option>`).join("");
+    select.innerHTML = `<option value="">Seleccione un área...</option>${options}`;
+  });
+}
+
 function bindEmployeeProfile() {
   const profileCard = document.querySelector(".employee-profile");
   if (!profileCard) return;
 
   const params = new URLSearchParams(window.location.search);
   const id = params.get("empleado") || "guillermo-torres";
-  const profile = employeeProfiles[id] || employeeProfiles["guillermo-torres"];
+  const profile = getEmployeeById(id);
 
   const avatar = document.querySelector("[data-profile-avatar]");
   const name = document.querySelector("[data-profile-name]");
@@ -879,10 +1197,9 @@ function bindEmployeeProfile() {
   const photoInput = document.querySelector("[data-employee-photo-input]");
   const photoRemove = document.querySelector("[data-employee-photo-remove]");
   const photoMessage = document.querySelector("[data-employee-photo-message]");
-  const storageKey = `museo-admin-employee-photo-${id}`;
 
-  if (avatar) avatar.textContent = profile.avatar;
-  if (name) name.textContent = profile.nombre;
+  if (avatar) avatar.textContent = profile.avatar || employeeInitials(profile);
+  if (name) name.textContent = employeeDisplayName(profile);
   if (position) position.textContent = profile.posicion;
 
   document.querySelectorAll("[data-profile-field]").forEach((field) => {
@@ -905,10 +1222,10 @@ function bindEmployeeProfile() {
     photo.hidden = true;
     avatar.hidden = false;
     if (photoRemove) photoRemove.hidden = true;
-    if (photoMessage) photoMessage.textContent = "La foto servira como identificación visual del récord del empleado.";
+    if (photoMessage) photoMessage.textContent = "La foto servirá como identificación visual del récord del empleado.";
   };
 
-  showPhoto(localStorage.getItem(storageKey));
+  showPhoto(profile.foto || localStorage.getItem(`museo-admin-employee-photo-${profile.id}`));
 
   if (photoInput) {
     photoInput.addEventListener("change", () => {
@@ -924,7 +1241,8 @@ function bindEmployeeProfile() {
       const reader = new FileReader();
       reader.addEventListener("load", () => {
         try {
-          localStorage.setItem(storageKey, reader.result);
+          const records = getEmployeeRecords().map((employee) => employee.id === profile.id ? { ...employee, foto: reader.result } : employee);
+          saveEmployeeRecords(records);
           showPhoto(reader.result);
         } catch (error) {
           showPhoto(reader.result);
@@ -937,7 +1255,8 @@ function bindEmployeeProfile() {
 
   if (photoRemove) {
     photoRemove.addEventListener("click", () => {
-      localStorage.removeItem(storageKey);
+      const records = getEmployeeRecords().map((employee) => employee.id === profile.id ? { ...employee, foto: "" } : employee);
+      saveEmployeeRecords(records);
       if (photoInput) photoInput.value = "";
       showPhoto("");
     });
@@ -949,6 +1268,8 @@ function initApp() {
   renderHeader();
   renderFooter();
   renderInlineIcons();
+  populateSystemDataSelects();
+  bindHumanResourcesModule();
   bindEmployeeProfile();
   bindSidebarToggle();
   bindLoginDemo();

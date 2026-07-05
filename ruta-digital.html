@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Ruta Digital de Mantenimiento</title>
-  <link rel="stylesheet" href="css/main.css?v=ushers-module-20260705">
+  <link rel="stylesheet" href="css/main.css?v=hr-accounts-20260705">
 </head>
 <body>
   <div class="app-shell">
@@ -19,49 +19,27 @@
             <div class="form-row">
               <div class="field">
                 <label for="empleado-ruta">Empleado de Mantenimiento</label>
-                <select id="empleado-ruta" name="empleado">
+                <select id="empleado-ruta" name="empleado" data-employee-select data-employee-filter="Mantenimiento">
                   <option value="">Seleccione un empleado...</option>
-                  <option>Juan Perez</option>
-                  <option>Dora Ortiz</option>
                 </select>
               </div>
               <div class="field">
-                <label for="área-ruta">Área del Museo</label>
-                <select id="área-ruta" name="área">
+                <label for="area-ruta">Área del Museo</label>
+                <select id="area-ruta" name="area" data-area-select>
                   <option value="">Seleccione un área...</option>
-                  <option>Estacionamiento</option>
-                  <option>Baños externos</option>
-                  <option>Salon Multiuso</option>
-                  <option>Plazoleta y Entrada de Museo</option>
-                  <option>Lobby</option>
-                  <option>Mezzanine Raices</option>
-                  <option>Cine Bienvenida</option>
-                  <option>Sala Clasica</option>
-                  <option>Pasillo Instrumentos</option>
-                  <option>Sala Bailable</option>
-                  <option>Baños del Museo</option>
-                  <option>Escalera a segundo piso</option>
-                  <option>Sala Romantica</option>
-                  <option>Pasillo Alternativo</option>
-                  <option>Sala Urbana</option>
-                  <option>Almacen</option>
-                  <option>Sala Experimental Guaynabo</option>
-                  <option>Área Itinerante con Foyer frente a los elevadores</option>
-                  <option>Ball Room</option>
-                  <option>Escaleras de salida</option>
                 </select>
               </div>
             </div>
-            <label class="check-row"><span>Verificacion de vitrinas</span><input type="checkbox" name="ruta" value="vitrinas"></label>
-            <label class="check-row"><span>Verificacion de equipos</span><input type="checkbox" name="ruta" value="equipos"></label>
+            <label class="check-row"><span>Verificación de vitrinas</span><input type="checkbox" name="ruta" value="vitrinas"></label>
+            <label class="check-row"><span>Verificación de equipos</span><input type="checkbox" name="ruta" value="equipos"></label>
             <label class="check-row"><span>Manchas o daños</span><input type="checkbox" name="ruta" value="daños"></label>
-            <label class="check-row"><span>Evaluacion del área de exhibicion</span><input type="checkbox" name="ruta" value="exhibicion"></label>
+            <label class="check-row"><span>Evaluación del área de exhibición</span><input type="checkbox" name="ruta" value="exhibicion"></label>
             <label class="check-row"><span>Limpieza de sala</span><input type="checkbox" name="ruta" value="limpieza"></label>
             <div class="field">
               <label for="observaciones-ruta">Observaciones</label>
               <textarea id="observaciones-ruta" name="observaciones" rows="4"></textarea>
             </div>
-            <button class="button submit-button pale-button" type="submit">Registrar Inspeccion</button>
+            <button class="button submit-button pale-button" type="submit">Registrar Inspección</button>
           </form>
         </section>
         <section class="card panel section-stack table-panel">
@@ -81,8 +59,8 @@
                 <tr>
                   <td>01/07/2026</td>
                   <td>8:35 AM</td>
-                  <td>Juan Perez</td>
-                  <td>Lobby Entrada</td>
+                  <td>Juan Pérez</td>
+                  <td>Lobby</td>
                   <td><span class="status-dot green"></span> Completado</td>
                 </tr>
               </tbody>
@@ -93,15 +71,6 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=ushers-module-20260705"></script>
+  <script src="js/app.js?v=hr-accounts-20260705"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-

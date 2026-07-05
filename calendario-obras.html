@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Calendario de Obras</title>
-  <link rel="stylesheet" href="css/main.css?v=ushers-module-20260705">
+  <link rel="stylesheet" href="css/main.css?v=hr-accounts-20260705">
 </head>
 <body>
   <div class="app-shell">
@@ -37,7 +37,9 @@
               </label>
               <label class="field">
                 <span>Empleado asignado</span>
-                <input type="text" name="empleado" required>
+                <select name="empleado" data-employee-select required>
+                  <option value="">Seleccione un empleado...</option>
+                </select>
               </label>
             </div>
             <div class="form-row">
@@ -70,6 +72,6 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=ushers-module-20260705"></script>
+  <script src="js/app.js?v=hr-accounts-20260705"></script>
 </body>
 </html>

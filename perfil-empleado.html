@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Perfil de Empleado</title>
-  <link rel="stylesheet" href="css/main.css?v=ushers-module-20260705">
+  <link rel="stylesheet" href="css/main.css?v=hr-accounts-20260705">
 </head>
 <body>
   <div class="app-shell">
@@ -26,58 +26,81 @@
               <p class="page-kicker">Perfil Administrativo</p>
               <h3 data-profile-name>Guillermo Torres</h3>
               <p data-profile-position>Administrador</p>
-              <p class="profile-photo-note" data-employee-photo-message>La foto servira como identificación visual del récord del empleado.</p>
+              <p class="profile-photo-note" data-employee-photo-message>La foto servirá como identificación visual del récord del empleado.</p>
             </div>
           </div>
 
           <div class="profile-grid section-stack">
             <label class="field">
               <span>Nombre</span>
-              <input type="text" value="Guillermo Torres" data-profile-field="nombre">
+              <input type="text" data-profile-field="nombre">
+            </label>
+
+            <label class="field">
+              <span>Apellidos</span>
+              <input type="text" data-profile-field="apellidos">
             </label>
 
             <label class="field">
               <span>Dirección</span>
-              <input type="text" value="Guaynabo, Puerto Rico" data-profile-field="direccion">
+              <input type="text" data-profile-field="direccion">
             </label>
 
             <label class="field">
               <span>Teléfono</span>
-              <input type="tel" value="787-000-0000" data-profile-field="telefono">
+              <input type="tel" data-profile-field="telefono">
             </label>
 
             <label class="field">
               <span>Correo electrónico</span>
-              <input type="email" value="guillermotorrespr@gmail.com" data-profile-field="correo">
+              <input type="email" data-profile-field="correo">
             </label>
 
             <label class="field">
               <span>Educación</span>
               <select data-profile-field="educacion">
                 <option>Estudiante</option>
-                <option selected>Graduado</option>
+                <option>Graduado</option>
                 <option>Post graduado</option>
               </select>
             </label>
 
             <label class="field">
-              <span>Condicion medica</span>
-              <input type="text" value="Ninguna registrada" data-profile-field="condicion">
+              <span>Condición médica</span>
+              <input type="text" data-profile-field="condicion">
             </label>
 
             <label class="field">
-              <span>Posición</span>
-              <input type="text" value="Administrador" data-profile-field="posicion">
+              <span>Puesto</span>
+              <input type="text" data-profile-field="posicion">
+            </label>
+
+            <label class="field">
+              <span>Departamento</span>
+              <input type="text" data-profile-field="departamento">
+            </label>
+
+            <label class="field">
+              <span>Fecha de contratación</span>
+              <input type="date" data-profile-field="fechaContratacion">
             </label>
 
             <label class="field">
               <span>Horario asignado de trabajo</span>
-              <input type="text" value="Lunes a viernes, 8:00 AM - 4:00 PM" data-profile-field="horario">
+              <input type="text" data-profile-field="horario">
             </label>
 
             <label class="field">
-              <span>Notificaciones</span>
-              <textarea data-profile-field="notificaciones">Recibe notificaciones administrativas, cambios de horario y alertas internas.</textarea>
+              <span>Nombre de usuario</span>
+              <input type="text" data-profile-field="usuario">
+            </label>
+
+            <label class="field">
+              <span>Estado</span>
+              <select data-profile-field="estado">
+                <option>Activo</option>
+                <option>Inactivo</option>
+              </select>
             </label>
 
             <label class="field">
@@ -85,8 +108,13 @@
               <select data-profile-field="acceso">
                 <option>Empleado</option>
                 <option>Ejecutivo</option>
-                <option selected>Administrador</option>
+                <option>Administrador</option>
               </select>
+            </label>
+
+            <label class="field">
+              <span>Notificaciones</span>
+              <textarea data-profile-field="notificaciones" rows="4"></textarea>
             </label>
           </div>
         </section>
@@ -94,14 +122,6 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=ushers-module-20260705"></script>
+  <script src="js/app.js?v=hr-accounts-20260705"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
