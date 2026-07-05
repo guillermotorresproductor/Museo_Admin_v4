@@ -1,10 +1,10 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Reglamento</title>
-  <link rel="stylesheet" href="css/main.css?v=admin-rh-20260704">
+  <link rel="stylesheet" href="css/main.css?v=reglamento-pdf-20260704">
 </head>
 <body>
   <div class="app-shell">
@@ -13,35 +13,33 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="page-hero">
-          <div>
-            <p class="page-kicker">Normas</p>
-            <h2>Reglamento</h2>
-            <p>Pagina base para texto completo, PDF descargable, buscador y boton de imprimir.</p>
+        <section class="card panel pdf-panel">
+          <div class="pdf-toolbar">
+            <div>
+              <p class="page-kicker">Reglamento Oficial</p>
+              <h3>Reglamento del Museo de la Musica de Puerto Rico</h3>
+              <p>Vista previa del documento oficial preparado para consulta y descarga.</p>
+            </div>
+            <a class="button download-button" href="pdf/reglamento-museo-musica.pdf" download>
+              Descargar PDF
+            </a>
           </div>
-          <button class="button secondary" type="button" onclick="window.print()">Imprimir</button>
-        </section>
-        <section class="placeholder-layout">
-          <article class="card panel">
-            <h3>Reglamento oficial</h3>
-            <p>Area base para texto completo, PDF descargable, buscador y boton de imprimir.</p>
-            <ul class="placeholder-list">
-              <li>Texto completo</li>
-              <li>Buscador interno</li>
-              <li>PDF descargable</li>
-            </ul>
-          </article>
-          <aside class="card panel">
-            <h3>Archivo PDF</h3>
-            <p>Carpeta preparada: pdf/</p>
-          </aside>
+
+          <div class="pdf-viewer" aria-label="Muestrario del PDF del reglamento">
+            <object data="pdf/reglamento-museo-musica.pdf" type="application/pdf">
+              <div class="pdf-fallback">
+                <span class="module-icon theme-gold" data-icon="download"></span>
+                <h3>Vista previa no disponible</h3>
+                <p>Su navegador no pudo mostrar el PDF directamente. Use el boton para descargar el documento.</p>
+                <a class="button" href="pdf/reglamento-museo-musica.pdf" download>Descargar PDF</a>
+              </div>
+            </object>
+          </div>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=admin-rh-20260704"></script>
+  <script src="js/app.js?v=reglamento-pdf-20260704"></script>
 </body>
 </html>
-
-
