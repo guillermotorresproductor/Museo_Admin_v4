@@ -1,0 +1,93 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Museo Admin v4.0 | Perfil de Empleado</title>
+  <link rel="stylesheet" href="css/main.css?v=admin-rh-20260704">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" data-sidebar></aside>
+    <div class="sidebar-backdrop" data-sidebar-backdrop></div>
+    <div class="main-area">
+      <header class="site-header" data-header></header>
+      <main class="page-content">
+        <section class="card panel employee-profile">
+          <div class="profile-heading">
+            <span class="employee-avatar large" data-profile-avatar>GT</span>
+            <div>
+              <p class="page-kicker">Perfil Administrativo</p>
+              <h3 data-profile-name>Guillermo Torres</h3>
+              <p data-profile-position>Administrador</p>
+            </div>
+          </div>
+
+          <div class="profile-grid section-stack">
+            <label class="field">
+              <span>Nombre</span>
+              <input type="text" value="Guillermo Torres" data-profile-field="nombre">
+            </label>
+
+            <label class="field">
+              <span>Direccion</span>
+              <input type="text" value="Guaynabo, Puerto Rico" data-profile-field="direccion">
+            </label>
+
+            <label class="field">
+              <span>Telefono</span>
+              <input type="tel" value="787-000-0000" data-profile-field="telefono">
+            </label>
+
+            <label class="field">
+              <span>Correo electronico</span>
+              <input type="email" value="guillermotorrespr@gmail.com" data-profile-field="correo">
+            </label>
+
+            <label class="field">
+              <span>Educacion</span>
+              <select data-profile-field="educacion">
+                <option>Estudiante</option>
+                <option selected>Graduado</option>
+                <option>Post graduado</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Condicion medica</span>
+              <input type="text" value="Ninguna registrada" data-profile-field="condicion">
+            </label>
+
+            <label class="field">
+              <span>Posicion</span>
+              <input type="text" value="Administrador" data-profile-field="posicion">
+            </label>
+
+            <label class="field">
+              <span>Horario asignado de trabajo</span>
+              <input type="text" value="Lunes a viernes, 8:00 AM - 4:00 PM" data-profile-field="horario">
+            </label>
+
+            <label class="field">
+              <span>Notificaciones</span>
+              <textarea data-profile-field="notificaciones">Recibe notificaciones administrativas, cambios de horario y alertas internas.</textarea>
+            </label>
+
+            <label class="field">
+              <span>Nivel de acceso</span>
+              <select data-profile-field="acceso">
+                <option>Empleado</option>
+                <option>Ejecutivo</option>
+                <option selected>Administrador</option>
+              </select>
+            </label>
+          </div>
+        </section>
+      </main>
+      <footer class="site-footer" data-footer></footer>
+    </div>
+  </div>
+  <script src="js/app.js?v=admin-rh-20260704"></script>
+</body>
+</html>
+

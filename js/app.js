@@ -8,7 +8,11 @@ const appPages = {
   "solicitud-materiales.html": { title: "Solicitud de Materiales", subtitle: "Registro de solicitudes de mantenimiento." },
   "ruta-digital.html": { title: "Ruta Digital de Mantenimiento", subtitle: "Control de recorrido por areas." },
   "renta-espacios.html": { title: "Renta de Espacios", subtitle: "Solicitud de areas y tarifas oficiales." },
-  "administracion.html": { title: "Administracion", subtitle: "Tareas, NAS, reportes, finanzas y recursos humanos." },
+  "administracion.html": { title: "Administracion", subtitle: "Recursos humanos, reportes y finanzas." },
+  "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
+  "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Informacion administrativa del empleado." },
+  "reportes.html": { title: "Reportes", subtitle: "Modulo pendiente para programacion." },
+  "finanzas.html": { title: "Finanzas", subtitle: "Acceso restringido pendiente para firewall." },
   "reglamento.html": { title: "Reglamento", subtitle: "Normas oficiales, impresion y descarga." },
   "documentos.html": { title: "Formularios y Papeleria", subtitle: "Folleto institucional, stationary y formularios oficiales." },
   "recibo-prestamo.html": { title: "Recibo de Prestamo", subtitle: "Formulario digital de articulos de coleccion mediante prestamo." }
@@ -41,16 +45,57 @@ const navigationGroups = [
     items: [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
       { href: "empleados.html", label: "Empleados", icon: "users" },
-      { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench" },
-      { href: "ruta-digital.html", label: "Ruta Digital", icon: "clipboard" },
+      { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"] },
       { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building" },
-      { href: "documentos.html", label: "Formularios y Papeleria", icon: "file" },
-      { href: "administracion.html", label: "Administracion", icon: "shield" },
+      { href: "documentos.html", label: "Formularios y Papeleria", icon: "file", activePages: ["recibo-prestamo.html"] },
+      { href: "administracion.html", label: "Administracion", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "reportes.html", "finanzas.html"] },
       { href: "reglamento.html", label: "Reglamento", icon: "book" },
       { href: "login.html", label: "Mi cuenta", icon: "logout" }
     ]
   }
 ];
+
+const employeeProfiles = {
+  "guillermo-torres": {
+    avatar: "GT",
+    nombre: "Guillermo Torres",
+    direccion: "Guaynabo, Puerto Rico",
+    telefono: "787-000-0000",
+    correo: "guillermotorrespr@gmail.com",
+    educacion: "Graduado",
+    condicion: "Ninguna registrada",
+    posicion: "Administrador",
+    horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
+    notificaciones: "Recibe notificaciones administrativas, cambios de horario y alertas internas.",
+    acceso: "Administrador"
+  },
+  "juan-perez": {
+    avatar: "JP",
+    nombre: "Juan Perez",
+    direccion: "Guaynabo, Puerto Rico",
+    telefono: "787-000-0000",
+    correo: "juan.perez@museodelamusica.pr",
+    educacion: "Graduado",
+    condicion: "Ninguna registrada",
+    posicion: "Mantenimiento",
+    horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
+    notificaciones: "Recibe avisos de ruta digital, materiales y calendario de obras.",
+    acceso: "Empleado"
+  },
+  "dora-ortiz": {
+    avatar: "DO",
+    nombre: "Dora Ortiz",
+    direccion: "Guaynabo, Puerto Rico",
+    telefono: "787-000-0000",
+    correo: "dora.ortiz@museodelamusica.pr",
+    educacion: "Estudiante",
+    condicion: "Ninguna registrada",
+    posicion: "Mantenimiento",
+    horario: "Martes a sabado, 8:00 AM - 4:00 PM",
+    notificaciones: "Recibe avisos de inspeccion, mantenimiento preventivo y tareas asignadas.",
+    acceso: "Empleado"
+  }
+};
 
 function iconSvg(name) {
   return `<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true">${iconPaths[name] || iconPaths.file}</svg>`;
@@ -71,7 +116,7 @@ function renderSidebar() {
   const currentPage = getCurrentPage();
   const groupsMarkup = navigationGroups.map((group) => {
     const links = group.items.map((item) => {
-      const isActive = item.href === currentPage || (currentPage === "index.html" && item.href === "dashboard.html");
+      const isActive = item.href === currentPage || (item.activePages || []).includes(currentPage) || (currentPage === "index.html" && item.href === "dashboard.html");
       return `
         <li>
           <a class="nav-link${isActive ? " is-active" : ""}" href="${item.href}" aria-current="${isActive ? "page" : "false"}">
@@ -321,11 +366,34 @@ function renderInlineIcons() {
   });
 }
 
+function bindEmployeeProfile() {
+  const profileCard = document.querySelector(".employee-profile");
+  if (!profileCard) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get("empleado") || "guillermo-torres";
+  const profile = employeeProfiles[id] || employeeProfiles["guillermo-torres"];
+
+  const avatar = document.querySelector("[data-profile-avatar]");
+  const name = document.querySelector("[data-profile-name]");
+  const position = document.querySelector("[data-profile-position]");
+
+  if (avatar) avatar.textContent = profile.avatar;
+  if (name) name.textContent = profile.nombre;
+  if (position) position.textContent = profile.posicion;
+
+  document.querySelectorAll("[data-profile-field]").forEach((field) => {
+    const value = profile[field.dataset.profileField] || "";
+    field.value = value;
+  });
+}
+
 function initApp() {
   renderSidebar();
   renderHeader();
   renderFooter();
   renderInlineIcons();
+  bindEmployeeProfile();
   bindSidebarToggle();
   bindLoginDemo();
   bindRentalForm();

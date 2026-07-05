@@ -1,10 +1,10 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Administracion</title>
-  <link rel="stylesheet" href="css/main.css?v=visual-unificado-20260704">
+  <link rel="stylesheet" href="css/main.css?v=admin-rh-20260704">
 </head>
 <body>
   <div class="app-shell">
@@ -13,72 +13,33 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="admin-tabs" aria-label="Areas de administracion">
-          <a class="admin-tab is-active" href="#recursos-humanos">Recursos Humanos</a>
-          <a class="admin-tab" href="#documentos-admin">Formularios y Papeleria</a>
-          <a class="admin-tab" href="#reportes-admin">Reportes</a>
-          <a class="admin-tab" href="#finanzas-admin">Finanzas</a>
-        </section>
-
-        <section id="recursos-humanos" class="card panel admin-tab-panel">
-          <p class="page-kicker">Recursos Humanos</p>
-          <h3>Panel de empleados</h3>
-          <p>Area administrativa para empleados, accesos, documentos, politicas y seguimiento interno del personal.</p>
-
-          <div class="grid module-grid compact-grid section-stack">
-            <a class="card module-card compact-card theme-green" href="empleados.html">
-              <span class="module-icon" data-icon="users"></span>
-              <h3>Solicitud de Empleo</h3>
-              <p>Formulario para candidatos.</p>
-              <span class="card-action">Ir al modulo -></span>
-            </a>
-
-            <article class="card module-card compact-card theme-blue">
-              <span class="module-icon" data-icon="file"></span>
-              <h3>Directorio</h3>
-              <p>Base para listado y perfiles del personal.</p>
-            </article>
-
-            <article class="card module-card compact-card theme-purple">
-              <span class="module-icon" data-icon="shield"></span>
-              <h3>Niveles de Acceso</h3>
-              <p>Control administrativo de permisos.</p>
-            </article>
-          </div>
-        </section>
-
-        <section class="grid module-grid section-stack">
-          <a id="documentos-admin" class="card module-card theme-red" href="documentos.html">
-            <span class="module-icon" data-icon="file"></span>
-            <h3>Formularios y Papeleria</h3>
-            <p>Folleto institucional, stationary y formularios oficiales.</p>
+        <section class="grid module-grid" aria-label="Modulos de administracion">
+          <a class="card module-card theme-green" href="recursos-humanos.html">
+            <span class="module-icon" data-icon="users"></span>
+            <h3>Recursos Humanos</h3>
+            <p>Directorio de empleados y perfiles administrativos del personal.</p>
             <span class="card-action">Ir al modulo -></span>
           </a>
 
-          <a class="card module-card theme-gold" href="reglamento.html">
-            <span class="module-icon" data-icon="book"></span>
-            <h3>Reglamento</h3>
-            <p>Normas oficiales.</p>
-            <span class="card-action">Ir al modulo -></span>
-          </a>
-
-          <a id="reportes-admin" class="card module-card theme-blue" href="dashboard.html">
+          <a class="card module-card theme-blue" href="reportes.html">
             <span class="module-icon" data-icon="chart"></span>
             <h3>Reportes</h3>
-            <p>Resumen base.</p>
-            <span class="card-action">Ir al modulo -></span>
+            <p>Modulo pendiente para programar proximamente.</p>
+            <span class="card-action">Proximamente -></span>
           </a>
 
-          <article id="finanzas-admin" class="card module-card theme-teal">
+          <a class="card module-card theme-teal" href="finanzas.html">
             <span class="module-icon" data-icon="dollar"></span>
             <h3>Finanzas</h3>
-            <p>Area restringida para fases futuras.</p>
-          </article>
+            <p>Area restringida. El firewall de usuario y password se programara luego.</p>
+            <span class="card-action">Proximamente -></span>
+          </a>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=visual-unificado-20260704"></script>
+  <script src="js/app.js?v=admin-rh-20260704"></script>
 </body>
 </html>
+
