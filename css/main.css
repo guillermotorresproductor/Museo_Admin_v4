@@ -1651,6 +1651,11 @@ body {
   gap: 10px;
 }
 
+.finance-actions-bottom {
+  justify-content: flex-start;
+  padding-top: 4px;
+}
+
 .finance-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Finanzas</title>
-  <link rel="stylesheet" href="css/main.css?v=rental-workflow-20260705">
+  <link rel="stylesheet" href="css/main.css?v=finance-corrections-20260705">
 </head>
 <body>
   <div class="app-shell">
@@ -43,11 +43,6 @@
               <h2>Proyección Financiera del Museo</h2>
               <p>Sistema administrativo para ingresos, gastos, nómina, reportes y bitácora.</p>
             </div>
-            <div class="finance-actions">
-              <button class="button secondary" type="button" data-finance-export-excel>Exportar a Excel</button>
-              <button class="button secondary" type="button" data-finance-export-pdf>Exportar a PDF</button>
-              <button class="button secondary" type="button" data-finance-print>Imprimir</button>
-            </div>
           </div>
 
           <section class="finance-summary-grid" data-finance-summary></section>
@@ -63,11 +58,17 @@
           </nav>
 
           <section class="card panel finance-panel" data-finance-panel></section>
+
+          <div class="finance-actions finance-actions-bottom">
+            <button class="button secondary" type="button" data-finance-export-excel>Exportar a Excel</button>
+            <button class="button secondary" type="button" data-finance-export-pdf>Exportar a PDF</button>
+            <button class="button secondary" type="button" data-finance-print>Imprimir</button>
+          </div>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=rental-workflow-20260705"></script>
+  <script src="js/app.js?v=finance-corrections-20260705"></script>
 </body>
 </html>

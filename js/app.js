@@ -270,10 +270,27 @@ const defaultFinanceRows = [
   { id: "ing-donaciones", type: "income", category: "Ingresos", concept: "Donaciones", values: Array(12).fill(0) },
   { id: "ing-otros", type: "income", category: "Ingresos", concept: "Otros Ingresos", values: Array(12).fill(0) },
   { id: "exp-director", type: "expense", category: "Nómina", concept: "Director", values: Array(12).fill(4000) },
-  { id: "exp-admin", type: "expense", category: "Nómina", concept: "Administración", values: Array(12).fill(3000) },
-  { id: "exp-produccion", type: "expense", category: "Nómina", concept: "Producción", values: Array(12).fill(2166.67) },
-  { id: "exp-mantenimiento", type: "expense", category: "Nómina", concept: "Mantenimiento", values: [0,1200,1200,1200,1200,1200,1200,1200,1200,1200,1200,1200] },
-  { id: "exp-ujieres", type: "expense", category: "Nómina", concept: "Ujieres", values: [0,10240,10240,10240,10240,10240,10240,10240,10240,10240,10240,10240] },
+  { id: "exp-admin", type: "expense", category: "Nómina", concept: "Artegrafiko", values: Array(12).fill(3000) },
+  { id: "exp-asistente-ejecutivo-1", type: "expense", category: "Nómina", concept: "Asistente Ejecutivo 1", values: Array(12).fill(0) },
+  { id: "exp-asistente-ejecutivo-2", type: "expense", category: "Nómina", concept: "Asistente Ejecutivo 2", values: Array(12).fill(0) },
+  { id: "exp-asistente-ejecutivo-3", type: "expense", category: "Nómina", concept: "Asistente Ejecutivo 3", values: Array(12).fill(0) },
+  { id: "exp-produccion", type: "expense", category: "Nómina", concept: "Asistente de producción 1", values: Array(12).fill(2166.67) },
+  { id: "exp-produccion-2", type: "expense", category: "Nómina", concept: "Asistente de producción 2", values: Array(12).fill(0) },
+  { id: "exp-produccion-3", type: "expense", category: "Nómina", concept: "Asistente de producción 3", values: Array(12).fill(0) },
+  { id: "exp-mantenimiento", type: "expense", category: "Nómina", concept: "Personal de Mantenimiento 1", values: [0,1200,1200,1200,1200,1200,1200,1200,1200,1200,1200,1200] },
+  { id: "exp-mantenimiento-2", type: "expense", category: "Nómina", concept: "Personal de Mantenimiento 2", values: Array(12).fill(0) },
+  { id: "exp-mantenimiento-3", type: "expense", category: "Nómina", concept: "Personal de Mantenimiento 3", values: Array(12).fill(0) },
+  { id: "exp-ujieres", type: "expense", category: "Nómina", concept: "Ujier Ejecutivo", values: [0,10240,10240,10240,10240,10240,10240,10240,10240,10240,10240,10240] },
+  { id: "exp-ujier-regular-1", type: "expense", category: "Nómina", concept: "Ujier Regular 1", values: Array(12).fill(0) },
+  { id: "exp-ujier-regular-2", type: "expense", category: "Nómina", concept: "Ujier Regular 2", values: Array(12).fill(0) },
+  { id: "exp-ujier-regular-3", type: "expense", category: "Nómina", concept: "Ujier Regular 3", values: Array(12).fill(0) },
+  { id: "exp-ujier-regular-4", type: "expense", category: "Nómina", concept: "Ujier Regular 4", values: Array(12).fill(0) },
+  { id: "exp-ujier-regular-5", type: "expense", category: "Nómina", concept: "Ujier Regular 5", values: Array(12).fill(0) },
+  { id: "exp-ujier-regular-6", type: "expense", category: "Nómina", concept: "Ujier Regular 6", values: Array(12).fill(0) },
+  { id: "exp-ujier-regular-7", type: "expense", category: "Nómina", concept: "Ujier Regular 7", values: Array(12).fill(0) },
+  { id: "exp-ujier-regular-8", type: "expense", category: "Nómina", concept: "Ujier Regular 8", values: Array(12).fill(0) },
+  { id: "exp-ujier-regular-9", type: "expense", category: "Nómina", concept: "Ujier Regular 9", values: Array(12).fill(0) },
+  { id: "exp-ujier-regular-10", type: "expense", category: "Nómina", concept: "Ujier Regular 10", values: Array(12).fill(0) },
   { id: "exp-guias", type: "expense", category: "Nómina", concept: "Guías", values: [0,500,500,500,500,500,500,500,500,500,500,500] },
   { id: "exp-seguridad", type: "expense", category: "Nómina", concept: "Seguridad", values: [0,0,3520,3520,3520,3520,3520,3520,3520,3520,3520,3520] },
   { id: "exp-beneficios", type: "expense", category: "Beneficios", concept: "Seguro Social", values: Array(12).fill(1050) },
@@ -284,15 +301,16 @@ const defaultFinanceRows = [
   { id: "exp-agua", type: "expense", category: "Gastos Operacionales", concept: "Agua", values: Array(12).fill(500) },
   { id: "exp-internet", type: "expense", category: "Gastos Operacionales", concept: "Internet / Telefonía", values: Array(12).fill(250) },
   { id: "exp-uniformes", type: "expense", category: "Gastos Operacionales", concept: "Uniformes", values: [0,2100,0,0,0,0,0,2100,0,0,0,0] },
-  { id: "exp-materiales", type: "expense", category: "Gastos Operacionales", concept: "Materiales", values: [0,1000,200,200,200,200,200,200,200,200,200,200] },
-  { id: "exp-limpieza", type: "expense", category: "Gastos Operacionales", concept: "Limpieza", values: [0,1650,1650,1650,1650,1650,1650,1650,1650,1650,1650,1650] },
-  { id: "exp-oficina", type: "expense", category: "Gastos Operacionales", concept: "Oficina", values: [0,1000,200,200,200,200,200,200,200,200,200,200] },
+  { id: "exp-gastos-produccion", type: "expense", category: "Gastos Operacionales", concept: "Gastos de Producción", values: Array(12).fill(0) },
+  { id: "exp-materiales", type: "expense", category: "Gastos Operacionales", concept: "Materiales de producción", values: [0,1000,200,200,200,200,200,200,200,200,200,200] },
+  { id: "exp-limpieza", type: "expense", category: "Gastos Operacionales", concept: "Materiales de limpieza", values: [0,1650,1650,1650,1650,1650,1650,1650,1650,1650,1650,1650] },
+  { id: "exp-oficina", type: "expense", category: "Gastos Operacionales", concept: "Materiales de oficina", values: [0,1000,200,200,200,200,200,200,200,200,200,200] },
   { id: "exp-publicidad", type: "expense", category: "Gastos Operacionales", concept: "Publicidad", values: Array(12).fill(5000) },
   { id: "exp-reparaciones", type: "expense", category: "Gastos Operacionales", concept: "Reparaciones", values: [0,0,0,0,0,2000,0,0,0,0,0,2000] },
   { id: "exp-seguros", type: "expense", category: "Gastos Operacionales", concept: "Seguros", values: Array(12).fill(1400) },
   { id: "exp-miscelaneos", type: "expense", category: "Otros Gastos", concept: "Misceláneos", values: [0,955.53,966.33,966.33,966.33,1006.33,966.33,1058.33,966.33,966.33,966.33,1006.33] },
   { id: "exp-contingencia", type: "expense", category: "Otros Gastos", concept: "Contingencia", values: [0,4777.67,4831.67,4831.67,4831.67,5031.67,4831.67,5291.67,4831.67,4831.67,4831.67,5031.67] },
-  { id: "exp-reserva", type: "expense", category: "Otros Gastos", concept: "Fondo de Reserva", values: Array(12).fill(0) },
+  { id: "exp-reserva", type: "expense", category: "Otros Gastos", concept: "Gastos de representación", values: Array(12).fill(0) },
   { id: "exp-ahorros", type: "expense", category: "Otros Gastos", concept: "Ahorros", values: [0,955.53,966.33,966.33,966.33,1006.33,966.33,1058.33,966.33,966.33,966.33,1006.33] }
 ];
 
@@ -1585,7 +1603,7 @@ function bindFinanceModule() {
     "Contable del Museo": "museo2026"
   };
   let activeTab = "resumen";
-  let currentUser = sessionStorage.getItem("museo-admin-finance-user") || "";
+  let currentUser = "";
   let rows = JSON.parse(localStorage.getItem(financeStorageKey) || "null") || defaultFinanceRows;
 
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
@@ -1596,6 +1614,25 @@ function bindFinanceModule() {
   const saveRows = () => localStorage.setItem(financeStorageKey, JSON.stringify(rows));
   const audit = () => JSON.parse(localStorage.getItem(financeAuditStorageKey) || "[]");
   const saveAudit = (entries) => localStorage.setItem(financeAuditStorageKey, JSON.stringify(entries.slice(-250)));
+  const normalizeRows = (storedRows) => {
+    const storedById = new Map(storedRows.map((row) => [row.id, row]));
+    const normalized = defaultFinanceRows.map((defaultRow) => {
+      const row = storedById.get(defaultRow.id);
+      return {
+        ...defaultRow,
+        values: row && Array.isArray(row.values) && row.values.length === 12 ? row.values : defaultRow.values
+      };
+    });
+    const defaultIds = new Set(defaultFinanceRows.map((row) => row.id));
+    storedRows.forEach((row) => {
+      if (!defaultIds.has(row.id)) normalized.push(row);
+    });
+    return normalized;
+  };
+
+  rows = normalizeRows(rows);
+  saveRows();
+
   const addAudit = (row, monthIndex, previousValue, nextValue) => {
     const entries = audit();
     entries.push({
@@ -1733,7 +1770,9 @@ function bindFinanceModule() {
 
   const openModule = () => {
     gate.hidden = true;
+    gate.style.display = "none";
     module.hidden = false;
+    module.style.display = "";
     renderPanel();
   };
 
@@ -1760,7 +1799,6 @@ function bindFinanceModule() {
       return;
     }
     currentUser = user;
-    sessionStorage.setItem("museo-admin-finance-user", user);
     openModule();
   });
 
@@ -1788,8 +1826,6 @@ function bindFinanceModule() {
   document.querySelector("[data-finance-export-excel]")?.addEventListener("click", exportCsv);
   document.querySelector("[data-finance-export-pdf]")?.addEventListener("click", () => window.print());
   document.querySelector("[data-finance-print]")?.addEventListener("click", () => window.print());
-
-  if (currentUser) openModule();
 }
 
 function bindEmployeeProfile() {
