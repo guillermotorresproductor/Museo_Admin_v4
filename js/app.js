@@ -3,6 +3,7 @@
   "dashboard.html": { title: "Dashboard", subtitle: "Bienvenido, Guillermo Torres" },
   "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Música." },
   "empleados.html": { title: "Solicitud de Empleo", subtitle: "Formulario para candidatos." },
+  "ujieres.html": { title: "Ujieres", subtitle: "Calendario mensual de ujieres, horarios y áreas asignadas." },
   "mantenimiento.html": { title: "Mantenimiento", subtitle: "Operación preventiva y correctiva." },
   "calendario.html": { title: "Calendario de Eventos del Museo", subtitle: "Actividades, eventos y compromisos oficiales del Museo." },
   "calendario-obras.html": { title: "Calendario de Obras", subtitle: "Asignación mensual de empleados, tareas y áreas de trabajo." },
@@ -16,7 +17,7 @@
   "reportes.html": { title: "Reportes", subtitle: "Módulo pendiente para programación." },
   "finanzas.html": { title: "Finanzas", subtitle: "Acceso restringido pendiente para firewall." },
   "reglamento.html": { title: "Reglamento del Museo", subtitle: "Normas oficiales, impresión y descarga." },
-  "documentos.html": { title: "Formularios y Papelería", subtitle: "Stationary, reglamento y formularios oficiales." },
+  "documentos.html": { title: "Formularios y Papelería", subtitle: "Stationary, reglamento, solicitud de empleo y formularios oficiales." },
   "recibo-prestamo.html": { title: "Recibo de Préstamo", subtitle: "Formulario digital de artículos de colección mediante préstamo." },
   "boletin.html": { title: "Boletín Board", subtitle: "Publicaciones, anuncios y comunicaciones internas." },
   "inventario.html": { title: "Inventario de Equipos y Obras de Arte", subtitle: "Registro, consulta y localización de artículos del museo." }
@@ -50,15 +51,38 @@ const navigationGroups = [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
       { href: "calendario.html", label: "Calendario de Eventos del Museo", icon: "calendar" },
       { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building" },
-      { href: "empleados.html", label: "Solicitud de Empleo", icon: "users" },
+      { href: "ujieres.html", label: "Ujieres", icon: "users" },
       { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"] },
-      { href: "documentos.html", label: "Formularios y Papelería", icon: "file", activePages: ["recibo-prestamo.html", "reglamento.html"] },
+      { href: "documentos.html", label: "Formularios y Papelería", icon: "file", activePages: ["empleados.html", "recibo-prestamo.html", "reglamento.html"] },
       { href: "administracion.html", label: "Administración", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html"] },
       { href: "boletin.html", label: "Boletín Board", icon: "megaphone" },
       { href: "inventario.html", label: "Inventario de Equipos y Obras de Arte", icon: "briefcase" },
       { href: "login.html", label: "Mi cuenta", icon: "logout" }
     ]
   }
+];
+
+const officialMuseumAreas = [
+  "Estacionamiento",
+  "Baños externos",
+  "Salón Multiuso",
+  "Plazoleta y Entrada de Museo",
+  "Lobby",
+  "Mezzanine Raíces",
+  "Cine Bienvenida",
+  "Sala Clásica",
+  "Pasillo Instrumentos",
+  "Sala Bailable",
+  "Baños del Museo",
+  "Escalera a segundo piso",
+  "Sala Romántica",
+  "Pasillo Alternativo",
+  "Sala Urbana",
+  "Almacén",
+  "Sala Experimental Guaynabo",
+  "Área Itinerante con Foyer frente a los elevadores",
+  "Ball Room",
+  "Escaleras de salida"
 ];
 
 const employeeProfiles = {
@@ -99,6 +123,32 @@ const employeeProfiles = {
     posicion: "Mantenimiento",
     horario: "Martes a sábado, 8:00 AM - 4:00 PM",
     notificaciones: "Recibe avisos de inspección, mantenimiento preventivo y tareas asignadas.",
+    acceso: "Empleado"
+  },
+  "ana-rivera": {
+    avatar: "AR",
+    nombre: "Ana Rivera",
+    direccion: "Guaynabo, Puerto Rico",
+    telefono: "787-000-0000",
+    correo: "ana.rivera@museodelamusica.pr",
+    educacion: "Graduado",
+    condicion: "Ninguna registrada",
+    posicion: "Ujier",
+    horario: "Según calendario de eventos",
+    notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
+    acceso: "Empleado"
+  },
+  "carlos-mendez": {
+    avatar: "CM",
+    nombre: "Carlos Méndez",
+    direccion: "Guaynabo, Puerto Rico",
+    telefono: "787-000-0000",
+    correo: "carlos.mendez@museodelamusica.pr",
+    educacion: "Estudiante",
+    condicion: "Ninguna registrada",
+    posicion: "Ujier",
+    horario: "Según calendario de eventos",
+    notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
     acceso: "Empleado"
   }
 };
@@ -573,13 +623,20 @@ function bindCalendarModules() {
 
   const moduleType = panel.dataset.calendarModule;
   const isMaintenance = moduleType === "maintenance";
-  const storageKey = isMaintenance ? "museo-admin-work-calendar" : "museo-admin-general-calendar";
+  const isUshers = moduleType === "ushers";
+  const storageKey = isMaintenance
+    ? "museo-admin-work-calendar"
+    : isUshers
+      ? "museo-admin-ushers-calendar"
+      : "museo-admin-general-calendar";
   const form = panel.querySelector("[data-calendar-form]");
   const grid = panel.querySelector("[data-calendar-grid]");
   const title = panel.querySelector("[data-calendar-title]");
   const message = panel.querySelector("[data-calendar-message]");
   const submitButton = panel.querySelector("[data-calendar-submit]");
   const cancelButton = panel.querySelector("[data-calendar-cancel]");
+  const usherSelect = panel.querySelector("[data-usher-select]");
+  const areaSelect = panel.querySelector("[data-area-select]");
   const monthNames = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
   let activeDate = new Date();
   let records = JSON.parse(localStorage.getItem(storageKey) || "[]");
@@ -604,6 +661,34 @@ function bindCalendarModules() {
     message.className = `form-message ${type}`.trim();
   };
   const monthValue = () => `${activeDate.getFullYear()}-${String(activeDate.getMonth() + 1).padStart(2, "0")}`;
+  const moduleTitle = () => {
+    if (isMaintenance) return "Calendario de Obras";
+    if (isUshers) return "Calendario de Ujieres";
+    return "Calendario de Eventos del Museo";
+  };
+
+  const populateUshers = () => {
+    if (!usherSelect) return;
+    const ushers = Object.values(employeeProfiles).filter((employee) => employee.posicion === "Ujier");
+    const options = ushers.map((employee) => `<option value="${escapeHtml(employee.nombre)}">${escapeHtml(employee.nombre)}</option>`).join("");
+    usherSelect.innerHTML = `<option value="">Seleccione un ujier...</option>${options}`;
+  };
+
+  const populateAreas = () => {
+    if (!areaSelect) return;
+    const options = officialMuseumAreas.map((area) => `<option value="${escapeHtml(area)}">${escapeHtml(area)}</option>`).join("");
+    areaSelect.innerHTML = `<option value="">Seleccione un área...</option>${options}`;
+  };
+
+  const describeRecord = (record) => {
+    if (isMaintenance) {
+      return `Empleado: ${record.empleado}\nTarea: ${record.tarea}\nÁrea: ${record.area || "Sin área"}\nEstado: ${record.estado || "Pendiente"}\nFecha: ${record.fecha}`;
+    }
+    if (isUshers) {
+      return `Ujier: ${record.ujier}\nHorario: ${record.horario}\nÁrea: ${record.area}\nFecha: ${record.fecha}`;
+    }
+    return `Evento: ${record.titulo}\nDescripción: ${record.descripcion || "Sin descripción"}\nFecha: ${record.fecha}`;
+  };
 
   const setEditableState = () => {
     const allowed = canEdit();
@@ -622,7 +707,7 @@ function bindCalendarModules() {
     const days = new Date(year, month + 1, 0).getDate();
     const firstDay = new Date(year, month, 1).getDay();
     const currentMonth = monthValue();
-    if (title) title.textContent = `${isMaintenance ? "Calendario de Obras" : "Calendario de Eventos del Museo"} - ${monthNames[month]} ${year}`;
+    if (title) title.textContent = `${moduleTitle()} - ${monthNames[month]} ${year}`;
 
     const emptyCells = Array.from({ length: firstDay }, () => `<div class="calendar-day is-empty"></div>`).join("");
     const dayCells = Array.from({ length: days }, (_, index) => {
@@ -632,15 +717,17 @@ function bindCalendarModules() {
       const items = dayRecords.map((record) => {
         const body = isMaintenance
           ? `<strong>${escapeHtml(record.empleado)}</strong><span>${escapeHtml(record.tarea)}</span><small>${escapeHtml(record.area || "Sin área")} · ${escapeHtml(record.estado || "Pendiente")}</small>`
-          : `<strong>${escapeHtml(record.titulo)}</strong><span>${escapeHtml(record.descripcion || "Sin descripción")}</span>`;
+          : isUshers
+            ? `<strong>${escapeHtml(record.ujier)}</strong><span>${escapeHtml(record.horario)}</span><small>${escapeHtml(record.area)}</small>`
+            : `<strong>${escapeHtml(record.titulo)}</strong><span>${escapeHtml(record.descripcion || "Sin descripción")}</span>`;
         const actions = canEdit()
           ? `<div class="calendar-item-actions"><button type="button" data-calendar-edit="${record.id}">Editar</button><button type="button" data-calendar-delete="${record.id}">Eliminar</button></div>`
           : "";
-        return `<article class="calendar-item">${body}${actions}</article>`;
+        return `<article class="calendar-item" data-calendar-view="${record.id}">${body}${actions}</article>`;
       }).join("");
 
       return `
-        <div class="calendar-day">
+        <div class="calendar-day" data-calendar-date="${date}">
           <div class="calendar-day-number">${day}</div>
           ${items}
         </div>
@@ -658,7 +745,7 @@ function bindCalendarModules() {
   const resetForm = () => {
     form.reset();
     form.elements.id.value = "";
-    if (submitButton) submitButton.textContent = isMaintenance ? "Guardar Tarea" : "Guardar Evento";
+    if (submitButton) submitButton.textContent = isMaintenance ? "Guardar Tarea" : isUshers ? "Guardar Asignación" : "Guardar Evento";
     if (cancelButton) cancelButton.hidden = true;
   };
 
@@ -680,16 +767,26 @@ function bindCalendarModules() {
           area: data.get("area").trim(),
           estado: data.get("estado")
         }
-      : {
-          id: id || createId(),
-          fecha: data.get("fecha"),
-          titulo: data.get("titulo").trim(),
-          descripcion: data.get("descripcion").trim()
-        };
+      : isUshers
+        ? {
+            id: id || createId(),
+            fecha: data.get("fecha"),
+            ujier: data.get("ujier"),
+            horario: data.get("horario").trim(),
+            area: data.get("area")
+          }
+        : {
+            id: id || createId(),
+            fecha: data.get("fecha"),
+            titulo: data.get("titulo").trim(),
+            descripcion: data.get("descripcion").trim()
+          };
 
     const isInvalid = isMaintenance
       ? !record.fecha || !record.empleado || !record.tarea
-      : !record.fecha || !record.titulo;
+      : isUshers
+        ? !record.fecha || !record.ujier || !record.horario || !record.area
+        : !record.fecha || !record.titulo;
     if (isInvalid) {
       setMessage("Complete los campos requeridos antes de guardar.", "error");
       return;
@@ -706,6 +803,18 @@ function bindCalendarModules() {
   panel.addEventListener("click", (event) => {
     const editButton = event.target.closest("[data-calendar-edit]");
     const deleteButton = event.target.closest("[data-calendar-delete]");
+    const viewItem = event.target.closest("[data-calendar-view]");
+    const dayCell = event.target.closest("[data-calendar-date]");
+
+    if (viewItem && !editButton && !deleteButton) {
+      const record = records.find((item) => item.id === viewItem.dataset.calendarView);
+      if (record) alert(describeRecord(record));
+      return;
+    }
+
+    if (dayCell && canEdit()) {
+      form.elements.fecha.value = dayCell.dataset.calendarDate;
+    }
 
     if (editButton) {
       if (!canEdit()) return;
@@ -715,7 +824,7 @@ function bindCalendarModules() {
         const field = form.elements[key];
         if (field) field.value = value;
       });
-      if (submitButton) submitButton.textContent = isMaintenance ? "Actualizar Tarea" : "Actualizar Evento";
+      if (submitButton) submitButton.textContent = isMaintenance ? "Actualizar Tarea" : isUshers ? "Actualizar Asignación" : "Actualizar Evento";
       if (cancelButton) cancelButton.hidden = false;
       form.scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -744,6 +853,8 @@ function bindCalendarModules() {
     resetForm();
     setMessage("");
   });
+  populateUshers();
+  populateAreas();
   setEditableState();
 }
 

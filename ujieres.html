@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Calendario de Obras</title>
+  <title>Museo Admin v4.0 | Ujieres</title>
   <link rel="stylesheet" href="css/main.css?v=ushers-module-20260705">
 </head>
 <body>
@@ -13,12 +13,12 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="card panel calendar-panel" data-calendar-module="maintenance">
+        <section class="card panel calendar-panel" data-calendar-module="ushers">
           <div class="calendar-toolbar">
             <div>
-              <p class="page-kicker">Calendario de Obras / Mantenimiento</p>
-              <h3 data-calendar-title>Calendario de Obras</h3>
-              <p>Calendario mensual exclusivo para tareas, empleados asignados, áreas y estado de trabajos.</p>
+              <p class="page-kicker">Calendario de Ujieres</p>
+              <h3 data-calendar-title>Calendario de Ujieres</h3>
+              <p>Asignaciones mensuales de ujieres, horarios y áreas oficiales del Museo.</p>
             </div>
             <div class="calendar-actions">
               <button class="button secondary" type="button" data-calendar-prev>Mes anterior</button>
@@ -36,31 +36,26 @@
                 <input type="date" name="fecha" required>
               </label>
               <label class="field">
-                <span>Empleado asignado</span>
-                <input type="text" name="empleado" required>
+                <span>Nombre del ujier</span>
+                <select name="ujier" data-usher-select required>
+                  <option value="">Seleccione un ujier...</option>
+                </select>
               </label>
             </div>
             <div class="form-row">
               <label class="field">
-                <span>Tarea del día</span>
-                <input type="text" name="tarea" required>
+                <span>Horario</span>
+                <input type="text" name="horario" placeholder="8:00 AM - 12:00 PM" required>
               </label>
               <label class="field">
-                <span>Área o lugar de trabajo</span>
-                <input type="text" name="area">
+                <span>Área del Museo</span>
+                <select name="area" data-area-select required>
+                  <option value="">Seleccione un área...</option>
+                </select>
               </label>
             </div>
-            <label class="field">
-              <span>Estado de la tarea</span>
-              <select name="estado">
-                <option>Pendiente</option>
-                <option>En progreso</option>
-                <option>Completado</option>
-                <option>Requiere seguimiento</option>
-              </select>
-            </label>
             <div class="inventory-actions">
-              <button class="button submit-button" type="submit" data-calendar-submit>Guardar Tarea</button>
+              <button class="button submit-button" type="submit" data-calendar-submit>Guardar Asignación</button>
               <button class="button secondary" type="button" data-calendar-cancel hidden>Cancelar edición</button>
             </div>
             <p class="form-message" data-calendar-message></p>
