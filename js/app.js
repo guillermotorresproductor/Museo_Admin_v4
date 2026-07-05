@@ -1665,9 +1665,9 @@ function bindFinanceModule() {
   const renderSummary = () => {
     const data = totals();
     const cards = [
-      ["Ingresos Totales", data.income, "theme-green"],
-      ["Gastos Totales", data.expense, "theme-red"],
-      ["Ingresos Netos", data.net, data.net >= 0 ? "theme-teal" : "theme-red"],
+      ["Ingreso Bruto", data.income, "theme-green"],
+      ["Gastos", data.expense, "theme-red"],
+      ["Ingreso Neto ArteGrafiko", data.net, data.net >= 0 ? "theme-teal" : "theme-red"],
       ["Presupuesto Disponible", data.budget, "theme-purple"],
       ["Gasto Mensual Promedio", data.monthlyExpense, "theme-gold"],
       ["Balance del Año", data.balance, data.balance >= 0 ? "theme-blue" : "theme-red"]
@@ -1684,7 +1684,7 @@ function bindFinanceModule() {
     <div class="table-wrap">
       <table class="data-table finance-table">
         <thead>
-          <tr><th>Mes</th><th>Ingresos</th><th>Gastos</th><th>Ingresos Netos</th></tr>
+          <tr><th>Mes</th><th>Ingreso Bruto</th><th>Gastos</th><th>Ingreso Neto ArteGrafiko</th></tr>
         </thead>
         <tbody>
           ${financeMonths.map((month, index) => {
