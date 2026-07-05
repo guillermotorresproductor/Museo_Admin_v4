@@ -377,6 +377,11 @@ function bindEmployeeProfile() {
   const avatar = document.querySelector("[data-profile-avatar]");
   const name = document.querySelector("[data-profile-name]");
   const position = document.querySelector("[data-profile-position]");
+  const photo = document.querySelector("[data-employee-photo]");
+  const photoInput = document.querySelector("[data-employee-photo-input]");
+  const photoRemove = document.querySelector("[data-employee-photo-remove]");
+  const photoMessage = document.querySelector("[data-employee-photo-message]");
+  const storageKey = `museo-admin-employee-photo-${id}`;
 
   if (avatar) avatar.textContent = profile.avatar;
   if (name) name.textContent = profile.nombre;
@@ -386,6 +391,59 @@ function bindEmployeeProfile() {
     const value = profile[field.dataset.profileField] || "";
     field.value = value;
   });
+
+  const showPhoto = (photoData) => {
+    if (!photo || !avatar) return;
+    if (photoData) {
+      photo.src = photoData;
+      photo.hidden = false;
+      avatar.hidden = true;
+      if (photoRemove) photoRemove.hidden = false;
+      if (photoMessage) photoMessage.textContent = "Foto guardada localmente para este perfil.";
+      return;
+    }
+
+    photo.removeAttribute("src");
+    photo.hidden = true;
+    avatar.hidden = false;
+    if (photoRemove) photoRemove.hidden = true;
+    if (photoMessage) photoMessage.textContent = "La foto servira como identificacion visual del record del empleado.";
+  };
+
+  showPhoto(localStorage.getItem(storageKey));
+
+  if (photoInput) {
+    photoInput.addEventListener("change", () => {
+      const file = photoInput.files && photoInput.files[0];
+      if (!file) return;
+
+      if (!file.type.startsWith("image/")) {
+        if (photoMessage) photoMessage.textContent = "Seleccione un archivo de imagen valido.";
+        photoInput.value = "";
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        try {
+          localStorage.setItem(storageKey, reader.result);
+          showPhoto(reader.result);
+        } catch (error) {
+          showPhoto(reader.result);
+          if (photoMessage) photoMessage.textContent = "La foto se puede ver, pero el navegador no permitio guardarla localmente.";
+        }
+      });
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (photoRemove) {
+    photoRemove.addEventListener("click", () => {
+      localStorage.removeItem(storageKey);
+      if (photoInput) photoInput.value = "";
+      showPhoto("");
+    });
+  }
 }
 
 function initApp() {

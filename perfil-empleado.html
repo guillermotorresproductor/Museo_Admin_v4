@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Perfil de Empleado</title>
-  <link rel="stylesheet" href="css/main.css?v=admin-rh-20260704">
+  <link rel="stylesheet" href="css/main.css?v=employee-photo-20260705">
 </head>
 <body>
   <div class="app-shell">
@@ -15,11 +15,18 @@
       <main class="page-content">
         <section class="card panel employee-profile">
           <div class="profile-heading">
-            <span class="employee-avatar large" data-profile-avatar>GT</span>
+            <div class="employee-photo-card">
+              <span class="employee-avatar large" data-profile-avatar>GT</span>
+              <img class="employee-photo-preview" src="" alt="Foto del empleado" data-employee-photo hidden>
+              <label class="photo-upload-button" for="employee-photo-input">Subir foto</label>
+              <input id="employee-photo-input" class="photo-input" type="file" accept="image/*" data-employee-photo-input>
+              <button class="photo-remove-button" type="button" data-employee-photo-remove hidden>Eliminar foto</button>
+            </div>
             <div>
               <p class="page-kicker">Perfil Administrativo</p>
               <h3 data-profile-name>Guillermo Torres</h3>
               <p data-profile-position>Administrador</p>
+              <p class="profile-photo-note" data-employee-photo-message>La foto servira como identificacion visual del record del empleado.</p>
             </div>
           </div>
 
@@ -87,7 +94,8 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=admin-rh-20260704"></script>
+  <script src="js/app.js?v=employee-photo-20260705"></script>
 </body>
 </html>
+
 
