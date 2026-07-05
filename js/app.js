@@ -577,8 +577,6 @@ function bindCalendarModules() {
   const form = panel.querySelector("[data-calendar-form]");
   const grid = panel.querySelector("[data-calendar-grid]");
   const title = panel.querySelector("[data-calendar-title]");
-  const role = panel.querySelector("[data-calendar-role]");
-  const permissionMessage = panel.querySelector("[data-calendar-permission-message]");
   const message = panel.querySelector("[data-calendar-message]");
   const submitButton = panel.querySelector("[data-calendar-submit]");
   const cancelButton = panel.querySelector("[data-calendar-cancel]");
@@ -587,7 +585,8 @@ function bindCalendarModules() {
   let records = JSON.parse(localStorage.getItem(storageKey) || "[]");
 
   const saveRecords = () => localStorage.setItem(storageKey, JSON.stringify(records));
-  const canEdit = () => ["Ejecutivo", "Administrador"].includes(role?.value);
+  const currentAccessLevel = localStorage.getItem("museo-admin-access-level") || "Administrador";
+  const canEdit = () => ["Ejecutivo", "Administrador"].includes(currentAccessLevel);
   const createId = () => {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
     return `calendar-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -609,14 +608,9 @@ function bindCalendarModules() {
   const setEditableState = () => {
     const allowed = canEdit();
     form.querySelectorAll("input, select, textarea, button").forEach((field) => {
-      if (field === role) return;
       field.disabled = !allowed;
     });
-    if (permissionMessage) {
-      permissionMessage.textContent = allowed
-        ? "Puede editar este calendario con el rol seleccionado."
-        : "Este rol solo puede ver el calendario. La edición requiere rol Ejecutivo o Administrador.";
-    }
+    form.hidden = !allowed;
     panel.classList.toggle("is-readonly", !allowed);
     renderCalendar();
   };
@@ -750,8 +744,6 @@ function bindCalendarModules() {
     resetForm();
     setMessage("");
   });
-  role?.addEventListener("change", setEditableState);
-
   setEditableState();
 }
 
