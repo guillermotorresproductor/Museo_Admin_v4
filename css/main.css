@@ -1892,6 +1892,17 @@ body {
 .inline-upload {
   width: fit-content;
   margin-top: 4px;
+  background: #159447;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(21, 148, 71, 0.2);
+}
+
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
 }
 
 .profile-photo-note {

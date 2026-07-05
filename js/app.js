@@ -1467,6 +1467,8 @@ function bindHumanResourcesModule() {
   const cancelButton = module.querySelector("[data-employee-cancel]");
   const message = module.querySelector("[data-employee-message]");
   const photoInput = module.querySelector("[data-employee-photo-picker]");
+  const photoTrigger = module.querySelector("[data-employee-photo-trigger]");
+  const photoStatus = module.querySelector("[data-employee-photo-status]");
   let selectedPhoto = "";
   let supabaseProfile = null;
 
@@ -1546,6 +1548,7 @@ function bindHumanResourcesModule() {
     form.elements.id.value = "";
     selectedPhoto = "";
     if (photoInput) photoInput.value = "";
+    if (photoStatus) photoStatus.textContent = "Ninguna fotografía seleccionada.";
     if (submitButton) submitButton.textContent = "Crear Empleado";
     if (cancelButton) cancelButton.hidden = true;
   };
@@ -1557,6 +1560,7 @@ function bindHumanResourcesModule() {
     });
     form.elements.id.value = employee.id;
     selectedPhoto = employee.foto || "";
+    if (photoStatus) photoStatus.textContent = selectedPhoto ? "Fotografía existente cargada." : "Ninguna fotografía seleccionada.";
     if (submitButton) submitButton.textContent = "Actualizar Empleado";
     if (cancelButton) cancelButton.hidden = false;
     form.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1565,6 +1569,10 @@ function bindHumanResourcesModule() {
   if (!canManageEmployees()) {
     form.hidden = true;
   }
+
+  photoTrigger?.addEventListener("click", () => {
+    photoInput?.click();
+  });
 
   if (photoInput) {
     photoInput.addEventListener("change", () => {
@@ -1578,6 +1586,7 @@ function bindHumanResourcesModule() {
       const reader = new FileReader();
       reader.addEventListener("load", () => {
         selectedPhoto = reader.result;
+        if (photoStatus) photoStatus.textContent = `Fotografía seleccionada: ${file.name}`;
         setMessage("Fotografía lista para guardar con el empleado.", "success");
       });
       reader.readAsDataURL(file);
