@@ -17,7 +17,8 @@
   "reglamento.html": { title: "Reglamento del Museo", subtitle: "Normas oficiales, impresión y descarga." },
   "documentos.html": { title: "Formularios y Papelería", subtitle: "Stationary, reglamento y formularios oficiales." },
   "recibo-prestamo.html": { title: "Recibo de Préstamo", subtitle: "Formulario digital de artículos de colección mediante préstamo." },
-  "boletin.html": { title: "Boletín Board", subtitle: "Publicaciones, anuncios y comunicaciones internas." }
+  "boletin.html": { title: "Boletín Board", subtitle: "Publicaciones, anuncios y comunicaciones internas." },
+  "inventario.html": { title: "Inventario de Equipos y Obras de Arte", subtitle: "Registro, consulta y localización de artículos del museo." }
 };
 
 const iconPaths = {
@@ -274,13 +275,13 @@ function bindRentalForm() {
       `Correo electrónico: ${data.get("correo")}`,
       `Teléfono: ${data.get("telefono")}`,
       `Entidad u organizacion: ${data.get("organizacion")}`,
-      `Área solicitada: ${data.get("área")}`,
+      `Área solicitada: ${data.get("area")}`,
       `Día del evento: ${data.get("fecha")}`,
       `Hora del evento: ${data.get("hora")}`,
       `Cantidad estimada de invitados: ${data.get("invitados")}`,
       "",
       "Propósito del evento:",
-      data.get("propósito"),
+      data.get("proposito"),
       "",
       "El solicitante certifica que leyo y acepta los términos y condiciones para el alquiler de espacios."
     ].join("\n");
@@ -343,7 +344,7 @@ function bindLoanReceiptForm() {
       "Préstamo",
       `Fecha de inicio: ${data.get("inicio")}`,
       `Fecha estimada de devolucion: ${data.get("devolucion")}`,
-      `Propósito: ${data.get("propósito")}`,
+      `Propósito: ${data.get("proposito")}`,
       "",
       `Observaciones: ${data.get("observaciones") || "N/A"}`,
       "",
@@ -361,6 +362,207 @@ function bindLoanReceiptForm() {
 
     window.location.href = mailto.toString();
   });
+}
+
+function bindInventoryModule() {
+  const form = document.querySelector("#inventory-form");
+  if (!form) return;
+
+  const storageKey = "museo-admin-inventory-records";
+  const list = document.querySelector("[data-inventory-list]");
+  const message = document.querySelector("[data-inventory-message]");
+  const search = document.querySelector("[data-inventory-search]");
+  const locationFilter = document.querySelector("[data-inventory-filter-location]");
+  const statusFilter = document.querySelector("[data-inventory-filter-status]");
+  const total = document.querySelector("[data-inventory-total]");
+  const submitButton = document.querySelector("[data-inventory-submit]");
+  const cancelButton = document.querySelector("[data-inventory-cancel]");
+  const idField = document.querySelector("#inventory-id");
+  const locations = Array.from(document.querySelectorAll("#inventory-location option")).map((option) => option.value).filter(Boolean);
+  const statuses = Array.from(document.querySelectorAll("#inventory-status option")).map((option) => option.value).filter(Boolean);
+  let records = JSON.parse(localStorage.getItem(storageKey) || "[]");
+  let sortKey = "fecha";
+  let sortDirection = "desc";
+
+  const saveRecords = () => localStorage.setItem(storageKey, JSON.stringify(records));
+  const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  })[character]);
+  const createId = () => {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return `inventory-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  };
+
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text;
+    message.className = `form-message ${type}`.trim();
+  };
+
+  const populateFilters = () => {
+    if (locationFilter && locationFilter.options.length === 1) {
+      locations.forEach((location) => locationFilter.add(new Option(location, location)));
+    }
+    if (statusFilter && statusFilter.options.length === 1) {
+      statuses.forEach((status) => statusFilter.add(new Option(status, status)));
+    }
+  };
+
+  const getFilteredRecords = () => {
+    const term = normalize(search?.value);
+    const selectedLocation = locationFilter?.value || "";
+    const selectedStatus = statusFilter?.value || "";
+
+    return records
+      .filter((record) => {
+        const matchesSearch = !term || [
+          record.nombre,
+          record.descripcion,
+          record.sello,
+          record.ubicacion,
+          record.estado,
+          record.contacto
+        ].some((value) => normalize(value).includes(term));
+
+        return matchesSearch &&
+          (!selectedLocation || record.ubicacion === selectedLocation) &&
+          (!selectedStatus || record.estado === selectedStatus);
+      })
+      .sort((a, b) => {
+        const first = normalize(a[sortKey]);
+        const second = normalize(b[sortKey]);
+        const result = first.localeCompare(second);
+        return sortDirection === "asc" ? result : -result;
+      });
+  };
+
+  const renderRecords = () => {
+    if (total) total.textContent = records.length;
+    if (!list) return;
+
+    const filteredRecords = getFilteredRecords();
+    if (filteredRecords.length === 0) {
+      list.innerHTML = `<tr><td colspan="8">No hay artículos registrados.</td></tr>`;
+      return;
+    }
+
+    list.innerHTML = filteredRecords.map((record) => `
+      <tr>
+        <td>${escapeHtml(record.nombre)}</td>
+        <td>${escapeHtml(record.descripcion)}</td>
+        <td>${escapeHtml(record.sello)}</td>
+        <td>${escapeHtml(record.ubicacion)}</td>
+        <td>${escapeHtml(record.estado)}</td>
+        <td>${escapeHtml(record.contacto || "N/A")}</td>
+        <td>${escapeHtml(record.fecha)}</td>
+        <td>
+          <div class="table-actions">
+            <button type="button" data-inventory-edit="${record.id}">Editar</button>
+            <button type="button" data-inventory-delete="${record.id}">Eliminar</button>
+          </div>
+        </td>
+      </tr>
+    `).join("");
+  };
+
+  const resetForm = () => {
+    form.reset();
+    if (idField) idField.value = "";
+    if (submitButton) submitButton.textContent = "Guardar Registro";
+    if (cancelButton) cancelButton.hidden = true;
+  };
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const id = data.get("id");
+    const record = {
+      id: id || createId(),
+      nombre: data.get("nombre").trim(),
+      descripcion: data.get("descripcion").trim(),
+      sello: data.get("sello").trim(),
+      ubicacion: data.get("ubicacion"),
+      estado: data.get("estado"),
+      contacto: data.get("contacto").trim(),
+      fecha: id ? records.find((item) => item.id === id)?.fecha : new Date().toLocaleDateString("es-PR")
+    };
+
+    if (!record.nombre || !record.descripcion || !record.sello || !record.ubicacion || !record.estado) {
+      setMessage("Complete todos los campos requeridos antes de guardar.", "error");
+      return;
+    }
+
+    const duplicate = records.some((item) => normalize(item.sello) === normalize(record.sello) && item.id !== id);
+    if (duplicate) {
+      setMessage("El número de sello ya existe. Use un número único.", "error");
+      return;
+    }
+
+    records = id ? records.map((item) => item.id === id ? record : item) : [record, ...records];
+    saveRecords();
+    resetForm();
+    setMessage(id ? "Registro actualizado correctamente." : "Registro guardado correctamente.", "success");
+    renderRecords();
+  });
+
+  document.addEventListener("click", (event) => {
+    const editButton = event.target.closest("[data-inventory-edit]");
+    const deleteButton = event.target.closest("[data-inventory-delete]");
+    const sortButton = event.target.closest("[data-inventory-sort]");
+
+    if (editButton) {
+      const record = records.find((item) => item.id === editButton.dataset.inventoryEdit);
+      if (!record) return;
+      Object.entries(record).forEach(([key, value]) => {
+        const field = form.elements[key];
+        if (field) field.value = value;
+      });
+      if (submitButton) submitButton.textContent = "Actualizar Registro";
+      if (cancelButton) cancelButton.hidden = false;
+      setMessage("Editando registro seleccionado.", "");
+      form.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    if (deleteButton) {
+      const record = records.find((item) => item.id === deleteButton.dataset.inventoryDelete);
+      if (!record) return;
+      if (!confirm(`¿Eliminar el registro "${record.nombre}"?`)) return;
+      records = records.filter((item) => item.id !== record.id);
+      saveRecords();
+      renderRecords();
+      setMessage("Registro eliminado.", "success");
+    }
+
+    if (sortButton) {
+      const nextSort = sortButton.dataset.inventorySort;
+      if (sortKey === nextSort) {
+        sortDirection = sortDirection === "asc" ? "desc" : "asc";
+      } else {
+        sortKey = nextSort;
+        sortDirection = "asc";
+      }
+      renderRecords();
+    }
+  });
+
+  if (cancelButton) {
+    cancelButton.addEventListener("click", () => {
+      resetForm();
+      setMessage("");
+    });
+  }
+
+  [search, locationFilter, statusFilter].forEach((control) => {
+    if (control) control.addEventListener("input", renderRecords);
+  });
+
+  populateFilters();
+  renderRecords();
 }
 
 function renderInlineIcons() {
@@ -459,6 +661,7 @@ function initApp() {
   bindLoginDemo();
   bindRentalForm();
   bindLoanReceiptForm();
+  bindInventoryModule();
 }
 
 document.addEventListener("DOMContentLoaded", initApp);

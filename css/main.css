@@ -1565,3 +1565,93 @@ body {
     height: 560px;
   }
 }
+
+.inventory-panel {
+  padding: 28px;
+}
+
+.inventory-actions,
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.inventory-list-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.inventory-list-header h3 {
+  margin: 0 0 6px;
+  color: var(--ink);
+  font-size: 1.45rem;
+  font-weight: 900;
+}
+
+.inventory-list-header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.inventory-controls {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.4fr) minmax(200px, 0.8fr) minmax(200px, 0.8fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.inventory-table th button {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  text-align: left;
+}
+
+.inventory-table th button::after {
+  margin-left: 6px;
+  color: var(--muted);
+  content: "↕";
+  font-size: 0.8rem;
+}
+
+.table-actions button {
+  min-height: 32px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: #eef2f6;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.table-actions button:hover,
+.table-actions button:focus-visible {
+  background: #050505;
+  color: #ffffff;
+  outline: none;
+}
+
+@media (max-width: 960px) {
+  .inventory-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .inventory-panel {
+    padding: 20px;
+  }
+}
