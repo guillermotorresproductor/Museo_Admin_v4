@@ -211,12 +211,72 @@ function bindLoginDemo() {
   });
 }
 
+function bindRentalForm() {
+  const form = document.querySelector("#rental-form");
+  if (!form) return;
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const message = document.querySelector("[data-rental-message]");
+    const requiredFields = Array.from(form.querySelectorAll("[required]"));
+    const invalidFields = requiredFields.filter((field) => {
+      if (field.type === "checkbox") return !field.checked;
+      return !field.value.trim();
+    });
+
+    const email = form.querySelector("#rental-email");
+    if (email && email.value && !email.checkValidity()) {
+      invalidFields.push(email);
+    }
+
+    if (invalidFields.length > 0) {
+      invalidFields[0].focus();
+      if (message) {
+        message.textContent = "Complete todos los campos requeridos correctamente y acepte los terminos antes de enviar.";
+        message.className = "form-message error";
+      }
+      return;
+    }
+
+    const data = new FormData(form);
+    const body = [
+      "Solicitud de Renta de Espacios",
+      "",
+      `Nombre del solicitante: ${data.get("nombre")}`,
+      `Correo electronico: ${data.get("correo")}`,
+      `Telefono: ${data.get("telefono")}`,
+      `Entidad u organizacion: ${data.get("organizacion")}`,
+      `Area solicitada: ${data.get("area")}`,
+      `Dia del evento: ${data.get("fecha")}`,
+      `Hora del evento: ${data.get("hora")}`,
+      `Cantidad estimada de invitados: ${data.get("invitados")}`,
+      "",
+      "Proposito del evento:",
+      data.get("proposito"),
+      "",
+      "El solicitante certifica que leyo y acepta los terminos y condiciones para el alquiler de espacios."
+    ].join("\n");
+
+    const mailto = new URL("mailto:guillermotorrespr@gmail.com");
+    mailto.searchParams.set("subject", `Solicitud de renta de espacios - ${data.get("nombre")}`);
+    mailto.searchParams.set("body", body);
+
+    if (message) {
+      message.textContent = "Solicitud validada. Se abrira el correo para enviar la solicitud al administrador.";
+      message.className = "form-message success";
+    }
+
+    window.location.href = mailto.toString();
+  });
+}
+
 function initApp() {
   renderSidebar();
   renderHeader();
   renderFooter();
   bindSidebarToggle();
   bindLoginDemo();
+  bindRentalForm();
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
