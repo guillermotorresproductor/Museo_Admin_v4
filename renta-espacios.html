@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Renta de Espacios</title>
-  <link rel="stylesheet" href="css/main.css?v=finance-module-20260705">
+  <title>Museo Admin v4.0 | Uso, Cesión y Arrendamiento</title>
+  <link rel="stylesheet" href="css/main.css?v=rental-workflow-20260705">
 </head>
 <body>
   <div class="app-shell">
@@ -13,116 +13,210 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="card panel form-panel rental-panel">
-          <h3>Hoja de InformaciÃ³n para Renta de Ãrea del Museo de la MÃºsica de Puerto Rico en Guaynabo</h3>
-          <form id="rental-form" class="application-form" action="#" method="post" novalidate>
+        <section class="card panel rental-panel" data-rental-module>
+          <div class="panel-heading-inline">
+            <div>
+              <p class="page-kicker">Reservaciones</p>
+              <h3>Solicitud de Uso, Cesión y Arrendamiento de Facilidades</h3>
+              <p>Formulario digital conforme al Reglamento del Museo de la Música de Puerto Rico.</p>
+            </div>
+          </div>
+
+          <form id="rental-form" class="application-form" action="#" method="post" enctype="multipart/form-data" novalidate>
             <div class="form-row">
               <div class="field">
-                <label for="rental-name">Nombre del solicitante</label>
+                <label for="rental-name">Nombre completo</label>
                 <input id="rental-name" name="nombre" type="text" autocomplete="name" required>
               </div>
               <div class="field">
-                <label for="rental-email">Correo electrÃ³nico</label>
+                <label for="rental-organization">Empresa u organización</label>
+                <input id="rental-organization" name="organizacion" type="text">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="field">
+                <label for="rental-contact">Persona contacto</label>
+                <input id="rental-contact" name="contacto" type="text" required>
+              </div>
+              <div class="field">
+                <label for="rental-email">Correo electrónico</label>
                 <input id="rental-email" name="correo" type="email" autocomplete="email" required>
               </div>
             </div>
+
             <div class="form-row">
               <div class="field">
-                <label for="rental-phone">TelÃ©fono</label>
+                <label for="rental-phone">Teléfono</label>
                 <input id="rental-phone" name="telefono" type="tel" autocomplete="tel" required>
               </div>
               <div class="field">
-                <label for="rental-Ã¡rea">Ãrea que solicita</label>
-                <select id="rental-Ã¡rea" name="Ã¡rea" required>
-                  <option value="">Seleccione un Ã¡rea...</option>
-                  <option>Ballroom - $1,000</option>
-                  <option>Salon Multiuso</option>
-                  <option>Plazoleta y Entrada del Museo</option>
-                  <option>Foyer frente a los elevadores</option>
-                  <option>Ãrea Itinerante</option>
-                  <option>Cine Bienvenida</option>
-                </select>
+                <label for="rental-address">Dirección</label>
+                <input id="rental-address" name="direccion" type="text" required>
               </div>
             </div>
+
             <div class="form-row">
               <div class="field">
-                <label for="rental-date">DÃ­a del evento</label>
+                <label for="rental-date">Fecha del evento</label>
                 <input id="rental-date" name="fecha" type="date" required>
               </div>
               <div class="field">
-                <label for="rental-time">Hora del evento</label>
-                <input id="rental-time" name="hora" type="time" required>
+                <label for="rental-end-date">Fecha de finalización</label>
+                <input id="rental-end-date" name="fechaFinal" type="date" required>
               </div>
-            </div>
-            <div class="form-row">
-              <div class="field">
-                <label for="rental-attendees">Cantidad estimada de invitados</label>
-                <input id="rental-attendees" name="invitados" type="number" min="1" step="1" required>
-              </div>
-              <div class="field">
-                <label for="rental-organization">Entidad u organizacion</label>
-                <input id="rental-organization" name="organizacion" type="text" required>
-              </div>
-            </div>
-            <div class="field">
-              <label for="rental-purpose">PropÃ³sito del evento</label>
-              <textarea id="rental-purpose" name="propÃ³sito" rows="5" required></textarea>
             </div>
 
-            <section class="rental-terms" aria-label="TÃ©rminos y condiciones para el alquiler de espacios">
-              <h3>TÃ©rminos y condiciones para el alquiler de espacios</h3>
-              <p>Al presentar esta solicitud, el solicitante reconoce haber leÃ­do, comprendido y aceptado las siguientes condiciones:</p>
+            <div class="form-row">
+              <div class="field">
+                <label for="rental-start">Hora de inicio</label>
+                <input id="rental-start" name="horaInicio" type="time" required>
+              </div>
+              <div class="field">
+                <label for="rental-end">Hora de finalización</label>
+                <input id="rental-end" name="horaFinal" type="time" required>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="field">
+                <label for="rental-attendees">Cantidad estimada de asistentes</label>
+                <input id="rental-attendees" name="asistentes" type="number" min="1" step="1" required>
+              </div>
+              <div class="field">
+                <label for="rental-activity-type">Tipo de actividad</label>
+                <select id="rental-activity-type" name="tipoActividad" required>
+                  <option value="">Seleccione...</option>
+                  <option>Actividades culturales o educativas</option>
+                  <option>Exhibiciones temporeras</option>
+                  <option>Presentaciones artísticas</option>
+                  <option>Actividades cívicas</option>
+                  <option>Conferencias y talleres</option>
+                  <option>Actividades institucionales</option>
+                  <option>Concesiones comerciales compatibles con la naturaleza del Museo</option>
+                  <option>Colaboraciones con entidades públicas o privadas</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="field">
+                <label for="rental-space">Espacio solicitado</label>
+                <select id="rental-space" name="espacio" data-rental-space required>
+                  <option value="">Seleccione un espacio...</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="rental-status">Estado de la solicitud</label>
+                <select id="rental-status" name="estado" data-rental-status>
+                  <option>Pendiente</option>
+                  <option>En evaluación</option>
+                  <option>Aprobada</option>
+                  <option>Requiere información adicional</option>
+                  <option>Rechazada</option>
+                  <option>Cancelada</option>
+                  <option>Completada</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="rental-description">Descripción de la actividad</label>
+              <textarea id="rental-description" name="descripcion" rows="5" required></textarea>
+            </div>
+
+            <section class="rental-space-detail" data-rental-space-detail hidden></section>
+
+            <section class="rental-calculation" aria-label="Cálculo automático">
+              <div><span>Precio por día</span><strong data-rental-rate>$0.00</strong></div>
+              <div><span>Cantidad de días</span><strong data-rental-days>0</strong></div>
+              <div><span>Subtotal</span><strong data-rental-subtotal>$0.00</strong></div>
+              <div><span>Impuestos</span><strong data-rental-tax>$0.00</strong></div>
+              <div><span>Total</span><strong data-rental-total>$0.00</strong></div>
+            </section>
+
+            <section class="rental-documents" aria-label="Documentos requeridos">
+              <h3>Documentos del expediente digital</h3>
+              <div class="form-row">
+                <div class="field">
+                  <label for="rental-id">Identificación con fotografía</label>
+                  <input id="rental-id" name="identificacion" type="file" accept="image/*,.pdf" required>
+                </div>
+                <div class="field">
+                  <label for="rental-resolution">Resolución corporativa</label>
+                  <input id="rental-resolution" name="resolucion" type="file" accept=".pdf,.doc,.docx,image/*">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label for="rental-certificate">Certificado de Seguro</label>
+                  <input id="rental-certificate" name="certificadoSeguro" type="file" accept=".pdf,.doc,.docx,image/*">
+                </div>
+                <div class="field">
+                  <label for="rental-policy">Póliza de Responsabilidad Pública</label>
+                  <input id="rental-policy" name="poliza" type="file" accept=".pdf,.doc,.docx,image/*">
+                </div>
+              </div>
+              <div class="field">
+                <label for="rental-extra-docs">Documentos adicionales</label>
+                <input id="rental-extra-docs" name="documentosAdicionales" type="file" multiple>
+              </div>
+            </section>
+
+            <section class="rental-terms" aria-label="Reglas de cancelación">
+              <h3>Reglas de cancelación</h3>
               <ol>
-                <li><strong>Solicitud.</strong> La presentaciÃ³n de este formulario no constituye una aprobaciÃ³n automÃ¡tica del evento ni reserva el espacio solicitado. Toda solicitud estarÃ¡ sujeta a evaluaciÃ³n y aprobaciÃ³n por parte de la AdministraciÃ³n del Museo.</li>
-                <li><strong>Uso autorizado.</strong> Los espacios solo podrÃ¡n utilizarse para la actividad descrita en esta solicitud. Cualquier cambio en el propÃ³sito, naturaleza o programaciÃ³n del evento deberÃ¡ ser autorizado previamente por escrito.</li>
-                <li><strong>Horarios.</strong> El acceso a las instalaciones estarÃ¡ limitado al horario autorizado. Todo tiempo adicional utilizado para montaje, desmontaje, ensayos o actividades fuera del horario aprobado podrÃ¡ generar cargos adicionales.</li>
-                <li><strong>Pago.</strong> La reserva quedara confirmada Ãºnicamente cuando se reciba el depÃ³sito o pago correspondiente, conforme a la polÃ­tica vigente del Museo. Los pagos podrÃ¡n estar sujetos a las polÃ­ticas de cancelacion y reembolso establecidas por la AdministraciÃ³n.</li>
-                <li><strong>Cancelaciones.</strong> Las cancelaciones deberÃ¡n notificarse por escrito. Los reembolsos, si aplican, estarÃ¡n sujetos a la polÃ­tica vigente del Museo y al tiempo de anticipacion con que se notifique la cancelacion.</li>
-                <li><strong>Conservacion de las instalaciones.</strong> El arrendatario serÃ¡ responsable por cualquier dano ocasionado a las instalaciones, equipos, mobiliario, exhibiciones, jardines o cualquier propiedad del Museo durante la celebraciÃ³n del evento. Todo costo de reparacion o reemplazo serÃ¡ facturado al solicitante.</li>
-                <li><strong>Proteccion de las exhibiciones.</strong> Queda estrictamente prohibido tocar, mover, manipular o alterar cualquier pieza, instrumento, obra de arte o exhibicion permanente o temporera del Museo, salvo autorizaciÃ³n expresa.</li>
-                <li><strong>DecoraciÃ³n.</strong> No se permitirÃ¡ clavar, perforar o atornillar paredes; utilizar cinta adhesiva que pueda daÃ±ar superficies; pintar o modificar estructuras; ni colgar objetos del techo o sistemas elÃ©ctricos sin autorizaciÃ³n. Toda decoraciÃ³n deberÃ¡ removerse inmediatamente al concluir la actividad.</li>
-                <li><strong>Seguridad.</strong> La AdministraciÃ³n podrÃ¡ requerir personal adicional de seguridad para determinados eventos. Dicho costo podrÃ¡ ser responsabilidad del arrendatario.</li>
-                <li><strong>Capacidad maxima.</strong> El arrendatario se compromete a no exceder la capacidad maxima autorizada para el espacio alquilado.</li>
-                <li><strong>Cumplimiento de leyes.</strong> Toda actividad deberÃ¡ cumplir con las leyes del Estado Libre Asociado de Puerto Rico, reglamentos municipales, normas del Cuerpo de Bomberos, Departamento de Salud, PolicÃ­a de Puerto Rico y cualquier otra autoridad competente.</li>
-                <li><strong>Alcohol.</strong> La venta o consumo de bebidas alcohÃ³licas solo estarÃ¡ permitido cuando haya sido autorizado previamente por la AdministraciÃ³n y el organizador cuente con todos los permisos requeridos por ley.</li>
-                <li><strong>Tabaco y vapeo.</strong> EstÃ¡ prohibido fumar o utilizar cigarrillos electrÃ³nicos dentro de las instalaciones del Museo, excepto en las Ã¡reas expresamente designadas.</li>
-                <li><strong>Material peligroso.</strong> No se permitirÃ¡ el uso de fuegos artificiales, pirotecnia, llamas abiertas, tanques de gas, sustancias inflamables, maquinas de humo que puedan activar sistemas de alarma ni materiales considerados peligrosos sin autorizaciÃ³n escrita.</li>
-                <li><strong>Sonido.</strong> Los niveles de sonido deberÃ¡n mantenerse dentro de los lÃ­mites autorizados por la AdministraciÃ³n. El Museo podrÃ¡ requerir la reducciÃ³n inmediata del volumen cuando sea necesario.</li>
-                <li><strong>Limpieza.</strong> El arrendatario serÃ¡ responsable de entregar el Ã¡rea en condiciones razonables de limpieza. La AdministraciÃ³n podrÃ¡ imponer cargos por limpieza extraordinaria.</li>
-                <li><strong>Equipos externos.</strong> Todo equipo adicional que ingrese al Museo deberÃ¡ ser informado y autorizado previamente.</li>
-                <li><strong>Responsabilidad.</strong> El Museo no serÃ¡ responsable por objetos perdidos, equipos, vehiculos, daÃ±os a propiedad privada ni lesiones ocasionadas por actos del organizador o sus invitados.</li>
-                <li><strong>Seguro.</strong> Para ciertos eventos, la AdministraciÃ³n podrÃ¡ requerir evidencia de una pÃ³liza de responsabilidad pÃºblica vigente.</li>
-                <li><strong>Permisos.</strong> SerÃ¡ responsabilidad del organizador obtener todos los permisos gubernamentales requeridos para la celebraciÃ³n del evento.</li>
-                <li><strong>Derecho de admisiÃ³n.</strong> El Museo se reserva el derecho de cancelar, suspender o dar por terminada cualquier actividad que incumpla estas normas o que represente un riesgo para las personas, las colecciÃ³nes o las instalaciones.</li>
-                <li><strong>Fotografia y grabacion.</strong> Las producciones comerciales, transmisiones en vivo, grabaciones profesionales o sesiones fotograficas requerirÃ¡n autorizaciÃ³n previa.</li>
-                <li><strong>Eventos polÃ­ticos o religiosos.</strong> Toda actividad de carÃ¡cter politico, electoral, religioso o proselitista requerirÃ¡ autorizaciÃ³n expresa de la AdministraciÃ³n. La aprobaciÃ³n de un evento no constituye respaldo institucional por parte del Museo.</li>
-                <li><strong>Fuerza mayor.</strong> El Museo no serÃ¡ responsable por cancelaciones ocasionadas por huracanes, terremotos, emergencias, fallas de servicios publicos, ordenes gubernamentales u otros eventos fuera de su control.</li>
-                <li><strong>Aceptacion.</strong> Al enviar esta solicitud, certifico que toda la informaciÃ³n suministrada es correcta y acepto cumplir con todas las normas, reglamentos y condiciones establecidas por el Museo de la MÃºsica de Puerto Rico.</li>
+                <li>Cancelación con 30 días o más de anticipación: devolución del 100%.</li>
+                <li>Cancelación entre 29 días y 2 días antes del evento: el Museo podrá retener hasta un 50%.</li>
+                <li>Cancelación el día anterior o el mismo día: no procede devolución.</li>
               </ol>
+              <p data-rental-cancellation>El cálculo de cancelación aparecerá al seleccionar una fecha.</p>
             </section>
 
             <label class="terms-accept">
               <input id="rental-terms" name="aceptacion" type="checkbox" required>
-              <span>Certifico que he leÃ­do y acepto los tÃ©rminos y condiciones para el alquiler de espacios.</span>
+              <span>Certifico que he leído y acepto las normas, reglamentos y condiciones establecidas por el Museo.</span>
             </label>
+
+            <div class="inventory-actions">
+              <button class="button submit-button" type="submit">Enviar solicitud</button>
+              <button class="button secondary" type="button" data-rental-reset>Limpiar</button>
+            </div>
             <p class="form-message" data-rental-message aria-live="polite"></p>
-            <button class="button submit-button" type="submit">Enviar solicitud</button>
           </form>
+        </section>
+
+        <section class="card panel rental-admin-panel" data-rental-admin>
+          <div class="panel-heading-inline">
+            <div>
+              <p class="page-kicker">Administración</p>
+              <h3>Historial de Solicitudes y Configuración de Espacios</h3>
+              <p>Las solicitudes aprobadas sincronizan calendario, historial y proyección de ingresos.</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Solicitud</th>
+                  <th>Solicitante</th>
+                  <th>Espacio</th>
+                  <th>Fecha</th>
+                  <th>Total</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody data-rental-history>
+                <tr><td colspan="6">No hay solicitudes registradas.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="rental-config-grid section-stack" data-rental-config></div>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=finance-module-20260705"></script>
+  <script src="js/app.js?v=rental-workflow-20260705"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-

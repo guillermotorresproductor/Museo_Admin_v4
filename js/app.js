@@ -202,6 +202,8 @@ const employeeStorageKey = "museo-admin-employee-records";
 const notificationStorageKey = "museo-admin-notification-preferences";
 const financeStorageKey = "museo-admin-finance-records";
 const financeAuditStorageKey = "museo-admin-finance-audit-log";
+const rentalStorageKey = "museo-admin-rental-requests";
+const rentalSpacesStorageKey = "museo-admin-rental-spaces";
 const currentAccessLevel = () => localStorage.getItem("museo-admin-access-level") || "Administrador";
 const canManageEmployees = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
 const canDeleteEmployees = () => currentAccessLevel() === "Administrador";
@@ -292,6 +294,19 @@ const defaultFinanceRows = [
   { id: "exp-contingencia", type: "expense", category: "Otros Gastos", concept: "Contingencia", values: [0,4777.67,4831.67,4831.67,4831.67,5031.67,4831.67,5291.67,4831.67,4831.67,4831.67,5031.67] },
   { id: "exp-reserva", type: "expense", category: "Otros Gastos", concept: "Fondo de Reserva", values: Array(12).fill(0) },
   { id: "exp-ahorros", type: "expense", category: "Otros Gastos", concept: "Ahorros", values: [0,955.53,966.33,966.33,966.33,1006.33,966.33,1058.33,966.33,966.33,966.33,1006.33] }
+];
+
+const defaultRentalSpaces = [
+  { id: "ballroom", name: "Ballroom", description: "Espacio principal para actividades de gran formato.", canon: 1000, billing: "por día", capacity: 300, schedule: "8:00 AM - 11:00 PM", setup: "2 horas", breakdown: "2 horas", status: "Disponible", equipment: ["Sonido base", "Aire acondicionado", "Iluminación"] },
+  { id: "anfiteatro", name: "Anfiteatro", description: "Área para presentaciones, charlas y eventos institucionales.", canon: 1000, billing: "por día", capacity: 200, schedule: "8:00 AM - 11:00 PM", setup: "2 horas", breakdown: "2 horas", status: "Disponible", equipment: ["Tarima", "Sonido base", "Aire acondicionado"] },
+  { id: "mezzanine", name: "Mezzanine", description: "Espacio abierto para actividades culturales y recepciones.", canon: 1000, billing: "por día", capacity: 150, schedule: "8:00 AM - 10:00 PM", setup: "2 horas", breakdown: "1 hora", status: "Disponible", equipment: ["Área abierta", "Aire acondicionado"] },
+  { id: "cine-bienvenida", name: "Cine Bienvenida", description: "Espacio audiovisual inmersivo para documentales, conferencias, talleres, lanzamientos, presentaciones educativas, exhibiciones multimedia y experiencias de hasta 180 grados.", canon: 600, billing: "por día", capacity: 80, schedule: "8:00 AM - 10:00 PM", setup: "1 hora", breakdown: "1 hora", status: "Disponible", equipment: ["Pantalla panorámica de hasta 180°", "Sistema profesional de proyección", "Sistema profesional de sonido", "Aire acondicionado", "Butacas para el público"] },
+  { id: "salon-adiestramiento", name: "Salón de Adiestramiento (Usos Múltiples)", description: "Salón para talleres, reuniones, seminarios y actividades educativas.", canon: 300, billing: "por día", capacity: 60, schedule: "8:00 AM - 8:00 PM", setup: "1 hora", breakdown: "1 hora", status: "Disponible", equipment: ["Mesas", "Sillas", "Pantalla"] },
+  { id: "lobby", name: "Vestíbulo (Lobby)", description: "Área de bienvenida para recepciones y actividades compatibles con la misión del Museo.", canon: 600, billing: "por día", capacity: 100, schedule: "8:00 AM - 10:00 PM", setup: "1 hora", breakdown: "1 hora", status: "Disponible", equipment: ["Área abierta", "Aire acondicionado"] },
+  { id: "plazoleta", name: "Plazoleta", description: "Espacio exterior para actividades culturales y comunitarias.", canon: 600, billing: "por día", capacity: 200, schedule: "8:00 AM - 10:00 PM", setup: "2 horas", breakdown: "2 horas", status: "Disponible", equipment: ["Área exterior"] },
+  { id: "estacionamiento", name: "Estacionamiento", description: "Área exterior para usos especiales autorizados.", canon: 2500, billing: "por día", capacity: 250, schedule: "8:00 AM - 11:00 PM", setup: "2 horas", breakdown: "2 horas", status: "Disponible", equipment: ["Área vehicular"] },
+  { id: "cafeteria", name: "Cafetería (Café/Bar Móvil)", description: "Concesión comercial compatible con la naturaleza del Museo.", canon: 1500, billing: "mensuales", capacity: 0, schedule: "Según contrato", setup: "Según contrato", breakdown: "Según contrato", status: "Disponible", equipment: ["Según contrato"] },
+  { id: "gift-shop", name: "Gift Shop", description: "Concesión comercial sujeta a contrato aprobado por el MAG.", canon: 0, billing: "según contrato aprobado por el MAG", capacity: 0, schedule: "Según contrato", setup: "Según contrato", breakdown: "Según contrato", status: "Disponible", equipment: ["Según contrato"] }
 ];
 
 function iconSvg(name) {
@@ -439,13 +454,183 @@ function bindRentalForm() {
   const form = document.querySelector("#rental-form");
   if (!form) return;
 
+  const module = document.querySelector("[data-rental-module]");
+  const message = document.querySelector("[data-rental-message]");
+  const spaceSelect = document.querySelector("[data-rental-space]");
+  const spaceDetail = document.querySelector("[data-rental-space-detail]");
+  const statusSelect = document.querySelector("[data-rental-status]");
+  const historyBody = document.querySelector("[data-rental-history]");
+  const configPanel = document.querySelector("[data-rental-config]");
+  const cancellation = document.querySelector("[data-rental-cancellation]");
+  const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
+  const currentUser = () => localStorage.getItem("museo-admin-current-user") || "Administrador";
+  const canAdjust = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
+  const getSpaces = () => JSON.parse(localStorage.getItem(rentalSpacesStorageKey) || "null") || defaultRentalSpaces;
+  const saveSpaces = (spaces) => localStorage.setItem(rentalSpacesStorageKey, JSON.stringify(spaces));
+  const getRequests = () => JSON.parse(localStorage.getItem(rentalStorageKey) || "[]");
+  const saveRequests = (requests) => localStorage.setItem(rentalStorageKey, JSON.stringify(requests));
+  const selectedSpace = () => getSpaces().find((space) => space.id === spaceSelect?.value);
+  const dateValue = (name) => form.elements[name]?.value;
+  const daysBetween = () => {
+    const start = new Date(`${dateValue("fecha")}T12:00:00`);
+    const end = new Date(`${dateValue("fechaFinal") || dateValue("fecha")}T12:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+    return Math.max(1, Math.round((end - start) / 86400000) + 1);
+  };
+  const overlaps = (aStart, aEnd, bStart, bEnd) => aStart < bEnd && bStart < aEnd;
+  const requestRange = (request) => ({
+    start: new Date(`${request.fecha}T${request.horaInicio || "00:00"}`),
+    end: new Date(`${request.fechaFinal || request.fecha}T${request.horaFinal || "23:59"}`)
+  });
+  const currentCalculation = () => {
+    const space = selectedSpace();
+    const days = daysBetween();
+    const rate = space?.canon || 0;
+    const subtotal = rate * days;
+    const tax = 0;
+    return { rate, days, subtotal, tax, total: subtotal + tax };
+  };
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text;
+    message.className = `form-message ${type}`.trim();
+  };
+  const createSequence = (prefix, count) => `${prefix}-${String(count + 1).padStart(4, "0")}`;
+  const auditEntry = (estado, comentarios = "") => ({
+    usuario: currentUser(),
+    fecha: new Date().toLocaleDateString("es-PR"),
+    hora: new Date().toLocaleTimeString("es-PR"),
+    estado,
+    comentarios
+  });
+
+  const populateSpaces = () => {
+    const spaces = getSpaces();
+    if (spaceSelect) {
+      spaceSelect.innerHTML = `<option value="">Seleccione un espacio...</option>${spaces.map((space) => (
+        `<option value="${space.id}"${space.status !== "Disponible" ? " disabled" : ""}>${space.name} - ${space.canon ? money(space.canon) : space.billing} ${space.canon ? space.billing : ""}</option>`
+      )).join("")}`;
+    }
+  };
+
+  const renderSpaceDetail = () => {
+    const space = selectedSpace();
+    if (!spaceDetail) return;
+    if (!space) {
+      spaceDetail.hidden = true;
+      spaceDetail.innerHTML = "";
+      return;
+    }
+    spaceDetail.hidden = false;
+    spaceDetail.innerHTML = `
+      <h3>${safeHtml(space.name)}</h3>
+      <p>${safeHtml(space.description)}</p>
+      <div class="rental-feature-grid">
+        <span><strong>Canon:</strong> ${space.canon ? money(space.canon) : space.billing}</span>
+        <span><strong>Capacidad:</strong> ${space.capacity || "Según contrato"}</span>
+        <span><strong>Horario:</strong> ${safeHtml(space.schedule)}</span>
+        <span><strong>Montaje:</strong> ${safeHtml(space.setup)}</span>
+        <span><strong>Desmontaje:</strong> ${safeHtml(space.breakdown)}</span>
+        <span><strong>Estado:</strong> ${safeHtml(space.status)}</span>
+      </div>
+      <p><strong>Equipos incluidos:</strong> ${space.equipment.map(safeHtml).join(", ")}</p>
+    `;
+  };
+
+  const renderCalculation = () => {
+    const calc = currentCalculation();
+    document.querySelector("[data-rental-rate]").textContent = money(calc.rate);
+    document.querySelector("[data-rental-days]").textContent = calc.days;
+    document.querySelector("[data-rental-subtotal]").textContent = money(calc.subtotal);
+    document.querySelector("[data-rental-tax]").textContent = money(calc.tax);
+    document.querySelector("[data-rental-total]").textContent = money(calc.total);
+
+    if (cancellation && dateValue("fecha")) {
+      const daysBefore = Math.ceil((new Date(`${dateValue("fecha")}T12:00:00`) - new Date()) / 86400000);
+      const refund = daysBefore >= 30 ? "devolución estimada del 100%" : daysBefore >= 2 ? "el Museo podrá retener hasta un 50%" : "no procede devolución";
+      cancellation.textContent = `Según la fecha seleccionada, en caso de cancelación aplicaría: ${refund}.`;
+    }
+  };
+
+  const hasConflict = () => {
+    const spaceId = spaceSelect.value;
+    if (!spaceId || !dateValue("fecha") || !dateValue("horaInicio") || !dateValue("horaFinal")) return null;
+    const current = {
+      fecha: dateValue("fecha"),
+      fechaFinal: dateValue("fechaFinal") || dateValue("fecha"),
+      horaInicio: dateValue("horaInicio"),
+      horaFinal: dateValue("horaFinal")
+    };
+    const currentRange = requestRange(current);
+    return getRequests().find((request) => {
+      if (request.espacioId !== spaceId || ["Rechazada", "Cancelada"].includes(request.estado)) return false;
+      const range = requestRange(request);
+      return overlaps(currentRange.start, currentRange.end, range.start, range.end);
+    });
+  };
+
+  const syncApprovedRequest = (request) => {
+    const calendarRecords = JSON.parse(localStorage.getItem("museo-admin-general-calendar") || "[]");
+    if (!calendarRecords.some((item) => item.rentalId === request.id)) {
+      calendarRecords.push({
+        id: `rental-calendar-${request.id}`,
+        rentalId: request.id,
+        fecha: request.fecha,
+        titulo: `Arrendamiento: ${request.espacio}`,
+        descripcion: `${request.tipoActividad} - ${request.nombre}`
+      });
+      localStorage.setItem("museo-admin-general-calendar", JSON.stringify(calendarRecords));
+    }
+
+    const financeRows = JSON.parse(localStorage.getItem(financeStorageKey) || "null") || defaultFinanceRows;
+    const rentalRow = financeRows.find((row) => row.id === "ing-salas");
+    if (rentalRow) {
+      const month = new Date(`${request.fecha}T12:00:00`).getMonth();
+      const fiscalIndex = [6,7,8,9,10,11,0,1,2,3,4,5].indexOf(month);
+      if (fiscalIndex >= 0) rentalRow.values[fiscalIndex] = Number(rentalRow.values[fiscalIndex] || 0) + Number(request.total || 0);
+      localStorage.setItem(financeStorageKey, JSON.stringify(financeRows));
+    }
+  };
+
+  const renderHistory = () => {
+    if (!historyBody) return;
+    const requests = getRequests();
+    historyBody.innerHTML = requests.length ? requests.map((request) => `
+      <tr>
+        <td>${safeHtml(request.numeroSolicitud)}</td>
+        <td>${safeHtml(request.nombre)}</td>
+        <td>${safeHtml(request.espacio)}</td>
+        <td>${safeHtml(request.fecha)}</td>
+        <td>${money(request.total)}</td>
+        <td>${safeHtml(request.estado)}</td>
+      </tr>
+    `).join("") : `<tr><td colspan="6">No hay solicitudes registradas.</td></tr>`;
+  };
+
+  const renderConfig = () => {
+    if (!configPanel) return;
+    configPanel.innerHTML = getSpaces().map((space) => `
+      <article class="rental-config-card">
+        <label><small>Nombre</small><input type="text" value="${safeHtml(space.name)}" data-rental-space-id="${space.id}" data-rental-space-field="name"></label>
+        <label><small>Descripción</small><textarea rows="3" data-rental-space-id="${space.id}" data-rental-space-field="description">${safeHtml(space.description)}</textarea></label>
+        <label><small>Canon</small><input type="number" min="0" step="0.01" value="${Number(space.canon || 0)}" data-rental-space-id="${space.id}" data-rental-space-field="canon"></label>
+        <label><small>Capacidad</small><input type="number" min="0" step="1" value="${Number(space.capacity || 0)}" data-rental-space-id="${space.id}" data-rental-space-field="capacity"></label>
+        <label><small>Horarios disponibles</small><input type="text" value="${safeHtml(space.schedule)}" data-rental-space-id="${space.id}" data-rental-space-field="schedule"></label>
+        <label><small>Montaje</small><input type="text" value="${safeHtml(space.setup)}" data-rental-space-id="${space.id}" data-rental-space-field="setup"></label>
+        <label><small>Desmontaje</small><input type="text" value="${safeHtml(space.breakdown)}" data-rental-space-id="${space.id}" data-rental-space-field="breakdown"></label>
+        <label><small>Estado</small><select data-rental-space-id="${space.id}" data-rental-space-field="status"><option${space.status === "Disponible" ? " selected" : ""}>Disponible</option><option${space.status === "No Disponible" ? " selected" : ""}>No Disponible</option></select></label>
+        <label><small>Equipos incluidos</small><input type="text" value="${safeHtml(space.equipment.join(", "))}" data-rental-space-id="${space.id}" data-rental-space-field="equipment"></label>
+      </article>
+    `).join("");
+  };
+
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    const message = document.querySelector("[data-rental-message]");
     const requiredFields = Array.from(form.querySelectorAll("[required]"));
     const invalidFields = requiredFields.filter((field) => {
       if (field.type === "checkbox") return !field.checked;
-      return !field.value.trim();
+      if (field.type === "file") return !field.files || !field.files.length;
+      return !String(field.value || "").trim();
     });
 
     const email = form.querySelector("#rental-email");
@@ -460,36 +645,105 @@ function bindRentalForm() {
       return;
     }
 
-    const data = new FormData(form);
-    const body = [
-      "Solicitud de Renta de Espacios",
-      "",
-      `Nombre del solicitante: ${data.get("nombre")}`,
-      `Correo electrónico: ${data.get("correo")}`,
-      `Teléfono: ${data.get("telefono")}`,
-      `Entidad u organizacion: ${data.get("organizacion")}`,
-      `Área solicitada: ${data.get("area")}`,
-      `Día del evento: ${data.get("fecha")}`,
-      `Hora del evento: ${data.get("hora")}`,
-      `Cantidad estimada de invitados: ${data.get("invitados")}`,
-      "",
-      "Propósito del evento:",
-      data.get("proposito"),
-      "",
-      "El solicitante certifica que leyo y acepta los términos y condiciones para el alquiler de espacios."
-    ].join("\n");
-
-    const mailto = new URL("mailto:guillermotorrespr@gmail.com");
-    mailto.searchParams.set("subject", `Solicitud de renta de espacios - ${data.get("nombre")}`);
-    mailto.searchParams.set("body", body);
-
-    if (message) {
-      message.textContent = "Solicitud validada. Se abrira el correo para enviar la solicitud al administrador.";
-      message.className = "form-message success";
+    const conflict = hasConflict();
+    if (conflict) {
+      setMessage(`El espacio ya está reservado para esa fecha y horario por la solicitud ${conflict.numeroSolicitud}.`, "error");
+      return;
     }
 
-    window.location.href = mailto.toString();
+    const data = new FormData(form);
+    const requests = getRequests();
+    const space = selectedSpace();
+    const calc = currentCalculation();
+    const request = {
+      id: `rental-${Date.now()}`,
+      numeroSolicitud: createSequence("SOL", requests.length),
+      numeroRecibo: createSequence("REC", requests.length),
+      nombre: data.get("nombre"),
+      organizacion: data.get("organizacion"),
+      contacto: data.get("contacto"),
+      correo: data.get("correo"),
+      telefono: data.get("telefono"),
+      direccion: data.get("direccion"),
+      fecha: data.get("fecha"),
+      fechaFinal: data.get("fechaFinal"),
+      horaInicio: data.get("horaInicio"),
+      horaFinal: data.get("horaFinal"),
+      asistentes: data.get("asistentes"),
+      tipoActividad: data.get("tipoActividad"),
+      espacioId: space.id,
+      espacio: space.name,
+      descripcion: data.get("descripcion"),
+      precioDia: calc.rate,
+      dias: calc.days,
+      subtotal: calc.subtotal,
+      impuestos: calc.tax,
+      total: calc.total,
+      estado: data.get("estado"),
+      documentos: Array.from(form.querySelectorAll('input[type="file"]')).map((input) => ({
+        campo: input.name,
+        archivos: Array.from(input.files || []).map((file) => file.name)
+      })),
+      audit: [auditEntry(data.get("estado"), "Solicitud creada desde el portal administrativo.")]
+    };
+
+    requests.push(request);
+    saveRequests(requests);
+    if (request.estado === "Aprobada") syncApprovedRequest(request);
+    renderHistory();
+    form.reset();
+    renderSpaceDetail();
+    renderCalculation();
+    setMessage(`Solicitud ${request.numeroSolicitud} registrada correctamente.`, "success");
   });
+
+  ["change", "input"].forEach((eventName) => {
+    form.addEventListener(eventName, (event) => {
+      if (event.target.matches("[data-rental-space]")) renderSpaceDetail();
+      renderCalculation();
+    });
+  });
+
+  statusSelect?.addEventListener("change", () => {
+    if (!canAdjust() && statusSelect.value !== "Pendiente") {
+      statusSelect.value = "Pendiente";
+      setMessage("Solo Administrador o Ejecutivo puede cambiar el estado de una solicitud.", "error");
+    }
+  });
+
+  document.querySelector("[data-rental-reset]")?.addEventListener("click", () => {
+    form.reset();
+    renderSpaceDetail();
+    renderCalculation();
+    setMessage("");
+  });
+
+  configPanel?.addEventListener("change", (event) => {
+    const field = event.target.closest("[data-rental-space-field]");
+    if (!field || !canAdjust()) return;
+    const spaces = getSpaces();
+    const space = spaces.find((item) => item.id === field.dataset.rentalSpaceId);
+    if (!space) return;
+    const key = field.dataset.rentalSpaceField;
+    if (key === "canon" || key === "capacity") {
+      space[key] = Number(field.value || 0);
+    } else if (key === "equipment") {
+      space[key] = field.value.split(",").map((item) => item.trim()).filter(Boolean);
+    } else {
+      space[key] = field.value;
+    }
+    saveSpaces(spaces);
+    populateSpaces();
+    renderSpaceDetail();
+    renderCalculation();
+    setMessage("Configuración del espacio actualizada.", "success");
+  });
+
+  populateSpaces();
+  renderSpaceDetail();
+  renderCalculation();
+  renderHistory();
+  renderConfig();
 }
 
 function bindLoanReceiptForm() {
