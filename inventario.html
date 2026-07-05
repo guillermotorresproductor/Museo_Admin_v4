@@ -18,42 +18,42 @@
             <input type="hidden" id="inventory-id" name="id">
             <div class="form-row">
               <label class="field" for="inventory-name">
-                <span>Nombre del artÃ­culo</span>
+                <span>Nombre del artículo</span>
                 <input id="inventory-name" name="nombre" type="text" required>
               </label>
 
               <label class="field" for="inventory-tag">
-                <span>NÃºmero de sello (Asset Tag)</span>
+                <span>Número de sello (Asset Tag)</span>
                 <input id="inventory-tag" name="sello" type="text" required>
               </label>
             </div>
 
             <label class="field" for="inventory-description">
-              <span>DescripciÃ³n</span>
+              <span>Descripción</span>
               <textarea id="inventory-description" name="descripcion" rows="4" required></textarea>
             </label>
 
             <div class="form-row">
               <label class="field" for="inventory-location">
-                <span>UbicaciÃ³n</span>
+                <span>Ubicación</span>
                 <select id="inventory-location" name="ubicacion" required>
-                  <option value="">Seleccione una ubicaciÃ³n...</option>
-                  <option>AlmacÃ©n 1</option>
-                  <option>AlmacÃ©n 2</option>
-                  <option>AlmacÃ©n 3</option>
+                  <option value="">Seleccione una ubicación...</option>
+                  <option>Almacén 1</option>
+                  <option>Almacén 2</option>
+                  <option>Almacén 3</option>
                   <option>Lobby</option>
-                  <option>Mezzanine RaÃ­ces</option>
+                  <option>Mezzanine Raíces</option>
                   <option>Cine Bienvenida</option>
                   <option>Altar del Cuatro</option>
                   <option>Pasillo de Instrumentos</option>
-                  <option>Sala ClÃ¡sica</option>
+                  <option>Sala Clásica</option>
                   <option>Sala Bailable</option>
                   <option>Escalera de Subida</option>
                   <option>Pasillo Alternativo</option>
-                  <option>Sala RomÃ¡ntica</option>
+                  <option>Sala Romántica</option>
                   <option>Sala Urbana</option>
-                  <option>SalÃ³n Experimental Guaynabo</option>
-                  <option>Ãrea Foyer</option>
+                  <option>Salón Experimental Guaynabo</option>
+                  <option>Área Foyer</option>
                   <option>Sala Itinerante (Ball Room)</option>
                 </select>
               </label>
@@ -65,8 +65,8 @@
                   <option>Excelente</option>
                   <option>Bueno</option>
                   <option>Regular</option>
-                  <option>Necesita reparaciÃ³n</option>
-                  <option>En restauraciÃ³n</option>
+                  <option>Necesita reparación</option>
+                  <option>En restauración</option>
                   <option>Fuera de servicio</option>
                 </select>
               </label>
@@ -79,7 +79,7 @@
 
             <div class="inventory-actions">
               <button class="button submit-button" type="submit" data-inventory-submit>Guardar Registro</button>
-              <button class="button secondary" type="button" data-inventory-cancel hidden>Cancelar ediciÃ³n</button>
+              <button class="button secondary" type="button" data-inventory-cancel hidden>Cancelar edición</button>
             </div>
             <p class="form-message" data-inventory-message></p>
           </form>
@@ -88,20 +88,20 @@
         <section class="card panel inventory-panel section-stack">
           <div class="inventory-list-header">
             <div>
-              <p class="page-kicker">Listado AutomÃ¡tico</p>
-              <h3>ArtÃ­culos Registrados</h3>
-              <p><strong data-inventory-total>0</strong> artÃ­culos registrados</p>
+              <p class="page-kicker">Listado Automático</p>
+              <h3>Artículos Registrados</h3>
+              <p><strong data-inventory-total>0</strong> artículos registrados</p>
             </div>
           </div>
 
           <div class="inventory-controls">
             <label class="field" for="inventory-search">
               <span>Buscar</span>
-              <input id="inventory-search" type="search" placeholder="Nombre, sello, descripciÃ³n, ubicaciÃ³n, donante o estado" data-inventory-search>
+              <input id="inventory-search" type="search" placeholder="Nombre, sello, descripción, ubicación, donante o estado" data-inventory-search>
             </label>
 
             <label class="field" for="inventory-filter-location">
-              <span>Filtrar por ubicaciÃ³n</span>
+              <span>Filtrar por ubicación</span>
               <select id="inventory-filter-location" data-inventory-filter-location>
                 <option value="">Todas las ubicaciones</option>
               </select>
@@ -120,9 +120,9 @@
               <thead>
                 <tr>
                   <th><button type="button" data-inventory-sort="nombre">Nombre</button></th>
-                  <th><button type="button" data-inventory-sort="descripcion">DescripciÃ³n</button></th>
-                  <th><button type="button" data-inventory-sort="sello">NÃºmero de sello</button></th>
-                  <th><button type="button" data-inventory-sort="ubicacion">UbicaciÃ³n</button></th>
+                  <th><button type="button" data-inventory-sort="descripcion">Descripción</button></th>
+                  <th><button type="button" data-inventory-sort="sello">Número de sello</button></th>
+                  <th><button type="button" data-inventory-sort="ubicacion">Ubicación</button></th>
                   <th><button type="button" data-inventory-sort="estado">Estado</button></th>
                   <th><button type="button" data-inventory-sort="contacto">Persona de contacto / Donante</button></th>
                   <th><button type="button" data-inventory-sort="fecha">Fecha de registro</button></th>
@@ -131,7 +131,7 @@
               </thead>
               <tbody data-inventory-list>
                 <tr>
-                  <td colspan="8">No hay artÃ­culos registrados.</td>
+                  <td colspan="8">No hay artículos registrados.</td>
                 </tr>
               </tbody>
             </table>
@@ -144,5 +144,6 @@
   <script src="js/app.js?v=calendarios-inventario-20260705"></script>
 </body>
 </html>
+
 
 

@@ -18,7 +18,7 @@
             <div>
               <p class="page-kicker">Calendario General del Museo</p>
               <h3 data-calendar-title>Calendario</h3>
-              <p>Actividades, eventos y compromisos confirmados por la administraciÃ³n del Museo.</p>
+              <p>Actividades, eventos y compromisos confirmados por la administración del Museo.</p>
             </div>
             <div class="calendar-actions">
               <button class="button secondary" type="button" data-calendar-prev>Mes anterior</button>
@@ -38,6 +38,8 @@
             <p data-calendar-permission-message>Los roles Ejecutivo y Administrador pueden editar este calendario.</p>
           </div>
 
+          <div class="monthly-calendar" data-calendar-grid></div>
+
           <form class="calendar-form" data-calendar-form>
             <input type="hidden" name="id">
             <div class="form-row">
@@ -51,17 +53,15 @@
               </label>
             </div>
             <label class="field">
-              <span>DescripciÃ³n</span>
+              <span>Descripción</span>
               <textarea name="descripcion" rows="3"></textarea>
             </label>
             <div class="inventory-actions">
               <button class="button submit-button" type="submit" data-calendar-submit>Guardar Evento</button>
-              <button class="button secondary" type="button" data-calendar-cancel hidden>Cancelar ediciÃ³n</button>
+              <button class="button secondary" type="button" data-calendar-cancel hidden>Cancelar edición</button>
             </div>
             <p class="form-message" data-calendar-message></p>
           </form>
-
-          <div class="monthly-calendar" data-calendar-grid></div>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
@@ -70,5 +70,6 @@
   <script src="js/app.js?v=calendarios-inventario-20260705"></script>
 </body>
 </html>
+
 
 

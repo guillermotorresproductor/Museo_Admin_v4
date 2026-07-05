@@ -1704,7 +1704,7 @@ body {
 .calendar-form {
   display: grid;
   gap: 16px;
-  margin-bottom: 22px;
+  margin-top: 22px;
 }
 
 .calendar-panel.is-readonly .calendar-form {
