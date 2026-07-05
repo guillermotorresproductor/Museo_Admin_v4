@@ -4,7 +4,7 @@
   "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Música." },
   "empleados.html": { title: "Solicitud de Empleo", subtitle: "Formulario para candidatos." },
   "mantenimiento.html": { title: "Mantenimiento", subtitle: "Operación preventiva y correctiva." },
-  "calendario.html": { title: "Calendario General", subtitle: "Actividades, eventos y compromisos confirmados del museo." },
+  "calendario.html": { title: "Calendario de Eventos del Museo", subtitle: "Actividades, eventos y compromisos oficiales del Museo." },
   "calendario-obras.html": { title: "Calendario de Obras", subtitle: "Asignación mensual de empleados, tareas y áreas de trabajo." },
   "solicitud-materiales.html": { title: "Solicitud de Materiales", subtitle: "Registro de solicitudes de mantenimiento." },
   "ruta-digital.html": { title: "Ruta Digital de Mantenimiento", subtitle: "Control de recorrido por áreas." },
@@ -48,7 +48,7 @@ const navigationGroups = [
     label: "Menu",
     items: [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
-      { href: "calendario.html", label: "Calendario", icon: "calendar" },
+      { href: "calendario.html", label: "Calendario de Eventos del Museo", icon: "calendar" },
       { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building" },
       { href: "empleados.html", label: "Solicitud de Empleo", icon: "users" },
       { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"] },
@@ -622,7 +622,7 @@ function bindCalendarModules() {
     const days = new Date(year, month + 1, 0).getDate();
     const firstDay = new Date(year, month, 1).getDay();
     const currentMonth = monthValue();
-    if (title) title.textContent = `${isMaintenance ? "Calendario de Obras" : "Calendario General"} - ${monthNames[month]} ${year}`;
+    if (title) title.textContent = `${isMaintenance ? "Calendario de Obras" : "Calendario de Eventos del Museo"} - ${monthNames[month]} ${year}`;
 
     const emptyCells = Array.from({ length: firstDay }, () => `<div class="calendar-day is-empty"></div>`).join("");
     const dayCells = Array.from({ length: days }, (_, index) => {
