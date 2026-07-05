@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Finanzas</title>
-  <link rel="stylesheet" href="css/main.css?v=notifications-module-20260705">
+  <link rel="stylesheet" href="css/main.css?v=finance-module-20260705">
 </head>
 <body>
   <div class="app-shell">
@@ -13,23 +13,61 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="card panel placeholder-panel">
+        <section class="finance-gate card panel" data-finance-gate>
           <span class="module-icon theme-teal" data-icon="dollar"></span>
-          <h3>Finanzas</h3>
-          <p>Esta página queda reservada para el firewall de usuario y password que se programara luego.</p>
+          <h3>Acceso a Finanzas</h3>
+          <p>Área restringida para Guillermo Torres, Alberto Soto y Contable del Museo.</p>
+          <form class="finance-login" data-finance-login>
+            <label class="field">
+              <span>Usuario</span>
+              <select name="usuario" required>
+                <option value="">Seleccione...</option>
+                <option>Guillermo Torres</option>
+                <option>Alberto Soto</option>
+                <option>Contable del Museo</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Contraseña</span>
+              <input type="password" name="password" required>
+            </label>
+            <button class="button submit-button" type="submit">Entrar</button>
+            <p class="form-message" data-finance-login-message></p>
+          </form>
+        </section>
+
+        <section class="finance-module" data-finance-module hidden>
+          <div class="finance-toolbar">
+            <div>
+              <p class="page-kicker">Panel Financiero</p>
+              <h2>Proyección Financiera del Museo</h2>
+              <p>Sistema administrativo para ingresos, gastos, nómina, reportes y bitácora.</p>
+            </div>
+            <div class="finance-actions">
+              <button class="button secondary" type="button" data-finance-export-excel>Exportar a Excel</button>
+              <button class="button secondary" type="button" data-finance-export-pdf>Exportar a PDF</button>
+              <button class="button secondary" type="button" data-finance-print>Imprimir</button>
+            </div>
+          </div>
+
+          <section class="finance-summary-grid" data-finance-summary></section>
+
+          <nav class="admin-tabs finance-tabs" aria-label="Navegación interna de Finanzas">
+            <button class="admin-tab is-active" type="button" data-finance-tab="resumen">Resumen</button>
+            <button class="admin-tab" type="button" data-finance-tab="ingresos">Ingresos</button>
+            <button class="admin-tab" type="button" data-finance-tab="gastos">Gastos</button>
+            <button class="admin-tab" type="button" data-finance-tab="nomina">Nómina</button>
+            <button class="admin-tab" type="button" data-finance-tab="otros">Otros Gastos</button>
+            <button class="admin-tab" type="button" data-finance-tab="reportes">Reportes</button>
+            <button class="admin-tab" type="button" data-finance-tab="configuracion">Configuración</button>
+          </nav>
+
+          <section class="card panel finance-panel" data-finance-panel></section>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=notifications-module-20260705"></script>
+  <script src="js/app.js?v=finance-module-20260705"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-

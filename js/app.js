@@ -200,6 +200,8 @@ const defaultEmployeeProfiles = {
 
 const employeeStorageKey = "museo-admin-employee-records";
 const notificationStorageKey = "museo-admin-notification-preferences";
+const financeStorageKey = "museo-admin-finance-records";
+const financeAuditStorageKey = "museo-admin-finance-audit-log";
 const currentAccessLevel = () => localStorage.getItem("museo-admin-access-level") || "Administrador";
 const canManageEmployees = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
 const canDeleteEmployees = () => currentAccessLevel() === "Administrador";
@@ -249,6 +251,48 @@ function employeeInitials(employee) {
 function employeeDisplayName(employee) {
   return employee.nombreCompleto || `${employee.nombre || ""} ${employee.apellidos || ""}`.trim();
 }
+
+const financeMonths = ["Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio"];
+const defaultFinanceRows = [
+  { id: "ing-aportacion", type: "income", category: "Ingresos", concept: "Aportación Municipal", values: [100000,0,0,0,0,0,0,0,0,0,0,0] },
+  { id: "ing-adultos", type: "income", category: "Entradas al Museo", concept: "Entradas Adultos", values: [0,0,26000,26000,26000,26000,26000,26000,26000,26000,26000,26000] },
+  { id: "ing-ninos", type: "income", category: "Entradas al Museo", concept: "Entradas Niños", values: [0,0,8666.67,8666.67,8666.67,8666.67,8666.67,8666.67,8666.67,8666.67,8666.67,8666.67] },
+  { id: "ing-tabletas", type: "income", category: "Entradas al Museo", concept: "Alquiler de Tabletas", values: [0,0,433.33,433.33,433.33,433.33,433.33,433.33,433.33,433.33,433.33,433.33] },
+  { id: "ing-auspicios", type: "income", category: "Ingresos", concept: "Auspicios", values: [0,0,30000,0,30000,30000,0,30000,30000,0,0,30000] },
+  { id: "ing-membresias", type: "income", category: "Ingresos", concept: "Membresías", values: [0,0,250,250,250,250,250,250,250,250,250,250] },
+  { id: "ing-salas", type: "income", category: "Ingresos", concept: "Alquiler de Salas", values: [0,0,0,1700,1700,1700,1700,1700,1700,1700,1700,1700] },
+  { id: "ing-actividades", type: "income", category: "Ingresos", concept: "Actividades", values: [0,0,1000,1000,1000,1000,1000,1000,1000,1000,1000,1000] },
+  { id: "ing-tienda", type: "income", category: "Ingresos", concept: "Tienda", values: [0,0,750,750,750,750,750,750,750,750,750,750] },
+  { id: "ing-restaurante", type: "income", category: "Ingresos", concept: "Restaurante", values: [0,0,6000,6000,6000,6000,6000,6000,6000,6000,6000,6000] },
+  { id: "ing-galas", type: "income", category: "Ingresos", concept: "Galas de Recaudación", values: [0,0,0,0,0,0,0,0,0,0,0,20000] },
+  { id: "ing-donaciones", type: "income", category: "Ingresos", concept: "Donaciones", values: Array(12).fill(0) },
+  { id: "ing-otros", type: "income", category: "Ingresos", concept: "Otros Ingresos", values: Array(12).fill(0) },
+  { id: "exp-director", type: "expense", category: "Nómina", concept: "Director", values: Array(12).fill(4000) },
+  { id: "exp-admin", type: "expense", category: "Nómina", concept: "Administración", values: Array(12).fill(3000) },
+  { id: "exp-produccion", type: "expense", category: "Nómina", concept: "Producción", values: Array(12).fill(2166.67) },
+  { id: "exp-mantenimiento", type: "expense", category: "Nómina", concept: "Mantenimiento", values: [0,1200,1200,1200,1200,1200,1200,1200,1200,1200,1200,1200] },
+  { id: "exp-ujieres", type: "expense", category: "Nómina", concept: "Ujieres", values: [0,10240,10240,10240,10240,10240,10240,10240,10240,10240,10240,10240] },
+  { id: "exp-guias", type: "expense", category: "Nómina", concept: "Guías", values: [0,500,500,500,500,500,500,500,500,500,500,500] },
+  { id: "exp-seguridad", type: "expense", category: "Nómina", concept: "Seguridad", values: [0,0,3520,3520,3520,3520,3520,3520,3520,3520,3520,3520] },
+  { id: "exp-beneficios", type: "expense", category: "Beneficios", concept: "Seguro Social", values: Array(12).fill(1050) },
+  { id: "exp-desempleo", type: "expense", category: "Beneficios", concept: "Desempleo", values: Array(12).fill(0) },
+  { id: "exp-vacaciones", type: "expense", category: "Beneficios", concept: "Vacaciones", values: Array(12).fill(0) },
+  { id: "exp-bono", type: "expense", category: "Beneficios", concept: "Bono de Navidad", values: Array(12).fill(0) },
+  { id: "exp-electricidad", type: "expense", category: "Gastos Operacionales", concept: "Electricidad", values: Array(12).fill(10000) },
+  { id: "exp-agua", type: "expense", category: "Gastos Operacionales", concept: "Agua", values: Array(12).fill(500) },
+  { id: "exp-internet", type: "expense", category: "Gastos Operacionales", concept: "Internet / Telefonía", values: Array(12).fill(250) },
+  { id: "exp-uniformes", type: "expense", category: "Gastos Operacionales", concept: "Uniformes", values: [0,2100,0,0,0,0,0,2100,0,0,0,0] },
+  { id: "exp-materiales", type: "expense", category: "Gastos Operacionales", concept: "Materiales", values: [0,1000,200,200,200,200,200,200,200,200,200,200] },
+  { id: "exp-limpieza", type: "expense", category: "Gastos Operacionales", concept: "Limpieza", values: [0,1650,1650,1650,1650,1650,1650,1650,1650,1650,1650,1650] },
+  { id: "exp-oficina", type: "expense", category: "Gastos Operacionales", concept: "Oficina", values: [0,1000,200,200,200,200,200,200,200,200,200,200] },
+  { id: "exp-publicidad", type: "expense", category: "Gastos Operacionales", concept: "Publicidad", values: Array(12).fill(5000) },
+  { id: "exp-reparaciones", type: "expense", category: "Gastos Operacionales", concept: "Reparaciones", values: [0,0,0,0,0,2000,0,0,0,0,0,2000] },
+  { id: "exp-seguros", type: "expense", category: "Gastos Operacionales", concept: "Seguros", values: Array(12).fill(1400) },
+  { id: "exp-miscelaneos", type: "expense", category: "Otros Gastos", concept: "Misceláneos", values: [0,955.53,966.33,966.33,966.33,1006.33,966.33,1058.33,966.33,966.33,966.33,1006.33] },
+  { id: "exp-contingencia", type: "expense", category: "Otros Gastos", concept: "Contingencia", values: [0,4777.67,4831.67,4831.67,4831.67,5031.67,4831.67,5291.67,4831.67,4831.67,4831.67,5031.67] },
+  { id: "exp-reserva", type: "expense", category: "Otros Gastos", concept: "Fondo de Reserva", values: Array(12).fill(0) },
+  { id: "exp-ahorros", type: "expense", category: "Otros Gastos", concept: "Ahorros", values: [0,955.53,966.33,966.33,966.33,1006.33,966.33,1058.33,966.33,966.33,966.33,1006.33] }
+];
 
 function iconSvg(name) {
   return `<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true">${iconPaths[name] || iconPaths.file}</svg>`;
@@ -1271,6 +1315,229 @@ function bindNotificationsModule() {
   render();
 }
 
+function bindFinanceModule() {
+  const module = document.querySelector("[data-finance-module]");
+  const gate = document.querySelector("[data-finance-gate]");
+  if (!module || !gate) return;
+
+  const loginForm = document.querySelector("[data-finance-login]");
+  const loginMessage = document.querySelector("[data-finance-login-message]");
+  const summary = document.querySelector("[data-finance-summary]");
+  const panel = document.querySelector("[data-finance-panel]");
+  const tabs = document.querySelectorAll("[data-finance-tab]");
+  const allowedUsers = {
+    "Guillermo Torres": "museo2026",
+    "Alberto Soto": "museo2026",
+    "Contable del Museo": "museo2026"
+  };
+  let activeTab = "resumen";
+  let currentUser = sessionStorage.getItem("museo-admin-finance-user") || "";
+  let rows = JSON.parse(localStorage.getItem(financeStorageKey) || "null") || defaultFinanceRows;
+
+  const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
+  const rowTotal = (row) => row.values.reduce((sum, value) => sum + Number(value || 0), 0);
+  const rowsByType = (type) => rows.filter((row) => row.type === type);
+  const totalByType = (type) => rowsByType(type).reduce((sum, row) => sum + rowTotal(row), 0);
+  const monthTotal = (type, monthIndex) => rowsByType(type).reduce((sum, row) => sum + Number(row.values[monthIndex] || 0), 0);
+  const saveRows = () => localStorage.setItem(financeStorageKey, JSON.stringify(rows));
+  const audit = () => JSON.parse(localStorage.getItem(financeAuditStorageKey) || "[]");
+  const saveAudit = (entries) => localStorage.setItem(financeAuditStorageKey, JSON.stringify(entries.slice(-250)));
+  const addAudit = (row, monthIndex, previousValue, nextValue) => {
+    const entries = audit();
+    entries.push({
+      usuario: currentUser,
+      fecha: new Date().toLocaleDateString("es-PR"),
+      hora: new Date().toLocaleTimeString("es-PR"),
+      concepto: row.concept,
+      mes: financeMonths[monthIndex],
+      anterior: Number(previousValue || 0),
+      nuevo: Number(nextValue || 0)
+    });
+    saveAudit(entries);
+  };
+
+  const totals = () => {
+    const income = totalByType("income");
+    const expense = totalByType("expense");
+    const net = income - expense;
+    const monthlyExpense = expense / financeMonths.length;
+    return {
+      income,
+      expense,
+      net,
+      budget: Math.max(net, 0),
+      monthlyExpense,
+      balance: net
+    };
+  };
+
+  const renderSummary = () => {
+    const data = totals();
+    const cards = [
+      ["Ingresos Totales", data.income, "theme-green"],
+      ["Gastos Totales", data.expense, "theme-red"],
+      ["Ingresos Netos", data.net, data.net >= 0 ? "theme-teal" : "theme-red"],
+      ["Presupuesto Disponible", data.budget, "theme-purple"],
+      ["Gasto Mensual Promedio", data.monthlyExpense, "theme-gold"],
+      ["Balance del Año", data.balance, data.balance >= 0 ? "theme-blue" : "theme-red"]
+    ];
+    summary.innerHTML = cards.map(([label, value, theme]) => `
+      <article class="finance-kpi ${theme}">
+        <span>${label}</span>
+        <strong>${money(value)}</strong>
+      </article>
+    `).join("");
+  };
+
+  const renderMonthlySummary = () => `
+    <div class="table-wrap">
+      <table class="data-table finance-table">
+        <thead>
+          <tr><th>Mes</th><th>Ingresos</th><th>Gastos</th><th>Ingresos Netos</th></tr>
+        </thead>
+        <tbody>
+          ${financeMonths.map((month, index) => {
+            const income = monthTotal("income", index);
+            const expense = monthTotal("expense", index);
+            return `<tr><td>${month}</td><td>${money(income)}</td><td>${money(expense)}</td><td>${money(income - expense)}</td></tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  const renderFinanceTable = (title, filter) => {
+    const visibleRows = rows.filter(filter);
+    let lastCategory = "";
+    return `
+      <p class="page-kicker">${title}</p>
+      <h3>${title}</h3>
+      <div class="table-wrap">
+        <table class="data-table finance-table">
+          <thead>
+            <tr>
+              <th>Concepto</th>
+              ${financeMonths.map((month) => `<th>${month}</th>`).join("")}
+              <th>Total Anual</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${visibleRows.map((row) => {
+              const categoryRow = row.category !== lastCategory ? `<tr class="finance-category-row"><td colspan="14">${row.category}</td></tr>` : "";
+              lastCategory = row.category;
+              return `${categoryRow}<tr>
+                <td><strong>${safeHtml(row.concept)}</strong></td>
+                ${row.values.map((value, index) => `
+                  <td><input class="finance-cell" type="number" step="0.01" value="${Number(value || 0)}" data-finance-row="${row.id}" data-finance-month="${index}"></td>
+                `).join("")}
+                <td><strong>${money(rowTotal(row))}</strong></td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  };
+
+  const renderReports = () => {
+    const entries = audit().slice().reverse();
+    return `
+      <p class="page-kicker">Reportes</p>
+      <h3>Bitácora de Cambios</h3>
+      <p>Todo cambio financiero queda registrado con usuario, fecha, hora, valor anterior y valor nuevo.</p>
+      <div class="table-wrap section-stack">
+        <table class="data-table">
+          <thead><tr><th>Usuario</th><th>Fecha</th><th>Hora</th><th>Concepto</th><th>Mes</th><th>Anterior</th><th>Nuevo</th></tr></thead>
+          <tbody>
+            ${entries.length ? entries.map((entry) => `
+              <tr><td>${safeHtml(entry.usuario)}</td><td>${entry.fecha}</td><td>${entry.hora}</td><td>${safeHtml(entry.concepto)}</td><td>${entry.mes}</td><td>${money(entry.anterior)}</td><td>${money(entry.nuevo)}</td></tr>
+            `).join("") : `<tr><td colspan="7">Todavía no hay cambios registrados.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    `;
+  };
+
+  const renderConfiguration = () => `
+    <p class="page-kicker">Configuración</p>
+    <h3>Preparado para Próximas Funciones</h3>
+    <div class="finance-config-grid">
+      ${["Cálculo automático de nómina", "Aumentos salariales", "Nuevos empleados", "Carga patronal", "Seguro Social", "Plan Médico", "Deducciones", "Presupuestos por departamento", "Presupuesto vs. gasto real", "Flujo de efectivo", "Proyecciones financieras", "Gráficas financieras", "Reportes para Junta de Directores"].map((item) => `<span>${item}</span>`).join("")}
+    </div>
+  `;
+
+  const renderPanel = () => {
+    renderSummary();
+    if (activeTab === "resumen") panel.innerHTML = `<p class="page-kicker">Resumen</p><h3>Resumen Mensual</h3>${renderMonthlySummary()}`;
+    if (activeTab === "ingresos") panel.innerHTML = renderFinanceTable("Ingresos", (row) => row.type === "income");
+    if (activeTab === "gastos") panel.innerHTML = renderFinanceTable("Gastos", (row) => row.type === "expense");
+    if (activeTab === "nomina") panel.innerHTML = renderFinanceTable("Nómina", (row) => row.category === "Nómina" || row.category === "Beneficios");
+    if (activeTab === "otros") panel.innerHTML = renderFinanceTable("Otros Gastos", (row) => row.category === "Otros Gastos" || row.category === "Gastos Operacionales");
+    if (activeTab === "reportes") panel.innerHTML = renderReports();
+    if (activeTab === "configuracion") panel.innerHTML = renderConfiguration();
+  };
+
+  const openModule = () => {
+    gate.hidden = true;
+    module.hidden = false;
+    renderPanel();
+  };
+
+  const exportCsv = () => {
+    const lines = [["Tipo", "Categoría", "Concepto", ...financeMonths, "Total Anual"]];
+    rows.forEach((row) => lines.push([row.type, row.category, row.concept, ...row.values, rowTotal(row)]));
+    const csv = lines.map((line) => line.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "finanzas-museo.csv";
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  loginForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(loginForm);
+    const user = data.get("usuario");
+    const password = data.get("password");
+    if (allowedUsers[user] !== password) {
+      loginMessage.textContent = "Credenciales inválidas.";
+      loginMessage.className = "form-message error";
+      return;
+    }
+    currentUser = user;
+    sessionStorage.setItem("museo-admin-finance-user", user);
+    openModule();
+  });
+
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      activeTab = tab.dataset.financeTab;
+      tabs.forEach((item) => item.classList.toggle("is-active", item === tab));
+      renderPanel();
+    });
+  });
+
+  panel.addEventListener("change", (event) => {
+    const input = event.target.closest("[data-finance-row]");
+    if (!input) return;
+    const row = rows.find((item) => item.id === input.dataset.financeRow);
+    const monthIndex = Number(input.dataset.financeMonth);
+    const previousValue = Number(row.values[monthIndex] || 0);
+    const nextValue = Number(input.value || 0);
+    row.values[monthIndex] = nextValue;
+    saveRows();
+    addAudit(row, monthIndex, previousValue, nextValue);
+    renderPanel();
+  });
+
+  document.querySelector("[data-finance-export-excel]")?.addEventListener("click", exportCsv);
+  document.querySelector("[data-finance-export-pdf]")?.addEventListener("click", () => window.print());
+  document.querySelector("[data-finance-print]")?.addEventListener("click", () => window.print());
+
+  if (currentUser) openModule();
+}
+
 function bindEmployeeProfile() {
   const profileCard = document.querySelector(".employee-profile");
   if (!profileCard) return;
@@ -1360,6 +1627,7 @@ function initApp() {
   populateSystemDataSelects();
   bindHumanResourcesModule();
   bindNotificationsModule();
+  bindFinanceModule();
   bindEmployeeProfile();
   bindSidebarToggle();
   bindLoginDemo();
