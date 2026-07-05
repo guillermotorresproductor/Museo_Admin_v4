@@ -1730,6 +1730,51 @@ function bindFinanceModule() {
     `;
   };
 
+  const renderExpenseSummaryTable = () => {
+    const payrollRows = rows.filter((row) => row.category === "Nómina" || row.category === "Beneficios");
+    const payrollValues = financeMonths.map((month, index) =>
+      payrollRows.reduce((sum, row) => sum + Number(row.values[index] || 0), 0)
+    );
+    const operatingRows = rows.filter((row) =>
+      row.type === "expense" && row.category !== "Nómina" && row.category !== "Beneficios"
+    );
+    let lastCategory = "";
+    return `
+      <p class="page-kicker">Gastos</p>
+      <h3>Gastos</h3>
+      <div class="table-wrap">
+        <table class="data-table finance-table">
+          <thead>
+            <tr>
+              <th>Concepto</th>
+              ${financeMonths.map((month) => `<th>${month}</th>`).join("")}
+              <th>Total Anual</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="finance-category-row"><td colspan="14">Nómina</td></tr>
+            <tr class="finance-total-row">
+              <td><strong>Total de Nómina</strong></td>
+              ${payrollValues.map((value) => `<td><strong>${money(value)}</strong></td>`).join("")}
+              <td><strong>${money(payrollValues.reduce((sum, value) => sum + value, 0))}</strong></td>
+            </tr>
+            ${operatingRows.map((row) => {
+              const categoryRow = row.category !== lastCategory ? `<tr class="finance-category-row"><td colspan="14">${row.category}</td></tr>` : "";
+              lastCategory = row.category;
+              return `${categoryRow}<tr>
+                <td><strong>${safeHtml(row.concept)}</strong></td>
+                ${row.values.map((value, index) => `
+                  <td><input class="finance-cell" type="number" step="0.01" value="${Number(value || 0)}" data-finance-row="${row.id}" data-finance-month="${index}"></td>
+                `).join("")}
+                <td><strong>${money(rowTotal(row))}</strong></td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  };
+
   const renderReports = () => {
     const entries = audit().slice().reverse();
     return `
@@ -1761,7 +1806,7 @@ function bindFinanceModule() {
     renderSummary();
     if (activeTab === "resumen") panel.innerHTML = `<p class="page-kicker">Resumen</p><h3>Resumen Mensual</h3>${renderMonthlySummary()}`;
     if (activeTab === "ingresos") panel.innerHTML = renderFinanceTable("Ingresos", (row) => row.type === "income");
-    if (activeTab === "gastos") panel.innerHTML = renderFinanceTable("Gastos", (row) => row.type === "expense");
+    if (activeTab === "gastos") panel.innerHTML = renderExpenseSummaryTable();
     if (activeTab === "nomina") panel.innerHTML = renderFinanceTable("Nómina", (row) => row.category === "Nómina" || row.category === "Beneficios");
     if (activeTab === "otros") panel.innerHTML = renderFinanceTable("Otros Gastos", (row) => row.category === "Otros Gastos" || row.category === "Gastos Operacionales");
     if (activeTab === "reportes") panel.innerHTML = renderReports();

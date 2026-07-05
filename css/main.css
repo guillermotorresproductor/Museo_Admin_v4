@@ -1718,6 +1718,15 @@ body {
   font-weight: 950;
 }
 
+.finance-total-row td {
+  background: #f7faf8;
+  color: var(--ink);
+}
+
+.finance-total-row strong {
+  color: #159447;
+}
+
 .finance-cell {
   width: 112px;
   min-height: 36px;
