@@ -497,6 +497,9 @@ function renderHeader() {
   if (!header) return;
 
   const meta = resolvePageMeta();
+  const loggedUser = localStorage.getItem("museo-admin-current-user");
+  const accountLabel = loggedUser || "Entrar a mi cuenta";
+  const accountHref = loggedUser ? "perfil-empleado.html" : "login.html";
   header.innerHTML = `
     <div class="header-left">
       <button class="menu-toggle" type="button" aria-label="Abrir navegacion" data-menu-toggle>
@@ -512,9 +515,9 @@ function renderHeader() {
         ${iconSvg("bell")}
         <span class="notification-badge">3</span>
       </button>
-      <a class="account-button" href="login.html">
+      <a class="account-button${loggedUser ? " is-logged-in" : ""}" href="${accountHref}">
         ${iconSvg("users")}
-        <span>Entrar a mi cuenta</span>
+        <span>${safeHtml(accountLabel)}</span>
         ${iconSvg("chevron")}
       </a>
     </div>

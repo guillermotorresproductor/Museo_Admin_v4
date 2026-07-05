@@ -1224,6 +1224,19 @@ body {
   height: 18px;
 }
 
+.account-button.is-logged-in {
+  background: #050505;
+  border: 1px solid rgba(21, 148, 71, 0.5);
+}
+
+.account-button.is-logged-in::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #18b45b;
+}
+
 .page-content {
   padding: 34px 40px 26px;
 }
