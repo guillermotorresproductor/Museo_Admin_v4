@@ -4,7 +4,8 @@
   "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Música." },
   "empleados.html": { title: "Solicitud de Empleo", subtitle: "Formulario para candidatos." },
   "mantenimiento.html": { title: "Mantenimiento", subtitle: "Operación preventiva y correctiva." },
-  "calendario-obras.html": { title: "Calendario", subtitle: "Asignación de empleados, horarios y deberes." },
+  "calendario.html": { title: "Calendario General", subtitle: "Actividades, eventos y compromisos confirmados del museo." },
+  "calendario-obras.html": { title: "Calendario de Obras", subtitle: "Asignación mensual de empleados, tareas y áreas de trabajo." },
   "solicitud-materiales.html": { title: "Solicitud de Materiales", subtitle: "Registro de solicitudes de mantenimiento." },
   "ruta-digital.html": { title: "Ruta Digital de Mantenimiento", subtitle: "Control de recorrido por áreas." },
   "renta-espacios.html": { title: "Renta de Espacios", subtitle: "Solicitud de áreas y tarifas oficiales." },
@@ -47,13 +48,14 @@ const navigationGroups = [
     label: "Menu",
     items: [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
-      { href: "calendario-obras.html", label: "Calendario", icon: "calendar" },
+      { href: "calendario.html", label: "Calendario", icon: "calendar" },
       { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building" },
       { href: "empleados.html", label: "Solicitud de Empleo", icon: "users" },
-      { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["solicitud-materiales.html", "ruta-digital.html"] },
+      { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"] },
       { href: "documentos.html", label: "Formularios y Papelería", icon: "file", activePages: ["recibo-prestamo.html", "reglamento.html"] },
       { href: "administracion.html", label: "Administración", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html"] },
       { href: "boletin.html", label: "Boletín Board", icon: "megaphone" },
+      { href: "inventario.html", label: "Inventario de Equipos y Obras de Arte", icon: "briefcase" },
       { href: "login.html", label: "Mi cuenta", icon: "logout" }
     ]
   }
@@ -565,6 +567,194 @@ function bindInventoryModule() {
   renderRecords();
 }
 
+function bindCalendarModules() {
+  const panel = document.querySelector("[data-calendar-module]");
+  if (!panel) return;
+
+  const moduleType = panel.dataset.calendarModule;
+  const isMaintenance = moduleType === "maintenance";
+  const storageKey = isMaintenance ? "museo-admin-work-calendar" : "museo-admin-general-calendar";
+  const form = panel.querySelector("[data-calendar-form]");
+  const grid = panel.querySelector("[data-calendar-grid]");
+  const title = panel.querySelector("[data-calendar-title]");
+  const role = panel.querySelector("[data-calendar-role]");
+  const permissionMessage = panel.querySelector("[data-calendar-permission-message]");
+  const message = panel.querySelector("[data-calendar-message]");
+  const submitButton = panel.querySelector("[data-calendar-submit]");
+  const cancelButton = panel.querySelector("[data-calendar-cancel]");
+  const monthNames = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  let activeDate = new Date();
+  let records = JSON.parse(localStorage.getItem(storageKey) || "[]");
+
+  const saveRecords = () => localStorage.setItem(storageKey, JSON.stringify(records));
+  const canEdit = () => ["Ejecutivo", "Administrador"].includes(role?.value);
+  const createId = () => {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return `calendar-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  };
+  const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  })[character]);
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text;
+    message.className = `form-message ${type}`.trim();
+  };
+  const monthValue = () => `${activeDate.getFullYear()}-${String(activeDate.getMonth() + 1).padStart(2, "0")}`;
+
+  const setEditableState = () => {
+    const allowed = canEdit();
+    form.querySelectorAll("input, select, textarea, button").forEach((field) => {
+      if (field === role) return;
+      field.disabled = !allowed;
+    });
+    if (permissionMessage) {
+      permissionMessage.textContent = allowed
+        ? "Puede editar este calendario con el rol seleccionado."
+        : "Este rol solo puede ver el calendario. La edición requiere rol Ejecutivo o Administrador.";
+    }
+    panel.classList.toggle("is-readonly", !allowed);
+    renderCalendar();
+  };
+
+  const renderCalendar = () => {
+    if (!grid) return;
+    const year = activeDate.getFullYear();
+    const month = activeDate.getMonth();
+    const days = new Date(year, month + 1, 0).getDate();
+    const firstDay = new Date(year, month, 1).getDay();
+    const currentMonth = monthValue();
+    if (title) title.textContent = `${isMaintenance ? "Calendario de Obras" : "Calendario General"} - ${monthNames[month]} ${year}`;
+
+    const emptyCells = Array.from({ length: firstDay }, () => `<div class="calendar-day is-empty"></div>`).join("");
+    const dayCells = Array.from({ length: days }, (_, index) => {
+      const day = index + 1;
+      const date = `${currentMonth}-${String(day).padStart(2, "0")}`;
+      const dayRecords = records.filter((record) => record.fecha === date);
+      const items = dayRecords.map((record) => {
+        const body = isMaintenance
+          ? `<strong>${escapeHtml(record.empleado)}</strong><span>${escapeHtml(record.tarea)}</span><small>${escapeHtml(record.area || "Sin área")} · ${escapeHtml(record.estado || "Pendiente")}</small>`
+          : `<strong>${escapeHtml(record.titulo)}</strong><span>${escapeHtml(record.descripcion || "Sin descripción")}</span>`;
+        const actions = canEdit()
+          ? `<div class="calendar-item-actions"><button type="button" data-calendar-edit="${record.id}">Editar</button><button type="button" data-calendar-delete="${record.id}">Eliminar</button></div>`
+          : "";
+        return `<article class="calendar-item">${body}${actions}</article>`;
+      }).join("");
+
+      return `
+        <div class="calendar-day">
+          <div class="calendar-day-number">${day}</div>
+          ${items}
+        </div>
+      `;
+    }).join("");
+
+    grid.innerHTML = `
+      <div class="calendar-weekdays">
+        <span>Dom</span><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span>
+      </div>
+      <div class="calendar-days">${emptyCells}${dayCells}</div>
+    `;
+  };
+
+  const resetForm = () => {
+    form.reset();
+    form.elements.id.value = "";
+    if (submitButton) submitButton.textContent = isMaintenance ? "Guardar Tarea" : "Guardar Evento";
+    if (cancelButton) cancelButton.hidden = true;
+  };
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!canEdit()) {
+      setMessage("Este rol no tiene permiso para editar el calendario.", "error");
+      return;
+    }
+
+    const data = new FormData(form);
+    const id = data.get("id");
+    const record = isMaintenance
+      ? {
+          id: id || createId(),
+          fecha: data.get("fecha"),
+          empleado: data.get("empleado").trim(),
+          tarea: data.get("tarea").trim(),
+          area: data.get("area").trim(),
+          estado: data.get("estado")
+        }
+      : {
+          id: id || createId(),
+          fecha: data.get("fecha"),
+          titulo: data.get("titulo").trim(),
+          descripcion: data.get("descripcion").trim()
+        };
+
+    const isInvalid = isMaintenance
+      ? !record.fecha || !record.empleado || !record.tarea
+      : !record.fecha || !record.titulo;
+    if (isInvalid) {
+      setMessage("Complete los campos requeridos antes de guardar.", "error");
+      return;
+    }
+
+    records = id ? records.map((item) => item.id === id ? record : item) : [...records, record];
+    saveRecords();
+    activeDate = new Date(`${record.fecha}T12:00:00`);
+    resetForm();
+    setMessage(id ? "Registro actualizado correctamente." : "Registro guardado correctamente.", "success");
+    renderCalendar();
+  });
+
+  panel.addEventListener("click", (event) => {
+    const editButton = event.target.closest("[data-calendar-edit]");
+    const deleteButton = event.target.closest("[data-calendar-delete]");
+
+    if (editButton) {
+      if (!canEdit()) return;
+      const record = records.find((item) => item.id === editButton.dataset.calendarEdit);
+      if (!record) return;
+      Object.entries(record).forEach(([key, value]) => {
+        const field = form.elements[key];
+        if (field) field.value = value;
+      });
+      if (submitButton) submitButton.textContent = isMaintenance ? "Actualizar Tarea" : "Actualizar Evento";
+      if (cancelButton) cancelButton.hidden = false;
+      form.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    if (deleteButton) {
+      if (!canEdit()) return;
+      const record = records.find((item) => item.id === deleteButton.dataset.calendarDelete);
+      if (!record) return;
+      if (!confirm("¿Eliminar este registro del calendario?")) return;
+      records = records.filter((item) => item.id !== record.id);
+      saveRecords();
+      renderCalendar();
+      setMessage("Registro eliminado.", "success");
+    }
+  });
+
+  panel.querySelector("[data-calendar-prev]")?.addEventListener("click", () => {
+    activeDate = new Date(activeDate.getFullYear(), activeDate.getMonth() - 1, 1);
+    renderCalendar();
+  });
+  panel.querySelector("[data-calendar-next]")?.addEventListener("click", () => {
+    activeDate = new Date(activeDate.getFullYear(), activeDate.getMonth() + 1, 1);
+    renderCalendar();
+  });
+  cancelButton?.addEventListener("click", () => {
+    resetForm();
+    setMessage("");
+  });
+  role?.addEventListener("change", setEditableState);
+
+  setEditableState();
+}
+
 function renderInlineIcons() {
   document.querySelectorAll("[data-icon]").forEach((element) => {
     element.innerHTML = iconSvg(element.dataset.icon);
@@ -662,6 +852,7 @@ function initApp() {
   bindRentalForm();
   bindLoanReceiptForm();
   bindInventoryModule();
+  bindCalendarModules();
 }
 
 document.addEventListener("DOMContentLoaded", initApp);

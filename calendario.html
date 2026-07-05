@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Calendario de Obras</title>
+  <title>Museo Admin v4.0 | Calendario General</title>
   <link rel="stylesheet" href="css/main.css?v=calendarios-inventario-20260705">
 </head>
 <body>
@@ -13,12 +13,12 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="card panel calendar-panel" data-calendar-module="maintenance">
+        <section class="card panel calendar-panel" data-calendar-module="general">
           <div class="calendar-toolbar">
             <div>
-              <p class="page-kicker">Calendario de Obras / Mantenimiento</p>
-              <h3 data-calendar-title>Calendario de Obras</h3>
-              <p>Calendario mensual exclusivo para tareas, empleados asignados, Ã¡reas y estado de trabajos.</p>
+              <p class="page-kicker">Calendario General del Museo</p>
+              <h3 data-calendar-title>Calendario</h3>
+              <p>Actividades, eventos y compromisos confirmados por la administraciÃ³n del Museo.</p>
             </div>
             <div class="calendar-actions">
               <button class="button secondary" type="button" data-calendar-prev>Mes anterior</button>
@@ -27,9 +27,9 @@
           </div>
 
           <div class="calendar-permissions">
-            <label class="field" for="work-calendar-role">
+            <label class="field" for="calendar-role">
               <span>Rol de usuario</span>
-              <select id="work-calendar-role" data-calendar-role>
+              <select id="calendar-role" data-calendar-role>
                 <option>Empleado</option>
                 <option>Ejecutivo</option>
                 <option selected>Administrador</option>
@@ -46,31 +46,16 @@
                 <input type="date" name="fecha" required>
               </label>
               <label class="field">
-                <span>Empleado asignado</span>
-                <input type="text" name="empleado" required>
-              </label>
-            </div>
-            <div class="form-row">
-              <label class="field">
-                <span>Tarea del dÃ­a</span>
-                <input type="text" name="tarea" required>
-              </label>
-              <label class="field">
-                <span>Ãrea o lugar de trabajo</span>
-                <input type="text" name="area">
+                <span>Actividad o evento</span>
+                <input type="text" name="titulo" required>
               </label>
             </div>
             <label class="field">
-              <span>Estado de la tarea</span>
-              <select name="estado">
-                <option>Pendiente</option>
-                <option>En progreso</option>
-                <option>Completado</option>
-                <option>Requiere seguimiento</option>
-              </select>
+              <span>DescripciÃ³n</span>
+              <textarea name="descripcion" rows="3"></textarea>
             </label>
             <div class="inventory-actions">
-              <button class="button submit-button" type="submit" data-calendar-submit>Guardar Tarea</button>
+              <button class="button submit-button" type="submit" data-calendar-submit>Guardar Evento</button>
               <button class="button secondary" type="button" data-calendar-cancel hidden>Cancelar ediciÃ³n</button>
             </div>
             <p class="form-message" data-calendar-message></p>
