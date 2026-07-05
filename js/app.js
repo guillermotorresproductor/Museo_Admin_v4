@@ -204,9 +204,115 @@ const financeStorageKey = "museo-admin-finance-records";
 const financeAuditStorageKey = "museo-admin-finance-audit-log";
 const rentalStorageKey = "museo-admin-rental-requests";
 const rentalSpacesStorageKey = "museo-admin-rental-spaces";
+const supabaseUrl = "https://kfokfjngozgcwjpzxcsu.supabase.co";
+const supabasePublishableKey = "sb_publishable_wBGL3o2YcfbR_dvhT3mTnw_OXuHB0y3";
+const supabaseSessionKey = "museo-admin-supabase-session";
 const currentAccessLevel = () => localStorage.getItem("museo-admin-access-level") || "Administrador";
 const canManageEmployees = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
 const canDeleteEmployees = () => currentAccessLevel() === "Administrador";
+
+function getSupabaseSession() {
+  return JSON.parse(localStorage.getItem(supabaseSessionKey) || "null");
+}
+
+function saveSupabaseSession(session) {
+  localStorage.setItem(supabaseSessionKey, JSON.stringify(session));
+}
+
+function clearSupabaseSession() {
+  localStorage.removeItem(supabaseSessionKey);
+}
+
+function supabaseHeaders(requireAuth = false) {
+  const session = getSupabaseSession();
+  const headers = {
+    apikey: supabasePublishableKey,
+    "Content-Type": "application/json"
+  };
+  if (requireAuth) {
+    if (!session?.access_token) throw new Error("Debe entrar a su cuenta antes de consultar Supabase.");
+    headers.Authorization = `Bearer ${session.access_token}`;
+  }
+  return headers;
+}
+
+async function signInWithSupabase(email, password) {
+  const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: supabaseHeaders(),
+    body: JSON.stringify({ email, password })
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error_description || data.msg || "No se pudo entrar a Supabase.");
+  saveSupabaseSession(data);
+  return data;
+}
+
+async function fetchSupabaseProfile() {
+  const session = getSupabaseSession();
+  if (!session?.user?.id) return null;
+  const response = await fetch(`${supabaseUrl}/rest/v1/profiles?select=*&id=eq.${encodeURIComponent(session.user.id)}&limit=1`, {
+    headers: supabaseHeaders(true)
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || "No se pudo leer el perfil del usuario.");
+  return data[0] || null;
+}
+
+function employeeFromSupabase(row) {
+  return {
+    id: row.id,
+    avatar: employeeInitials({ nombre: row.first_name, apellidos: row.last_name }),
+    nombre: row.first_name || "",
+    apellidos: row.last_name || "",
+    nombreCompleto: `${row.first_name || ""} ${row.last_name || ""}`.trim(),
+    foto: row.photo_url || "",
+    posicion: row.position || "",
+    departamento: row.department || "",
+    correo: row.email || "",
+    telefono: row.phone || "",
+    direccion: row.address || "",
+    fechaContratacion: row.hire_date || "",
+    horario: row.work_schedule || "",
+    educacion: row.education_level || "",
+    condicion: row.medical_condition || "",
+    usuario: row.email || "",
+    passwordTemporal: "",
+    acceso: row.access_level ? row.access_level.charAt(0).toUpperCase() + row.access_level.slice(1) : "Empleado",
+    estado: row.status === "inactivo" ? "Inactivo" : "Activo",
+    notificaciones: "",
+    source: "supabase"
+  };
+}
+
+function employeeToSupabasePayload(employee, museumId) {
+  return {
+    museum_id: museumId,
+    first_name: employee.nombre,
+    last_name: employee.apellidos,
+    photo_url: employee.foto || null,
+    position: employee.posicion,
+    department: employee.departamento,
+    email: employee.correo,
+    phone: employee.telefono || null,
+    address: employee.direccion || null,
+    hire_date: employee.fechaContratacion || null,
+    work_schedule: employee.horario || null,
+    education_level: employee.educacion || null,
+    medical_condition: employee.condicion || null,
+    access_level: (employee.acceso || "Empleado").toLowerCase(),
+    status: employee.estado === "Inactivo" ? "inactivo" : "activo"
+  };
+}
+
+async function fetchSupabaseEmployees() {
+  const response = await fetch(`${supabaseUrl}/rest/v1/employees?select=*&order=created_at.asc`, {
+    headers: supabaseHeaders(true)
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || "No se pudo leer el Directorio de Empleados.");
+  return data.map(employeeFromSupabase);
+}
 
 function getEmployeeRecords() {
   const stored = JSON.parse(localStorage.getItem(employeeStorageKey) || "null");
@@ -452,18 +558,40 @@ function bindLoginDemo() {
   const form = document.querySelector("[data-login-form]");
   if (!form) return;
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(form);
     const username = formData.get("username");
     const password = formData.get("password");
+    const message = document.querySelector("[data-login-message]");
+
+    if (username.includes("@")) {
+      try {
+        if (message) {
+          message.textContent = "Conectando con Supabase...";
+          message.className = "login-help";
+        }
+        const session = await signInWithSupabase(username, password);
+        const profile = await fetchSupabaseProfile();
+        localStorage.setItem("museo-admin-current-user", profile?.full_name || session.user.email || username);
+        localStorage.setItem("museo-admin-access-level", profile?.role === "administrador" ? "Administrador" : profile?.role === "ejecutivo" ? "Ejecutivo" : "Empleado");
+        window.location.href = "dashboard.html";
+        return;
+      } catch (error) {
+        clearSupabaseSession();
+        if (message) {
+          message.textContent = "No se pudo entrar con Supabase. Verifique el correo y la contraseña.";
+          message.className = "login-help error";
+        }
+        return;
+      }
+    }
 
     if (username === "admin" && password === "123456") {
       window.location.href = "dashboard.html";
       return;
     }
 
-    const message = document.querySelector("[data-login-message]");
     if (message) message.textContent = "Credenciales demo: admin / 123456";
   });
 }
@@ -1301,6 +1429,7 @@ function bindHumanResourcesModule() {
   const message = module.querySelector("[data-employee-message]");
   const photoInput = module.querySelector("[data-employee-photo-picker]");
   let selectedPhoto = "";
+  let supabaseProfile = null;
 
   const setMessage = (text, type = "") => {
     if (!message) return;
@@ -1347,6 +1476,29 @@ function bindHumanResourcesModule() {
     }).join("");
   };
 
+  const syncDirectoryFromSupabase = async () => {
+    const session = getSupabaseSession();
+    if (!session?.access_token) {
+      setMessage("Directorio en modo local. Entre a su cuenta para sincronizar con Supabase.");
+      return;
+    }
+
+    try {
+      setMessage("Sincronizando Directorio de Empleados con Supabase...");
+      supabaseProfile = await fetchSupabaseProfile();
+      const records = await fetchSupabaseEmployees();
+      if (records.length) {
+        saveEmployeeRecords(records);
+        renderDirectory();
+        setMessage("Directorio sincronizado con Supabase.", "success");
+      } else {
+        setMessage("Supabase está conectado, pero todavía no hay empleados registrados.", "success");
+      }
+    } catch (error) {
+      setMessage("No se pudo sincronizar con Supabase. Se muestra el directorio local.", "error");
+    }
+  };
+
   const resetForm = () => {
     form.reset();
     form.elements.id.value = "";
@@ -1390,7 +1542,7 @@ function bindHumanResourcesModule() {
     });
   }
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!canManageEmployees()) {
       setMessage("Su rol no tiene permiso para crear o editar empleados.", "error");
@@ -1432,6 +1584,38 @@ function bindHumanResourcesModule() {
     const nextRecords = existing
       ? records.map((item) => item.id === id ? employee : item)
       : [...records, employee];
+
+    const session = getSupabaseSession();
+    if (session?.access_token) {
+      try {
+        if (!supabaseProfile) supabaseProfile = await fetchSupabaseProfile();
+        if (!supabaseProfile?.museum_id) throw new Error("No se encontró el museo asociado al perfil.");
+        const payload = employeeToSupabasePayload(employee, supabaseProfile.museum_id);
+        const isSupabaseId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        const url = isSupabaseId
+          ? `${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(id)}`
+          : `${supabaseUrl}/rest/v1/employees`;
+        const response = await fetch(url, {
+          method: isSupabaseId ? "PATCH" : "POST",
+          headers: {
+            ...supabaseHeaders(true),
+            Prefer: "return=representation"
+          },
+          body: JSON.stringify(payload)
+        });
+        const saved = await response.json();
+        if (!response.ok) throw new Error(saved.message || "No se pudo guardar el empleado en Supabase.");
+        const syncedRecords = await fetchSupabaseEmployees();
+        saveEmployeeRecords(syncedRecords);
+        renderDirectory();
+        resetForm();
+        setMessage(existing ? "Empleado actualizado en Supabase." : "Empleado creado en Supabase y agregado al directorio.", "success");
+        return;
+      } catch (error) {
+        setMessage("No se pudo guardar en Supabase. Se guardó una copia local para no perder la información.", "error");
+      }
+    }
+
     saveEmployeeRecords(nextRecords);
     renderDirectory();
     resetForm();
@@ -1463,6 +1647,14 @@ function bindHumanResourcesModule() {
       const employee = records.find((item) => item.id === toggleButton.dataset.employeeToggle);
       if (!employee) return;
       const estado = employee.estado === "Inactivo" ? "Activo" : "Inactivo";
+      const session = getSupabaseSession();
+      if (session?.access_token && employee.source === "supabase") {
+        fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employee.id)}`, {
+          method: "PATCH",
+          headers: supabaseHeaders(true),
+          body: JSON.stringify({ status: estado === "Inactivo" ? "inactivo" : "activo" })
+        }).catch(() => null);
+      }
       saveEmployeeRecords(records.map((item) => item.id === employee.id ? { ...item, estado } : item));
       renderDirectory();
       setMessage(`Empleado ${estado.toLowerCase()} correctamente.`, "success");
@@ -1472,6 +1664,13 @@ function bindHumanResourcesModule() {
       if (!canDeleteEmployees()) return;
       const employee = records.find((item) => item.id === deleteButton.dataset.employeeDelete);
       if (!employee || !confirm(`¿Eliminar a ${employeeDisplayName(employee)} del directorio?`)) return;
+      const session = getSupabaseSession();
+      if (session?.access_token && employee.source === "supabase") {
+        fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employee.id)}`, {
+          method: "DELETE",
+          headers: supabaseHeaders(true)
+        }).catch(() => null);
+      }
       saveEmployeeRecords(records.filter((item) => item.id !== employee.id));
       renderDirectory();
       setMessage("Empleado eliminado del directorio.", "success");
@@ -1484,6 +1683,7 @@ function bindHumanResourcesModule() {
   });
 
   renderDirectory();
+  syncDirectoryFromSupabase();
 }
 
 function populateSystemDataSelects() {

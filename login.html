@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Login</title>
-  <link rel="stylesheet" href="css/main.css?v=finance-summary-labels-20260705">
+  <link rel="stylesheet" href="css/main.css?v=supabase-employee-sync-20260705">
 </head>
 <body>
   <div class="app-shell">
@@ -17,30 +17,30 @@
           <div>
             <p class="page-kicker">Acceso</p>
             <h2>Login Administrativo</h2>
-            <p>Entrada demo para la primera version estatica del sistema.</p>
+            <p>Entrada administrativa conectada a Supabase.</p>
           </div>
         </section>
         <section class="card panel login-card">
           <h3>Credenciales</h3>
-          <p>Use el usuario demo autorizado para entrar al dashboard.</p>
+          <p>Use el correo y la contraseña creados en Supabase.</p>
           <form class="form-grid" data-login-form>
             <div class="field">
-              <label for="username">Usuario</label>
-              <input id="username" name="username" type="text" autocomplete="username" value="admin" required>
+              <label for="username">Correo electrónico</label>
+              <input id="username" name="username" type="text" inputmode="email" autocomplete="username" placeholder="correo@ejemplo.com" required>
             </div>
             <div class="field">
-              <label for="password">Password</label>
-              <input id="password" name="password" type="password" autocomplete="current-password" value="123456" required>
+              <label for="password">Contraseña</label>
+              <input id="password" name="password" type="password" autocomplete="current-password" required>
             </div>
             <button class="button" type="submit">Entrar</button>
-            <p class="login-help" data-login-message>PIN Finanzas demo: 123456</p>
+            <p class="login-help" data-login-message>Acceso preparado para usuarios del Museo.</p>
           </form>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=finance-summary-labels-20260705"></script>
+  <script src="js/app.js?v=supabase-employee-sync-20260705"></script>
 </body>
 </html>
 
