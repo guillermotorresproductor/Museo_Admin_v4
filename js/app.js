@@ -1,21 +1,23 @@
-const appPages = {
+﻿const appPages = {
   "index.html": { title: "Dashboard", subtitle: "Bienvenido, Guillermo Torres" },
   "dashboard.html": { title: "Dashboard", subtitle: "Bienvenido, Guillermo Torres" },
-  "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Musica." },
+  "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Música." },
   "empleados.html": { title: "Solicitud de Empleo", subtitle: "Formulario para candidatos." },
-  "mantenimiento.html": { title: "Mantenimiento", subtitle: "Operacion preventiva y correctiva." },
-  "calendario-obras.html": { title: "Calendario de Obras", subtitle: "Asignacion de empleados, horarios y deberes." },
+  "mantenimiento.html": { title: "Mantenimiento", subtitle: "Operación preventiva y correctiva." },
+  "calendario-obras.html": { title: "Calendario", subtitle: "Asignación de empleados, horarios y deberes." },
   "solicitud-materiales.html": { title: "Solicitud de Materiales", subtitle: "Registro de solicitudes de mantenimiento." },
-  "ruta-digital.html": { title: "Ruta Digital de Mantenimiento", subtitle: "Control de recorrido por areas." },
-  "renta-espacios.html": { title: "Renta de Espacios", subtitle: "Solicitud de areas y tarifas oficiales." },
-  "administracion.html": { title: "Administracion", subtitle: "Recursos humanos, reportes y finanzas." },
+  "ruta-digital.html": { title: "Ruta Digital de Mantenimiento", subtitle: "Control de recorrido por áreas." },
+  "renta-espacios.html": { title: "Renta de Espacios", subtitle: "Solicitud de áreas y tarifas oficiales." },
+  "administracion.html": { title: "Administración", subtitle: "Recursos humanos, notificaciones, reportes y finanzas." },
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
-  "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Informacion administrativa del empleado." },
-  "reportes.html": { title: "Reportes", subtitle: "Modulo pendiente para programacion." },
+  "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
+  "notificaciones.html": { title: "Notificaciones", subtitle: "Alertas internas del sistema administrativo." },
+  "reportes.html": { title: "Reportes", subtitle: "Módulo pendiente para programación." },
   "finanzas.html": { title: "Finanzas", subtitle: "Acceso restringido pendiente para firewall." },
-  "reglamento.html": { title: "Reglamento", subtitle: "Normas oficiales, impresion y descarga." },
-  "documentos.html": { title: "Formularios y Papeleria", subtitle: "Folleto institucional, stationary y formularios oficiales." },
-  "recibo-prestamo.html": { title: "Recibo de Prestamo", subtitle: "Formulario digital de articulos de coleccion mediante prestamo." }
+  "reglamento.html": { title: "Reglamento del Museo", subtitle: "Normas oficiales, impresión y descarga." },
+  "documentos.html": { title: "Formularios y Papelería", subtitle: "Stationary, reglamento y formularios oficiales." },
+  "recibo-prestamo.html": { title: "Recibo de Préstamo", subtitle: "Formulario digital de artículos de colección mediante préstamo." },
+  "boletin.html": { title: "Boletín Board", subtitle: "Publicaciones, anuncios y comunicaciones internas." }
 };
 
 const iconPaths = {
@@ -44,12 +46,13 @@ const navigationGroups = [
     label: "Menu",
     items: [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
-      { href: "empleados.html", label: "Empleados", icon: "users" },
-      { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"] },
+      { href: "calendario-obras.html", label: "Calendario", icon: "calendar" },
       { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building" },
-      { href: "documentos.html", label: "Formularios y Papeleria", icon: "file", activePages: ["recibo-prestamo.html"] },
-      { href: "administracion.html", label: "Administracion", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "reportes.html", "finanzas.html"] },
-      { href: "reglamento.html", label: "Reglamento", icon: "book" },
+      { href: "empleados.html", label: "Solicitud de Empleo", icon: "users" },
+      { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["solicitud-materiales.html", "ruta-digital.html"] },
+      { href: "documentos.html", label: "Formularios y Papelería", icon: "file", activePages: ["recibo-prestamo.html", "reglamento.html"] },
+      { href: "administracion.html", label: "Administración", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html"] },
+      { href: "boletin.html", label: "Boletín Board", icon: "megaphone" },
       { href: "login.html", label: "Mi cuenta", icon: "logout" }
     ]
   }
@@ -91,8 +94,8 @@ const employeeProfiles = {
     educacion: "Estudiante",
     condicion: "Ninguna registrada",
     posicion: "Mantenimiento",
-    horario: "Martes a sabado, 8:00 AM - 4:00 PM",
-    notificaciones: "Recibe avisos de inspeccion, mantenimiento preventivo y tareas asignadas.",
+    horario: "Martes a sábado, 8:00 AM - 4:00 PM",
+    notificaciones: "Recibe avisos de inspección, mantenimiento preventivo y tareas asignadas.",
     acceso: "Empleado"
   }
 };
@@ -136,11 +139,11 @@ function renderSidebar() {
   }).join("");
 
   sidebar.innerHTML = `
-    <a class="brand" href="dashboard.html" aria-label="Museo de la Musica de Puerto Rico">
-      <img class="brand-logo" src="images/logo-horizontal.jpg" alt="Museo de la Musica de Puerto Rico">
+    <a class="brand" href="dashboard.html" aria-label="Museo de la Música de Puerto Rico">
+      <img class="brand-logo" src="images/logo-horizontal.jpg" alt="Museo de la Música de Puerto Rico">
       <span class="brand-mark">${iconSvg("file")}</span>
       <span class="brand-copy">
-        <span class="brand-title">Museo de la Musica</span>
+        <span class="brand-title">Museo de la Música</span>
         <span class="brand-subtitle">Puerto Rico - Guaynabo</span>
       </span>
     </a>
@@ -190,7 +193,7 @@ function renderFooter() {
   if (!footer) return;
 
   footer.innerHTML = `
-    <span>© 2025 Museo de la Musica de Puerto Rico. Todos los derechos reservados.</span>
+    <span>© 2025 Museo de la Música de Puerto Rico. Todos los derechos reservados.</span>
     <span>Sistema Administrativo v4.0</span>
   `;
 }
@@ -257,7 +260,7 @@ function bindRentalForm() {
     if (invalidFields.length > 0) {
       invalidFields[0].focus();
       if (message) {
-        message.textContent = "Complete todos los campos requeridos correctamente y acepte los terminos antes de enviar.";
+        message.textContent = "Complete todos los campos requeridos correctamente y acepte los términos antes de enviar.";
         message.className = "form-message error";
       }
       return;
@@ -268,18 +271,18 @@ function bindRentalForm() {
       "Solicitud de Renta de Espacios",
       "",
       `Nombre del solicitante: ${data.get("nombre")}`,
-      `Correo electronico: ${data.get("correo")}`,
-      `Telefono: ${data.get("telefono")}`,
+      `Correo electrónico: ${data.get("correo")}`,
+      `Teléfono: ${data.get("telefono")}`,
       `Entidad u organizacion: ${data.get("organizacion")}`,
-      `Area solicitada: ${data.get("area")}`,
-      `Dia del evento: ${data.get("fecha")}`,
+      `Área solicitada: ${data.get("área")}`,
+      `Día del evento: ${data.get("fecha")}`,
       `Hora del evento: ${data.get("hora")}`,
       `Cantidad estimada de invitados: ${data.get("invitados")}`,
       "",
-      "Proposito del evento:",
-      data.get("proposito"),
+      "Propósito del evento:",
+      data.get("propósito"),
       "",
-      "El solicitante certifica que leyo y acepta los terminos y condiciones para el alquiler de espacios."
+      "El solicitante certifica que leyo y acepta los términos y condiciones para el alquiler de espacios."
     ].join("\n");
 
     const mailto = new URL("mailto:guillermotorrespr@gmail.com");
@@ -322,12 +325,12 @@ function bindLoanReceiptForm() {
 
     const data = new FormData(form);
     const body = [
-      "Formulario de Recibo de Articulos de Coleccion Mediante Prestamo",
+      "Formulario de Recibo de Artículos de Colección Mediante Préstamo",
       "",
       `Prestamista: ${data.get("prestamista")}`,
-      `Correo electronico: ${data.get("correo")}`,
-      `Telefono: ${data.get("telefono")}`,
-      `Direccion postal: ${data.get("direccion")}`,
+      `Correo electrónico: ${data.get("correo")}`,
+      `Teléfono: ${data.get("telefono")}`,
+      `Dirección postal: ${data.get("direccion")}`,
       `Fecha de recibo: ${data.get("fecha")}`,
       "",
       "Articulo",
@@ -337,22 +340,22 @@ function bindLoanReceiptForm() {
       `Condicion: ${data.get("condicion")}`,
       `Valor estimado: ${data.get("valor")}`,
       "",
-      "Prestamo",
+      "Préstamo",
       `Fecha de inicio: ${data.get("inicio")}`,
       `Fecha estimada de devolucion: ${data.get("devolucion")}`,
-      `Proposito: ${data.get("proposito")}`,
+      `Propósito: ${data.get("propósito")}`,
       "",
       `Observaciones: ${data.get("observaciones") || "N/A"}`,
       "",
-      "El prestamista certifica que la informacion suministrada es correcta."
+      "El prestamista certifica que la información suministrada es correcta."
     ].join("\n");
 
     const mailto = new URL("mailto:guillermotorrespr@gmail.com");
-    mailto.searchParams.set("subject", `Recibo de prestamo - ${data.get("articulo")}`);
+    mailto.searchParams.set("subject", `Recibo de préstamo - ${data.get("articulo")}`);
     mailto.searchParams.set("body", body);
 
     if (message) {
-      message.textContent = "Formulario validado. Se abrira el correo para enviar la informacion al administrador.";
+      message.textContent = "Formulario validado. Se abrira el correo para enviar la información al administrador.";
       message.className = "form-message success";
     }
 
@@ -407,7 +410,7 @@ function bindEmployeeProfile() {
     photo.hidden = true;
     avatar.hidden = false;
     if (photoRemove) photoRemove.hidden = true;
-    if (photoMessage) photoMessage.textContent = "La foto servira como identificacion visual del record del empleado.";
+    if (photoMessage) photoMessage.textContent = "La foto servira como identificación visual del récord del empleado.";
   };
 
   showPhoto(localStorage.getItem(storageKey));
@@ -459,3 +462,7 @@ function initApp() {
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
+
+
+
+

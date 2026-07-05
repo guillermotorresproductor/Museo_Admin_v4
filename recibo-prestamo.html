@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Recibo de Prestamo</title>
-  <link rel="stylesheet" href="css/main.css?v=employee-photo-20260705">
+  <title>Museo Admin v4.0 | Recibo de Préstamo</title>
+  <link rel="stylesheet" href="css/main.css?v=dashboard-orden-es-20260705">
 </head>
 <body>
   <div class="app-shell">
@@ -14,7 +14,7 @@
       <header class="site-header" data-header></header>
       <main class="page-content">
         <section class="card panel form-panel rental-panel">
-          <h3>Formulario Digital de Recibo de Articulos de Coleccion Mediante Prestamo</h3>
+          <h3>Formulario Digital de Recibo de Artículos de Colección Mediante Préstamo</h3>
           <form id="loan-receipt-form" class="application-form" action="#" method="post" novalidate>
             <div class="form-row">
               <div class="field">
@@ -22,13 +22,13 @@
                 <input id="loan-lender" name="prestamista" type="text" autocomplete="name" required>
               </div>
               <div class="field">
-                <label for="loan-email">Correo electronico</label>
+                <label for="loan-email">Correo electrónico</label>
                 <input id="loan-email" name="correo" type="email" autocomplete="email" required>
               </div>
             </div>
             <div class="form-row">
               <div class="field">
-                <label for="loan-phone">Telefono</label>
+                <label for="loan-phone">Teléfono</label>
                 <input id="loan-phone" name="telefono" type="tel" autocomplete="tel" required>
               </div>
               <div class="field">
@@ -37,7 +37,7 @@
               </div>
             </div>
             <div class="field">
-              <label for="loan-address">Direccion postal</label>
+              <label for="loan-address">Dirección postal</label>
               <input id="loan-address" name="direccion" type="text" autocomplete="street-address" required>
             </div>
             <div class="form-row">
@@ -49,19 +49,19 @@
                 <label for="loan-category">Categoria</label>
                 <select id="loan-category" name="categoria" required>
                   <option value="">Seleccione...</option>
-                  <option>Instrumento musical</option>
+                  <option>Instrumento músical</option>
                   <option>Fotografia</option>
                   <option>Documento</option>
                   <option>Vestuario</option>
                   <option>Memorabilia</option>
-                  <option>Equipo electronico</option>
+                  <option>Equipo electrónico</option>
                   <option>Otro</option>
                 </select>
               </div>
             </div>
             <div class="field">
               <label for="loan-description">Descripcion detallada del articulo</label>
-              <textarea id="loan-description" name="descripcion" rows="5" required></textarea>
+              <textárea id="loan-description" name="descripcion" rows="5" required></textárea>
             </div>
             <div class="form-row">
               <div class="field">
@@ -71,7 +71,7 @@
                   <option>Excelente</option>
                   <option>Buena</option>
                   <option>Regular</option>
-                  <option>Requiere evaluacion</option>
+                  <option>Requiere evaluación</option>
                 </select>
               </div>
               <div class="field">
@@ -81,7 +81,7 @@
             </div>
             <div class="form-row">
               <div class="field">
-                <label for="loan-start">Fecha de inicio del prestamo</label>
+                <label for="loan-start">Fecha de inicio del préstamo</label>
                 <input id="loan-start" name="inicio" type="date" required>
               </div>
               <div class="field">
@@ -90,16 +90,16 @@
               </div>
             </div>
             <div class="field">
-              <label for="loan-purpose">Proposito del prestamo</label>
-              <textarea id="loan-purpose" name="proposito" rows="4" required></textarea>
+              <label for="loan-purpose">Propósito del préstamo</label>
+              <textárea id="loan-purpose" name="propósito" rows="4" required></textárea>
             </div>
             <div class="field">
               <label for="loan-notes">Observaciones adicionales</label>
-              <textarea id="loan-notes" name="observaciones" rows="4"></textarea>
+              <textárea id="loan-notes" name="observaciones" rows="4"></textárea>
             </div>
             <label class="terms-accept">
               <input id="loan-certification" name="certificacion" type="checkbox" required>
-              <span>Certifico que la informacion suministrada es correcta y autorizo al Museo a evaluar el recibo del articulo mediante prestamo.</span>
+              <span>Certifico que la información suministrada es correcta y autorizo al Museo a evaluar el recibo del articulo mediante préstamo.</span>
             </label>
             <p class="form-message" data-loan-message aria-live="polite"></p>
             <button class="button submit-button" type="submit">Enviar formulario</button>
@@ -109,15 +109,19 @@
         <section class="card panel section-stack">
           <h3>Documento descargable</h3>
           <p>Si necesita completar la version en papel, descargue el formulario oficial existente en formato Word.</p>
-          <a class="button secondary section-stack" href="docs/formulario-recibo-articulos-coleccion-prestamo.docx" download>Descargar formulario Word</a>
+          <a class="button secondary section-stack" href="docs/formulario-recibo-artículos-colección-préstamo.docx" download>Descargar formulario Word</a>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=employee-photo-20260705"></script>
+  <script src="js/app.js?v=dashboard-orden-es-20260705"></script>
 </body>
 </html>
+
+
+
+
 
 
 
