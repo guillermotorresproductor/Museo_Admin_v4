@@ -1855,6 +1855,8 @@ function bindFinanceModule() {
   };
   let activeTab = "resumen";
   let currentUser = "";
+  let currentProfile = null;
+  const financeYear = 2026;
   let rows = JSON.parse(localStorage.getItem(financeStorageKey) || "null") || defaultFinanceRows;
 
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
@@ -1883,6 +1885,139 @@ function bindFinanceModule() {
 
   rows = normalizeRows(rows);
   saveRows();
+
+  const buildFinanceRecordPayload = (row, monthIndex, amount, museumId) => ({
+    museum_id: museumId,
+    record_type: row.type,
+    category: row.category,
+    concept: row.concept,
+    month: financeMonths[monthIndex],
+    year: financeYear,
+    amount: Number(amount || 0)
+  });
+
+  const rowsFromFinanceRecords = (records) => {
+    const normalized = normalizeRows(defaultFinanceRows.map((row) => ({ ...row, values: Array(12).fill(0) })));
+    const rowKey = (row) => `${row.type}::${row.category}::${row.concept}`;
+    const rowsByKey = new Map(normalized.map((row) => [rowKey(row), row]));
+
+    records.forEach((record) => {
+      const type = record.record_type;
+      const key = `${type}::${record.category}::${record.concept}`;
+      const monthIndex = financeMonths.indexOf(record.month);
+      if (monthIndex < 0) return;
+      if (!rowsByKey.has(key)) {
+        const id = `${type}-${record.category}-${record.concept}`.toLowerCase()
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "");
+        const newRow = { id, type, category: record.category, concept: record.concept, values: Array(12).fill(0) };
+        rowsByKey.set(key, newRow);
+        normalized.push(newRow);
+      }
+      rowsByKey.get(key).values[monthIndex] = Number(record.amount || 0);
+    });
+
+    return normalized;
+  };
+
+  const seedFinanceRecords = async (profile) => {
+    const payload = rows.flatMap((row) =>
+      row.values.map((value, monthIndex) => buildFinanceRecordPayload(row, monthIndex, value, profile.museum_id))
+    );
+    const response = await fetch(`${supabaseUrl}/rest/v1/finance_records`, {
+      method: "POST",
+      headers: {
+        ...supabaseHeaders(true),
+        Prefer: "return=minimal"
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.message || "No se pudo crear la plantilla financiera en Supabase.");
+    }
+  };
+
+  const syncFinanceFromSupabase = async () => {
+    const session = getSupabaseSession();
+    if (!session?.access_token) return false;
+    currentProfile = await fetchSupabaseProfile();
+    if (!currentProfile?.museum_id || !["administrador", "ejecutivo"].includes(currentProfile.role)) {
+      throw new Error("Su cuenta no tiene permiso para administrar Finanzas.");
+    }
+
+    currentUser = currentProfile.full_name || localStorage.getItem("museo-admin-current-user") || "Usuario";
+    const response = await fetch(`${supabaseUrl}/rest/v1/finance_records?select=*&museum_id=eq.${encodeURIComponent(currentProfile.museum_id)}&year=eq.${financeYear}&order=created_at.asc`, {
+      headers: supabaseHeaders(true)
+    });
+    const records = await response.json();
+    if (!response.ok) throw new Error(records.message || "No se pudo leer Finanzas desde Supabase.");
+
+    if (!records.length) {
+      await seedFinanceRecords(currentProfile);
+      saveRows();
+      return true;
+    }
+
+    rows = rowsFromFinanceRecords(records);
+    saveRows();
+    return true;
+  };
+
+  const saveFinanceCellToSupabase = async (row, monthIndex, previousValue, nextValue) => {
+    const session = getSupabaseSession();
+    if (!session?.access_token || !currentProfile?.museum_id) return false;
+
+    const query = [
+      `museum_id=eq.${encodeURIComponent(currentProfile.museum_id)}`,
+      `record_type=eq.${encodeURIComponent(row.type)}`,
+      `category=eq.${encodeURIComponent(row.category)}`,
+      `concept=eq.${encodeURIComponent(row.concept)}`,
+      `month=eq.${encodeURIComponent(financeMonths[monthIndex])}`,
+      `year=eq.${financeYear}`
+    ].join("&");
+
+    const existingResponse = await fetch(`${supabaseUrl}/rest/v1/finance_records?select=id&${query}&limit=1`, {
+      headers: supabaseHeaders(true)
+    });
+    const existing = await existingResponse.json();
+    if (!existingResponse.ok) throw new Error(existing.message || "No se pudo localizar el registro financiero.");
+
+    const payload = buildFinanceRecordPayload(row, monthIndex, nextValue, currentProfile.museum_id);
+    const recordId = existing[0]?.id;
+    const saveResponse = await fetch(recordId
+      ? `${supabaseUrl}/rest/v1/finance_records?id=eq.${encodeURIComponent(recordId)}`
+      : `${supabaseUrl}/rest/v1/finance_records`, {
+      method: recordId ? "PATCH" : "POST",
+      headers: {
+        ...supabaseHeaders(true),
+        Prefer: "return=representation"
+      },
+      body: JSON.stringify(payload)
+    });
+    const saved = await saveResponse.json();
+    if (!saveResponse.ok) throw new Error(saved.message || "No se pudo guardar el cambio financiero.");
+
+    await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
+      method: "POST",
+      headers: {
+        ...supabaseHeaders(true),
+        Prefer: "return=minimal"
+      },
+      body: JSON.stringify({
+        museum_id: currentProfile.museum_id,
+        user_id: currentProfile.id,
+        action: "update_finance_record",
+        table_name: "finance_records",
+        record_id: saved[0]?.id || recordId || null,
+        old_value: { amount: Number(previousValue || 0), month: financeMonths[monthIndex], concept: row.concept },
+        new_value: { amount: Number(nextValue || 0), month: financeMonths[monthIndex], concept: row.concept }
+      })
+    }).catch(() => null);
+
+    return true;
+  };
 
   const addAudit = (row, monthIndex, previousValue, nextValue) => {
     const entries = audit();
@@ -2064,12 +2199,22 @@ function bindFinanceModule() {
     if (activeTab === "configuracion") panel.innerHTML = renderConfiguration();
   };
 
-  const openModule = () => {
+  const openModule = async (syncWithSupabase = false) => {
     gate.hidden = true;
     gate.style.display = "none";
     module.hidden = false;
     module.style.display = "";
     renderPanel();
+    if (syncWithSupabase) {
+      panel.insertAdjacentHTML("afterbegin", `<p class="form-message">Sincronizando Finanzas con Supabase...</p>`);
+      try {
+        await syncFinanceFromSupabase();
+        renderPanel();
+      } catch (error) {
+        renderPanel();
+        panel.insertAdjacentHTML("afterbegin", `<p class="form-message error">No se pudo sincronizar con Supabase. Se muestra la copia local.</p>`);
+      }
+    }
   };
 
   const exportCsv = () => {
@@ -2106,7 +2251,7 @@ function bindFinanceModule() {
     });
   });
 
-  panel.addEventListener("change", (event) => {
+  panel.addEventListener("change", async (event) => {
     const input = event.target.closest("[data-finance-row]");
     if (!input) return;
     const row = rows.find((item) => item.id === input.dataset.financeRow);
@@ -2117,11 +2262,20 @@ function bindFinanceModule() {
     saveRows();
     addAudit(row, monthIndex, previousValue, nextValue);
     renderPanel();
+    try {
+      await saveFinanceCellToSupabase(row, monthIndex, previousValue, nextValue);
+    } catch (error) {
+      panel.insertAdjacentHTML("afterbegin", `<p class="form-message error">El cambio quedó guardado localmente, pero Supabase no lo recibió. Revise su sesión o conexión.</p>`);
+    }
   });
 
   document.querySelector("[data-finance-export-excel]")?.addEventListener("click", exportCsv);
   document.querySelector("[data-finance-export-pdf]")?.addEventListener("click", () => window.print());
   document.querySelector("[data-finance-print]")?.addEventListener("click", () => window.print());
+
+  if (getSupabaseSession()?.access_token && canManageEmployees()) {
+    openModule(true);
+  }
 }
 
 function bindEmployeeProfile() {
