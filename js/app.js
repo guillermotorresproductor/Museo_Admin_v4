@@ -236,6 +236,40 @@ function supabaseHeaders(requireAuth = false) {
   return headers;
 }
 
+async function refreshSupabaseSession() {
+  const session = getSupabaseSession();
+  if (!session?.refresh_token) return null;
+
+  const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: supabaseHeaders(),
+    body: JSON.stringify({ refresh_token: session.refresh_token })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    clearSupabaseSession();
+    throw new Error("La sesión de Supabase expiró. Entre nuevamente por Mi cuenta.");
+  }
+  saveSupabaseSession(data);
+  return data;
+}
+
+async function supabaseAuthHeaders() {
+  let session = getSupabaseSession();
+  const expiresAt = Number(session?.expires_at || 0);
+  const expiresSoon = expiresAt && Date.now() / 1000 > expiresAt - 60;
+
+  if (!session?.access_token || expiresSoon) {
+    session = await refreshSupabaseSession();
+  }
+
+  if (!session?.access_token) throw new Error("Debe entrar a su cuenta antes de consultar Supabase.");
+  return {
+    ...supabaseHeaders(),
+    Authorization: `Bearer ${session.access_token}`
+  };
+}
+
 async function signInWithSupabase(email, password) {
   const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
     method: "POST",
@@ -252,7 +286,7 @@ async function fetchSupabaseProfile() {
   const session = getSupabaseSession();
   if (!session?.user?.id) return null;
   const response = await fetch(`${supabaseUrl}/rest/v1/profiles?select=*&id=eq.${encodeURIComponent(session.user.id)}&limit=1`, {
-    headers: supabaseHeaders(true)
+    headers: await supabaseAuthHeaders()
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.message || "No se pudo leer el perfil del usuario.");
@@ -307,7 +341,7 @@ function employeeToSupabasePayload(employee, museumId) {
 
 async function fetchSupabaseEmployees() {
   const response = await fetch(`${supabaseUrl}/rest/v1/employees?select=*&order=created_at.asc`, {
-    headers: supabaseHeaders(true)
+    headers: await supabaseAuthHeaders()
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.message || "No se pudo leer el Directorio de Empleados.");
@@ -1649,7 +1683,7 @@ function bindHumanResourcesModule() {
         const response = await fetch(url, {
           method: isSupabaseId ? "PATCH" : "POST",
           headers: {
-            ...supabaseHeaders(true),
+            ...(await supabaseAuthHeaders()),
             Prefer: "return=representation"
           },
           body: JSON.stringify(payload)
@@ -1673,7 +1707,7 @@ function bindHumanResourcesModule() {
     setMessage(existing ? "Empleado actualizado correctamente." : "Empleado creado y agregado al directorio.", "success");
   });
 
-  directory.addEventListener("click", (event) => {
+  directory.addEventListener("click", async (event) => {
     const editButton = event.target.closest("[data-employee-edit]");
     const resetButton = event.target.closest("[data-employee-reset]");
     const toggleButton = event.target.closest("[data-employee-toggle]");
@@ -1702,7 +1736,7 @@ function bindHumanResourcesModule() {
       if (session?.access_token && employee.source === "supabase") {
         fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employee.id)}`, {
           method: "PATCH",
-          headers: supabaseHeaders(true),
+          headers: await supabaseAuthHeaders(),
           body: JSON.stringify({ status: estado === "Inactivo" ? "inactivo" : "activo" })
         }).catch(() => null);
       }
@@ -1719,7 +1753,7 @@ function bindHumanResourcesModule() {
       if (session?.access_token && employee.source === "supabase") {
         fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employee.id)}`, {
           method: "DELETE",
-          headers: supabaseHeaders(true)
+          headers: await supabaseAuthHeaders()
         }).catch(() => null);
       }
       saveEmployeeRecords(records.filter((item) => item.id !== employee.id));
@@ -1928,7 +1962,7 @@ function bindFinanceModule() {
     const response = await fetch(`${supabaseUrl}/rest/v1/finance_records`, {
       method: "POST",
       headers: {
-        ...supabaseHeaders(true),
+        ...(await supabaseAuthHeaders()),
         Prefer: "return=minimal"
       },
       body: JSON.stringify(payload)
@@ -1949,7 +1983,7 @@ function bindFinanceModule() {
 
     currentUser = currentProfile.full_name || localStorage.getItem("museo-admin-current-user") || "Usuario";
     const response = await fetch(`${supabaseUrl}/rest/v1/finance_records?select=*&museum_id=eq.${encodeURIComponent(currentProfile.museum_id)}&year=eq.${financeYear}&order=created_at.asc`, {
-      headers: supabaseHeaders(true)
+      headers: await supabaseAuthHeaders()
     });
     const records = await response.json();
     if (!response.ok) throw new Error(records.message || "No se pudo leer Finanzas desde Supabase.");
@@ -1967,7 +2001,11 @@ function bindFinanceModule() {
 
   const saveFinanceCellToSupabase = async (row, monthIndex, previousValue, nextValue) => {
     const session = getSupabaseSession();
-    if (!session?.access_token || !currentProfile?.museum_id) return false;
+    if (!session?.access_token) throw new Error("No hay sesión activa de Supabase. Entre nuevamente por Mi cuenta.");
+    if (!currentProfile?.museum_id) {
+      currentProfile = await fetchSupabaseProfile();
+    }
+    if (!currentProfile?.museum_id) throw new Error("No se encontró el museo asociado a su perfil.");
 
     const query = [
       `museum_id=eq.${encodeURIComponent(currentProfile.museum_id)}`,
@@ -1979,7 +2017,7 @@ function bindFinanceModule() {
     ].join("&");
 
     const existingResponse = await fetch(`${supabaseUrl}/rest/v1/finance_records?select=id&${query}&limit=1`, {
-      headers: supabaseHeaders(true)
+      headers: await supabaseAuthHeaders()
     });
     const existing = await existingResponse.json();
     if (!existingResponse.ok) throw new Error(existing.message || "No se pudo localizar el registro financiero.");
@@ -1991,7 +2029,7 @@ function bindFinanceModule() {
       : `${supabaseUrl}/rest/v1/finance_records`, {
       method: recordId ? "PATCH" : "POST",
       headers: {
-        ...supabaseHeaders(true),
+        ...(await supabaseAuthHeaders()),
         Prefer: "return=representation"
       },
       body: JSON.stringify(payload)
@@ -2002,7 +2040,7 @@ function bindFinanceModule() {
     await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
       method: "POST",
       headers: {
-        ...supabaseHeaders(true),
+        ...(await supabaseAuthHeaders()),
         Prefer: "return=minimal"
       },
       body: JSON.stringify({
@@ -2212,7 +2250,7 @@ function bindFinanceModule() {
         renderPanel();
       } catch (error) {
         renderPanel();
-        panel.insertAdjacentHTML("afterbegin", `<p class="form-message error">No se pudo sincronizar con Supabase. Se muestra la copia local.</p>`);
+        panel.insertAdjacentHTML("afterbegin", `<p class="form-message error">No se pudo sincronizar con Supabase: ${safeHtml(error.message || "error desconocido")}. Se muestra la copia local.</p>`);
       }
     }
   };
@@ -2263,9 +2301,10 @@ function bindFinanceModule() {
     addAudit(row, monthIndex, previousValue, nextValue);
     renderPanel();
     try {
-      await saveFinanceCellToSupabase(row, monthIndex, previousValue, nextValue);
+      const savedInSupabase = await saveFinanceCellToSupabase(row, monthIndex, previousValue, nextValue);
+      if (!savedInSupabase) throw new Error("Supabase no confirmó el guardado.");
     } catch (error) {
-      panel.insertAdjacentHTML("afterbegin", `<p class="form-message error">El cambio quedó guardado localmente, pero Supabase no lo recibió. Revise su sesión o conexión.</p>`);
+      panel.insertAdjacentHTML("afterbegin", `<p class="form-message error">El cambio quedó guardado localmente, pero Supabase no lo recibió: ${safeHtml(error.message || "revise su sesión o conexión")}.</p>`);
     }
   });
 
@@ -2398,7 +2437,7 @@ function bindEmployeeProfile() {
         const payload = employeeToSupabasePayload(profile, supabaseProfile.museum_id);
         const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(profile.id)}`, {
           method: "PATCH",
-          headers: supabaseHeaders(true),
+          headers: await supabaseAuthHeaders(),
           body: JSON.stringify(payload)
         });
         if (!response.ok) {
