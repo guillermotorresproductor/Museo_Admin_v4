@@ -2227,6 +2227,47 @@ body {
   color: var(--muted);
 }
 
+.inventory-entry-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.inventory-entry-header h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.inventory-entry-header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.inventory-type-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.inventory-type-tabs .button.is-active {
+  background: #050505;
+  color: #ffffff;
+}
+
+.artwork-fields {
+  display: grid;
+  gap: 16px;
+  padding-top: 8px;
+}
+
+.artwork-fields[hidden] {
+  display: none !important;
+}
+
 .inventory-controls {
   display: grid;
   grid-template-columns: minmax(260px, 1.4fr) minmax(200px, 0.8fr) minmax(200px, 0.8fr);
@@ -2274,6 +2315,10 @@ body {
 }
 
 @media (max-width: 960px) {
+  .inventory-entry-header {
+    display: grid;
+  }
+
   .inventory-controls {
     grid-template-columns: 1fr;
   }
@@ -2282,6 +2327,11 @@ body {
 @media (max-width: 680px) {
   .inventory-panel {
     padding: 20px;
+  }
+
+  .inventory-type-tabs,
+  .inventory-type-tabs .button {
+    width: 100%;
   }
 }
 

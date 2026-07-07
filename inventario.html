@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Inventario</title>
-  <link rel="stylesheet" href="css/main.css?v=forms-labels-20260706">
+  <link rel="stylesheet" href="css/main.css?v=inventory-types-20260706">
 </head>
 <body>
   <div class="app-shell">
@@ -13,9 +13,77 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="card panel inventory-panel">
+        <section class="card panel inventory-panel section-stack">
+          <div class="inventory-list-header">
+            <div>
+              <p class="page-kicker">Listado Automático</p>
+              <h3>Artículos Registrados</h3>
+              <p><strong data-inventory-total>0</strong> artículos registrados</p>
+            </div>
+          </div>
+
+          <div class="inventory-controls">
+            <label class="field" for="inventory-search">
+              <span>Buscar</span>
+              <input id="inventory-search" type="search" placeholder="Nombre, sello, descripción, ubicación, donante o estado" data-inventory-search>
+            </label>
+
+            <label class="field" for="inventory-filter-location">
+              <span>Filtrar por ubicación</span>
+              <select id="inventory-filter-location" data-inventory-filter-location>
+                <option value="">Todas las ubicaciones</option>
+              </select>
+            </label>
+
+            <label class="field" for="inventory-filter-status">
+              <span>Filtrar por estado</span>
+              <select id="inventory-filter-status" data-inventory-filter-status>
+                <option value="">Todos los estados</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table inventory-table">
+              <thead>
+                <tr>
+                  <th><button type="button" data-inventory-sort="tipo">Tipo</button></th>
+                  <th><button type="button" data-inventory-sort="nombre">Nombre</button></th>
+                  <th><button type="button" data-inventory-sort="descripcion">Descripción</button></th>
+                  <th><button type="button" data-inventory-sort="sello">Número de sello</button></th>
+                  <th><button type="button" data-inventory-sort="ubicacion">Ubicación</button></th>
+                  <th><button type="button" data-inventory-sort="estado">Estado</button></th>
+                  <th><button type="button" data-inventory-sort="contacto">Persona de contacto / Donante</button></th>
+                  <th><button type="button" data-inventory-sort="fecha">Fecha de registro</button></th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody data-inventory-list>
+                <tr>
+                  <td colspan="9">No hay artículos registrados.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card panel inventory-panel" data-inventory-entry-panel>
+          <div class="inventory-entry-header">
+            <div>
+              <p class="page-kicker">Entrada de Inventario</p>
+              <h3 data-inventory-form-title>Registro de Equipos</h3>
+              <p>Seleccione el tipo de entrada antes de completar el formulario.</p>
+            </div>
+            <div class="inventory-type-tabs" role="tablist" aria-label="Tipo de inventario">
+              <button class="button submit-button is-active" type="button" data-inventory-type="Equipo">Equipos</button>
+              <button class="button secondary" type="button" data-inventory-type="Obra de Arte">Obra de Arte</button>
+            </div>
+          </div>
+
           <form id="inventory-form" class="application-form" novalidate>
             <input type="hidden" id="inventory-id" name="id">
+            <input type="hidden" id="inventory-type" name="tipo" value="Equipo">
+
             <div class="form-row">
               <label class="field" for="inventory-name">
                 <span>Nombre del artículo</span>
@@ -77,6 +145,70 @@
               <input id="inventory-contact" name="contacto" type="text">
             </label>
 
+            <div class="artwork-fields" data-artwork-fields hidden>
+              <div class="form-row">
+                <label class="field" for="art-lender">
+                  <span>Nombre del prestamista</span>
+                  <input id="art-lender" name="prestamista" type="text" disabled>
+                </label>
+                <label class="field" for="art-email">
+                  <span>Correo electrónico</span>
+                  <input id="art-email" name="correo" type="email" disabled>
+                </label>
+              </div>
+              <div class="form-row">
+                <label class="field" for="art-phone">
+                  <span>Teléfono</span>
+                  <input id="art-phone" name="telefono" type="tel" disabled>
+                </label>
+                <label class="field" for="art-received-date">
+                  <span>Fecha de recibo</span>
+                  <input id="art-received-date" name="fechaRecibo" type="date" disabled>
+                </label>
+              </div>
+              <label class="field" for="art-address">
+                <span>Dirección postal</span>
+                <input id="art-address" name="direccion" type="text" disabled>
+              </label>
+              <div class="form-row">
+                <label class="field" for="art-category">
+                  <span>Categoría</span>
+                  <select id="art-category" name="categoria" disabled>
+                    <option value="">Seleccione...</option>
+                    <option>Instrumento musical</option>
+                    <option>Fotografía</option>
+                    <option>Documento</option>
+                    <option>Vestuario</option>
+                    <option>Memorabilia</option>
+                    <option>Equipo electrónico</option>
+                    <option>Otro</option>
+                  </select>
+                </label>
+                <label class="field" for="art-value">
+                  <span>Valor estimado</span>
+                  <input id="art-value" name="valor" type="text" disabled>
+                </label>
+              </div>
+              <div class="form-row">
+                <label class="field" for="art-loan-start">
+                  <span>Fecha de inicio del préstamo</span>
+                  <input id="art-loan-start" name="inicio" type="date" disabled>
+                </label>
+                <label class="field" for="art-loan-end">
+                  <span>Fecha estimada de devolución</span>
+                  <input id="art-loan-end" name="devolucion" type="date" disabled>
+                </label>
+              </div>
+              <label class="field" for="art-purpose">
+                <span>Propósito del préstamo</span>
+                <textarea id="art-purpose" name="proposito" rows="4" disabled></textarea>
+              </label>
+              <label class="field" for="art-notes">
+                <span>Observaciones adicionales</span>
+                <textarea id="art-notes" name="observaciones" rows="4" disabled></textarea>
+              </label>
+            </div>
+
             <div class="inventory-actions">
               <button class="button submit-button" type="submit" data-inventory-submit>Guardar Registro</button>
               <button class="button secondary" type="button" data-inventory-cancel hidden>Cancelar edición</button>
@@ -84,67 +216,10 @@
             <p class="form-message" data-inventory-message></p>
           </form>
         </section>
-
-        <section class="card panel inventory-panel section-stack">
-          <div class="inventory-list-header">
-            <div>
-              <p class="page-kicker">Listado Automático</p>
-              <h3>Artículos Registrados</h3>
-              <p><strong data-inventory-total>0</strong> artículos registrados</p>
-            </div>
-          </div>
-
-          <div class="inventory-controls">
-            <label class="field" for="inventory-search">
-              <span>Buscar</span>
-              <input id="inventory-search" type="search" placeholder="Nombre, sello, descripción, ubicación, donante o estado" data-inventory-search>
-            </label>
-
-            <label class="field" for="inventory-filter-location">
-              <span>Filtrar por ubicación</span>
-              <select id="inventory-filter-location" data-inventory-filter-location>
-                <option value="">Todas las ubicaciones</option>
-              </select>
-            </label>
-
-            <label class="field" for="inventory-filter-status">
-              <span>Filtrar por estado</span>
-              <select id="inventory-filter-status" data-inventory-filter-status>
-                <option value="">Todos los estados</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="table-wrap">
-            <table class="data-table inventory-table">
-              <thead>
-                <tr>
-                  <th><button type="button" data-inventory-sort="nombre">Nombre</button></th>
-                  <th><button type="button" data-inventory-sort="descripcion">Descripción</button></th>
-                  <th><button type="button" data-inventory-sort="sello">Número de sello</button></th>
-                  <th><button type="button" data-inventory-sort="ubicacion">Ubicación</button></th>
-                  <th><button type="button" data-inventory-sort="estado">Estado</button></th>
-                  <th><button type="button" data-inventory-sort="contacto">Persona de contacto / Donante</button></th>
-                  <th><button type="button" data-inventory-sort="fecha">Fecha de registro</button></th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody data-inventory-list>
-                <tr>
-                  <td colspan="8">No hay artículos registrados.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=forms-labels-20260706"></script>
+  <script src="js/app.js?v=inventory-types-20260706"></script>
 </body>
 </html>
-
-
-
-

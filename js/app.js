@@ -1178,6 +1178,11 @@ function bindInventoryModule() {
   if (!form) return;
 
   const storageKey = "museo-admin-inventory-records";
+  const entryPanel = document.querySelector("[data-inventory-entry-panel]");
+  const typeButtons = document.querySelectorAll("[data-inventory-type]");
+  const typeField = document.querySelector("#inventory-type");
+  const formTitle = document.querySelector("[data-inventory-form-title]");
+  const artworkFields = document.querySelector("[data-artwork-fields]");
   const list = document.querySelector("[data-inventory-list]");
   const message = document.querySelector("[data-inventory-message]");
   const search = document.querySelector("[data-inventory-search]");
@@ -1193,6 +1198,7 @@ function bindInventoryModule() {
   let sortKey = "fecha";
   let sortDirection = "desc";
 
+  const canEditInventory = () => canManageEmployees();
   const saveRecords = () => localStorage.setItem(storageKey, JSON.stringify(records));
   const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({
@@ -1205,6 +1211,24 @@ function bindInventoryModule() {
   const createId = () => {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
     return `inventory-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  };
+
+  const artworkFieldControls = () => Array.from(artworkFields?.querySelectorAll("input, select, textarea") || []);
+
+  const setInventoryType = (type) => {
+    const isArtwork = type === "Obra de Arte";
+    if (typeField) typeField.value = type;
+    if (formTitle) formTitle.textContent = isArtwork ? "Registro de Obra de Arte" : "Registro de Equipos";
+    if (artworkFields) artworkFields.hidden = !isArtwork;
+    artworkFieldControls().forEach((field) => {
+      field.disabled = !isArtwork;
+    });
+    typeButtons.forEach((button) => {
+      const active = button.dataset.inventoryType === type;
+      button.classList.toggle("is-active", active);
+      button.classList.toggle("submit-button", active);
+      button.classList.toggle("secondary", !active);
+    });
   };
 
   const setMessage = (text, type = "") => {
@@ -1230,6 +1254,7 @@ function bindInventoryModule() {
     return records
       .filter((record) => {
         const matchesSearch = !term || [
+          record.tipo,
           record.nombre,
           record.descripcion,
           record.sello,
@@ -1256,12 +1281,13 @@ function bindInventoryModule() {
 
     const filteredRecords = getFilteredRecords();
     if (filteredRecords.length === 0) {
-      list.innerHTML = `<tr><td colspan="8">No hay artículos registrados.</td></tr>`;
+      list.innerHTML = `<tr><td colspan="9">No hay artículos registrados.</td></tr>`;
       return;
     }
 
     list.innerHTML = filteredRecords.map((record) => `
       <tr>
+        <td>${escapeHtml(record.tipo || "Equipo")}</td>
         <td>${escapeHtml(record.nombre)}</td>
         <td>${escapeHtml(record.descripcion)}</td>
         <td>${escapeHtml(record.sello)}</td>
@@ -1270,7 +1296,7 @@ function bindInventoryModule() {
         <td>${escapeHtml(record.contacto || "N/A")}</td>
         <td>${escapeHtml(record.fecha)}</td>
         <td>
-          <div class="table-actions">
+          <div class="table-actions"${canEditInventory() ? "" : " hidden"}>
             <button type="button" data-inventory-edit="${record.id}">Editar</button>
             <button type="button" data-inventory-delete="${record.id}">Eliminar</button>
           </div>
@@ -1282,23 +1308,41 @@ function bindInventoryModule() {
   const resetForm = () => {
     form.reset();
     if (idField) idField.value = "";
+    setInventoryType(typeField?.value || "Equipo");
     if (submitButton) submitButton.textContent = "Guardar Registro";
     if (cancelButton) cancelButton.hidden = true;
   };
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
+    if (!canEditInventory()) {
+      setMessage("Solo Ejecutivos y Administradores pueden crear o editar inventario.", "error");
+      return;
+    }
     const data = new FormData(form);
     const id = data.get("id");
+    const tipo = data.get("tipo") || "Equipo";
     const record = {
       id: id || createId(),
+      tipo,
       nombre: data.get("nombre").trim(),
       descripcion: data.get("descripcion").trim(),
       sello: data.get("sello").trim(),
       ubicacion: data.get("ubicacion"),
       estado: data.get("estado"),
       contacto: data.get("contacto").trim(),
-      fecha: id ? records.find((item) => item.id === id)?.fecha : new Date().toLocaleDateString("es-PR")
+      fecha: id ? records.find((item) => item.id === id)?.fecha : new Date().toLocaleDateString("es-PR"),
+      prestamista: data.get("prestamista")?.trim() || "",
+      correo: data.get("correo")?.trim() || "",
+      telefono: data.get("telefono")?.trim() || "",
+      fechaRecibo: data.get("fechaRecibo") || "",
+      direccion: data.get("direccion")?.trim() || "",
+      categoria: data.get("categoria") || "",
+      valor: data.get("valor")?.trim() || "",
+      inicio: data.get("inicio") || "",
+      devolucion: data.get("devolucion") || "",
+      proposito: data.get("proposito")?.trim() || "",
+      observaciones: data.get("observaciones")?.trim() || ""
     };
 
     if (!record.nombre || !record.descripcion || !record.sello || !record.ubicacion || !record.estado) {
@@ -1325,8 +1369,10 @@ function bindInventoryModule() {
     const sortButton = event.target.closest("[data-inventory-sort]");
 
     if (editButton) {
+      if (!canEditInventory()) return;
       const record = records.find((item) => item.id === editButton.dataset.inventoryEdit);
       if (!record) return;
+      setInventoryType(record.tipo || "Equipo");
       Object.entries(record).forEach(([key, value]) => {
         const field = form.elements[key];
         if (field) field.value = value;
@@ -1338,6 +1384,7 @@ function bindInventoryModule() {
     }
 
     if (deleteButton) {
+      if (!canEditInventory()) return;
       const record = records.find((item) => item.id === deleteButton.dataset.inventoryDelete);
       if (!record) return;
       if (!confirm(`¿Eliminar el registro "${record.nombre}"?`)) return;
@@ -1366,10 +1413,22 @@ function bindInventoryModule() {
     });
   }
 
+  typeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      resetForm();
+      setInventoryType(button.dataset.inventoryType);
+      setMessage("");
+    });
+  });
+
   [search, locationFilter, statusFilter].forEach((control) => {
     if (control) control.addEventListener("input", renderRecords);
   });
 
+  if (!canEditInventory() && entryPanel) {
+    entryPanel.hidden = true;
+  }
+  setInventoryType("Equipo");
   populateFilters();
   renderRecords();
 }
