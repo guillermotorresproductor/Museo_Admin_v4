@@ -18,7 +18,7 @@
   "finanzas.html": { title: "Finanzas", subtitle: "Acceso restringido pendiente para firewall." },
   "reglamento.html": { title: "Reglamento del Museo", subtitle: "Normas oficiales, impresión y descarga." },
   "documentos.html": { title: "Formularios y Papelería", subtitle: "Stationary, reglamento, solicitud de empleo y formularios oficiales." },
-  "recibo-prestamo.html": { title: "Recibo de Préstamo", subtitle: "Formulario digital de artículos de colección mediante préstamo." },
+  "recibo-prestamo.html": { title: "Formularios Museográficos", subtitle: "Formularios digitales para artículos de colección y procesos museográficos." },
   "boletin.html": { title: "Boletín Board", subtitle: "Publicaciones, anuncios y comunicaciones internas." },
   "inventario.html": { title: "Inventario de Equipos y Obras de Arte", subtitle: "Registro, consulta y localización de artículos del museo." }
 };
@@ -77,7 +77,7 @@ const moduleShortcutGroups = [
     links: [
       { href: "documentos.html", label: "Formularios y Papelería", icon: "file" },
       { href: "reglamento.html", label: "Reglamento", icon: "book" },
-      { href: "recibo-prestamo.html", label: "Recibo de Préstamo", icon: "file" },
+      { href: "recibo-prestamo.html", label: "Formularios Museográficos", icon: "file" },
       { href: "empleados.html", label: "Solicitud de Empleo", icon: "users" }
     ]
   },
