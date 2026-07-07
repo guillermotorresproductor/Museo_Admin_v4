@@ -24,6 +24,7 @@
 };
 
 const iconPaths = {
+  arrowLeft: '<path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path>',
   dashboard: '<path d="M3 10.5 12 3l9 7.5"></path><path d="M5 10v10h5v-6h4v6h5V10"></path>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
   wrench: '<path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.6 2.6-3-3 2.6-2.6Z"></path>',
@@ -58,6 +59,35 @@ const navigationGroups = [
       { href: "boletin.html", label: "Boletín Board", icon: "megaphone" },
       { href: "inventario.html", label: "Inventario de Equipos y Obras de Arte", icon: "briefcase" },
       { href: "login.html", label: "Mi cuenta", icon: "logout" }
+    ]
+  }
+];
+
+const moduleShortcutGroups = [
+  {
+    pages: ["mantenimiento.html", "calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"],
+    links: [
+      { href: "calendario-obras.html", label: "Calendario de Obras", icon: "calendar" },
+      { href: "solicitud-materiales.html", label: "Solicitud de Materiales", icon: "briefcase" },
+      { href: "ruta-digital.html", label: "Ruta Digital", icon: "clipboard" }
+    ]
+  },
+  {
+    pages: ["documentos.html", "reglamento.html", "recibo-prestamo.html", "empleados.html"],
+    links: [
+      { href: "documentos.html", label: "Formularios y Papelería", icon: "file" },
+      { href: "reglamento.html", label: "Reglamento", icon: "book" },
+      { href: "recibo-prestamo.html", label: "Recibo de Préstamo", icon: "file" },
+      { href: "empleados.html", label: "Solicitud de Empleo", icon: "users" }
+    ]
+  },
+  {
+    pages: ["administracion.html", "recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html"],
+    links: [
+      { href: "recursos-humanos.html", label: "Recursos Humanos", icon: "users" },
+      { href: "notificaciones.html", label: "Notificaciones", icon: "bell" },
+      { href: "reportes.html", label: "Reportes", icon: "chart" },
+      { href: "finanzas.html", label: "Finanzas", icon: "dollar" }
     ]
   }
 ];
@@ -503,6 +533,43 @@ function resolvePageMeta() {
   return appPages[getCurrentPage()] || appPages["dashboard.html"];
 }
 
+function resolveShortcutGroup(page = getCurrentPage()) {
+  return moduleShortcutGroups.find((group) => group.pages.includes(page));
+}
+
+function renderPageShortcuts() {
+  const currentPage = getCurrentPage();
+  const basePages = ["index.html", "dashboard.html", "login.html"];
+  const group = resolveShortcutGroup(currentPage);
+  const utilityLinks = basePages.includes(currentPage)
+    ? []
+    : [
+        { type: "back", label: "Atrás", icon: "arrowLeft" },
+        { href: "dashboard.html", label: "Home", icon: "dashboard" }
+      ];
+  const groupLinks = group?.links || [];
+  const links = [...utilityLinks, ...groupLinks];
+
+  if (!links.length) return "";
+
+  return `
+    <nav class="page-shortcuts" aria-label="Accesos rápidos de la página">
+      ${links.map((link) => {
+        const isActive = link.href === currentPage;
+        const attributes = link.type === "back"
+          ? 'href="#" data-history-back'
+          : `href="${link.href}"`;
+        return `
+          <a class="page-shortcut${isActive ? " is-active" : ""}" ${attributes} aria-current="${isActive ? "page" : "false"}">
+            ${iconSvg(link.icon)}
+            <span>${safeHtml(link.label)}</span>
+          </a>
+        `;
+      }).join("")}
+    </nav>
+  `;
+}
+
 function renderSidebar() {
   const sidebar = document.querySelector("[data-sidebar]");
   if (!sidebar) return;
@@ -566,6 +633,7 @@ function renderHeader() {
       <div class="header-title">
         <h1>${meta.title}</h1>
         <p>${meta.subtitle}</p>
+        ${renderPageShortcuts()}
       </div>
     </div>
     <div class="header-right">
@@ -596,6 +664,17 @@ function renderHeader() {
       </a>
     </div>
   `;
+}
+
+function bindHeaderActions() {
+  document.querySelector("[data-history-back]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    window.location.href = "dashboard.html";
+  });
 }
 
 function renderFooter() {
@@ -2533,6 +2612,7 @@ function initApp() {
   renderHeader();
   renderFooter();
   renderInlineIcons();
+  bindHeaderActions();
   populateSystemDataSelects();
   bindHumanResourcesModule();
   bindNotificationsModule();
