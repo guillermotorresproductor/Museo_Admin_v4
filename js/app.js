@@ -85,6 +85,30 @@ const officialMuseumAreas = [
   "Escaleras de salida"
 ];
 
+const officialActivityClassifications = [
+  "Actividades culturales o educativas",
+  "Exhibiciones temporeras",
+  "Presentaciones artísticas",
+  "Actividades cívicas",
+  "Conferencias y talleres",
+  "Actividades institucionales",
+  "Actividades Gubernamentales",
+  "Concesiones comerciales compatibles con la naturaleza del Museo",
+  "Colaboraciones con entidades públicas o privadas"
+];
+
+const activityClassificationThemes = {
+  "Actividades culturales o educativas": "theme-green",
+  "Exhibiciones temporeras": "theme-purple",
+  "Presentaciones artísticas": "theme-gold",
+  "Actividades cívicas": "theme-blue",
+  "Conferencias y talleres": "theme-teal",
+  "Actividades institucionales": "theme-red",
+  "Actividades Gubernamentales": "theme-government",
+  "Concesiones comerciales compatibles con la naturaleza del Museo": "theme-orange",
+  "Colaboraciones con entidades públicas o privadas": "theme-slate"
+};
+
 const defaultEmployeeProfiles = {
   "guillermo-torres": {
     id: "guillermo-torres",
@@ -1238,6 +1262,7 @@ function bindCalendarModules() {
   const moduleType = panel.dataset.calendarModule;
   const isMaintenance = moduleType === "maintenance";
   const isUshers = moduleType === "ushers";
+  const isGeneral = moduleType === "general";
   const storageKey = isMaintenance
     ? "museo-admin-work-calendar"
     : isUshers
@@ -1249,8 +1274,11 @@ function bindCalendarModules() {
   const message = panel.querySelector("[data-calendar-message]");
   const submitButton = panel.querySelector("[data-calendar-submit]");
   const cancelButton = panel.querySelector("[data-calendar-cancel]");
+  const newButton = panel.querySelector("[data-calendar-new]");
   const usherSelect = panel.querySelector("[data-usher-select]");
   const areaSelect = panel.querySelector("[data-area-select]");
+  const employeeSelect = panel.querySelector("[data-employee-select]");
+  const classificationSelect = panel.querySelector("[data-activity-classification-select]");
   const monthNames = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
   let activeDate = new Date();
   let records = JSON.parse(localStorage.getItem(storageKey) || "[]");
@@ -1297,6 +1325,22 @@ function bindCalendarModules() {
     areaSelect.innerHTML = `<option value="">Seleccione un área...</option>${options}`;
   };
 
+  const populateEmployees = () => {
+    if (!employeeSelect) return;
+    const employees = getEmployeeRecords().filter((employee) => employee.estado !== "Inactivo");
+    const options = employees.map((employee) => {
+      const name = employeeDisplayName(employee);
+      return `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+    }).join("");
+    employeeSelect.innerHTML = `<option value="">Seleccione un empleado...</option>${options}`;
+  };
+
+  const populateClassifications = () => {
+    if (!classificationSelect) return;
+    const options = officialActivityClassifications.map((classification) => `<option value="${escapeHtml(classification)}">${escapeHtml(classification)}</option>`).join("");
+    classificationSelect.innerHTML = `<option value="">Seleccione una clasificación...</option>${options}`;
+  };
+
   const describeRecord = (record) => {
     if (isMaintenance) {
       return `Empleado: ${record.empleado}\nTarea: ${record.tarea}\nÁrea: ${record.area || "Sin área"}\nEstado: ${record.estado || "Pendiente"}\nFecha: ${record.fecha}`;
@@ -1304,7 +1348,7 @@ function bindCalendarModules() {
     if (isUshers) {
       return `Ujier: ${record.ujier}\nHorario: ${record.horario}\nÁrea: ${record.area}\nFecha: ${record.fecha}`;
     }
-    return `Evento: ${record.titulo}\nDescripción: ${record.descripcion || "Sin descripción"}\nFecha: ${record.fecha}`;
+    return `Evento: ${record.titulo}\nClasificación: ${record.clasificacion || "Sin clasificación"}\nÁrea: ${record.area || "Sin área"}\nCreado por: ${record.empleado || "Sin empleado"}\nDescripción: ${record.descripcion || "Sin descripción"}\nFecha: ${record.fecha}`;
   };
 
   const setEditableState = () => {
@@ -1312,7 +1356,12 @@ function bindCalendarModules() {
     form.querySelectorAll("input, select, textarea, button").forEach((field) => {
       field.disabled = !allowed;
     });
-    form.hidden = !allowed;
+    if (isGeneral) {
+      form.hidden = true;
+      if (newButton) newButton.hidden = !allowed;
+    } else {
+      form.hidden = !allowed;
+    }
     panel.classList.toggle("is-readonly", !allowed);
     renderCalendar();
   };
@@ -1336,11 +1385,12 @@ function bindCalendarModules() {
           ? `<strong>${escapeHtml(record.empleado)}</strong><span>${escapeHtml(record.tarea)}</span><small>${escapeHtml(record.area || "Sin área")} · ${escapeHtml(record.estado || "Pendiente")}</small>`
           : isUshers
             ? `<strong>${escapeHtml(record.ujier)}</strong><span>${escapeHtml(record.horario)}</span><small>${escapeHtml(record.area)}</small>`
-            : `<strong>${escapeHtml(record.titulo)}</strong><span>${escapeHtml(record.descripcion || "Sin descripción")}</span>`;
+            : `<strong>${escapeHtml(record.titulo)}</strong><span>${escapeHtml(record.clasificacion || "Sin clasificación")}</span><small>${escapeHtml(record.area || "Sin área")}</small>`;
+        const theme = isGeneral ? activityClassificationThemes[record.clasificacion] || "theme-slate" : "";
         const actions = canEdit()
           ? `<div class="calendar-item-actions"><button type="button" data-calendar-edit="${record.id}">Editar</button><button type="button" data-calendar-delete="${record.id}">Eliminar</button></div>`
           : "";
-        return `<article class="calendar-item" data-calendar-view="${record.id}">${body}${actions}</article>`;
+        return `<article class="calendar-item ${theme}" data-calendar-view="${record.id}">${body}${actions}</article>`;
       }).join("");
 
       return `
@@ -1364,6 +1414,7 @@ function bindCalendarModules() {
     form.elements.id.value = "";
     if (submitButton) submitButton.textContent = isMaintenance ? "Guardar Tarea" : isUshers ? "Guardar Asignación" : "Guardar Evento";
     if (cancelButton) cancelButton.hidden = true;
+    if (isGeneral) form.hidden = true;
   };
 
   form.addEventListener("submit", (event) => {
@@ -1395,7 +1446,10 @@ function bindCalendarModules() {
         : {
             id: id || createId(),
             fecha: data.get("fecha"),
+            empleado: data.get("empleado"),
             titulo: data.get("titulo").trim(),
+            clasificacion: data.get("clasificacion"),
+            area: data.get("area"),
             descripcion: data.get("descripcion").trim()
           };
 
@@ -1403,7 +1457,7 @@ function bindCalendarModules() {
       ? !record.fecha || !record.empleado || !record.tarea
       : isUshers
         ? !record.fecha || !record.ujier || !record.horario || !record.area
-        : !record.fecha || !record.titulo;
+        : !record.fecha || !record.empleado || !record.titulo || !record.clasificacion || !record.area;
     if (isInvalid) {
       setMessage("Complete los campos requeridos antes de guardar.", "error");
       return;
@@ -1431,12 +1485,14 @@ function bindCalendarModules() {
 
     if (dayCell && canEdit()) {
       form.elements.fecha.value = dayCell.dataset.calendarDate;
+      if (isGeneral && !form.hidden) form.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     if (editButton) {
       if (!canEdit()) return;
       const record = records.find((item) => item.id === editButton.dataset.calendarEdit);
       if (!record) return;
+      if (isGeneral) form.hidden = false;
       Object.entries(record).forEach(([key, value]) => {
         const field = form.elements[key];
         if (field) field.value = value;
@@ -1466,12 +1522,24 @@ function bindCalendarModules() {
     activeDate = new Date(activeDate.getFullYear(), activeDate.getMonth() + 1, 1);
     renderCalendar();
   });
+  newButton?.addEventListener("click", () => {
+    if (!canEdit()) {
+      setMessage("Solo Ejecutivos y Administradores pueden crear eventos.", "error");
+      return;
+    }
+    form.hidden = false;
+    setMessage("");
+    if (!form.elements.fecha.value) form.elements.fecha.value = new Date().toISOString().slice(0, 10);
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
   cancelButton?.addEventListener("click", () => {
     resetForm();
     setMessage("");
   });
   populateUshers();
   populateAreas();
+  populateEmployees();
+  populateClassifications();
   setEditableState();
 }
 

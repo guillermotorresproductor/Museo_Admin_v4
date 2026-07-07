@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Calendario de Eventos del Museo</title>
-  <link rel="stylesheet" href="css/main.css?v=supabase-finance-session-fix-20260705">
+  <link rel="stylesheet" href="css/main.css?v=calendar-events-form-20260706">
 </head>
 <body>
   <div class="app-shell">
@@ -23,12 +23,13 @@
             <div class="calendar-actions">
               <button class="button secondary" type="button" data-calendar-prev>Mes anterior</button>
               <button class="button secondary" type="button" data-calendar-next>Mes siguiente</button>
+              <button class="button submit-button" type="button" data-calendar-new>Nuevo Evento</button>
             </div>
           </div>
 
           <div class="monthly-calendar" data-calendar-grid></div>
 
-          <form class="calendar-form" data-calendar-form>
+          <form class="calendar-form" data-calendar-form hidden>
             <input type="hidden" name="id">
             <div class="form-row">
               <label class="field">
@@ -36,12 +37,34 @@
                 <input type="date" name="fecha" required>
               </label>
               <label class="field">
-                <span>Actividad o evento</span>
+                <span>Nombre del empleado que creó la actividad</span>
+                <select name="empleado" data-employee-select required>
+                  <option value="">Seleccione un empleado...</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="field">
+                <span>Nombre del evento</span>
                 <input type="text" name="titulo" required>
+              </label>
+              <label class="field">
+                <span>Clasificación</span>
+                <select name="clasificacion" data-activity-classification-select required>
+                  <option value="">Seleccione una clasificación...</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="field">
+                <span>Área del Museo</span>
+                <select name="area" data-area-select required>
+                  <option value="">Seleccione un área...</option>
+                </select>
               </label>
             </div>
             <label class="field">
-              <span>Descripción</span>
+              <span>Descripción de la actividad</span>
               <textarea name="descripcion" rows="3"></textarea>
             </label>
             <div class="inventory-actions">
@@ -55,10 +78,6 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=supabase-finance-session-fix-20260705"></script>
+  <script src="js/app.js?v=calendar-events-form-20260706"></script>
 </body>
 </html>
-
-
-
-
