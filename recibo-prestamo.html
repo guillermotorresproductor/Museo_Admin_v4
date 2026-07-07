@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Recibo de Préstamo</title>
-  <link rel="stylesheet" href="css/main.css?v=notification-checks-20260706">
+  <link rel="stylesheet" href="css/main.css?v=loan-article-number-20260706">
 </head>
 <body>
   <div class="app-shell">
@@ -15,6 +15,16 @@
       <main class="page-content">
         <section class="card panel form-panel rental-panel">
           <h3>Formulario Digital de Recibo de Artículos de Colección Mediante Préstamo</h3>
+          <div class="request-meta">
+            <div>
+              <span>Número interno del artículo</span>
+              <strong data-loan-article-number>Artículo 00001</strong>
+            </div>
+            <div>
+              <span>Fecha de emisión</span>
+              <strong data-loan-article-date></strong>
+            </div>
+          </div>
           <form id="loan-receipt-form" class="application-form" action="#" method="post" novalidate>
             <div class="form-row">
               <div class="field">
@@ -42,15 +52,15 @@
             </div>
             <div class="form-row">
               <div class="field">
-                <label for="loan-item-name">Nombre o titulo del articulo</label>
+                <label for="loan-item-name">Nombre o título del artículo</label>
                 <input id="loan-item-name" name="articulo" type="text" required>
               </div>
               <div class="field">
-                <label for="loan-category">Categoria</label>
+                <label for="loan-category">Categoría</label>
                 <select id="loan-category" name="categoria" required>
                   <option value="">Seleccione...</option>
-                  <option>Instrumento músical</option>
-                  <option>Fotografia</option>
+                  <option>Instrumento musical</option>
+                  <option>Fotografía</option>
                   <option>Documento</option>
                   <option>Vestuario</option>
                   <option>Memorabilia</option>
@@ -60,12 +70,12 @@
               </div>
             </div>
             <div class="field">
-              <label for="loan-description">Descripcion detallada del articulo</label>
+              <label for="loan-description">Descripción detallada del artículo</label>
               <textarea id="loan-description" name="descripcion" rows="5" required></textarea>
             </div>
             <div class="form-row">
               <div class="field">
-                <label for="loan-condition">Condicion al momento del recibo</label>
+                <label for="loan-condition">Condición al momento del recibo</label>
                 <select id="loan-condition" name="condicion" required>
                   <option value="">Seleccione...</option>
                   <option>Excelente</option>
@@ -85,13 +95,13 @@
                 <input id="loan-start" name="inicio" type="date" required>
               </div>
               <div class="field">
-                <label for="loan-end">Fecha estimada de devolucion</label>
+                <label for="loan-end">Fecha estimada de devolución</label>
                 <input id="loan-end" name="devolucion" type="date" required>
               </div>
             </div>
             <div class="field">
               <label for="loan-purpose">Propósito del préstamo</label>
-              <textarea id="loan-purpose" name="propósito" rows="4" required></textarea>
+              <textarea id="loan-purpose" name="proposito" rows="4" required></textarea>
             </div>
             <div class="field">
               <label for="loan-notes">Observaciones adicionales</label>
@@ -99,7 +109,7 @@
             </div>
             <label class="terms-accept">
               <input id="loan-certification" name="certificacion" type="checkbox" required>
-              <span>Certifico que la información suministrada es correcta y autorizo al Museo a evaluar el recibo del articulo mediante préstamo.</span>
+              <span>Certifico que la información suministrada es correcta y autorizo al Museo a evaluar el recibo del artículo mediante préstamo.</span>
             </label>
             <p class="form-message" data-loan-message aria-live="polite"></p>
             <button class="button submit-button" type="submit">Enviar formulario</button>
@@ -108,23 +118,13 @@
 
         <section class="card panel section-stack">
           <h3>Documento descargable</h3>
-          <p>Si necesita completar la version en papel, descargue el formulario oficial existente en formato Word.</p>
+          <p>Si necesita completar la versión en papel, descargue el formulario oficial existente en formato Word.</p>
           <a class="button secondary section-stack" href="docs/formulario-recibo-artículos-colección-préstamo.docx" download>Descargar formulario Word</a>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=notification-checks-20260706"></script>
+  <script src="js/app.js?v=loan-article-number-20260706"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-

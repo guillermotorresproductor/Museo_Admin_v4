@@ -257,6 +257,7 @@ const notificationStorageKey = "museo-admin-notification-preferences";
 const financeStorageKey = "museo-admin-finance-records";
 const financeAuditStorageKey = "museo-admin-finance-audit-log";
 const materialsStorageKey = "museo-admin-material-requests";
+const loanReceiptStorageKey = "museo-admin-loan-receipts";
 const rentalStorageKey = "museo-admin-rental-requests";
 const rentalSpacesStorageKey = "museo-admin-rental-spaces";
 const supabaseUrl = "https://kfokfjngozgcwjpzxcsu.supabase.co";
@@ -1073,6 +1074,27 @@ function bindLoanReceiptForm() {
   const form = document.querySelector("#loan-receipt-form");
   if (!form) return;
 
+  const articleNumber = document.querySelector("[data-loan-article-number]");
+  const articleDate = document.querySelector("[data-loan-article-date]");
+  let receipts = JSON.parse(localStorage.getItem(loanReceiptStorageKey) || "[]");
+  const today = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  };
+  const displayDate = (date) => {
+    const [year, month, day] = date.split("-");
+    return `${day}/${month}/${year}`;
+  };
+  const nextSequence = () => receipts.reduce((highest, receipt) => Math.max(highest, Number(receipt.sequence || 0)), 0) + 1;
+  const formatArticleNumber = (sequence) => `Artículo ${String(sequence).padStart(5, "0")}`;
+  const saveReceipts = () => localStorage.setItem(loanReceiptStorageKey, JSON.stringify(receipts));
+  const refreshMeta = () => {
+    if (articleNumber) articleNumber.textContent = formatArticleNumber(nextSequence());
+    if (articleDate) articleDate.textContent = displayDate(today());
+  };
+
+  refreshMeta();
+
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const message = document.querySelector("[data-loan-message]");
@@ -1095,8 +1117,13 @@ function bindLoanReceiptForm() {
     }
 
     const data = new FormData(form);
+    const sequence = nextSequence();
+    const internalNumber = formatArticleNumber(sequence);
+    const emissionDate = today();
     const body = [
       "Formulario de Recibo de Artículos de Colección Mediante Préstamo",
+      `Número interno: ${internalNumber}`,
+      `Fecha de emisión: ${displayDate(emissionDate)}`,
       "",
       `Prestamista: ${data.get("prestamista")}`,
       `Correo electrónico: ${data.get("correo")}`,
@@ -1121,8 +1148,20 @@ function bindLoanReceiptForm() {
       "El prestamista certifica que la información suministrada es correcta."
     ].join("\n");
 
+    receipts = [...receipts, {
+      id: `loan-${Date.now()}`,
+      sequence,
+      numeroArticulo: internalNumber,
+      fechaEmision: emissionDate,
+      prestamista: data.get("prestamista"),
+      articulo: data.get("articulo"),
+      categoria: data.get("categoria")
+    }];
+    saveReceipts();
+    refreshMeta();
+
     const mailto = new URL("mailto:guillermotorrespr@gmail.com");
-    mailto.searchParams.set("subject", `Recibo de préstamo - ${data.get("articulo")}`);
+    mailto.searchParams.set("subject", `${internalNumber} - Recibo de préstamo - ${data.get("articulo")}`);
     mailto.searchParams.set("body", body);
 
     if (message) {
