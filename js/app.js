@@ -256,6 +256,7 @@ const employeeStorageKey = "museo-admin-employee-records";
 const notificationStorageKey = "museo-admin-notification-preferences";
 const financeStorageKey = "museo-admin-finance-records";
 const financeAuditStorageKey = "museo-admin-finance-audit-log";
+const materialsStorageKey = "museo-admin-material-requests";
 const rentalStorageKey = "museo-admin-rental-requests";
 const rentalSpacesStorageKey = "museo-admin-rental-spaces";
 const supabaseUrl = "https://kfokfjngozgcwjpzxcsu.supabase.co";
@@ -1642,6 +1643,96 @@ function safeHtml(value) {
   })[character]);
 }
 
+function bindMaterialsRequestModule() {
+  const module = document.querySelector("[data-materials-module]");
+  if (!module) return;
+
+  const form = module.querySelector("[data-materials-form]");
+  const orderNumber = module.querySelector("[data-material-order-number]");
+  const orderDate = module.querySelector("[data-material-order-date]");
+  const message = module.querySelector("[data-materials-message]");
+  const log = document.querySelector("[data-materials-log]");
+  let requests = JSON.parse(localStorage.getItem(materialsStorageKey) || "[]");
+
+  const today = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  };
+  const displayDate = (date) => {
+    const [year, month, day] = date.split("-");
+    return `${day}/${month}/${year}`;
+  };
+  const nextSequence = () => requests.reduce((highest, request) => Math.max(highest, Number(request.sequence || 0)), 0) + 1;
+  const formatOrder = (sequence) => `Pedido ${String(sequence).padStart(5, "0")}`;
+  const saveRequests = () => localStorage.setItem(materialsStorageKey, JSON.stringify(requests));
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text;
+    message.className = `form-message ${type}`.trim();
+  };
+  const refreshMeta = () => {
+    if (orderNumber) orderNumber.textContent = formatOrder(nextSequence());
+    if (orderDate) orderDate.textContent = displayDate(today());
+  };
+  const renderLog = () => {
+    if (!log) return;
+    if (!requests.length) {
+      log.innerHTML = '<p class="empty-state">Todavía no hay solicitudes registradas.</p>';
+      return;
+    }
+
+    log.innerHTML = requests.slice().reverse().map((request) => `
+      <article class="request-log-item">
+        <div>
+          <strong>${safeHtml(request.order)}</strong>
+          <span>${safeHtml(displayDate(request.date))}</span>
+        </div>
+        <p><strong>Empleado:</strong> ${safeHtml(request.employee)}</p>
+        <p><strong>Materiales:</strong> ${safeHtml(request.materials.join(", "))}</p>
+        ${request.other ? `<p><strong>Otros:</strong> ${safeHtml(request.other)}</p>` : ""}
+      </article>
+    `).join("");
+  };
+
+  refreshMeta();
+  renderLog();
+
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const employee = String(data.get("empleado") || "").trim();
+    const materials = data.getAll("materiales").map((item) => String(item).trim()).filter(Boolean);
+    const other = String(data.get("otros") || "").trim();
+
+    if (!employee) {
+      setMessage("Seleccione el empleado que está haciendo la solicitud.", "error");
+      return;
+    }
+    if (!materials.length && !other) {
+      setMessage("Seleccione al menos un material o escriba una necesidad en Otros.", "error");
+      return;
+    }
+
+    const sequence = nextSequence();
+    const request = {
+      id: `material-${Date.now()}`,
+      sequence,
+      order: formatOrder(sequence),
+      date: today(),
+      employee,
+      materials,
+      other
+    };
+
+    requests = [...requests, request];
+    saveRequests();
+    form.reset();
+    refreshMeta();
+    renderLog();
+    setMessage(`${request.order} registrado correctamente.`, "success");
+  });
+}
+
 function bindHumanResourcesModule() {
   const module = document.querySelector("[data-hr-module]");
   if (!module) return;
@@ -2614,6 +2705,7 @@ function initApp() {
   renderInlineIcons();
   bindHeaderActions();
   populateSystemDataSelects();
+  bindMaterialsRequestModule();
   bindHumanResourcesModule();
   bindNotificationsModule();
   bindFinanceModule();
