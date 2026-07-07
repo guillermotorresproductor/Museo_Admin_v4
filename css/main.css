@@ -1795,6 +1795,40 @@ body {
   opacity: 0.65;
 }
 
+.notification-status {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+}
+
+.notification-status.is-on {
+  background: #159447;
+  color: #ffffff;
+}
+
+.notification-status.is-on::before {
+  content: "";
+  width: 10px;
+  height: 6px;
+  border-bottom: 2px solid currentColor;
+  border-left: 2px solid currentColor;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.notification-status.is-off {
+  background: #cbd5e1;
+}
+
+.notification-status.is-off::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #64748b;
+}
+
 .finance-gate {
   max-width: 620px;
   margin: 0 auto;

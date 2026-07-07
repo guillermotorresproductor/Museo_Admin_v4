@@ -2068,7 +2068,7 @@ function bindNotificationsModule() {
   const renderToggle = (employee, type, enabled) => `
     <label class="switch-control" title="${safeHtml(type.source)}">
       <input type="checkbox" data-notification-toggle data-employee-id="${safeHtml(employee.id)}" data-notification-type="${safeHtml(type.key)}"${enabled ? " checked" : ""}${canEdit ? "" : " disabled"}>
-      <span>${enabled ? "Sí" : "No"}</span>
+      <span class="notification-status ${enabled ? "is-on" : "is-off"}" aria-label="${enabled ? "Activo" : "Inactivo"}"></span>
     </label>
   `;
 
@@ -2106,8 +2106,12 @@ function bindNotificationsModule() {
     preferences[employeeId][type] = toggle.checked;
     saveNotificationPreferences(preferences);
 
-    const label = toggle.closest(".switch-control")?.querySelector("span");
-    if (label) label.textContent = toggle.checked ? "Sí" : "No";
+    const label = toggle.closest(".switch-control")?.querySelector(".notification-status");
+    if (label) {
+      label.classList.toggle("is-on", toggle.checked);
+      label.classList.toggle("is-off", !toggle.checked);
+      label.setAttribute("aria-label", toggle.checked ? "Activo" : "Inactivo");
+    }
     setMessage("Preferencia de notificación actualizada.", "success");
   });
 
