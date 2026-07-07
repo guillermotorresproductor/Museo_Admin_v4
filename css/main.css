@@ -2169,6 +2169,10 @@ body {
   margin-top: 22px;
 }
 
+.calendar-form[hidden] {
+  display: none !important;
+}
+
 .calendar-panel.is-readonly .calendar-form {
   opacity: 0.62;
 }

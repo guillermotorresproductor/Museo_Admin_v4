@@ -1524,6 +1524,7 @@ function bindCalendarModules() {
   });
   newButton?.addEventListener("click", () => {
     if (!canEdit()) {
+      form.hidden = true;
       setMessage("Solo Ejecutivos y Administradores pueden crear eventos.", "error");
       return;
     }
