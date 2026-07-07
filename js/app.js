@@ -231,7 +231,7 @@ const rentalSpacesStorageKey = "museo-admin-rental-spaces";
 const supabaseUrl = "https://kfokfjngozgcwjpzxcsu.supabase.co";
 const supabasePublishableKey = "sb_publishable_wBGL3o2YcfbR_dvhT3mTnw_OXuHB0y3";
 const supabaseSessionKey = "museo-admin-supabase-session";
-const currentAccessLevel = () => localStorage.getItem("museo-admin-access-level") || "Administrador";
+const currentAccessLevel = () => localStorage.getItem("museo-admin-access-level") || "Empleado";
 const canManageEmployees = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
 const canDeleteEmployees = () => currentAccessLevel() === "Administrador";
 
@@ -1284,7 +1284,7 @@ function bindCalendarModules() {
   let records = JSON.parse(localStorage.getItem(storageKey) || "[]");
 
   const saveRecords = () => localStorage.setItem(storageKey, JSON.stringify(records));
-  const currentAccessLevel = localStorage.getItem("museo-admin-access-level") || "Administrador";
+  const currentAccessLevel = localStorage.getItem("museo-admin-access-level") || "Empleado";
   const canEdit = () => ["Ejecutivo", "Administrador"].includes(currentAccessLevel);
   const createId = () => {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -1359,6 +1359,9 @@ function bindCalendarModules() {
     if (isGeneral) {
       form.hidden = true;
       if (newButton) newButton.hidden = !allowed;
+    } else if (isUshers) {
+      form.hidden = true;
+      if (newButton) newButton.hidden = !allowed;
     } else {
       form.hidden = !allowed;
     }
@@ -1414,7 +1417,7 @@ function bindCalendarModules() {
     form.elements.id.value = "";
     if (submitButton) submitButton.textContent = isMaintenance ? "Guardar Tarea" : isUshers ? "Guardar Asignación" : "Guardar Evento";
     if (cancelButton) cancelButton.hidden = true;
-    if (isGeneral) form.hidden = true;
+    if (isGeneral || isUshers) form.hidden = true;
   };
 
   form.addEventListener("submit", (event) => {
@@ -1485,14 +1488,14 @@ function bindCalendarModules() {
 
     if (dayCell && canEdit()) {
       form.elements.fecha.value = dayCell.dataset.calendarDate;
-      if (isGeneral && !form.hidden) form.scrollIntoView({ behavior: "smooth", block: "start" });
+      if ((isGeneral || isUshers) && !form.hidden) form.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     if (editButton) {
       if (!canEdit()) return;
       const record = records.find((item) => item.id === editButton.dataset.calendarEdit);
       if (!record) return;
-      if (isGeneral) form.hidden = false;
+      if (isGeneral || isUshers) form.hidden = false;
       Object.entries(record).forEach(([key, value]) => {
         const field = form.elements[key];
         if (field) field.value = value;
@@ -1525,7 +1528,7 @@ function bindCalendarModules() {
   newButton?.addEventListener("click", () => {
     if (!canEdit()) {
       form.hidden = true;
-      setMessage("Solo Ejecutivos y Administradores pueden crear eventos.", "error");
+      setMessage(isUshers ? "Solo Ejecutivos y Administradores pueden crear entradas." : "Solo Ejecutivos y Administradores pueden crear eventos.", "error");
       return;
     }
     form.hidden = false;

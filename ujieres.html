@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Ujieres</title>
-  <link rel="stylesheet" href="css/main.css?v=calendar-form-hidden-fix-20260706">
+  <link rel="stylesheet" href="css/main.css?v=ushers-entry-role-fix-20260706">
 </head>
 <body>
   <div class="app-shell">
@@ -23,12 +23,13 @@
             <div class="calendar-actions">
               <button class="button secondary" type="button" data-calendar-prev>Mes anterior</button>
               <button class="button secondary" type="button" data-calendar-next>Mes siguiente</button>
+              <button class="button submit-button" type="button" data-calendar-new>Nueva Entrada</button>
             </div>
           </div>
 
           <div class="monthly-calendar" data-calendar-grid></div>
 
-          <form class="calendar-form" data-calendar-form>
+          <form class="calendar-form" data-calendar-form hidden>
             <input type="hidden" name="id">
             <div class="form-row">
               <label class="field">
@@ -65,6 +66,6 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=calendar-form-hidden-fix-20260706"></script>
+  <script src="js/app.js?v=ushers-entry-role-fix-20260706"></script>
 </body>
 </html>
