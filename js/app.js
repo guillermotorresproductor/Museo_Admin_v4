@@ -254,8 +254,6 @@ const defaultEmployeeProfiles = {
 
 const employeeStorageKey = "museo-admin-employee-records";
 const notificationStorageKey = "museo-admin-notification-preferences";
-const financeStorageKey = "museo-admin-finance-records";
-const financeAuditStorageKey = "museo-admin-finance-audit-log";
 const materialsStorageKey = "museo-admin-material-requests";
 const loanReceiptStorageKey = "museo-admin-loan-receipts";
 const rentalStorageKey = "museo-admin-rental-requests";
@@ -906,14 +904,6 @@ function bindRentalForm() {
       localStorage.setItem("museo-admin-general-calendar", JSON.stringify(calendarRecords));
     }
 
-    const financeRows = JSON.parse(localStorage.getItem(financeStorageKey) || "null") || defaultFinanceRows;
-    const rentalRow = financeRows.find((row) => row.id === "ing-salas");
-    if (rentalRow) {
-      const month = new Date(`${request.fecha}T12:00:00`).getMonth();
-      const fiscalIndex = [6,7,8,9,10,11,0,1,2,3,4,5].indexOf(month);
-      if (fiscalIndex >= 0) rentalRow.values[fiscalIndex] = Number(rentalRow.values[fiscalIndex] || 0) + Number(request.total || 0);
-      localStorage.setItem(financeStorageKey, JSON.stringify(financeRows));
-    }
   };
 
   const renderHistory = () => {
@@ -2235,16 +2225,18 @@ function bindFinanceModule() {
   let currentUser = "";
   let currentProfile = null;
   const financeYear = 2026;
-  let rows = JSON.parse(localStorage.getItem(financeStorageKey) || "null") || defaultFinanceRows;
+  let rows = [];
+  let auditEntries = [];
 
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   const rowTotal = (row) => row.values.reduce((sum, value) => sum + Number(value || 0), 0);
   const rowsByType = (type) => rows.filter((row) => row.type === type);
   const totalByType = (type) => rowsByType(type).reduce((sum, row) => sum + rowTotal(row), 0);
   const monthTotal = (type, monthIndex) => rowsByType(type).reduce((sum, row) => sum + Number(row.values[monthIndex] || 0), 0);
-  const saveRows = () => localStorage.setItem(financeStorageKey, JSON.stringify(rows));
-  const audit = () => JSON.parse(localStorage.getItem(financeAuditStorageKey) || "[]");
-  const saveAudit = (entries) => localStorage.setItem(financeAuditStorageKey, JSON.stringify(entries.slice(-250)));
+  const audit = () => auditEntries;
+  const saveAudit = (entries) => {
+    auditEntries = entries.slice(-250);
+  };
   const normalizeRows = (storedRows) => {
     const storedById = new Map(storedRows.map((row) => [row.id, row]));
     const normalized = defaultFinanceRows.map((defaultRow) => {
@@ -2261,8 +2253,7 @@ function bindFinanceModule() {
     return normalized;
   };
 
-  rows = normalizeRows(rows);
-  saveRows();
+  rows = normalizeRows(defaultFinanceRows);
 
   const buildFinanceRecordPayload = (row, monthIndex, amount, museumId) => ({
     museum_id: museumId,
@@ -2334,12 +2325,11 @@ function bindFinanceModule() {
 
     if (!records.length) {
       await seedFinanceRecords(currentProfile);
-      saveRows();
+      rows = normalizeRows(rows);
       return true;
     }
 
     rows = rowsFromFinanceRecords(records);
-    saveRows();
     return true;
   };
 
@@ -2581,21 +2571,36 @@ function bindFinanceModule() {
     if (activeTab === "configuracion") panel.innerHTML = renderConfiguration();
   };
 
-  const openModule = async (syncWithSupabase = false) => {
-    gate.hidden = true;
-    gate.style.display = "none";
-    module.hidden = false;
-    module.style.display = "";
-    renderPanel();
-    if (syncWithSupabase) {
-      panel.insertAdjacentHTML("afterbegin", `<p class="form-message">Sincronizando Finanzas con Supabase...</p>`);
-      try {
-        await syncFinanceFromSupabase();
-        renderPanel();
-      } catch (error) {
-        renderPanel();
-        panel.insertAdjacentHTML("afterbegin", `<p class="form-message error">No se pudo sincronizar con Supabase: ${safeHtml(error.message || "error desconocido")}. Se muestra la copia local.</p>`);
-      }
+  const showFinanceGateError = (text) => {
+    gate.hidden = false;
+    gate.style.display = "";
+    module.hidden = true;
+    module.style.display = "none";
+    if (loginMessage) {
+      loginMessage.textContent = text;
+      loginMessage.className = "form-message error";
+    }
+  };
+
+  const openModule = async () => {
+    gate.hidden = false;
+    gate.style.display = "";
+    module.hidden = true;
+    module.style.display = "none";
+    if (loginMessage) {
+      loginMessage.textContent = "Conectando Finanzas con Supabase...";
+      loginMessage.className = "form-message";
+    }
+
+    try {
+      await syncFinanceFromSupabase();
+      gate.hidden = true;
+      gate.style.display = "none";
+      module.hidden = false;
+      module.style.display = "";
+      renderPanel();
+    } catch (error) {
+      showFinanceGateError(`No se pudo abrir Finanzas desde Supabase: ${error.message || "revise su sesión o conexión"}.`);
     }
   };
 
@@ -2622,6 +2627,10 @@ function bindFinanceModule() {
       return;
     }
     currentUser = user;
+    if (!getSupabaseSession()?.access_token) {
+      showFinanceGateError("Finanzas requiere una sesión activa de Supabase. Entre primero por Mi cuenta.");
+      return;
+    }
     openModule();
   });
 
@@ -2638,17 +2647,20 @@ function bindFinanceModule() {
     if (!input) return;
     const row = rows.find((item) => item.id === input.dataset.financeRow);
     const monthIndex = Number(input.dataset.financeMonth);
+    if (!row || Number.isNaN(monthIndex)) return;
     const previousValue = Number(row.values[monthIndex] || 0);
     const nextValue = Number(input.value || 0);
-    row.values[monthIndex] = nextValue;
-    saveRows();
-    addAudit(row, monthIndex, previousValue, nextValue);
-    renderPanel();
+    input.disabled = true;
     try {
       const savedInSupabase = await saveFinanceCellToSupabase(row, monthIndex, previousValue, nextValue);
       if (!savedInSupabase) throw new Error("Supabase no confirmó el guardado.");
+      row.values[monthIndex] = nextValue;
+      addAudit(row, monthIndex, previousValue, nextValue);
+      renderPanel();
     } catch (error) {
-      panel.insertAdjacentHTML("afterbegin", `<p class="form-message error">El cambio quedó guardado localmente, pero Supabase no lo recibió: ${safeHtml(error.message || "revise su sesión o conexión")}.</p>`);
+      input.value = previousValue;
+      input.disabled = false;
+      panel.insertAdjacentHTML("afterbegin", `<p class="form-message error">El cambio no se guardó. Supabase no confirmó la operación: ${safeHtml(error.message || "revise su sesión o conexión")}.</p>`);
     }
   });
 
@@ -2657,7 +2669,7 @@ function bindFinanceModule() {
   document.querySelector("[data-finance-print]")?.addEventListener("click", () => window.print());
 
   if (getSupabaseSession()?.access_token && canManageEmployees()) {
-    openModule(true);
+    openModule();
   }
 }
 
