@@ -1225,8 +1225,14 @@ function bindLoanReceiptForm() {
     }];
 
     try {
+      const previousReceipts = receipts;
       receipts = nextReceipts;
-      await saveReceipts();
+      try {
+        await saveReceipts();
+      } catch (error) {
+        receipts = previousReceipts;
+        throw error;
+      }
       refreshMeta();
     } catch (error) {
       if (message) {
@@ -1759,6 +1765,7 @@ function bindCalendarModules() {
     }
 
     const nextRecords = id ? records.map((item) => item.id === id ? record : item) : [...records, record];
+    const previousRecords = records;
     try {
       records = nextRecords;
       await saveRecords();
@@ -1767,6 +1774,7 @@ function bindCalendarModules() {
       setMessage(id ? "Registro actualizado en Supabase." : "Registro guardado en Supabase.", "success");
       renderCalendar();
     } catch (error) {
+      records = previousRecords;
       setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
     }
   });
@@ -1808,12 +1816,14 @@ function bindCalendarModules() {
       if (!record) return;
       if (!confirm("¿Eliminar este registro del calendario?")) return;
       const nextRecords = records.filter((item) => item.id !== record.id);
+      const previousRecords = records;
       try {
         records = nextRecords;
         await saveRecords();
         renderCalendar();
         setMessage("Registro eliminado de Supabase.", "success");
       } catch (error) {
+        records = previousRecords;
         setMessage(`No se pudo eliminar en Supabase: ${error.message}`, "error");
       }
     }
@@ -1954,8 +1964,14 @@ function bindMaterialsRequestModule() {
     };
 
     try {
+      const previousRequests = requests;
       requests = [...requests, request];
-      await saveRequests();
+      try {
+        await saveRequests();
+      } catch (error) {
+        requests = previousRequests;
+        throw error;
+      }
       form.reset();
       refreshMeta();
       renderLog();
