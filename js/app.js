@@ -2215,9 +2215,7 @@ function bindFinanceModule() {
   const loginMessage = document.querySelector("[data-finance-login-message]");
   const summary = document.querySelector("[data-finance-summary]");
   const panel = document.querySelector("[data-finance-panel]");
-  const syncStatus = document.querySelector("[data-finance-sync-status]");
-  const syncTitle = document.querySelector("[data-finance-sync-title]");
-  const syncDetail = document.querySelector("[data-finance-sync-detail]");
+  const syncStatuses = document.querySelectorAll("[data-finance-sync-status]");
   const tabs = document.querySelectorAll("[data-finance-tab]");
   const allowedUsers = {
     "Guillermo Torres": "museo2026",
@@ -2234,10 +2232,14 @@ function bindFinanceModule() {
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   const syncTime = () => new Date().toLocaleTimeString("es-PR", { hour: "numeric", minute: "2-digit" });
   const setSyncStatus = (state, title, detail) => {
-    if (!syncStatus) return;
-    syncStatus.className = `finance-sync-status is-${state}`;
-    if (syncTitle) syncTitle.textContent = title;
-    if (syncDetail) syncDetail.textContent = detail;
+    syncStatuses.forEach((status) => {
+      const wideClass = status.classList.contains("finance-sync-status-wide") ? " finance-sync-status-wide" : "";
+      status.className = `finance-sync-status${wideClass} is-${state}`;
+      const titleNode = status.querySelector("[data-finance-sync-title]");
+      const detailNode = status.querySelector("[data-finance-sync-detail]");
+      if (titleNode) titleNode.textContent = title;
+      if (detailNode) detailNode.textContent = detail;
+    });
   };
   const rowTotal = (row) => row.values.reduce((sum, value) => sum + Number(value || 0), 0);
   const rowsByType = (type) => rows.filter((row) => row.type === type);

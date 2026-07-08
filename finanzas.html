@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Finanzas</title>
-  <link rel="stylesheet" href="css/main.css?v=finance-sync-status-20260707">
+  <link rel="stylesheet" href="css/main.css?v=finance-sync-all-tabs-20260707">
 </head>
 <body>
   <div class="app-shell">
@@ -64,6 +64,14 @@
             <button class="admin-tab" type="button" data-finance-tab="configuracion">Configuración</button>
           </nav>
 
+          <div class="finance-sync-status finance-sync-status-wide is-checking" data-finance-sync-status>
+            <span class="sync-dot" aria-hidden="true"></span>
+            <div>
+              <strong data-finance-sync-title>Verificando Supabase</strong>
+              <span data-finance-sync-detail>Confirmando fuente central de datos.</span>
+            </div>
+          </div>
+
           <section class="card panel finance-panel" data-finance-panel></section>
 
           <div class="finance-actions finance-actions-bottom">
@@ -76,6 +84,6 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=finance-sync-status-20260707"></script>
+  <script src="js/app.js?v=finance-sync-all-tabs-20260707"></script>
 </body>
 </html>

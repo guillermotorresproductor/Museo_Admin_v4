@@ -1874,6 +1874,11 @@ body {
   box-shadow: var(--shadow);
 }
 
+.finance-sync-status-wide {
+  width: 100%;
+  min-width: 0;
+}
+
 .finance-sync-status strong,
 .finance-sync-status span {
   display: block;
