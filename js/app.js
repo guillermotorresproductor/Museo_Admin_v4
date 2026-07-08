@@ -2625,7 +2625,6 @@ function bindFinanceModule() {
     if (activeTab === "ingresos") panel.innerHTML = renderFinanceTable("Ingresos", (row) => row.type === "income");
     if (activeTab === "gastos") panel.innerHTML = renderExpenseSummaryTable();
     if (activeTab === "nomina") panel.innerHTML = renderFinanceTable("Nómina", (row) => row.category === "Nómina" || row.category === "Beneficios");
-    if (activeTab === "otros") panel.innerHTML = renderFinanceTable("Otros Gastos", (row) => row.category === "Otros Gastos" || row.category === "Gastos Operacionales");
     if (activeTab === "reportes") panel.innerHTML = renderReports();
     if (activeTab === "configuracion") panel.innerHTML = renderConfiguration();
   };
