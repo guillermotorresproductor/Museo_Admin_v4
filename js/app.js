@@ -502,11 +502,11 @@ const defaultFinanceRows = [
   { id: "exp-publicidad", type: "expense", category: "Gastos Operacionales", concept: "Publicidad", values: Array(12).fill(5000) },
   { id: "exp-reparaciones", type: "expense", category: "Gastos Operacionales", concept: "Reparaciones", values: [0,0,0,0,0,2000,0,0,0,0,0,2000] },
   { id: "exp-seguros", type: "expense", category: "Gastos Operacionales", concept: "Seguros", values: Array(12).fill(1400) },
-  { id: "exp-miscelaneos", type: "expense", category: "Otros Gastos", concept: "Misceláneos", values: [0,955.53,966.33,966.33,966.33,1006.33,966.33,1058.33,966.33,966.33,966.33,1006.33] },
-  { id: "exp-contingencia", type: "expense", category: "Otros Gastos", concept: "Contingencia", values: [0,4777.67,4831.67,4831.67,4831.67,5031.67,4831.67,5291.67,4831.67,4831.67,4831.67,5031.67] },
-  { id: "exp-reserva", type: "expense", category: "Otros Gastos", concept: "Gastos de representación", values: Array(12).fill(0) },
-  { id: "exp-ahorros", type: "expense", category: "Otros Gastos", concept: "Ahorros", values: [0,955.53,966.33,966.33,966.33,1006.33,966.33,1058.33,966.33,966.33,966.33,1006.33] }
+  { id: "exp-miscelaneos", type: "expense", category: "Otros Gastos", concept: "Misceláneos", values: [0,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500] },
+  { id: "exp-reserva", type: "expense", category: "Otros Gastos", concept: "Gastos de representación", values: [0,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000] }
 ];
+
+const excludedFinanceConcepts = new Set(["Contingencia", "Ahorros"]);
 
 const defaultRentalSpaces = [
   { id: "ballroom", name: "Ballroom", description: "Espacio principal para actividades de gran formato.", canon: 1000, billing: "por día", capacity: 300, schedule: "8:00 AM - 11:00 PM", setup: "2 horas", breakdown: "2 horas", status: "Disponible", equipment: ["Sonido base", "Aire acondicionado", "Iluminación"] },
@@ -2283,6 +2283,7 @@ function bindFinanceModule() {
     const rowsByKey = new Map(normalized.map((row) => [rowKey(row), row]));
 
     records.forEach((record) => {
+      if (excludedFinanceConcepts.has(record.concept)) return;
       const type = record.record_type;
       const key = `${type}::${record.category}::${record.concept}`;
       const monthIndex = financeMonths.indexOf(record.month);
@@ -2300,6 +2301,38 @@ function bindFinanceModule() {
     });
 
     return normalized;
+  };
+
+  const enforceApprovedFinanceRows = () => {
+    const approvedIds = new Set(["exp-miscelaneos", "exp-reserva"]);
+    defaultFinanceRows
+      .filter((defaultRow) => approvedIds.has(defaultRow.id))
+      .forEach((defaultRow) => {
+        const row = rows.find((item) => item.id === defaultRow.id);
+        if (!row) return;
+        row.values = [...defaultRow.values];
+      });
+  };
+
+  const syncApprovedFinanceRowsToSupabase = async (records) => {
+    const approvedIds = new Set(["exp-miscelaneos", "exp-reserva"]);
+    const approvedRows = defaultFinanceRows.filter((row) => approvedIds.has(row.id));
+    for (const row of approvedRows) {
+      for (let monthIndex = 0; monthIndex < financeMonths.length; monthIndex += 1) {
+        const desiredValue = Number(row.values[monthIndex] || 0);
+        const existing = records.find((record) =>
+          record.record_type === row.type &&
+          record.category === row.category &&
+          record.concept === row.concept &&
+          record.month === financeMonths[monthIndex] &&
+          Number(record.year) === financeYear
+        );
+        const currentValue = Number(existing?.amount || 0);
+        if (currentValue !== desiredValue) {
+          await saveFinanceCellToSupabase(row, monthIndex, currentValue, desiredValue);
+        }
+      }
+    }
   };
 
   const seedFinanceRecords = async (profile) => {
@@ -2352,6 +2385,8 @@ function bindFinanceModule() {
     }
 
     rows = rowsFromFinanceRecords(records);
+    enforceApprovedFinanceRows();
+    await syncApprovedFinanceRowsToSupabase(records);
     setSyncStatus("connected", "Conectado a Supabase", `Datos cargados · ${syncTime()} · ${currentUser}`);
     return true;
   };
