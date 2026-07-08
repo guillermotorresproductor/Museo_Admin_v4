@@ -2217,6 +2217,7 @@ function bindFinanceModule() {
   const panel = document.querySelector("[data-finance-panel]");
   const syncStatuses = document.querySelectorAll("[data-finance-sync-status]");
   const tabs = document.querySelectorAll("[data-finance-tab]");
+  document.querySelector('[data-finance-tab="otros"]')?.remove();
   const allowedUsers = {
     "Guillermo Torres": "museo2026",
     "Alberto Soto": "museo2026",
