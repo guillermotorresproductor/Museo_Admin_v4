@@ -2238,8 +2238,20 @@ function bindFinanceModule() {
     "Actividades Especiales",
     "Otros Ingresos"
   ];
+  const quickBooksExpenseCategories = [
+    "Nómina",
+    "Mantenimiento",
+    "Servicios Profesionales",
+    "Mercadeo",
+    "Utilidades",
+    "Seguridad",
+    "Limpieza",
+    "Materiales",
+    "Otros Gastos"
+  ];
   const quickBooksDemoTransactions = [
     {
+      tipo: "Ingreso",
       fecha: "2026-07-01",
       numero: "QB-DEMO-0001",
       categoria: "Boletería",
@@ -2252,6 +2264,7 @@ function bindFinanceModule() {
       fuente: "Boletería"
     },
     {
+      tipo: "Ingreso",
       fecha: "2026-07-02",
       numero: "QB-DEMO-0002",
       categoria: "Renta de Espacios",
@@ -2264,6 +2277,7 @@ function bindFinanceModule() {
       fuente: "Renta de Espacios"
     },
     {
+      tipo: "Ingreso",
       fecha: "2026-07-03",
       numero: "QB-DEMO-0003",
       categoria: "Donaciones",
@@ -2276,6 +2290,7 @@ function bindFinanceModule() {
       fuente: "Donaciones"
     },
     {
+      tipo: "Ingreso",
       fecha: "2026-07-04",
       numero: "QB-DEMO-0004",
       categoria: "Gift Shop",
@@ -2286,6 +2301,32 @@ function bindFinanceModule() {
       ivu: 20.7,
       total: 200.7,
       fuente: "Gift Shop"
+    },
+    {
+      tipo: "Gasto",
+      fecha: "2026-07-05",
+      numero: "QB-DEMO-0005",
+      categoria: "Nómina",
+      descripcion: "Pago de nómina administrativa",
+      cliente: "Museo de la Música",
+      metodo: "Transferencia",
+      subtotal: 1200,
+      ivu: 0,
+      total: 1200,
+      fuente: "Finanzas"
+    },
+    {
+      tipo: "Gasto",
+      fecha: "2026-07-06",
+      numero: "QB-DEMO-0006",
+      categoria: "Utilidades",
+      descripcion: "Pago de electricidad",
+      cliente: "Proveedor de servicio",
+      metodo: "ACH",
+      subtotal: 650,
+      ivu: 0,
+      total: 650,
+      fuente: "Finanzas"
     }
   ];
 
@@ -2304,7 +2345,6 @@ function bindFinanceModule() {
   const rowTotal = (row) => row.values.reduce((sum, value) => sum + Number(value || 0), 0);
   const rowsByType = (type) => rows.filter((row) => row.type === type);
   const totalByType = (type) => rowsByType(type).reduce((sum, row) => sum + rowTotal(row), 0);
-  const monthTotal = (type, monthIndex) => rowsByType(type).reduce((sum, row) => sum + Number(row.values[monthIndex] || 0), 0);
   const audit = () => auditEntries;
   const saveAudit = (entries) => {
     auditEntries = entries.slice(-250);
@@ -2527,27 +2567,19 @@ function bindFinanceModule() {
   const totals = () => {
     const income = totalByType("income");
     const expense = totalByType("expense");
-    const net = income - expense;
-    const monthlyExpense = expense / financeMonths.length;
     return {
       income,
       expense,
-      net,
-      budget: Math.max(net, 0),
-      monthlyExpense,
-      balance: net
+      net: income - expense
     };
   };
 
   const renderSummary = () => {
     const data = totals();
     const cards = [
-      ["Ingreso Bruto", data.income, "theme-green"],
-      ["Gastos", data.expense, "theme-red"],
-      ["Ingreso Neto ArteGrafiko", data.net, data.net >= 0 ? "theme-teal" : "theme-red"],
-      ["Presupuesto Disponible", data.budget, "theme-purple"],
-      ["Gasto Mensual Promedio", data.monthlyExpense, "theme-gold"],
-      ["Balance del Año", data.balance, data.balance >= 0 ? "theme-blue" : "theme-red"]
+      ["Total de Ingresos", data.income, "theme-green"],
+      ["Total de Gastos", data.expense, "theme-red"],
+      ["Balance Neto", data.net, data.net >= 0 ? "theme-teal" : "theme-red"]
     ];
     summary.innerHTML = cards.map(([label, value, theme]) => `
       <article class="finance-kpi ${theme}">
@@ -2557,22 +2589,23 @@ function bindFinanceModule() {
     `).join("");
   };
 
-  const renderMonthlySummary = () => `
-    <div class="table-wrap">
-      <table class="data-table finance-table">
-        <thead>
-          <tr><th>Mes</th><th>Ingreso Bruto</th><th>Gastos</th><th>Ingreso Neto ArteGrafiko</th></tr>
-        </thead>
-        <tbody>
-          ${financeMonths.map((month, index) => {
-            const income = monthTotal("income", index);
-            const expense = monthTotal("expense", index);
-            return `<tr><td>${month}</td><td>${money(income)}</td><td>${money(expense)}</td><td>${money(income - expense)}</td></tr>`;
-          }).join("")}
-        </tbody>
-      </table>
-    </div>
-  `;
+  const renderNetSummary = () => {
+    const data = totals();
+    return `
+      <div class="table-wrap">
+        <table class="data-table finance-table">
+          <thead>
+            <tr><th>Resumen</th><th>Valor</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Total de Ingresos</td><td>${money(data.income)}</td></tr>
+            <tr><td>Total de Gastos</td><td>${money(data.expense)}</td></tr>
+            <tr><td><strong>Balance Neto</strong></td><td><strong>${money(data.net)}</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+  };
 
   const renderFinanceTable = (title, filter) => {
     const visibleRows = rows.filter(filter);
@@ -2586,19 +2619,17 @@ function bindFinanceModule() {
             <tr>
               <th>Concepto</th>
               ${financeMonths.map((month) => `<th>${month}</th>`).join("")}
-              <th>Total Anual</th>
             </tr>
           </thead>
           <tbody>
             ${visibleRows.map((row) => {
-              const categoryRow = row.category !== lastCategory ? `<tr class="finance-category-row"><td colspan="14">${row.category}</td></tr>` : "";
+              const categoryRow = row.category !== lastCategory ? `<tr class="finance-category-row"><td colspan="13">${row.category}</td></tr>` : "";
               lastCategory = row.category;
               return `${categoryRow}<tr>
                 <td><strong>${safeHtml(row.concept)}</strong></td>
                 ${row.values.map((value, index) => `
                   <td><input class="finance-cell" type="number" step="0.01" value="${Number(value || 0)}" data-finance-row="${row.id}" data-finance-month="${index}"></td>
                 `).join("")}
-                <td><strong>${money(rowTotal(row))}</strong></td>
               </tr>`;
             }).join("")}
           </tbody>
@@ -2608,48 +2639,7 @@ function bindFinanceModule() {
   };
 
   const renderExpenseSummaryTable = () => {
-    const payrollRows = rows.filter((row) => row.category === "Nómina" || row.category === "Beneficios");
-    const payrollValues = financeMonths.map((month, index) =>
-      payrollRows.reduce((sum, row) => sum + Number(row.values[index] || 0), 0)
-    );
-    const operatingRows = rows.filter((row) =>
-      row.type === "expense" && row.category !== "Nómina" && row.category !== "Beneficios"
-    );
-    let lastCategory = "";
-    return `
-      <p class="page-kicker">Gastos</p>
-      <h3>Gastos</h3>
-      <div class="table-wrap">
-        <table class="data-table finance-table">
-          <thead>
-            <tr>
-              <th>Concepto</th>
-              ${financeMonths.map((month) => `<th>${month}</th>`).join("")}
-              <th>Total Anual</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr class="finance-category-row"><td colspan="14">Nómina</td></tr>
-            <tr class="finance-total-row">
-              <td><strong>Total de Nómina</strong></td>
-              ${payrollValues.map((value) => `<td><strong>${money(value)}</strong></td>`).join("")}
-              <td><strong>${money(payrollValues.reduce((sum, value) => sum + value, 0))}</strong></td>
-            </tr>
-            ${operatingRows.map((row) => {
-              const categoryRow = row.category !== lastCategory ? `<tr class="finance-category-row"><td colspan="14">${row.category}</td></tr>` : "";
-              lastCategory = row.category;
-              return `${categoryRow}<tr>
-                <td><strong>${safeHtml(row.concept)}</strong></td>
-                ${row.values.map((value, index) => `
-                  <td><input class="finance-cell" type="number" step="0.01" value="${Number(value || 0)}" data-finance-row="${row.id}" data-finance-month="${index}"></td>
-                `).join("")}
-                <td><strong>${money(rowTotal(row))}</strong></td>
-              </tr>`;
-            }).join("")}
-          </tbody>
-        </table>
-      </div>
-    `;
+    return renderFinanceTable("Gastos", (row) => row.type === "expense");
   };
 
   const renderReports = () => {
@@ -2673,15 +2663,16 @@ function bindFinanceModule() {
 
   const renderConfiguration = () => `
     <p class="page-kicker">Configuración</p>
-    <h3>Preparado para Próximas Funciones</h3>
+    <h3>Regla Financiera Activa</h3>
+    <p>El módulo Finanzas solo calcula Total de Ingresos menos Total de Gastos para presentar el Balance Neto.</p>
     <div class="finance-config-grid">
-      ${["Cálculo automático de nómina", "Aumentos salariales", "Nuevos empleados", "Carga patronal", "Seguro Social", "Plan Médico", "Deducciones", "Presupuestos por departamento", "Presupuesto vs. gasto real", "Flujo de efectivo", "Proyecciones financieras", "Gráficas financieras", "Reportes para Junta de Directores"].map((item) => `<span>${item}</span>`).join("")}
+      ${["Total de Ingresos", "Total de Gastos", "Balance Neto", "Supabase como base operacional", "Exportación contable para QuickBooks"].map((item) => `<span>${item}</span>`).join("")}
     </div>
   `;
 
   const renderPanel = () => {
     renderSummary();
-    if (activeTab === "resumen") panel.innerHTML = `<p class="page-kicker">Resumen</p><h3>Resumen Mensual</h3>${renderMonthlySummary()}`;
+    if (activeTab === "resumen") panel.innerHTML = `<p class="page-kicker">Resumen</p><h3>Balance Neto</h3>${renderNetSummary()}`;
     if (activeTab === "ingresos") panel.innerHTML = renderFinanceTable("Ingresos", (row) => row.type === "income");
     if (activeTab === "gastos") panel.innerHTML = renderExpenseSummaryTable();
     if (activeTab === "nomina") panel.innerHTML = renderFinanceTable("Nómina", (row) => row.category === "Nómina" || row.category === "Beneficios");
@@ -2723,6 +2714,7 @@ function bindFinanceModule() {
   };
 
   const quickBooksHeaders = [
+    "Tipo",
     "Fecha",
     "Número de transacción",
     "Categoría",
@@ -2767,6 +2759,20 @@ function bindFinanceModule() {
     return "Otros Ingresos";
   };
 
+  const expenseCategoryForConcept = (row) => {
+    const concept = row.concept.toLowerCase();
+    const category = row.category.toLowerCase();
+    if (category.includes("nómina") || category.includes("beneficio")) return "Nómina";
+    if (concept.includes("mantenimiento") || concept.includes("reparacion")) return "Mantenimiento";
+    if (concept.includes("artegrafiko") || concept.includes("director") || concept.includes("asistente")) return "Servicios Profesionales";
+    if (concept.includes("publicidad")) return "Mercadeo";
+    if (concept.includes("electricidad") || concept.includes("agua") || concept.includes("internet") || concept.includes("telefonía")) return "Utilidades";
+    if (concept.includes("seguridad")) return "Seguridad";
+    if (concept.includes("limpieza")) return "Limpieza";
+    if (concept.includes("material") || concept.includes("uniforme")) return "Materiales";
+    return "Otros Gastos";
+  };
+
   const customerForCategory = (category) => ({
     "Boletería": "Visitantes del museo",
     "Renta de Espacios": "Cliente institucional",
@@ -2779,22 +2785,26 @@ function bindFinanceModule() {
 
   const buildQuickBooksTransactions = () => {
     const transactions = [];
-    rowsByType("income").forEach((row) => {
+    rows.forEach((row) => {
       row.values.forEach((value, monthIndex) => {
         const total = Number(value || 0);
         if (total <= 0) return;
-        const category = accountingCategoryForConcept(row.concept);
+        const isIncome = row.type === "income";
+        const category = isIncome ? accountingCategoryForConcept(row.concept) : expenseCategoryForConcept(row);
         transactions.push({
+          "Tipo": isIncome ? "Ingreso" : "Gasto",
           "Fecha": monthDate(monthIndex),
           "Número de transacción": `FIN-${financeYear}-${String(transactions.length + 1).padStart(5, "0")}`,
-          "Categoría": quickBooksCategories.includes(category) ? category : "Otros Ingresos",
+          "Categoría": isIncome
+            ? (quickBooksCategories.includes(category) ? category : "Otros Ingresos")
+            : (quickBooksExpenseCategories.includes(category) ? category : "Otros Gastos"),
           "Descripción": row.concept,
-          "Cliente / visitante": customerForCategory(category),
+          "Cliente / visitante": isIncome ? customerForCategory(category) : "Museo de la Música",
           "Método de pago": "Por reconciliar",
           "Subtotal": total.toFixed(2),
           "IVU": "0.00",
           "Total": total.toFixed(2),
-          "Fuente de ingreso": row.category
+          "Fuente de ingreso": isIncome ? row.category : ""
         });
       });
     });
@@ -2802,6 +2812,7 @@ function bindFinanceModule() {
     if (transactions.length) return transactions;
 
     return quickBooksDemoTransactions.map((transaction) => ({
+      "Tipo": transaction.tipo,
       "Fecha": transaction.fecha,
       "Número de transacción": transaction.numero,
       "Categoría": transaction.categoria,
@@ -2819,31 +2830,33 @@ function bindFinanceModule() {
     const grouped = new Map();
     records.forEach((record) => {
       const key = record[groupKey] || "Sin clasificar";
-      const current = grouped.get(key) || { key, transactions: 0, subtotal: 0, ivu: 0, total: 0 };
-      current.transactions += 1;
-      current.subtotal += Number(record.Subtotal || 0);
-      current.ivu += Number(record.IVU || 0);
-      current.total += Number(record.Total || 0);
+      const current = grouped.get(key) || { key, income: 0, expense: 0, net: 0 };
+      const amount = Number(record.Total || 0);
+      if (record.Tipo === "Ingreso") {
+        current.income += amount;
+      } else {
+        current.expense += amount;
+      }
+      current.net = current.income - current.expense;
       grouped.set(key, current);
     });
     return [...grouped.values()].map((item) => ({
       [groupKey]: item.key,
-      "Transacciones": item.transactions,
-      "Subtotal": item.subtotal.toFixed(2),
-      "IVU": item.ivu.toFixed(2),
-      "Total": item.total.toFixed(2)
+      "Total de Ingresos": item.income.toFixed(2),
+      "Total de Gastos": item.expense.toFixed(2),
+      "Balance Neto": item.net.toFixed(2)
     }));
   };
 
   const exportQuickBooks = (type) => {
     const records = buildQuickBooksTransactions();
     if (type === "daily") {
-      const headers = ["Fecha", "Transacciones", "Subtotal", "IVU", "Total"];
+      const headers = ["Fecha", "Total de Ingresos", "Total de Gastos", "Balance Neto"];
       downloadExportFile("quickbooks-resumen-diario.csv", toCsv(headers, summarizeQuickBooksRecords(records, "Fecha")));
       return;
     }
     if (type === "category") {
-      const headers = ["Categoría", "Transacciones", "Subtotal", "IVU", "Total"];
+      const headers = ["Categoría", "Total de Ingresos", "Total de Gastos", "Balance Neto"];
       downloadExportFile("quickbooks-categoria-contable.csv", toCsv(headers, summarizeQuickBooksRecords(records, "Categoría")));
       return;
     }
@@ -2855,8 +2868,8 @@ function bindFinanceModule() {
   };
 
   const exportCsv = () => {
-    const lines = [["Tipo", "Categoría", "Concepto", ...financeMonths, "Total Anual"]];
-    rows.forEach((row) => lines.push([row.type, row.category, row.concept, ...row.values, rowTotal(row)]));
+    const lines = [["Tipo", "Categoría", "Concepto", ...financeMonths]];
+    rows.forEach((row) => lines.push([row.type, row.category, row.concept, ...row.values]));
     const csv = lines.map((line) => line.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const link = document.createElement("a");
