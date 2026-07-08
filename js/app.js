@@ -252,15 +252,11 @@ const defaultEmployeeProfiles = {
   }
 };
 
-const employeeStorageKey = "museo-admin-employee-records";
-const notificationStorageKey = "museo-admin-notification-preferences";
-const materialsStorageKey = "museo-admin-material-requests";
-const loanReceiptStorageKey = "museo-admin-loan-receipts";
-const rentalStorageKey = "museo-admin-rental-requests";
-const rentalSpacesStorageKey = "museo-admin-rental-spaces";
 const supabaseUrl = "https://kfokfjngozgcwjpzxcsu.supabase.co";
 const supabasePublishableKey = "sb_publishable_wBGL3o2YcfbR_dvhT3mTnw_OXuHB0y3";
 const supabaseSessionKey = "museo-admin-supabase-session";
+const supabaseSystemRecordsTable = "app_records";
+let employeeRecords = Object.values(defaultEmployeeProfiles);
 const currentAccessLevel = () => localStorage.getItem("museo-admin-access-level") || "Empleado";
 const canManageEmployees = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
 const canDeleteEmployees = () => currentAccessLevel() === "Administrador";
@@ -347,6 +343,52 @@ async function fetchSupabaseProfile() {
   return data[0] || null;
 }
 
+async function currentMuseumContext() {
+  const profile = await fetchSupabaseProfile();
+  if (!profile?.museum_id) throw new Error("No se encontró el museo asociado a esta cuenta.");
+  return profile;
+}
+
+async function fetchSystemCollection(module, recordKey, fallback = []) {
+  const session = getSupabaseSession();
+  if (!session?.access_token) throw new Error("Debe entrar a Supabase para cargar esta información.");
+  const profile = await currentMuseumContext();
+  const response = await fetch(`${supabaseUrl}/rest/v1/${supabaseSystemRecordsTable}?select=payload&museum_id=eq.${encodeURIComponent(profile.museum_id)}&module=eq.${encodeURIComponent(module)}&record_key=eq.${encodeURIComponent(recordKey)}&limit=1`, {
+    headers: await supabaseAuthHeaders()
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || `No se pudo leer ${module} desde Supabase.`);
+  if (!data.length) return fallback;
+  return data[0].payload || fallback;
+}
+
+async function saveSystemCollection(module, recordKey, payload) {
+  const session = getSupabaseSession();
+  if (!session?.access_token) throw new Error("Debe entrar a Supabase para guardar esta información.");
+  const profile = await currentMuseumContext();
+  const body = {
+    museum_id: profile.museum_id,
+    module,
+    record_key: recordKey,
+    payload,
+    created_by: profile.id,
+    updated_by: profile.id,
+    updated_at: new Date().toISOString()
+  };
+  const response = await fetch(`${supabaseUrl}/rest/v1/${supabaseSystemRecordsTable}?on_conflict=museum_id,module,record_key`, {
+    method: "POST",
+    headers: {
+      ...(await supabaseAuthHeaders()),
+      Prefer: "resolution=merge-duplicates,return=minimal"
+    },
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || `No se pudo guardar ${module} en Supabase.`);
+  }
+}
+
 function employeeFromSupabase(row) {
   return {
     id: row.id,
@@ -403,21 +445,19 @@ async function fetchSupabaseEmployees() {
 }
 
 function getEmployeeRecords() {
-  const stored = JSON.parse(localStorage.getItem(employeeStorageKey) || "null");
-  if (Array.isArray(stored) && stored.length) return stored;
-  return Object.values(defaultEmployeeProfiles);
+  return employeeRecords;
 }
 
 function saveEmployeeRecords(records) {
-  localStorage.setItem(employeeStorageKey, JSON.stringify(records));
+  employeeRecords = Array.isArray(records) ? records : [];
 }
 
-function getNotificationPreferences() {
-  return JSON.parse(localStorage.getItem(notificationStorageKey) || "{}");
-}
-
-function saveNotificationPreferences(preferences) {
-  localStorage.setItem(notificationStorageKey, JSON.stringify(preferences));
+async function syncEmployeeCacheFromSupabase() {
+  const session = getSupabaseSession();
+  if (!session?.access_token) return false;
+  const records = await fetchSupabaseEmployees();
+  saveEmployeeRecords(records);
+  return true;
 }
 
 function getEmployeeById(id) {
@@ -787,10 +827,30 @@ function bindRentalForm() {
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   const currentUser = () => localStorage.getItem("museo-admin-current-user") || "Administrador";
   const canAdjust = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
-  const getSpaces = () => JSON.parse(localStorage.getItem(rentalSpacesStorageKey) || "null") || defaultRentalSpaces;
-  const saveSpaces = (spaces) => localStorage.setItem(rentalSpacesStorageKey, JSON.stringify(spaces));
-  const getRequests = () => JSON.parse(localStorage.getItem(rentalStorageKey) || "[]");
-  const saveRequests = (requests) => localStorage.setItem(rentalStorageKey, JSON.stringify(requests));
+  let spaces = defaultRentalSpaces;
+  let requests = [];
+  const getSpaces = () => spaces;
+  const saveSpaces = async (nextSpaces) => {
+    const previousSpaces = spaces;
+    spaces = nextSpaces;
+    try {
+      await saveSystemCollection("renta_espacios", "spaces", spaces);
+    } catch (error) {
+      spaces = previousSpaces;
+      throw error;
+    }
+  };
+  const getRequests = () => requests;
+  const saveRequests = async (nextRequests) => {
+    const previousRequests = requests;
+    requests = nextRequests;
+    try {
+      await saveSystemCollection("renta_espacios", "requests", requests);
+    } catch (error) {
+      requests = previousRequests;
+      throw error;
+    }
+  };
   const selectedSpace = () => getSpaces().find((space) => space.id === spaceSelect?.value);
   const dateValue = (name) => form.elements[name]?.value;
   const daysBetween = () => {
@@ -891,8 +951,8 @@ function bindRentalForm() {
     });
   };
 
-  const syncApprovedRequest = (request) => {
-    const calendarRecords = JSON.parse(localStorage.getItem("museo-admin-general-calendar") || "[]");
+  const syncApprovedRequest = async (request) => {
+    const calendarRecords = await fetchSystemCollection("calendario_general", "records", []);
     if (!calendarRecords.some((item) => item.rentalId === request.id)) {
       calendarRecords.push({
         id: `rental-calendar-${request.id}`,
@@ -901,7 +961,7 @@ function bindRentalForm() {
         titulo: `Arrendamiento: ${request.espacio}`,
         descripcion: `${request.tipoActividad} - ${request.nombre}`
       });
-      localStorage.setItem("museo-admin-general-calendar", JSON.stringify(calendarRecords));
+      await saveSystemCollection("calendario_general", "records", calendarRecords);
     }
 
   };
@@ -938,7 +998,7 @@ function bindRentalForm() {
     `).join("");
   };
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const requiredFields = Array.from(form.querySelectorAll("[required]"));
     const invalidFields = requiredFields.filter((field) => {
@@ -966,13 +1026,13 @@ function bindRentalForm() {
     }
 
     const data = new FormData(form);
-    const requests = getRequests();
+    const currentRequests = getRequests();
     const space = selectedSpace();
     const calc = currentCalculation();
     const request = {
       id: `rental-${Date.now()}`,
-      numeroSolicitud: createSequence("SOL", requests.length),
-      numeroRecibo: createSequence("REC", requests.length),
+      numeroSolicitud: createSequence("SOL", currentRequests.length),
+      numeroRecibo: createSequence("REC", currentRequests.length),
       nombre: data.get("nombre"),
       organizacion: data.get("organizacion"),
       contacto: data.get("contacto"),
@@ -1001,14 +1061,17 @@ function bindRentalForm() {
       audit: [auditEntry(data.get("estado"), "Solicitud creada desde el portal administrativo.")]
     };
 
-    requests.push(request);
-    saveRequests(requests);
-    if (request.estado === "Aprobada") syncApprovedRequest(request);
-    renderHistory();
-    form.reset();
-    renderSpaceDetail();
-    renderCalculation();
-    setMessage(`Solicitud ${request.numeroSolicitud} registrada correctamente.`, "success");
+    try {
+      await saveRequests([...currentRequests, request]);
+      if (request.estado === "Aprobada") await syncApprovedRequest(request);
+      renderHistory();
+      form.reset();
+      renderSpaceDetail();
+      renderCalculation();
+      setMessage(`Solicitud ${request.numeroSolicitud} registrada en Supabase.`, "success");
+    } catch (error) {
+      setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
+    }
   });
 
   ["change", "input"].forEach((eventName) => {
@@ -1032,7 +1095,7 @@ function bindRentalForm() {
     setMessage("");
   });
 
-  configPanel?.addEventListener("change", (event) => {
+  configPanel?.addEventListener("change", async (event) => {
     const field = event.target.closest("[data-rental-space-field]");
     if (!field || !canAdjust()) return;
     const spaces = getSpaces();
@@ -1046,18 +1109,33 @@ function bindRentalForm() {
     } else {
       space[key] = field.value;
     }
-    saveSpaces(spaces);
+    try {
+      await saveSpaces(spaces);
+      populateSpaces();
+      renderSpaceDetail();
+      renderCalculation();
+      setMessage("Configuración del espacio actualizada en Supabase.", "success");
+    } catch (error) {
+      setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
+    }
+  });
+
+  const loadRentalData = async () => {
+    try {
+      spaces = await fetchSystemCollection("renta_espacios", "spaces", defaultRentalSpaces);
+      requests = await fetchSystemCollection("renta_espacios", "requests", []);
+      setMessage("Datos de renta cargados desde Supabase.", "success");
+    } catch (error) {
+      setMessage(`No se pudo cargar Renta desde Supabase: ${error.message}`, "error");
+    }
     populateSpaces();
     renderSpaceDetail();
     renderCalculation();
-    setMessage("Configuración del espacio actualizada.", "success");
-  });
+    renderHistory();
+    renderConfig();
+  };
 
-  populateSpaces();
-  renderSpaceDetail();
-  renderCalculation();
-  renderHistory();
-  renderConfig();
+  loadRentalData();
 }
 
 function bindLoanReceiptForm() {
@@ -1066,7 +1144,7 @@ function bindLoanReceiptForm() {
 
   const articleNumber = document.querySelector("[data-loan-article-number]");
   const articleDate = document.querySelector("[data-loan-article-date]");
-  let receipts = JSON.parse(localStorage.getItem(loanReceiptStorageKey) || "[]");
+  let receipts = [];
   const today = () => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -1077,15 +1155,13 @@ function bindLoanReceiptForm() {
   };
   const nextSequence = () => receipts.reduce((highest, receipt) => Math.max(highest, Number(receipt.sequence || 0)), 0) + 1;
   const formatArticleNumber = (sequence) => `Artículo ${String(sequence).padStart(5, "0")}`;
-  const saveReceipts = () => localStorage.setItem(loanReceiptStorageKey, JSON.stringify(receipts));
+  const saveReceipts = async () => saveSystemCollection("recibos_prestamo", "receipts", receipts);
   const refreshMeta = () => {
     if (articleNumber) articleNumber.textContent = formatArticleNumber(nextSequence());
     if (articleDate) articleDate.textContent = displayDate(today());
   };
 
-  refreshMeta();
-
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const message = document.querySelector("[data-loan-message]");
     const requiredFields = Array.from(form.querySelectorAll("[required]"));
@@ -1138,7 +1214,7 @@ function bindLoanReceiptForm() {
       "El prestamista certifica que la información suministrada es correcta."
     ].join("\n");
 
-    receipts = [...receipts, {
+    const nextReceipts = [...receipts, {
       id: `loan-${Date.now()}`,
       sequence,
       numeroArticulo: internalNumber,
@@ -1147,8 +1223,18 @@ function bindLoanReceiptForm() {
       articulo: data.get("articulo"),
       categoria: data.get("categoria")
     }];
-    saveReceipts();
-    refreshMeta();
+
+    try {
+      receipts = nextReceipts;
+      await saveReceipts();
+      refreshMeta();
+    } catch (error) {
+      if (message) {
+        message.textContent = `No se pudo guardar en Supabase: ${error.message}`;
+        message.className = "form-message error";
+      }
+      return;
+    }
 
     const mailto = new URL("mailto:guillermotorrespr@gmail.com");
     mailto.searchParams.set("subject", `${internalNumber} - Recibo de préstamo - ${data.get("articulo")}`);
@@ -1161,13 +1247,27 @@ function bindLoanReceiptForm() {
 
     window.location.href = mailto.toString();
   });
+
+  const loadReceipts = async () => {
+    try {
+      receipts = await fetchSystemCollection("recibos_prestamo", "receipts", []);
+    } catch (error) {
+      const message = document.querySelector("[data-loan-message]");
+      if (message) {
+        message.textContent = `No se pudo cargar Recibos desde Supabase: ${error.message}`;
+        message.className = "form-message error";
+      }
+    }
+    refreshMeta();
+  };
+
+  loadReceipts();
 }
 
 function bindInventoryModule() {
   const form = document.querySelector("#inventory-form");
   if (!form) return;
 
-  const storageKey = "museo-admin-inventory-records";
   const entryPanel = document.querySelector("[data-inventory-entry-panel]");
   const typeButtons = document.querySelectorAll("[data-inventory-type]");
   const typeField = document.querySelector("#inventory-type");
@@ -1184,12 +1284,12 @@ function bindInventoryModule() {
   const idField = document.querySelector("#inventory-id");
   const locations = Array.from(document.querySelectorAll("#inventory-location option")).map((option) => option.value).filter(Boolean);
   const statuses = Array.from(document.querySelectorAll("#inventory-status option")).map((option) => option.value).filter(Boolean);
-  let records = JSON.parse(localStorage.getItem(storageKey) || "[]");
+  let records = [];
   let sortKey = "fecha";
   let sortDirection = "desc";
 
   const canEditInventory = () => canManageEmployees();
-  const saveRecords = () => localStorage.setItem(storageKey, JSON.stringify(records));
+  const saveRecords = async () => saveSystemCollection("inventario", "records", records);
   const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;",
@@ -1303,7 +1403,7 @@ function bindInventoryModule() {
     if (cancelButton) cancelButton.hidden = true;
   };
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!canEditInventory()) {
       setMessage("Solo Ejecutivos y Administradores pueden crear o editar inventario.", "error");
@@ -1346,14 +1446,21 @@ function bindInventoryModule() {
       return;
     }
 
-    records = id ? records.map((item) => item.id === id ? record : item) : [record, ...records];
-    saveRecords();
-    resetForm();
-    setMessage(id ? "Registro actualizado correctamente." : "Registro guardado correctamente.", "success");
-    renderRecords();
+    const nextRecords = id ? records.map((item) => item.id === id ? record : item) : [record, ...records];
+    const previousRecords = records;
+    try {
+      records = nextRecords;
+      await saveRecords();
+      resetForm();
+      setMessage(id ? "Registro actualizado en Supabase." : "Registro guardado en Supabase.", "success");
+      renderRecords();
+    } catch (error) {
+      records = previousRecords;
+      setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
+    }
   });
 
-  document.addEventListener("click", (event) => {
+  document.addEventListener("click", async (event) => {
     const editButton = event.target.closest("[data-inventory-edit]");
     const deleteButton = event.target.closest("[data-inventory-delete]");
     const sortButton = event.target.closest("[data-inventory-sort]");
@@ -1378,10 +1485,17 @@ function bindInventoryModule() {
       const record = records.find((item) => item.id === deleteButton.dataset.inventoryDelete);
       if (!record) return;
       if (!confirm(`¿Eliminar el registro "${record.nombre}"?`)) return;
-      records = records.filter((item) => item.id !== record.id);
-      saveRecords();
-      renderRecords();
-      setMessage("Registro eliminado.", "success");
+      const nextRecords = records.filter((item) => item.id !== record.id);
+      const previousRecords = records;
+      try {
+        records = nextRecords;
+        await saveRecords();
+        renderRecords();
+        setMessage("Registro eliminado de Supabase.", "success");
+      } catch (error) {
+        records = previousRecords;
+        setMessage(`No se pudo eliminar en Supabase: ${error.message}`, "error");
+      }
     }
 
     if (sortButton) {
@@ -1418,9 +1532,19 @@ function bindInventoryModule() {
   if (!canEditInventory() && entryPanel) {
     entryPanel.hidden = true;
   }
-  setInventoryType("Equipo");
-  populateFilters();
-  renderRecords();
+  const loadInventoryRecords = async () => {
+    try {
+      records = await fetchSystemCollection("inventario", "records", []);
+      setMessage("Inventario cargado desde Supabase.", "success");
+    } catch (error) {
+      setMessage(`No se pudo cargar Inventario desde Supabase: ${error.message}`, "error");
+    }
+    setInventoryType("Equipo");
+    populateFilters();
+    renderRecords();
+  };
+
+  loadInventoryRecords();
 }
 
 function bindCalendarModules() {
@@ -1431,11 +1555,11 @@ function bindCalendarModules() {
   const isMaintenance = moduleType === "maintenance";
   const isUshers = moduleType === "ushers";
   const isGeneral = moduleType === "general";
-  const storageKey = isMaintenance
-    ? "museo-admin-work-calendar"
+  const moduleKey = isMaintenance
+    ? "calendario_obras"
     : isUshers
-      ? "museo-admin-ushers-calendar"
-      : "museo-admin-general-calendar";
+      ? "calendario_ujieres"
+      : "calendario_general";
   const form = panel.querySelector("[data-calendar-form]");
   const grid = panel.querySelector("[data-calendar-grid]");
   const title = panel.querySelector("[data-calendar-title]");
@@ -1449,9 +1573,9 @@ function bindCalendarModules() {
   const classificationSelect = panel.querySelector("[data-activity-classification-select]");
   const monthNames = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
   let activeDate = new Date();
-  let records = JSON.parse(localStorage.getItem(storageKey) || "[]");
+  let records = [];
 
-  const saveRecords = () => localStorage.setItem(storageKey, JSON.stringify(records));
+  const saveRecords = async () => saveSystemCollection(moduleKey, "records", records);
   const currentAccessLevel = localStorage.getItem("museo-admin-access-level") || "Empleado";
   const canEdit = () => ["Ejecutivo", "Administrador"].includes(currentAccessLevel);
   const createId = () => {
@@ -1588,7 +1712,7 @@ function bindCalendarModules() {
     if (isGeneral || isUshers) form.hidden = true;
   };
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!canEdit()) {
       setMessage("Este rol no tiene permiso para editar el calendario.", "error");
@@ -1634,15 +1758,20 @@ function bindCalendarModules() {
       return;
     }
 
-    records = id ? records.map((item) => item.id === id ? record : item) : [...records, record];
-    saveRecords();
-    activeDate = new Date(`${record.fecha}T12:00:00`);
-    resetForm();
-    setMessage(id ? "Registro actualizado correctamente." : "Registro guardado correctamente.", "success");
-    renderCalendar();
+    const nextRecords = id ? records.map((item) => item.id === id ? record : item) : [...records, record];
+    try {
+      records = nextRecords;
+      await saveRecords();
+      activeDate = new Date(`${record.fecha}T12:00:00`);
+      resetForm();
+      setMessage(id ? "Registro actualizado en Supabase." : "Registro guardado en Supabase.", "success");
+      renderCalendar();
+    } catch (error) {
+      setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
+    }
   });
 
-  panel.addEventListener("click", (event) => {
+  panel.addEventListener("click", async (event) => {
     const editButton = event.target.closest("[data-calendar-edit]");
     const deleteButton = event.target.closest("[data-calendar-delete]");
     const viewItem = event.target.closest("[data-calendar-view]");
@@ -1678,10 +1807,15 @@ function bindCalendarModules() {
       const record = records.find((item) => item.id === deleteButton.dataset.calendarDelete);
       if (!record) return;
       if (!confirm("¿Eliminar este registro del calendario?")) return;
-      records = records.filter((item) => item.id !== record.id);
-      saveRecords();
-      renderCalendar();
-      setMessage("Registro eliminado.", "success");
+      const nextRecords = records.filter((item) => item.id !== record.id);
+      try {
+        records = nextRecords;
+        await saveRecords();
+        renderCalendar();
+        setMessage("Registro eliminado de Supabase.", "success");
+      } catch (error) {
+        setMessage(`No se pudo eliminar en Supabase: ${error.message}`, "error");
+      }
     }
   });
 
@@ -1708,11 +1842,21 @@ function bindCalendarModules() {
     resetForm();
     setMessage("");
   });
-  populateUshers();
-  populateAreas();
-  populateEmployees();
-  populateClassifications();
-  setEditableState();
+  const loadCalendarRecords = async () => {
+    try {
+      records = await fetchSystemCollection(moduleKey, "records", []);
+      setMessage("Calendario cargado desde Supabase.", "success");
+    } catch (error) {
+      setMessage(`No se pudo cargar este calendario desde Supabase: ${error.message}`, "error");
+    }
+    populateUshers();
+    populateAreas();
+    populateEmployees();
+    populateClassifications();
+    setEditableState();
+  };
+
+  loadCalendarRecords();
 }
 
 function renderInlineIcons() {
@@ -1740,7 +1884,7 @@ function bindMaterialsRequestModule() {
   const orderDate = module.querySelector("[data-material-order-date]");
   const message = module.querySelector("[data-materials-message]");
   const log = document.querySelector("[data-materials-log]");
-  let requests = JSON.parse(localStorage.getItem(materialsStorageKey) || "[]");
+  let requests = [];
 
   const today = () => {
     const now = new Date();
@@ -1752,7 +1896,7 @@ function bindMaterialsRequestModule() {
   };
   const nextSequence = () => requests.reduce((highest, request) => Math.max(highest, Number(request.sequence || 0)), 0) + 1;
   const formatOrder = (sequence) => `Pedido ${String(sequence).padStart(5, "0")}`;
-  const saveRequests = () => localStorage.setItem(materialsStorageKey, JSON.stringify(requests));
+  const saveRequests = async () => saveSystemCollection("solicitud_materiales", "requests", requests);
   const setMessage = (text, type = "") => {
     if (!message) return;
     message.textContent = text;
@@ -1782,10 +1926,7 @@ function bindMaterialsRequestModule() {
     `).join("");
   };
 
-  refreshMeta();
-  renderLog();
-
-  form?.addEventListener("submit", (event) => {
+  form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = new FormData(form);
     const employee = String(data.get("empleado") || "").trim();
@@ -1812,13 +1953,30 @@ function bindMaterialsRequestModule() {
       other
     };
 
-    requests = [...requests, request];
-    saveRequests();
-    form.reset();
+    try {
+      requests = [...requests, request];
+      await saveRequests();
+      form.reset();
+      refreshMeta();
+      renderLog();
+      setMessage(`${request.order} registrado en Supabase.`, "success");
+    } catch (error) {
+      setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
+    }
+  });
+
+  const loadMaterialRequests = async () => {
+    try {
+      requests = await fetchSystemCollection("solicitud_materiales", "requests", []);
+      setMessage("Solicitudes cargadas desde Supabase.", "success");
+    } catch (error) {
+      setMessage(`No se pudo cargar Solicitud de Materiales desde Supabase: ${error.message}`, "error");
+    }
     refreshMeta();
     renderLog();
-    setMessage(`${request.order} registrado correctamente.`, "success");
-  });
+  };
+
+  loadMaterialRequests();
 }
 
 function bindHumanResourcesModule() {
@@ -2027,14 +2185,12 @@ function bindHumanResourcesModule() {
         setMessage(existing ? "Empleado actualizado en Supabase." : "Empleado creado en Supabase y agregado al directorio.", "success");
         return;
       } catch (error) {
-        setMessage("No se pudo guardar en Supabase. Se guardó una copia local para no perder la información.", "error");
+        setMessage(`No se pudo guardar en Supabase: ${error.message}. No se guardó una copia local para evitar datos distintos entre computadoras.`, "error");
+        return;
       }
     }
 
-    saveEmployeeRecords(nextRecords);
-    renderDirectory();
-    resetForm();
-    setMessage(existing ? "Empleado actualizado correctamente." : "Empleado creado y agregado al directorio.", "success");
+    setMessage("Entre a Supabase antes de crear o editar empleados. No se guardó una copia local.", "error");
   });
 
   directory.addEventListener("click", async (event) => {
@@ -2052,10 +2208,7 @@ function bindHumanResourcesModule() {
     if (resetButton) {
       const employee = records.find((item) => item.id === resetButton.dataset.employeeReset);
       if (!employee) return;
-      const password = prompt("Nueva contraseña temporal:", "Temporal-2026");
-      if (!password) return;
-      saveEmployeeRecords(records.map((item) => item.id === employee.id ? { ...item, passwordTemporal: password } : item));
-      setMessage(`Contraseña temporal restablecida para ${employeeDisplayName(employee)}.`, "success");
+      setMessage("El restablecimiento real de contraseña debe hacerse desde Supabase Authentication o desde un backend seguro.", "error");
     }
 
     if (toggleButton) {
@@ -2063,12 +2216,23 @@ function bindHumanResourcesModule() {
       if (!employee) return;
       const estado = employee.estado === "Inactivo" ? "Activo" : "Inactivo";
       const session = getSupabaseSession();
-      if (session?.access_token && employee.source === "supabase") {
-        fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employee.id)}`, {
+      if (!session?.access_token || employee.source !== "supabase") {
+        setMessage("Entre a Supabase antes de activar o desactivar empleados.", "error");
+        return;
+      }
+      try {
+        const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employee.id)}`, {
           method: "PATCH",
           headers: await supabaseAuthHeaders(),
           body: JSON.stringify({ status: estado === "Inactivo" ? "inactivo" : "activo" })
-        }).catch(() => null);
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || "No se pudo actualizar el estado en Supabase.");
+        }
+      } catch (error) {
+        setMessage(`No se pudo actualizar Supabase: ${error.message}`, "error");
+        return;
       }
       saveEmployeeRecords(records.map((item) => item.id === employee.id ? { ...item, estado } : item));
       renderDirectory();
@@ -2080,11 +2244,22 @@ function bindHumanResourcesModule() {
       const employee = records.find((item) => item.id === deleteButton.dataset.employeeDelete);
       if (!employee || !confirm(`¿Eliminar a ${employeeDisplayName(employee)} del directorio?`)) return;
       const session = getSupabaseSession();
-      if (session?.access_token && employee.source === "supabase") {
-        fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employee.id)}`, {
+      if (!session?.access_token || employee.source !== "supabase") {
+        setMessage("Entre a Supabase antes de eliminar empleados.", "error");
+        return;
+      }
+      try {
+        const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employee.id)}`, {
           method: "DELETE",
           headers: await supabaseAuthHeaders()
-        }).catch(() => null);
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.message || "No se pudo eliminar el empleado en Supabase.");
+        }
+      } catch (error) {
+        setMessage(`No se pudo eliminar en Supabase: ${error.message}`, "error");
+        return;
       }
       saveEmployeeRecords(records.filter((item) => item.id !== employee.id));
       renderDirectory();
@@ -2129,6 +2304,7 @@ function bindNotificationsModule() {
   const list = module.querySelector("[data-notifications-list]");
   const message = module.querySelector("[data-notifications-message]");
   const canEdit = canManageEmployees();
+  let preferences = {};
   const notificationTypes = [
     { key: "temperatura", label: "Temp./Humedad", source: "Sensores ambientales" },
     { key: "movimiento", label: "Movimiento", source: "Sensores de movimiento" },
@@ -2162,7 +2338,6 @@ function bindNotificationsModule() {
 
   const render = () => {
     const employees = getEmployeeRecords();
-    const preferences = getNotificationPreferences();
     list.innerHTML = employees.map((employee) => {
       const prefs = employeePreferences(preferences, employee.id);
       return `
@@ -2178,21 +2353,25 @@ function bindNotificationsModule() {
     }).join("");
 
     setMessage(canEdit
-      ? "Configuración lista para integrarse con sensores, ponche electrónico, seguridad y bases de datos."
+      ? "Preferencias cargadas desde Supabase y listas para futuras integraciones."
       : "Su rol permite consultar estas configuraciones, pero no modificarlas."
-    );
+    , "success");
   };
 
-  module.addEventListener("change", (event) => {
+  module.addEventListener("change", async (event) => {
     const toggle = event.target.closest("[data-notification-toggle]");
     if (!toggle || !canEdit) return;
 
-    const preferences = getNotificationPreferences();
     const employeeId = toggle.dataset.employeeId;
     const type = toggle.dataset.notificationType;
     preferences[employeeId] = employeePreferences(preferences, employeeId);
     preferences[employeeId][type] = toggle.checked;
-    saveNotificationPreferences(preferences);
+    try {
+      await saveSystemCollection("notificaciones", "preferences", preferences);
+    } catch (error) {
+      setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
+      return;
+    }
 
     const label = toggle.closest(".switch-control")?.querySelector(".notification-status");
     if (label) {
@@ -2200,10 +2379,19 @@ function bindNotificationsModule() {
       label.classList.toggle("is-off", !toggle.checked);
       label.setAttribute("aria-label", toggle.checked ? "Activo" : "Inactivo");
     }
-    setMessage("Preferencia de notificación actualizada.", "success");
+    setMessage("Preferencia de notificación actualizada en Supabase.", "success");
   });
 
-  render();
+  const loadPreferences = async () => {
+    try {
+      preferences = await fetchSystemCollection("notificaciones", "preferences", {});
+    } catch (error) {
+      setMessage(`No se pudo cargar Notificaciones desde Supabase: ${error.message}`, "error");
+    }
+    render();
+  };
+
+  loadPreferences();
 }
 
 function bindFinanceModule() {
@@ -3008,7 +3196,7 @@ function bindEmployeeProfile() {
     if (photoMessage) photoMessage.textContent = "La foto servirá como identificación visual del récord del empleado.";
   };
 
-  showPhoto(profile.foto || localStorage.getItem(`museo-admin-employee-photo-${profile.id}`));
+  showPhoto(profile.foto || "");
 
   if (photoInput) {
     photoInput.addEventListener("change", () => {
@@ -3048,19 +3236,11 @@ function bindEmployeeProfile() {
     updatedProfile.nombreCompleto = `${updatedProfile.nombre || ""} ${updatedProfile.apellidos || ""}`.trim();
     updatedProfile.avatar = employeeInitials(updatedProfile);
 
-    const records = getEmployeeRecords();
-    saveEmployeeRecords(records.map((employee) => employee.id === profile.id ? updatedProfile : employee));
-    localStorage.setItem(`museo-admin-employee-photo-${profile.id}`, pendingPhoto || "");
-    profile = updatedProfile;
-    if (avatar) avatar.textContent = profile.avatar;
-    if (name) name.textContent = employeeDisplayName(profile);
-    if (position) position.textContent = profile.posicion;
-
     const session = getSupabaseSession();
     if (session?.access_token && profile.source === "supabase") {
       try {
         const supabaseProfile = await fetchSupabaseProfile();
-        const payload = employeeToSupabasePayload(profile, supabaseProfile.museum_id);
+        const payload = employeeToSupabasePayload(updatedProfile, supabaseProfile.museum_id);
         const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(profile.id)}`, {
           method: "PATCH",
           headers: await supabaseAuthHeaders(),
@@ -3070,24 +3250,31 @@ function bindEmployeeProfile() {
           const data = await response.json();
           throw new Error(data.message || "No se pudo actualizar Supabase.");
         }
+        const records = getEmployeeRecords();
+        saveEmployeeRecords(records.map((employee) => employee.id === profile.id ? updatedProfile : employee));
+        profile = updatedProfile;
+        if (avatar) avatar.textContent = profile.avatar;
+        if (name) name.textContent = employeeDisplayName(profile);
+        if (position) position.textContent = profile.posicion;
         setProfileMessage("Perfil guardado en Supabase.", "success");
         return;
       } catch (error) {
-        setProfileMessage("Perfil guardado localmente. Supabase no aceptó la actualización en este intento.", "error");
+        setProfileMessage(`No se pudo guardar en Supabase: ${error.message}. No se guardó una copia local.`, "error");
         return;
       }
     }
 
-    setProfileMessage("Perfil guardado localmente.", "success");
+    setProfileMessage("Entre a Supabase antes de guardar cambios del perfil. No se guardó una copia local.", "error");
   });
 }
 
-function initApp() {
+async function initApp() {
   renderSidebar();
   renderHeader();
   renderFooter();
   renderInlineIcons();
   bindHeaderActions();
+  await syncEmployeeCacheFromSupabase().catch(() => null);
   populateSystemDataSelects();
   bindMaterialsRequestModule();
   bindHumanResourcesModule();
