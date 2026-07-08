@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Finanzas</title>
-  <link rel="stylesheet" href="css/main.css?v=finance-supabase-only-20260707">
+  <link rel="stylesheet" href="css/main.css?v=finance-sync-status-20260707">
 </head>
 <body>
   <div class="app-shell">
@@ -43,6 +43,13 @@
               <h2>Proyección Financiera del Museo</h2>
               <p>Sistema administrativo conectado a Supabase para ingresos, gastos, nómina, reportes y bitácora.</p>
             </div>
+            <div class="finance-sync-status is-checking" data-finance-sync-status>
+              <span class="sync-dot" aria-hidden="true"></span>
+              <div>
+                <strong data-finance-sync-title>Verificando Supabase</strong>
+                <span data-finance-sync-detail>Confirmando fuente central de datos.</span>
+              </div>
+            </div>
           </div>
 
           <section class="finance-summary-grid" data-finance-summary></section>
@@ -69,6 +76,6 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=finance-supabase-only-20260707"></script>
+  <script src="js/app.js?v=finance-sync-status-20260707"></script>
 </body>
 </html>

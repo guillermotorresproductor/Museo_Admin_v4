@@ -2215,6 +2215,9 @@ function bindFinanceModule() {
   const loginMessage = document.querySelector("[data-finance-login-message]");
   const summary = document.querySelector("[data-finance-summary]");
   const panel = document.querySelector("[data-finance-panel]");
+  const syncStatus = document.querySelector("[data-finance-sync-status]");
+  const syncTitle = document.querySelector("[data-finance-sync-title]");
+  const syncDetail = document.querySelector("[data-finance-sync-detail]");
   const tabs = document.querySelectorAll("[data-finance-tab]");
   const allowedUsers = {
     "Guillermo Torres": "museo2026",
@@ -2229,6 +2232,13 @@ function bindFinanceModule() {
   let auditEntries = [];
 
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
+  const syncTime = () => new Date().toLocaleTimeString("es-PR", { hour: "numeric", minute: "2-digit" });
+  const setSyncStatus = (state, title, detail) => {
+    if (!syncStatus) return;
+    syncStatus.className = `finance-sync-status is-${state}`;
+    if (syncTitle) syncTitle.textContent = title;
+    if (syncDetail) syncDetail.textContent = detail;
+  };
   const rowTotal = (row) => row.values.reduce((sum, value) => sum + Number(value || 0), 0);
   const rowsByType = (type) => rows.filter((row) => row.type === type);
   const totalByType = (type) => rowsByType(type).reduce((sum, row) => sum + rowTotal(row), 0);
@@ -2309,27 +2319,38 @@ function bindFinanceModule() {
   };
 
   const syncFinanceFromSupabase = async () => {
+    setSyncStatus("checking", "Verificando Supabase", "Confirmando sesión y permisos.");
     const session = getSupabaseSession();
-    if (!session?.access_token) return false;
+    if (!session?.access_token) {
+      setSyncStatus("error", "Sin conexión a Supabase", "Entre por Mi cuenta para cargar Finanzas.");
+      throw new Error("No hay sesión activa de Supabase.");
+    }
     currentProfile = await fetchSupabaseProfile();
     if (!currentProfile?.museum_id || !["administrador", "ejecutivo"].includes(currentProfile.role)) {
+      setSyncStatus("error", "Acceso no autorizado", "Su usuario no tiene permisos financieros.");
       throw new Error("Su cuenta no tiene permiso para administrar Finanzas.");
     }
 
     currentUser = currentProfile.full_name || localStorage.getItem("museo-admin-current-user") || "Usuario";
+    setSyncStatus("checking", "Leyendo Supabase", `Usuario: ${currentUser}`);
     const response = await fetch(`${supabaseUrl}/rest/v1/finance_records?select=*&museum_id=eq.${encodeURIComponent(currentProfile.museum_id)}&year=eq.${financeYear}&order=created_at.asc`, {
       headers: await supabaseAuthHeaders()
     });
     const records = await response.json();
-    if (!response.ok) throw new Error(records.message || "No se pudo leer Finanzas desde Supabase.");
+    if (!response.ok) {
+      setSyncStatus("error", "Error de Supabase", records.message || "No se pudo leer Finanzas.");
+      throw new Error(records.message || "No se pudo leer Finanzas desde Supabase.");
+    }
 
     if (!records.length) {
       await seedFinanceRecords(currentProfile);
       rows = normalizeRows(rows);
+      setSyncStatus("connected", "Conectado a Supabase", `Plantilla financiera creada · ${syncTime()} · ${currentUser}`);
       return true;
     }
 
     rows = rowsFromFinanceRecords(records);
+    setSyncStatus("connected", "Conectado a Supabase", `Datos cargados · ${syncTime()} · ${currentUser}`);
     return true;
   };
 
@@ -2388,6 +2409,7 @@ function bindFinanceModule() {
       })
     }).catch(() => null);
 
+    setSyncStatus("connected", "Guardado en Supabase", `Última confirmación: ${syncTime()} · ${currentUser}`);
     return true;
   };
 
@@ -2651,6 +2673,7 @@ function bindFinanceModule() {
     const previousValue = Number(row.values[monthIndex] || 0);
     const nextValue = Number(input.value || 0);
     input.disabled = true;
+    setSyncStatus("checking", "Guardando en Supabase", `${row.concept} · ${financeMonths[monthIndex]}`);
     try {
       const savedInSupabase = await saveFinanceCellToSupabase(row, monthIndex, previousValue, nextValue);
       if (!savedInSupabase) throw new Error("Supabase no confirmó el guardado.");
@@ -2660,6 +2683,7 @@ function bindFinanceModule() {
     } catch (error) {
       input.value = previousValue;
       input.disabled = false;
+      setSyncStatus("error", "Cambio no guardado", "Supabase no confirmó la operación.");
       panel.insertAdjacentHTML("afterbegin", `<p class="form-message error">El cambio no se guardó. Supabase no confirmó la operación: ${safeHtml(error.message || "revise su sesión o conexión")}.</p>`);
     }
   });

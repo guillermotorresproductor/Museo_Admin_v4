@@ -1862,6 +1862,61 @@ body {
   line-height: 1;
 }
 
+.finance-sync-status {
+  display: inline-flex;
+  min-width: min(360px, 100%);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: var(--shadow);
+}
+
+.finance-sync-status strong,
+.finance-sync-status span {
+  display: block;
+}
+
+.finance-sync-status strong {
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.finance-sync-status span:not(.sync-dot) {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.sync-dot {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border-radius: 999px;
+  background: #d0d5dd;
+  box-shadow: 0 0 0 5px rgba(208, 213, 221, 0.28);
+}
+
+.finance-sync-status.is-connected .sync-dot {
+  background: #159447;
+  box-shadow: 0 0 0 5px rgba(21, 148, 71, 0.16);
+}
+
+.finance-sync-status.is-checking .sync-dot {
+  background: #e0a500;
+  box-shadow: 0 0 0 5px rgba(224, 165, 0, 0.18);
+}
+
+.finance-sync-status.is-error .sync-dot {
+  background: #df3545;
+  box-shadow: 0 0 0 5px rgba(223, 53, 69, 0.16);
+}
+
 .finance-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1986,6 +2041,10 @@ body {
 
   .finance-toolbar {
     display: grid;
+  }
+
+  .finance-sync-status {
+    width: 100%;
   }
 
   .finance-actions {
