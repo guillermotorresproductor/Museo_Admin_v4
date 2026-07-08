@@ -2639,7 +2639,9 @@ function bindFinanceModule() {
   };
 
   const renderExpenseSummaryTable = () => {
-    return renderFinanceTable("Gastos", (row) => row.type === "expense");
+    return renderFinanceTable("Gastos", (row) =>
+      row.type === "expense" && ["Gastos Operacionales", "Otros Gastos"].includes(row.category)
+    );
   };
 
   const renderReports = () => {
