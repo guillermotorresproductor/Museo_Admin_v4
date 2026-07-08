@@ -2229,6 +2229,65 @@ function bindFinanceModule() {
   const financeYear = 2026;
   let rows = [];
   let auditEntries = [];
+  const quickBooksCategories = [
+    "Boletería",
+    "Renta de Espacios",
+    "Membresías",
+    "Gift Shop",
+    "Donaciones",
+    "Actividades Especiales",
+    "Otros Ingresos"
+  ];
+  const quickBooksDemoTransactions = [
+    {
+      fecha: "2026-07-01",
+      numero: "QB-DEMO-0001",
+      categoria: "Boletería",
+      descripcion: "Entradas generales del museo",
+      cliente: "Visitantes del museo",
+      metodo: "Tarjeta",
+      subtotal: 420,
+      ivu: 48.3,
+      total: 468.3,
+      fuente: "Boletería"
+    },
+    {
+      fecha: "2026-07-02",
+      numero: "QB-DEMO-0002",
+      categoria: "Renta de Espacios",
+      descripcion: "Reserva de salón para actividad privada",
+      cliente: "Cliente institucional",
+      metodo: "Transferencia",
+      subtotal: 1000,
+      ivu: 0,
+      total: 1000,
+      fuente: "Renta de Espacios"
+    },
+    {
+      fecha: "2026-07-03",
+      numero: "QB-DEMO-0003",
+      categoria: "Donaciones",
+      descripcion: "Donativo individual para programación cultural",
+      cliente: "Donante",
+      metodo: "Cheque",
+      subtotal: 250,
+      ivu: 0,
+      total: 250,
+      fuente: "Donaciones"
+    },
+    {
+      fecha: "2026-07-04",
+      numero: "QB-DEMO-0004",
+      categoria: "Gift Shop",
+      descripcion: "Venta de artículos promocionales",
+      cliente: "Visitantes del museo",
+      metodo: "Efectivo",
+      subtotal: 180,
+      ivu: 20.7,
+      total: 200.7,
+      fuente: "Gift Shop"
+    }
+  ];
 
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   const syncTime = () => new Date().toLocaleTimeString("es-PR", { hour: "numeric", minute: "2-digit" });
@@ -2663,6 +2722,138 @@ function bindFinanceModule() {
     }
   };
 
+  const quickBooksHeaders = [
+    "Fecha",
+    "Número de transacción",
+    "Categoría",
+    "Descripción",
+    "Cliente / visitante",
+    "Método de pago",
+    "Subtotal",
+    "IVU",
+    "Total",
+    "Fuente de ingreso"
+  ];
+
+  const escapeCsvValue = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+  const toCsv = (headers, records) => [
+    headers.map(escapeCsvValue).join(","),
+    ...records.map((record) => headers.map((header) => escapeCsvValue(record[header])).join(","))
+  ].join("\n");
+
+  const downloadExportFile = (filename, content, type = "text/csv;charset=utf-8") => {
+    const blob = new Blob([`\uFEFF${content}`], { type });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  const monthDate = (monthIndex) => {
+    const fiscalMonthNumber = ((monthIndex + 6) % 12) + 1;
+    const year = monthIndex < 6 ? financeYear : financeYear + 1;
+    return `${year}-${String(fiscalMonthNumber).padStart(2, "0")}-01`;
+  };
+
+  const accountingCategoryForConcept = (concept = "") => {
+    const text = concept.toLowerCase();
+    if (text.includes("entrada") || text.includes("tableta")) return "Boletería";
+    if (text.includes("sala") || text.includes("renta") || text.includes("alquiler")) return "Renta de Espacios";
+    if (text.includes("membres")) return "Membresías";
+    if (text.includes("tienda") || text.includes("gift")) return "Gift Shop";
+    if (text.includes("donaci")) return "Donaciones";
+    if (text.includes("actividad") || text.includes("gala") || text.includes("auspicio")) return "Actividades Especiales";
+    return "Otros Ingresos";
+  };
+
+  const customerForCategory = (category) => ({
+    "Boletería": "Visitantes del museo",
+    "Renta de Espacios": "Cliente institucional",
+    "Membresías": "Miembro del museo",
+    "Gift Shop": "Visitantes del museo",
+    "Donaciones": "Donante",
+    "Actividades Especiales": "Participantes / auspiciadores",
+    "Otros Ingresos": "Museo de la Música"
+  })[category] || "Museo de la Música";
+
+  const buildQuickBooksTransactions = () => {
+    const transactions = [];
+    rowsByType("income").forEach((row) => {
+      row.values.forEach((value, monthIndex) => {
+        const total = Number(value || 0);
+        if (total <= 0) return;
+        const category = accountingCategoryForConcept(row.concept);
+        transactions.push({
+          "Fecha": monthDate(monthIndex),
+          "Número de transacción": `FIN-${financeYear}-${String(transactions.length + 1).padStart(5, "0")}`,
+          "Categoría": quickBooksCategories.includes(category) ? category : "Otros Ingresos",
+          "Descripción": row.concept,
+          "Cliente / visitante": customerForCategory(category),
+          "Método de pago": "Por reconciliar",
+          "Subtotal": total.toFixed(2),
+          "IVU": "0.00",
+          "Total": total.toFixed(2),
+          "Fuente de ingreso": row.category
+        });
+      });
+    });
+
+    if (transactions.length) return transactions;
+
+    return quickBooksDemoTransactions.map((transaction) => ({
+      "Fecha": transaction.fecha,
+      "Número de transacción": transaction.numero,
+      "Categoría": transaction.categoria,
+      "Descripción": transaction.descripcion,
+      "Cliente / visitante": transaction.cliente,
+      "Método de pago": transaction.metodo,
+      "Subtotal": transaction.subtotal.toFixed(2),
+      "IVU": transaction.ivu.toFixed(2),
+      "Total": transaction.total.toFixed(2),
+      "Fuente de ingreso": transaction.fuente
+    }));
+  };
+
+  const summarizeQuickBooksRecords = (records, groupKey) => {
+    const grouped = new Map();
+    records.forEach((record) => {
+      const key = record[groupKey] || "Sin clasificar";
+      const current = grouped.get(key) || { key, transactions: 0, subtotal: 0, ivu: 0, total: 0 };
+      current.transactions += 1;
+      current.subtotal += Number(record.Subtotal || 0);
+      current.ivu += Number(record.IVU || 0);
+      current.total += Number(record.Total || 0);
+      grouped.set(key, current);
+    });
+    return [...grouped.values()].map((item) => ({
+      [groupKey]: item.key,
+      "Transacciones": item.transactions,
+      "Subtotal": item.subtotal.toFixed(2),
+      "IVU": item.ivu.toFixed(2),
+      "Total": item.total.toFixed(2)
+    }));
+  };
+
+  const exportQuickBooks = (type) => {
+    const records = buildQuickBooksTransactions();
+    if (type === "daily") {
+      const headers = ["Fecha", "Transacciones", "Subtotal", "IVU", "Total"];
+      downloadExportFile("quickbooks-resumen-diario.csv", toCsv(headers, summarizeQuickBooksRecords(records, "Fecha")));
+      return;
+    }
+    if (type === "category") {
+      const headers = ["Categoría", "Transacciones", "Subtotal", "IVU", "Total"];
+      downloadExportFile("quickbooks-categoria-contable.csv", toCsv(headers, summarizeQuickBooksRecords(records, "Categoría")));
+      return;
+    }
+    if (type === "excel") {
+      downloadExportFile("quickbooks-exportacion.xls", toCsv(quickBooksHeaders, records), "application/vnd.ms-excel;charset=utf-8");
+      return;
+    }
+    downloadExportFile("quickbooks-exportacion.csv", toCsv(quickBooksHeaders, records));
+  };
+
   const exportCsv = () => {
     const lines = [["Tipo", "Categoría", "Concepto", ...financeMonths, "Total Anual"]];
     rows.forEach((row) => lines.push([row.type, row.category, row.concept, ...row.values, rowTotal(row)]));
@@ -2728,6 +2919,9 @@ function bindFinanceModule() {
   document.querySelector("[data-finance-export-excel]")?.addEventListener("click", exportCsv);
   document.querySelector("[data-finance-export-pdf]")?.addEventListener("click", () => window.print());
   document.querySelector("[data-finance-print]")?.addEventListener("click", () => window.print());
+  document.querySelectorAll("[data-qb-export]").forEach((button) => {
+    button.addEventListener("click", () => exportQuickBooks(button.dataset.qbExport));
+  });
 
   if (getSupabaseSession()?.access_token && canManageEmployees()) {
     openModule();

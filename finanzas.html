@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Finanzas</title>
-  <link rel="stylesheet" href="css/main.css?v=finance-force-remove-otros-20260707">
+  <link rel="stylesheet" href="css/main.css?v=finance-quickbooks-export-20260707">
 </head>
 <body>
   <div class="app-shell">
@@ -73,6 +73,31 @@
 
           <section class="card panel finance-panel" data-finance-panel></section>
 
+          <section class="card panel finance-export-panel" data-quickbooks-export>
+            <div class="finance-export-heading">
+              <div>
+                <p class="page-kicker">Exportación para QuickBooks</p>
+                <h3>Exportación para QuickBooks</h3>
+                <p>Supabase se utilizará como base operacional del sistema. QuickBooks/Intuit se utilizará para contabilidad oficial mediante exportación o integración futura.</p>
+              </div>
+              <button
+                class="button secondary quickbooks-disabled"
+                type="button"
+                disabled
+                title="Integración futura requiere backend seguro y OAuth 2.0."
+              >
+                Conectar con QuickBooks Online
+              </button>
+            </div>
+            <p class="form-message">Integración futura requiere backend seguro y OAuth 2.0.</p>
+            <div class="finance-export-actions">
+              <button class="button secondary" type="button" data-qb-export="csv">Exportar CSV</button>
+              <button class="button secondary" type="button" data-qb-export="excel">Exportar Excel</button>
+              <button class="button secondary" type="button" data-qb-export="daily">Exportar Resumen Diario</button>
+              <button class="button secondary" type="button" data-qb-export="category">Exportar por Categoría Contable</button>
+            </div>
+          </section>
+
           <div class="finance-actions finance-actions-bottom">
             <button class="button secondary" type="button" data-finance-export-excel>Exportar a Excel</button>
             <button class="button secondary" type="button" data-finance-export-pdf>Exportar a PDF</button>
@@ -83,6 +108,6 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=finance-force-remove-otros-20260707"></script>
+  <script src="js/app.js?v=finance-quickbooks-export-20260707"></script>
 </body>
 </html>
