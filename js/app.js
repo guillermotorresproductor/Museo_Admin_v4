@@ -353,20 +353,20 @@ function explainSystemRecordsError(error, action = "usar") {
   const message = String(error?.message || error || "");
   const lower = message.toLowerCase();
   if (lower.includes("app_records") || lower.includes("schema cache") || lower.includes("relation")) {
-    return "Falta crear la tabla central app_records en Supabase. Abra SQL Editor y ejecute docs/supabase-system-records.sql una sola vez.";
+    return "El sistema central todavía no está listo para guardar esta información. Avise a Administración.";
   }
   if (lower.includes("jwt") || lower.includes("token") || lower.includes("sesión") || lower.includes("session")) {
-    return "La sesión de Supabase no está activa en este navegador. Entre por Mi cuenta y vuelva a intentar.";
+    return "Para enviar esta solicitud, primero entre por Mi cuenta y vuelva a intentar.";
   }
   if (lower.includes("permission") || lower.includes("policy") || lower.includes("row-level") || lower.includes("rls")) {
-    return "Supabase rechazó el permiso. Revise que el usuario tenga perfil, museo asignado y políticas activas.";
+    return "Su cuenta no tiene permiso para guardar esta información. Avise a Administración.";
   }
-  return `No se pudo ${action} la información en Supabase: ${message}`;
+  return `No se pudo ${action} la información. Avise a Administración si el problema continúa.`;
 }
 
 async function fetchSystemCollection(module, recordKey, fallback = []) {
   const session = getSupabaseSession();
-  if (!session?.access_token) throw new Error("Debe entrar a Supabase para cargar esta información.");
+  if (!session?.access_token) throw new Error("Para ver esta información, primero entre por Mi cuenta.");
   const profile = await currentMuseumContext();
   const response = await fetch(`${supabaseUrl}/rest/v1/${supabaseSystemRecordsTable}?select=payload&museum_id=eq.${encodeURIComponent(profile.museum_id)}&module=eq.${encodeURIComponent(module)}&record_key=eq.${encodeURIComponent(recordKey)}&limit=1`, {
     headers: await supabaseAuthHeaders()
@@ -379,7 +379,7 @@ async function fetchSystemCollection(module, recordKey, fallback = []) {
 
 async function saveSystemCollection(module, recordKey, payload) {
   const session = getSupabaseSession();
-  if (!session?.access_token) throw new Error("Debe entrar a Supabase para guardar esta información.");
+  if (!session?.access_token) throw new Error("Para enviar esta solicitud, primero entre por Mi cuenta y vuelva a intentar.");
   const profile = await currentMuseumContext();
   const body = {
     museum_id: profile.museum_id,
@@ -1927,6 +1927,12 @@ function bindMaterialsRequestModule() {
     message.textContent = text;
     message.className = `form-message ${type}`.trim();
   };
+  const friendlyMaterialsError = (error, action = "procesar") => {
+    const text = String(error?.message || "");
+    if (text.includes("Mi cuenta")) return text;
+    if (text.includes("Administración")) return text;
+    return `No se pudo ${action} la solicitud en este momento. Avise a Administración.`;
+  };
   const refreshMeta = () => {
     if (orderNumber) orderNumber.textContent = formatOrder(nextSequence());
     if (orderDate) orderDate.textContent = displayDate(today());
@@ -1953,6 +1959,10 @@ function bindMaterialsRequestModule() {
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!getSupabaseSession()?.access_token) {
+      setMessage("Para enviar una solicitud de materiales, primero entre por Mi cuenta.", "error");
+      return;
+    }
     const data = new FormData(form);
     const employee = String(data.get("empleado") || "").trim();
     const materials = data.getAll("materiales").map((item) => String(item).trim()).filter(Boolean);
@@ -1990,18 +2000,18 @@ function bindMaterialsRequestModule() {
       form.reset();
       refreshMeta();
       renderLog();
-      setMessage(`${request.order} registrado en Supabase.`, "success");
+      setMessage(`${request.order} enviado correctamente.`, "success");
     } catch (error) {
-      setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
+      setMessage(friendlyMaterialsError(error, "enviar"), "error");
     }
   });
 
   const loadMaterialRequests = async () => {
     try {
       requests = await fetchSystemCollection("solicitud_materiales", "requests", []);
-      setMessage("Solicitudes cargadas desde Supabase.", "success");
+      setMessage("Solicitudes cargadas correctamente.", "success");
     } catch (error) {
-      setMessage(`No se pudo cargar Solicitud de Materiales desde Supabase: ${error.message}`, "error");
+      setMessage(friendlyMaterialsError(error, "cargar"), "error");
     }
     refreshMeta();
     renderLog();
