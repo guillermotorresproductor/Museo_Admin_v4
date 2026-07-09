@@ -2422,6 +2422,14 @@ function bindFinanceModule() {
   const syncStatuses = document.querySelectorAll("[data-finance-sync-status]");
   const tabs = document.querySelectorAll("[data-finance-tab]");
   document.querySelector('[data-finance-tab="otros"]')?.remove();
+
+  gate.hidden = false;
+  gate.style.display = "";
+  module.hidden = true;
+  module.style.display = "none";
+  if (summary) summary.innerHTML = "";
+  if (panel) panel.innerHTML = "";
+
   const allowedUsers = {
     "Guillermo Torres": "museo2026",
     "Alberto Soto": "museo2026",
@@ -2891,6 +2899,8 @@ function bindFinanceModule() {
     gate.style.display = "";
     module.hidden = true;
     module.style.display = "none";
+    if (summary) summary.innerHTML = "";
+    if (panel) panel.innerHTML = "";
     if (loginMessage) {
       loginMessage.textContent = text;
       loginMessage.className = "form-message error";
