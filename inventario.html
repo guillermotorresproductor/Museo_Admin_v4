@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Inventario</title>
-  <link rel="stylesheet" href="css/main.css?v=deposito-artes-papeleria-20260708">
+  <link rel="stylesheet" href="css/main.css?v=encoding-papeleria-20260708">
 </head>
 <body>
   <div class="app-shell">
@@ -16,20 +16,20 @@
         <section class="card panel inventory-panel section-stack">
           <div class="inventory-list-header">
             <div>
-              <p class="page-kicker">Listado Autom醫ico</p>
-              <h3>Art韈ulos Registrados</h3>
-              <p><strong data-inventory-total>0</strong> art韈ulos registrados</p>
+              <p class="page-kicker">Listado Autom谩tico</p>
+              <h3>Art铆culos Registrados</h3>
+              <p><strong data-inventory-total>0</strong> art铆culos registrados</p>
             </div>
           </div>
 
           <div class="inventory-controls">
             <label class="field" for="inventory-search">
               <span>Buscar</span>
-              <input id="inventory-search" type="search" placeholder="Nombre, sello, descripci髇, ubicaci髇, donante o estado" data-inventory-search>
+              <input id="inventory-search" type="search" placeholder="Nombre, sello, descripci贸n, ubicaci贸n, donante o estado" data-inventory-search>
             </label>
 
             <label class="field" for="inventory-filter-location">
-              <span>Filtrar por ubicaci髇</span>
+              <span>Filtrar por ubicaci贸n</span>
               <select id="inventory-filter-location" data-inventory-filter-location>
                 <option value="">Todas las ubicaciones</option>
               </select>
@@ -49,9 +49,9 @@
                 <tr>
                   <th><button type="button" data-inventory-sort="tipo">Tipo</button></th>
                   <th><button type="button" data-inventory-sort="nombre">Nombre</button></th>
-                  <th><button type="button" data-inventory-sort="descripcion">Descripci髇</button></th>
-                  <th><button type="button" data-inventory-sort="sello">N鷐ero de sello</button></th>
-                  <th><button type="button" data-inventory-sort="ubicacion">Ubicaci髇</button></th>
+                  <th><button type="button" data-inventory-sort="descripcion">Descripci贸n</button></th>
+                  <th><button type="button" data-inventory-sort="sello">N煤mero de sello</button></th>
+                  <th><button type="button" data-inventory-sort="ubicacion">Ubicaci贸n</button></th>
                   <th><button type="button" data-inventory-sort="estado">Estado</button></th>
                   <th><button type="button" data-inventory-sort="contacto">Persona de contacto / Donante</button></th>
                   <th><button type="button" data-inventory-sort="fecha">Fecha de registro</button></th>
@@ -60,7 +60,7 @@
               </thead>
               <tbody data-inventory-list>
                 <tr>
-                  <td colspan="9">No hay art韈ulos registrados.</td>
+                  <td colspan="9">No hay art铆culos registrados.</td>
                 </tr>
               </tbody>
             </table>
@@ -86,42 +86,42 @@
 
             <div class="form-row">
               <label class="field" for="inventory-name">
-                <span>Nombre del art韈ulo</span>
+                <span>Nombre del art铆culo</span>
                 <input id="inventory-name" name="nombre" type="text" required>
               </label>
 
               <label class="field" for="inventory-tag">
-                <span>N鷐ero de sello (Asset Tag)</span>
+                <span>N煤mero de sello (Asset Tag)</span>
                 <input id="inventory-tag" name="sello" type="text" required>
               </label>
             </div>
 
             <label class="field" for="inventory-description">
-              <span>Descripci髇</span>
+              <span>Descripci贸n</span>
               <textarea id="inventory-description" name="descripcion" rows="4" required></textarea>
             </label>
 
             <div class="form-row">
               <label class="field" for="inventory-location">
-                <span>Ubicaci髇</span>
+                <span>Ubicaci贸n</span>
                 <select id="inventory-location" name="ubicacion" required>
-                  <option value="">Seleccione una ubicaci髇...</option>
-                  <option>Almac閚 1</option>
-                  <option>Almac閚 2</option>
-                  <option>Almac閚 3</option>
+                  <option value="">Seleccione una ubicaci贸n...</option>
+                  <option>Almac茅n 1</option>
+                  <option>Almac茅n 2</option>
+                  <option>Almac茅n 3</option>
                   <option>Lobby</option>
-                  <option>Mezzanine Ra韈es</option>
+                  <option>Mezzanine Ra铆ces</option>
                   <option>Cine Bienvenida</option>
                   <option>Altar del Cuatro</option>
                   <option>Pasillo de Instrumentos</option>
-                  <option>Sala Cl醩ica</option>
+                  <option>Sala Cl谩sica</option>
                   <option>Sala Bailable</option>
                   <option>Escalera de Subida</option>
                   <option>Pasillo Alternativo</option>
-                  <option>Sala Rom醤tica</option>
+                  <option>Sala Rom谩ntica</option>
                   <option>Sala Urbana</option>
-                  <option>Sal髇 Experimental Guaynabo</option>
-                  <option>羠ea Foyer</option>
+                  <option>Sal贸n Experimental Guaynabo</option>
+                  <option>脕rea Foyer</option>
                   <option>Sala Itinerante (Ball Room)</option>
                 </select>
               </label>
@@ -133,8 +133,8 @@
                   <option>Excelente</option>
                   <option>Bueno</option>
                   <option>Regular</option>
-                  <option>Necesita reparaci髇</option>
-                  <option>En restauraci髇</option>
+                  <option>Necesita reparaci贸n</option>
+                  <option>En restauraci贸n</option>
                   <option>Fuera de servicio</option>
                 </select>
               </label>
@@ -152,13 +152,13 @@
                   <input id="art-lender" name="prestamista" type="text" disabled>
                 </label>
                 <label class="field" for="art-email">
-                  <span>Correo electr髇ico</span>
+                  <span>Correo electr贸nico</span>
                   <input id="art-email" name="correo" type="email" disabled>
                 </label>
               </div>
               <div class="form-row">
                 <label class="field" for="art-phone">
-                  <span>Tel閒ono</span>
+                  <span>Tel茅fono</span>
                   <input id="art-phone" name="telefono" type="tel" disabled>
                 </label>
                 <label class="field" for="art-received-date">
@@ -167,20 +167,20 @@
                 </label>
               </div>
               <label class="field" for="art-address">
-                <span>Direcci髇 postal</span>
+                <span>Direcci贸n postal</span>
                 <input id="art-address" name="direccion" type="text" disabled>
               </label>
               <div class="form-row">
                 <label class="field" for="art-category">
-                  <span>Categor韆</span>
+                  <span>Categor铆a</span>
                   <select id="art-category" name="categoria" disabled>
                     <option value="">Seleccione...</option>
                     <option>Instrumento musical</option>
-                    <option>Fotograf韆</option>
+                    <option>Fotograf铆a</option>
                     <option>Documento</option>
                     <option>Vestuario</option>
                     <option>Memorabilia</option>
-                    <option>Equipo electr髇ico</option>
+                    <option>Equipo electr贸nico</option>
                     <option>Otro</option>
                   </select>
                 </label>
@@ -191,16 +191,16 @@
               </div>
               <div class="form-row">
                 <label class="field" for="art-loan-start">
-                  <span>Fecha de inicio del pr閟tamo</span>
+                  <span>Fecha de inicio del pr茅stamo</span>
                   <input id="art-loan-start" name="inicio" type="date" disabled>
                 </label>
                 <label class="field" for="art-loan-end">
-                  <span>Fecha estimada de devoluci髇</span>
+                  <span>Fecha estimada de devoluci贸n</span>
                   <input id="art-loan-end" name="devolucion" type="date" disabled>
                 </label>
               </div>
               <label class="field" for="art-purpose">
-                <span>Prop髎ito del pr閟tamo</span>
+                <span>Prop贸sito del pr茅stamo</span>
                 <textarea id="art-purpose" name="proposito" rows="4" disabled></textarea>
               </label>
               <label class="field" for="art-notes">
@@ -211,7 +211,7 @@
 
             <div class="inventory-actions">
               <button class="button submit-button" type="submit" data-inventory-submit>Guardar Registro</button>
-              <button class="button secondary" type="button" data-inventory-cancel hidden>Cancelar edici髇</button>
+              <button class="button secondary" type="button" data-inventory-cancel hidden>Cancelar edici贸n</button>
             </div>
             <p class="form-message" data-inventory-message></p>
           </form>
@@ -220,7 +220,7 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=deposito-artes-papeleria-20260708"></script>
+  <script src="js/app.js?v=encoding-papeleria-20260708"></script>
 </body>
 </html>
 
