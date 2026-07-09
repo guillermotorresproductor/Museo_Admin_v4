@@ -349,6 +349,21 @@ async function currentMuseumContext() {
   return profile;
 }
 
+function explainSystemRecordsError(error, action = "usar") {
+  const message = String(error?.message || error || "");
+  const lower = message.toLowerCase();
+  if (lower.includes("app_records") || lower.includes("schema cache") || lower.includes("relation")) {
+    return "Falta crear la tabla central app_records en Supabase. Abra SQL Editor y ejecute docs/supabase-system-records.sql una sola vez.";
+  }
+  if (lower.includes("jwt") || lower.includes("token") || lower.includes("sesión") || lower.includes("session")) {
+    return "La sesión de Supabase no está activa en este navegador. Entre por Mi cuenta y vuelva a intentar.";
+  }
+  if (lower.includes("permission") || lower.includes("policy") || lower.includes("row-level") || lower.includes("rls")) {
+    return "Supabase rechazó el permiso. Revise que el usuario tenga perfil, museo asignado y políticas activas.";
+  }
+  return `No se pudo ${action} la información en Supabase: ${message}`;
+}
+
 async function fetchSystemCollection(module, recordKey, fallback = []) {
   const session = getSupabaseSession();
   if (!session?.access_token) throw new Error("Debe entrar a Supabase para cargar esta información.");
@@ -357,7 +372,7 @@ async function fetchSystemCollection(module, recordKey, fallback = []) {
     headers: await supabaseAuthHeaders()
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.message || `No se pudo leer ${module} desde Supabase.`);
+  if (!response.ok) throw new Error(explainSystemRecordsError(data, "cargar"));
   if (!data.length) return fallback;
   return data[0].payload || fallback;
 }
@@ -385,7 +400,7 @@ async function saveSystemCollection(module, recordKey, payload) {
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.message || `No se pudo guardar ${module} en Supabase.`);
+    throw new Error(explainSystemRecordsError(data, "guardar"));
   }
 }
 
