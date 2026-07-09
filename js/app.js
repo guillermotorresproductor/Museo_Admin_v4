@@ -1,6 +1,6 @@
 ﻿const appPages = {
-  "index.html": { title: "Dashboard", subtitle: "Bienvenido, Guillermo Torres" },
-  "dashboard.html": { title: "Dashboard", subtitle: "Bienvenido, Guillermo Torres" },
+  "index.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
+  "dashboard.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
   "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Música." },
   "empleados.html": { title: "Solicitud de Empleo", subtitle: "Formulario para candidatos." },
   "ujieres.html": { title: "Ujieres", subtitle: "Calendario mensual de ujieres, horarios y áreas asignadas." },
@@ -618,7 +618,16 @@ function getCurrentPage() {
 }
 
 function resolvePageMeta() {
-  return appPages[getCurrentPage()] || appPages["dashboard.html"];
+  const currentPage = getCurrentPage();
+  const meta = appPages[currentPage] || appPages["dashboard.html"];
+  if (currentPage === "dashboard.html" || currentPage === "index.html") {
+    const loggedUser = localStorage.getItem(currentUserKey);
+    return {
+      ...meta,
+      subtitle: loggedUser ? `Bienvenido, ${loggedUser}` : "Panel principal del sistema."
+    };
+  }
+  return meta;
 }
 
 function resolveShortcutGroup(page = getCurrentPage()) {
