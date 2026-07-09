@@ -256,8 +256,11 @@ const supabaseUrl = "https://kfokfjngozgcwjpzxcsu.supabase.co";
 const supabasePublishableKey = "sb_publishable_wBGL3o2YcfbR_dvhT3mTnw_OXuHB0y3";
 const supabaseSessionKey = "museo-admin-supabase-session";
 const supabaseSystemRecordsTable = "app_records";
+const currentUserKey = "museo-admin-current-user";
+const currentUserPhotoKey = "museo-admin-current-user-photo";
+const currentAccessLevelKey = "museo-admin-access-level";
 let employeeRecords = Object.values(defaultEmployeeProfiles);
-const currentAccessLevel = () => localStorage.getItem("museo-admin-access-level") || "Empleado";
+const currentAccessLevel = () => localStorage.getItem(currentAccessLevelKey) || "Empleado";
 const canManageEmployees = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
 const canDeleteEmployees = () => currentAccessLevel() === "Administrador";
 
@@ -271,6 +274,17 @@ function saveSupabaseSession(session) {
 
 function clearSupabaseSession() {
   localStorage.removeItem(supabaseSessionKey);
+}
+
+function clearLoginState(redirect = true, reason = "") {
+  clearSupabaseSession();
+  localStorage.removeItem(currentUserKey);
+  localStorage.removeItem(currentUserPhotoKey);
+  localStorage.removeItem(currentAccessLevelKey);
+  if (redirect && !window.location.pathname.endsWith("login.html")) {
+    const suffix = reason ? `?reason=${encodeURIComponent(reason)}` : "";
+    window.location.href = `login.html${suffix}`;
+  }
 }
 
 function supabaseHeaders(requireAuth = false) {
@@ -503,6 +517,25 @@ function employeeDisplayName(employee) {
   return employee.nombreCompleto || `${employee.nombre || ""} ${employee.apellidos || ""}`.trim();
 }
 
+function updateCurrentUserFromEmployeeCache() {
+  const userName = localStorage.getItem(currentUserKey);
+  const sessionEmail = getSupabaseSession()?.user?.email || "";
+  if (!userName && !sessionEmail) return;
+  const normalizedName = String(userName || "").trim().toLowerCase();
+  const normalizedEmail = String(sessionEmail || "").trim().toLowerCase();
+  const employee = getEmployeeRecords().find((record) =>
+    String(record.correo || "").trim().toLowerCase() === normalizedEmail ||
+    employeeDisplayName(record).trim().toLowerCase() === normalizedName
+  );
+  if (!employee) return;
+  localStorage.setItem(currentUserKey, employeeDisplayName(employee));
+  if (employee.foto) {
+    localStorage.setItem(currentUserPhotoKey, employee.foto);
+  } else {
+    localStorage.removeItem(currentUserPhotoKey);
+  }
+}
+
 const financeMonths = ["Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio"];
 const defaultFinanceRows = [
   { id: "ing-aportacion", type: "income", category: "Ingresos", concept: "Aportación Municipal", values: [100000,0,0,0,0,0,0,0,0,0,0,0] },
@@ -677,9 +710,33 @@ function renderHeader() {
   if (!header) return;
 
   const meta = resolvePageMeta();
-  const loggedUser = localStorage.getItem("museo-admin-current-user");
+  const loggedUser = localStorage.getItem(currentUserKey);
+  const loggedUserPhoto = localStorage.getItem(currentUserPhotoKey);
   const accountLabel = loggedUser || "Entrar a mi cuenta";
-  const accountHref = loggedUser ? "perfil-empleado.html" : "login.html";
+  const accountVisual = loggedUserPhoto
+    ? `<img class="account-photo" src="${loggedUserPhoto}" alt="Foto de ${safeHtml(accountLabel)}">`
+    : iconSvg("users");
+  const accountControl = loggedUser
+    ? `
+      <div class="account-menu-wrap">
+        <button class="account-button is-logged-in" type="button" data-account-menu-button aria-expanded="false">
+          ${accountVisual}
+          <span>${safeHtml(accountLabel)}</span>
+          ${iconSvg("chevron")}
+        </button>
+        <div class="account-menu" data-account-menu hidden>
+          <a href="perfil-empleado.html">Mi perfil</a>
+          <button type="button" data-logout-button>Cerrar sesión</button>
+        </div>
+      </div>
+    `
+    : `
+      <a class="account-button" href="login.html">
+        ${iconSvg("users")}
+        <span>${safeHtml(accountLabel)}</span>
+        ${iconSvg("chevron")}
+      </a>
+    `;
   header.innerHTML = `
     <div class="header-left">
       <button class="menu-toggle" type="button" aria-label="Abrir navegacion" data-menu-toggle>
@@ -712,11 +769,7 @@ function renderHeader() {
           <span>Verifique asistencia, perfiles y accesos del personal.</span>
         </a>
       </div>
-      <a class="account-button${loggedUser ? " is-logged-in" : ""}" href="${accountHref}">
-        ${iconSvg("users")}
-        <span>${safeHtml(accountLabel)}</span>
-        ${iconSvg("chevron")}
-      </a>
+      ${accountControl}
     </div>
   `;
 }
@@ -729,6 +782,28 @@ function bindHeaderActions() {
       return;
     }
     window.location.href = "dashboard.html";
+  });
+
+  const accountButton = document.querySelector("[data-account-menu-button]");
+  const accountMenu = document.querySelector("[data-account-menu]");
+  if (accountButton && accountMenu) {
+    accountButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const nextState = !accountMenu.hidden;
+      accountMenu.hidden = nextState;
+      accountButton.setAttribute("aria-expanded", String(!nextState));
+    });
+
+    document.addEventListener("click", (event) => {
+      if (accountMenu.hidden) return;
+      if (accountMenu.contains(event.target) || accountButton.contains(event.target)) return;
+      accountMenu.hidden = true;
+      accountButton.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  document.querySelector("[data-logout-button]")?.addEventListener("click", () => {
+    clearLoginState(true, "logout");
   });
 }
 
@@ -788,13 +863,22 @@ function bindNotificationMenu() {
 function bindLoginDemo() {
   const form = document.querySelector("[data-login-form]");
   if (!form) return;
+  const message = document.querySelector("[data-login-message]");
+  const reason = new URLSearchParams(window.location.search).get("reason");
+  if (message && reason === "idle") {
+    message.textContent = "La sesión se cerró automáticamente por inactividad.";
+    message.className = "login-help";
+  }
+  if (message && reason === "logout") {
+    message.textContent = "Sesión cerrada correctamente.";
+    message.className = "login-help";
+  }
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(form);
     const username = formData.get("username");
     const password = formData.get("password");
-    const message = document.querySelector("[data-login-message]");
 
     if (username.includes("@")) {
       try {
@@ -804,12 +888,13 @@ function bindLoginDemo() {
         }
         const session = await signInWithSupabase(username, password);
         const profile = await fetchSupabaseProfile();
-        localStorage.setItem("museo-admin-current-user", profile?.full_name || session.user.email || username);
-        localStorage.setItem("museo-admin-access-level", profile?.role === "administrador" ? "Administrador" : profile?.role === "ejecutivo" ? "Ejecutivo" : "Empleado");
+        localStorage.setItem(currentUserKey, profile?.full_name || session.user.email || username);
+        localStorage.setItem(currentAccessLevelKey, profile?.role === "administrador" ? "Administrador" : profile?.role === "ejecutivo" ? "Ejecutivo" : "Empleado");
+        localStorage.removeItem(currentUserPhotoKey);
         window.location.href = "dashboard.html";
         return;
       } catch (error) {
-        clearSupabaseSession();
+        clearLoginState(false);
         if (message) {
           message.textContent = "No se pudo entrar con Supabase. Verifique el correo y la contraseña.";
           message.className = "login-help error";
@@ -827,6 +912,30 @@ function bindLoginDemo() {
   });
 }
 
+function bindIdleLogout() {
+  const timeoutMs = 8 * 60 * 1000;
+  let timer = null;
+  const hasSession = () => Boolean(getSupabaseSession()?.access_token);
+
+  const schedule = () => {
+    if (timer) window.clearTimeout(timer);
+    if (!hasSession()) return;
+    timer = window.setTimeout(() => {
+      clearLoginState(true, "idle");
+    }, timeoutMs);
+  };
+
+  ["click", "keydown", "mousemove", "scroll", "touchstart"].forEach((eventName) => {
+    window.addEventListener(eventName, schedule, { passive: true });
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) schedule();
+  });
+
+  schedule();
+}
+
 function bindRentalForm() {
   const form = document.querySelector("#rental-form");
   if (!form) return;
@@ -840,7 +949,7 @@ function bindRentalForm() {
   const configPanel = document.querySelector("[data-rental-config]");
   const cancellation = document.querySelector("[data-rental-cancellation]");
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
-  const currentUser = () => localStorage.getItem("museo-admin-current-user") || "Administrador";
+  const currentUser = () => localStorage.getItem(currentUserKey) || "Administrador";
   const canAdjust = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
   let spaces = defaultRentalSpaces;
   let requests = [];
@@ -1597,7 +1706,7 @@ function bindCalendarModules() {
   let records = [];
 
   const saveRecords = async () => saveSystemCollection(moduleKey, "records", records);
-  const currentAccessLevel = localStorage.getItem("museo-admin-access-level") || "Empleado";
+  const currentAccessLevel = localStorage.getItem(currentAccessLevelKey) || "Empleado";
   const canEdit = () => ["Ejecutivo", "Administrador"].includes(currentAccessLevel);
   const createId = () => {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -2703,7 +2812,7 @@ function bindFinanceModule() {
       throw new Error("Su cuenta no tiene permiso para administrar Finanzas.");
     }
 
-    currentUser = currentProfile.full_name || localStorage.getItem("museo-admin-current-user") || "Usuario";
+    currentUser = currentProfile.full_name || localStorage.getItem(currentUserKey) || "Usuario";
     setSyncStatus("checking", "Leyendo Supabase", `Usuario: ${currentUser}`);
     const response = await fetch(`${supabaseUrl}/rest/v1/finance_records?select=*&museum_id=eq.${encodeURIComponent(currentProfile.museum_id)}&year=eq.${financeYear}&order=created_at.asc`, {
       headers: await supabaseAuthHeaders()
@@ -3304,6 +3413,11 @@ function bindEmployeeProfile() {
         const records = getEmployeeRecords();
         saveEmployeeRecords(records.map((employee) => employee.id === profile.id ? updatedProfile : employee));
         profile = updatedProfile;
+        updateCurrentUserFromEmployeeCache();
+        renderHeader();
+        renderInlineIcons();
+        bindHeaderActions();
+        bindNotificationMenu();
         if (avatar) avatar.textContent = profile.avatar;
         if (name) name.textContent = employeeDisplayName(profile);
         if (position) position.textContent = profile.posicion;
@@ -3326,6 +3440,10 @@ async function initApp() {
   renderInlineIcons();
   bindHeaderActions();
   await syncEmployeeCacheFromSupabase().catch(() => null);
+  updateCurrentUserFromEmployeeCache();
+  renderHeader();
+  renderInlineIcons();
+  bindHeaderActions();
   populateSystemDataSelects();
   bindMaterialsRequestModule();
   bindHumanResourcesModule();
@@ -3335,6 +3453,7 @@ async function initApp() {
   bindSidebarToggle();
   bindNotificationMenu();
   bindLoginDemo();
+  bindIdleLogout();
   bindRentalForm();
   bindLoanReceiptForm();
   bindInventoryModule();
