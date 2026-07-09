@@ -883,7 +883,7 @@ function bindLoginDemo() {
     if (username.includes("@")) {
       try {
         if (message) {
-          message.textContent = "Conectando con Supabase...";
+          message.textContent = "Verificando acceso...";
           message.className = "login-help";
         }
         const session = await signInWithSupabase(username, password);
@@ -896,19 +896,17 @@ function bindLoginDemo() {
       } catch (error) {
         clearLoginState(false);
         if (message) {
-          message.textContent = "No se pudo entrar con Supabase. Verifique el correo y la contraseña.";
+          message.textContent = "No se pudo entrar. Verifique el correo electrónico y la contraseña asignados por Administración.";
           message.className = "login-help error";
         }
         return;
       }
     }
 
-    if (username === "admin" && password === "123456") {
-      window.location.href = "dashboard.html";
-      return;
+    if (message) {
+      message.textContent = "Use el correo electrónico y la contraseña asignados por Administración.";
+      message.className = "login-help error";
     }
-
-    if (message) message.textContent = "Credenciales demo: admin / 123456";
   });
 }
 
