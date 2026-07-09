@@ -1,10 +1,10 @@
-ï»¿<!doctype html>
+<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Uso, CesiÃ³n y Arrendamiento</title>
-  <link rel="stylesheet" href="css/main.css?v=deposito-artes-20260708">
+  <title>Museo Admin v4.0 | Uso, Cesión y Arrendamiento</title>
+  <link rel="stylesheet" href="css/main.css?v=deposito-artes-papeleria-20260708">
 </head>
 <body>
   <div class="app-shell">
@@ -17,8 +17,8 @@
           <div class="panel-heading-inline">
             <div>
               <p class="page-kicker">Reservaciones</p>
-              <h3>Solicitud de Uso, CesiÃ³n y Arrendamiento de Facilidades</h3>
-              <p>Formulario digital conforme al Reglamento del Museo de la MÃºsica de Puerto Rico.</p>
+              <h3>Solicitud de Uso, Cesión y Arrendamiento de Facilidades</h3>
+              <p>Formulario digital conforme al Reglamento del Museo de la Música de Puerto Rico.</p>
             </div>
           </div>
 
@@ -29,7 +29,7 @@
                 <input id="rental-name" name="nombre" type="text" autocomplete="name" required>
               </div>
               <div class="field">
-                <label for="rental-organization">Empresa u organizaciÃ³n</label>
+                <label for="rental-organization">Empresa u organización</label>
                 <input id="rental-organization" name="organizacion" type="text">
               </div>
             </div>
@@ -40,18 +40,18 @@
                 <input id="rental-contact" name="contacto" type="text" required>
               </div>
               <div class="field">
-                <label for="rental-email">Correo electrÃ³nico</label>
+                <label for="rental-email">Correo electrónico</label>
                 <input id="rental-email" name="correo" type="email" autocomplete="email" required>
               </div>
             </div>
 
             <div class="form-row">
               <div class="field">
-                <label for="rental-phone">TelÃ©fono</label>
+                <label for="rental-phone">Teléfono</label>
                 <input id="rental-phone" name="telefono" type="tel" autocomplete="tel" required>
               </div>
               <div class="field">
-                <label for="rental-address">DirecciÃ³n</label>
+                <label for="rental-address">Dirección</label>
                 <input id="rental-address" name="direccion" type="text" required>
               </div>
             </div>
@@ -62,7 +62,7 @@
                 <input id="rental-date" name="fecha" type="date" required>
               </div>
               <div class="field">
-                <label for="rental-end-date">Fecha de finalizaciÃ³n</label>
+                <label for="rental-end-date">Fecha de finalización</label>
                 <input id="rental-end-date" name="fechaFinal" type="date" required>
               </div>
             </div>
@@ -73,7 +73,7 @@
                 <input id="rental-start" name="horaInicio" type="time" required>
               </div>
               <div class="field">
-                <label for="rental-end">Hora de finalizaciÃ³n</label>
+                <label for="rental-end">Hora de finalización</label>
                 <input id="rental-end" name="horaFinal" type="time" required>
               </div>
             </div>
@@ -89,13 +89,13 @@
                   <option value="">Seleccione...</option>
                   <option>Actividades culturales o educativas</option>
                   <option>Exhibiciones temporeras</option>
-                  <option>Presentaciones artÃ­sticas</option>
-                  <option>Actividades cÃ­vicas</option>
+                  <option>Presentaciones artísticas</option>
+                  <option>Actividades cívicas</option>
                   <option>Conferencias y talleres</option>
                   <option>Actividades institucionales</option>
                   <option>Actividades Gubernamentales</option>
                   <option>Concesiones comerciales compatibles con la naturaleza del Museo</option>
-                  <option>Colaboraciones con entidades pÃºblicas o privadas</option>
+                  <option>Colaboraciones con entidades públicas o privadas</option>
                 </select>
               </div>
             </div>
@@ -111,9 +111,9 @@
                 <label for="rental-status">Estado de la solicitud</label>
                 <select id="rental-status" name="estado" data-rental-status>
                   <option>Pendiente</option>
-                  <option>En evaluaciÃ³n</option>
+                  <option>En evaluación</option>
                   <option>Aprobada</option>
-                  <option>Requiere informaciÃ³n adicional</option>
+                  <option>Requiere información adicional</option>
                   <option>Rechazada</option>
                   <option>Cancelada</option>
                   <option>Completada</option>
@@ -122,15 +122,15 @@
             </div>
 
             <div class="field">
-              <label for="rental-description">DescripciÃ³n de la actividad</label>
+              <label for="rental-description">Descripción de la actividad</label>
               <textarea id="rental-description" name="descripcion" rows="5" required></textarea>
             </div>
 
             <section class="rental-space-detail" data-rental-space-detail hidden></section>
 
-            <section class="rental-calculation" aria-label="CÃ¡lculo automÃ¡tico">
-              <div><span>Precio por dÃ­a</span><strong data-rental-rate>$0.00</strong></div>
-              <div><span>Cantidad de dÃ­as</span><strong data-rental-days>0</strong></div>
+            <section class="rental-calculation" aria-label="Cálculo automático">
+              <div><span>Precio por día</span><strong data-rental-rate>$0.00</strong></div>
+              <div><span>Cantidad de días</span><strong data-rental-days>0</strong></div>
               <div><span>Subtotal</span><strong data-rental-subtotal>$0.00</strong></div>
               <div><span>Impuestos</span><strong data-rental-tax>$0.00</strong></div>
               <div><span>Total</span><strong data-rental-total>$0.00</strong></div>
@@ -140,11 +140,11 @@
               <h3>Documentos del expediente digital</h3>
               <div class="form-row">
                 <div class="field">
-                  <label for="rental-id">IdentificaciÃ³n con fotografÃ­a</label>
+                  <label for="rental-id">Identificación con fotografía</label>
                   <input id="rental-id" name="identificacion" type="file" accept="image/*,.pdf" required>
                 </div>
                 <div class="field">
-                  <label for="rental-resolution">ResoluciÃ³n corporativa</label>
+                  <label for="rental-resolution">Resolución corporativa</label>
                   <input id="rental-resolution" name="resolucion" type="file" accept=".pdf,.doc,.docx,image/*">
                 </div>
               </div>
@@ -154,7 +154,7 @@
                   <input id="rental-certificate" name="certificadoSeguro" type="file" accept=".pdf,.doc,.docx,image/*">
                 </div>
                 <div class="field">
-                  <label for="rental-policy">PÃ³liza de Responsabilidad PÃºblica</label>
+                  <label for="rental-policy">Póliza de Responsabilidad Pública</label>
                   <input id="rental-policy" name="poliza" type="file" accept=".pdf,.doc,.docx,image/*">
                 </div>
               </div>
@@ -164,19 +164,19 @@
               </div>
             </section>
 
-            <section class="rental-terms" aria-label="Reglas de cancelaciÃ³n">
-              <h3>Reglas de cancelaciÃ³n</h3>
+            <section class="rental-terms" aria-label="Reglas de cancelación">
+              <h3>Reglas de cancelación</h3>
               <ol>
-                <li>CancelaciÃ³n con 30 dÃ­as o mÃ¡s de anticipaciÃ³n: devoluciÃ³n del 100%.</li>
-                <li>CancelaciÃ³n entre 29 dÃ­as y 2 dÃ­as antes del evento: el Museo podrÃ¡ retener hasta un 50%.</li>
-                <li>CancelaciÃ³n el dÃ­a anterior o el mismo dÃ­a: no procede devoluciÃ³n.</li>
+                <li>Cancelación con 30 días o más de anticipación: devolución del 100%.</li>
+                <li>Cancelación entre 29 días y 2 días antes del evento: el Museo podrá retener hasta un 50%.</li>
+                <li>Cancelación el día anterior o el mismo día: no procede devolución.</li>
               </ol>
-              <p data-rental-cancellation>El cÃ¡lculo de cancelaciÃ³n aparecerÃ¡ al seleccionar una fecha.</p>
+              <p data-rental-cancellation>El cálculo de cancelación aparecerá al seleccionar una fecha.</p>
             </section>
 
             <label class="terms-accept">
               <input id="rental-terms" name="aceptacion" type="checkbox" required>
-              <span>Certifico que he leÃ­do y acepto las normas, reglamentos y condiciones establecidas por el Museo.</span>
+              <span>Certifico que he leído y acepto las normas, reglamentos y condiciones establecidas por el Museo.</span>
             </label>
 
             <div class="inventory-actions">
@@ -190,9 +190,9 @@
         <section class="card panel rental-admin-panel" data-rental-admin>
           <div class="panel-heading-inline">
             <div>
-              <p class="page-kicker">AdministraciÃ³n</p>
-              <h3>Historial de Solicitudes y ConfiguraciÃ³n de Espacios</h3>
-              <p>Las solicitudes aprobadas sincronizan calendario, historial y proyecciÃ³n de ingresos.</p>
+              <p class="page-kicker">Administración</p>
+              <h3>Historial de Solicitudes y Configuración de Espacios</h3>
+              <p>Las solicitudes aprobadas sincronizan calendario, historial y proyección de ingresos.</p>
             </div>
           </div>
           <div class="table-wrap">
@@ -218,7 +218,7 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=deposito-artes-20260708"></script>
+  <script src="js/app.js?v=deposito-artes-papeleria-20260708"></script>
 </body>
 </html>
 
