@@ -2179,7 +2179,7 @@ function bindHumanResourcesModule() {
       const adminActions = canManageEmployees()
         ? `
           <button type="button" data-employee-edit="${employee.id}">Editar</button>
-          <button type="button" data-employee-reset="${employee.id}">Restablecer contraseña</button>
+          <button type="button" data-employee-reset="${employee.id}" hidden aria-hidden="true">Restablecer contraseña</button>
           <button type="button" data-employee-toggle="${employee.id}">${isInactive ? "Activar" : "Desactivar"}</button>
           ${deleteButton}
         `
@@ -2307,7 +2307,7 @@ function bindHumanResourcesModule() {
       notificaciones: data.get("notificaciones").trim()
     };
 
-    if (!employee.nombre || !employee.apellidos || !employee.posicion || !employee.departamento || !employee.correo || !employee.usuario || !employee.passwordTemporal) {
+    if (!employee.nombre || !employee.apellidos || !employee.posicion || !employee.departamento || !employee.correo) {
       setMessage("Complete los campos obligatorios antes de crear el empleado.", "error");
       return;
     }

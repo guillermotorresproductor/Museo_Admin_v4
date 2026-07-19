@@ -102,25 +102,21 @@
               </label>
             </div>
 
-            <div class="form-row">
-              <label class="field">
-                <span>Nombre de usuario</span>
-                <input type="text" name="usuario" required>
-              </label>
-              <label class="field">
-                <span>Contraseña temporal</span>
-                <input type="text" name="passwordTemporal" required>
-              </label>
+            <div class="access-notice" role="note">
+              La creación de este expediente no crea automáticamente una cuenta de acceso. Las cuentas se administran actualmente desde Supabase Authentication.
             </div>
+            <input type="hidden" name="usuario">
+            <input type="hidden" name="passwordTemporal">
 
             <div class="form-row">
               <label class="field">
-                <span>Rol dentro del sistema</span>
+                <span>Nivel de acceso</span>
                 <select name="acceso" required>
                   <option>Empleado</option>
                   <option>Ejecutivo</option>
                   <option>Administrador</option>
                 </select>
+                <small class="field-hint">Este valor pertenece al expediente. El acceso efectivo depende del perfil asociado en Supabase.</small>
               </label>
               <label class="field">
                 <span>Estado</span>
