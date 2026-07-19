@@ -47,6 +47,22 @@ Instituva debe:
 - evitar que prototipos, datos demo o información local se presenten como fuente oficial;
 - documentar las decisiones de arquitectura por módulo antes de implementar cambios mayores.
 
+## Valores administrativos y valores contables
+
+Instituva podrá almacenar valores administrativos cuando sean necesarios para la operación del museo.
+
+Estos valores pueden incluir, según el módulo:
+
+- valor estimado;
+- valor asegurado;
+- valor de reposición;
+- otros valores operacionales o museográficos.
+
+Dichos valores no constituyen la contabilidad oficial del museo.
+
+QuickBooks continuará siendo la fuente oficial de toda información financiera y contable.
+
+Los valores almacenados por Instituva no deberán utilizarse para reemplazar registros contables, depreciaciones, activos financieros ni estados financieros oficiales.
 ## 5. Responsabilidades de sistemas externos
 
 Los sistemas externos conservan la responsabilidad oficial sobre la información que les pertenece.
@@ -94,5 +110,4 @@ Los documentos específicos aprobados son:
 - `docs/architecture/07_FINANCE_ARCHITECTURE.md`: define la responsabilidad futura entre Instituva y QuickBooks, estableciendo a QuickBooks como fuente oficial financiera.
 
 Cuando exista una duda entre este documento general y un documento específico aprobado, debe revisarse el documento específico del módulo correspondiente y mantener el flujo de auditoría antes de cambiar la implementación.
-
 
