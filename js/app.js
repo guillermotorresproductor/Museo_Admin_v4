@@ -2495,9 +2495,13 @@ function bindNotificationsModule() {
     </label>
   `;
 
+  const validNotificationRecipients = () => getEmployeeRecords().filter((employee) =>
+    employee.source === "supabase" && employee.estado !== "Inactivo"
+  );
+
   const render = () => {
-    const employees = getEmployeeRecords();
-    list.innerHTML = employees.map((employee) => {
+    const employees = validNotificationRecipients();
+    list.innerHTML = employees.length ? employees.map((employee) => {
       const prefs = employeePreferences(preferences, employee.id);
       return `
         <tr>
@@ -2509,7 +2513,7 @@ function bindNotificationsModule() {
           ${notificationTypes.map((type) => `<td>${renderToggle(employee, type, Boolean(prefs[type.key]))}</td>`).join("")}
         </tr>
       `;
-    }).join("");
+    }).join("") : `<tr><td colspan="7">No hay empleados activos de Supabase disponibles para configurar.</td></tr>`;
 
     setMessage(canEdit
       ? "Preferencias cargadas desde Supabase y listas para futuras integraciones."
@@ -2523,6 +2527,13 @@ function bindNotificationsModule() {
 
     const employeeId = toggle.dataset.employeeId;
     const type = toggle.dataset.notificationType;
+    const employee = validNotificationRecipients().find((record) => record.id === employeeId);
+    const notificationType = notificationTypes.find((record) => record.key === type);
+    if (!employee || !notificationType) {
+      toggle.checked = Boolean(employeePreferences(preferences, employeeId)[type]);
+      setMessage("Solo se pueden guardar preferencias para empleados activos sincronizados desde Supabase.", "error");
+      return;
+    }
     preferences[employeeId] = employeePreferences(preferences, employeeId);
     preferences[employeeId][type] = toggle.checked;
     try {
