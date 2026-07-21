@@ -5,6 +5,7 @@ if (!url || !anon || !service) throw new Error("Missing staging test environment
 const serviceHeaders = { apikey: service, Authorization: `Bearer ${service}`, "Content-Type": "application/json" };
 const createdUsers = [];
 const createdEmployees = [];
+const createdTimeEntries = [];
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 async function api(path, { method="GET", headers={}, body }={}) {
   const response = await fetch(`${url}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -34,6 +35,7 @@ try {
   await createEmployee(employee,"Employee"); await createEmployee(finance,"Finance"); await createEmployee(admin,"Admin");
   const employeeToken=await signIn(employee), financeToken=await signIn(finance), adminToken=await signIn(admin);
   assert(await permission(employeeToken,"employees.read.self")===true,"Employee self permission missing");
+  assert(await permission(employeeToken,"time.clock")===true,"Employee time.clock permission missing");
   assert(await permission(employeeToken,"employees.read.all")===false,"Employee received read.all");
   assert(await permission(financeToken,"finance.read")===true,"Finance permission missing");
   assert(await permission(financeToken,"employees.medical.read")===false,"Finance received medical access");
@@ -44,13 +46,22 @@ try {
   const forbiddenInsert=await api("/rest/v1/employees",{method:"POST",headers:{apikey:anon,Authorization:`Bearer ${employeeToken}`,"Content-Type":"application/json"},body:{museum_id:(await profile(employee.id)).museum_id,first_name:"No",last_name:"Permission",position:"QA",department:"QA",email:"blocked@example.invalid"}}); assert(forbiddenInsert.response.status===403,"Employee insert was not blocked");
   const deniedEdge=await invoke("assign-sensitive-role",employeeToken,{user_id:employee.id,role_code:"supervisor"}); assert(deniedEdge.response.status===403,"Unauthorized Edge Function call was not blocked");
   const deniedInvite=await invoke("invite-employee",employeeToken,{employee_id:createdEmployees[0]}); assert(deniedInvite.response.status===403,"Unauthorized employee invitation was not blocked");
+  const directTimeInsert=await api("/rest/v1/employee_time_entries",{method:"POST",headers:{apikey:anon,Authorization:`Bearer ${employeeToken}`,"Content-Type":"application/json"},body:{museum_id:(await profile(employee.id)).museum_id,employee_id:createdEmployees[0],clock_in:new Date().toISOString(),created_by:employee.id}}); assert(directTimeInsert.response.status===403,"Direct time entry insert was not blocked");
+  const clockIn=await invoke("clock-employee-time",employeeToken,{action:"clock_in"}); assert(clockIn.response.ok&&clockIn.data.entry?.clock_in&&!clockIn.data.entry?.clock_out,"Employee clock in failed"); createdTimeEntries.push(clockIn.data.entry.id);
+  const duplicateClockIn=await invoke("clock-employee-time",employeeToken,{action:"clock_in"}); assert(duplicateClockIn.response.status===409,"Duplicate clock in was not blocked");
+  const ownTime=await api(`/rest/v1/employee_time_entries?select=id,clock_in,clock_out&id=eq.${clockIn.data.entry.id}`,{headers:{apikey:anon,Authorization:`Bearer ${employeeToken}`}}); assert(ownTime.response.ok&&ownTime.data.length===1,"Employee could not read own time entry");
+  const isolatedTime=await api(`/rest/v1/employee_time_entries?select=id&id=eq.${clockIn.data.entry.id}`,{headers:{apikey:anon,Authorization:`Bearer ${financeToken}`}}); assert(isolatedTime.response.ok&&isolatedTime.data.length===0,"Another employee could read the time entry");
+  const clockOut=await invoke("clock-employee-time",employeeToken,{action:"clock_out"}); assert(clockOut.response.ok&&clockOut.data.entry?.clock_out,"Employee clock out failed");
+  const timeAudits=await api(`/rest/v1/audit_logs?select=id&record_id=eq.${clockIn.data.entry.id}`,{headers:serviceHeaders}); assert(timeAudits.response.ok&&timeAudits.data.length===2,"Time clock audit trail is incomplete");
   const allowedEdge=await invoke("assign-sensitive-role",adminToken,{user_id:employee.id,role_code:"supervisor"}); assert(allowedEdge.response.ok,"Authorized role assignment failed");
   const statusEdge=await invoke("set-employee-status",adminToken,{employee_id:createdEmployees[0],status:"inactivo"}); assert(statusEdge.response.ok&&statusEdge.data.employee.status==="inactivo","Authorized employee deactivation failed");
   await api(`/rest/v1/employees?id=eq.${createdEmployees[0]}`,{method:"DELETE",headers:{apikey:anon,Authorization:`Bearer ${adminToken}`}});
   const stillPresent=await api(`/rest/v1/employees?select=id&id=eq.${createdEmployees[0]}`,{headers:serviceHeaders}); assert(stillPresent.response.ok&&stillPresent.data.length===1,"Physical employee delete was not blocked");
-  console.log(JSON.stringify({passed:true,checks:14}));
+  console.log(JSON.stringify({passed:true,checks:22}));
 } catch (error) { failure=error; }
 finally {
+  if (createdTimeEntries.length) await api(`/rest/v1/audit_logs?record_id=in.(${createdTimeEntries.join(",")})`,{method:"DELETE",headers:serviceHeaders});
+  for (const id of createdTimeEntries) await api(`/rest/v1/employee_time_entries?id=eq.${id}`,{method:"DELETE",headers:serviceHeaders});
   if (createdEmployees.length) await api(`/rest/v1/audit_logs?record_id=in.(${createdEmployees.join(",")})`,{method:"DELETE",headers:serviceHeaders});
   for (const id of createdEmployees) await api(`/rest/v1/employees?id=eq.${id}`,{method:"DELETE",headers:serviceHeaders});
   for (const id of createdUsers) await api(`/rest/v1/audit_logs?actor_user_id=eq.${id}`,{method:"DELETE",headers:serviceHeaders});
