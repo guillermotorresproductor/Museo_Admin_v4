@@ -1777,6 +1777,13 @@ body {
   border-top: 1px solid var(--line);
 }
 
+.employee-form > .form-row + .form-row,
+.employee-form > .access-notice + .form-row,
+.employee-form > .form-row + .field {
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
 .panel-heading-inline {
   display: flex;
   align-items: flex-start;
