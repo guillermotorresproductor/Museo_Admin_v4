@@ -33,6 +33,7 @@ async function supabaseGet(path) {
 function employeeFromSupabase(row) {
   return {
     id: row.id,
+    authUserId: row.auth_user_id || "",
     avatar: employeeInitials({ nombre: row.first_name, apellidos: row.last_name }),
     nombre: row.first_name || "",
     apellidos: row.last_name || "",
@@ -75,7 +76,7 @@ function employeeToSupabasePayload(employee, museumId) {
 }
 
 async function fetchSupabaseEmployees() {
-  const data = await supabaseGet("/rest/v1/employees?select=id,first_name,last_name,photo_url,position,department,email,phone,address,hire_date,work_schedule,education_level,status,created_at&order=created_at.asc");
+  const data = await supabaseGet("/rest/v1/employees?select=id,auth_user_id,first_name,last_name,photo_url,position,department,email,phone,address,hire_date,work_schedule,education_level,status,created_at&order=created_at.asc");
   return data.map(employeeFromSupabase);
 }
 async function saveSupabaseEmployee(employee, museumId, id) {
@@ -124,4 +125,15 @@ async function updateSupabaseEmployeeStatus(id, status) {
 async function fetchCurrentSupabasePermissions() {
   const data = await supabasePost("/rest/v1/rpc/current_user_permissions", {});
   return Array.isArray(data) ? data.map((item) => typeof item === "string" ? item : item.code).filter(Boolean) : [];
+}
+
+async function inviteSupabaseEmployee(employeeId) {
+  const response = await fetch(`${supabaseUrl}/functions/v1/invite-employee`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify({ employee_id: employeeId })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "No se pudo enviar la invitación.");
+  return data;
 }

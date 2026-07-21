@@ -43,11 +43,12 @@ try {
   const own=await api("/rest/v1/employees?select=id",{headers:{apikey:anon,Authorization:`Bearer ${employeeToken}`}}); assert(own.response.ok&&own.data.length===1,"Employee isolation failed");
   const forbiddenInsert=await api("/rest/v1/employees",{method:"POST",headers:{apikey:anon,Authorization:`Bearer ${employeeToken}`,"Content-Type":"application/json"},body:{museum_id:(await profile(employee.id)).museum_id,first_name:"No",last_name:"Permission",position:"QA",department:"QA",email:"blocked@example.invalid"}}); assert(forbiddenInsert.response.status===403,"Employee insert was not blocked");
   const deniedEdge=await invoke("assign-sensitive-role",employeeToken,{user_id:employee.id,role_code:"supervisor"}); assert(deniedEdge.response.status===403,"Unauthorized Edge Function call was not blocked");
+  const deniedInvite=await invoke("invite-employee",employeeToken,{employee_id:createdEmployees[0]}); assert(deniedInvite.response.status===403,"Unauthorized employee invitation was not blocked");
   const allowedEdge=await invoke("assign-sensitive-role",adminToken,{user_id:employee.id,role_code:"supervisor"}); assert(allowedEdge.response.ok,"Authorized role assignment failed");
   const statusEdge=await invoke("set-employee-status",adminToken,{employee_id:createdEmployees[0],status:"inactivo"}); assert(statusEdge.response.ok&&statusEdge.data.employee.status==="inactivo","Authorized employee deactivation failed");
   await api(`/rest/v1/employees?id=eq.${createdEmployees[0]}`,{method:"DELETE",headers:{apikey:anon,Authorization:`Bearer ${adminToken}`}});
   const stillPresent=await api(`/rest/v1/employees?select=id&id=eq.${createdEmployees[0]}`,{headers:serviceHeaders}); assert(stillPresent.response.ok&&stillPresent.data.length===1,"Physical employee delete was not blocked");
-  console.log(JSON.stringify({passed:true,checks:13}));
+  console.log(JSON.stringify({passed:true,checks:14}));
 } catch (error) { failure=error; }
 finally {
   if (createdEmployees.length) await api(`/rest/v1/audit_logs?record_id=in.(${createdEmployees.join(",")})`,{method:"DELETE",headers:serviceHeaders});

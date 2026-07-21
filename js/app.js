@@ -3211,6 +3211,7 @@ function bindEmployeeProfile() {
   const photoRemove = document.querySelector("[data-employee-photo-remove]");
   const photoMessage = document.querySelector("[data-employee-photo-message]");
   const saveButton = document.querySelector("[data-profile-save]");
+  const inviteButton = document.querySelector("[data-profile-invite]");
   const profileMessage = document.querySelector("[data-profile-message]");
 
   const setProfileMessage = (text, type = "") => {
@@ -3219,9 +3220,18 @@ function bindEmployeeProfile() {
     profileMessage.className = `form-message ${type}`.trim();
   };
 
+  const updateInviteButton = () => {
+    if (!inviteButton) return;
+    const canInvite = hasPermission("users.invite") && profile.source === "supabase";
+    inviteButton.hidden = !canInvite;
+    inviteButton.disabled = Boolean(profile.authUserId);
+    inviteButton.textContent = profile.authUserId ? "Acceso vinculado" : "Enviar invitación";
+  };
+
   if (avatar) avatar.textContent = profile.avatar || employeeInitials(profile);
   if (name) name.textContent = employeeDisplayName(profile);
   if (position) position.textContent = profile.posicion;
+  updateInviteButton();
 
   document.querySelectorAll("[data-profile-field]").forEach((field) => {
     const value = profile[field.dataset.profileField] || "";
@@ -3277,6 +3287,23 @@ function bindEmployeeProfile() {
       setProfileMessage("Fotografía removida. Presione Guardar cambios para conservar el cambio.", "success");
     });
   }
+
+  inviteButton?.addEventListener("click", async () => {
+    if (profile.authUserId) return;
+    if (!window.confirm(`Se enviará una invitación al correo del expediente de ${employeeDisplayName(profile)}. ¿Desea continuar?`)) return;
+
+    inviteButton.disabled = true;
+    setProfileMessage("Enviando invitación segura...", "success");
+    try {
+      const result = await inviteSupabaseEmployee(profile.id);
+      profile = { ...profile, authUserId: result.user_id };
+      updateInviteButton();
+      setProfileMessage("Invitación enviada e identidad vinculada correctamente.", "success");
+    } catch (error) {
+      updateInviteButton();
+      setProfileMessage(`No se pudo enviar la invitación: ${error.message}`, "error");
+    }
+  });
 
   saveButton?.addEventListener("click", async () => {
     const updatedProfile = { ...profile, foto: pendingPhoto };
