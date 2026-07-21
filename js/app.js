@@ -273,7 +273,7 @@ const postLoginDestination = () => hasAdministrativeWorkspaceAccess() ? "dashboa
 
 function enforceAuthenticatedPageAccess() {
   if (!getSupabaseSession()?.access_token || !currentPermissionsLoaded) return false;
-  const page = currentPageName();
+  const page = getCurrentPage();
   if (page === "login.html") return false;
   if (hasAdministrativeWorkspaceAccess()) {
     if (page === "employee-portal.html") {
