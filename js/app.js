@@ -835,7 +835,7 @@ function bindLoginDemo() {
   const invitationAccessToken = hash.get("access_token");
   const invitationType = hash.get("type");
 
-  if (invitationType === "invite" && invitationAccessToken && inviteCard && inviteForm) {
+  if (["invite", "recovery"].includes(invitationType) && invitationAccessToken && inviteCard && inviteForm) {
     const expiresIn = Number(hash.get("expires_in") || 3600);
     saveSupabaseSession({
       access_token: invitationAccessToken,
@@ -3427,7 +3427,20 @@ function bindEmployeeProfile() {
   });
 }
 
+function redirectAuthCallbackToLogin() {
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const callbackType = hash.get("type");
+  const hasAccessToken = Boolean(hash.get("access_token"));
+  const isPasswordCallback = ["invite", "recovery"].includes(callbackType) && hasAccessToken;
+  if (!isPasswordCallback || window.location.pathname.endsWith("login.html")) return false;
+
+  const environment = encodeURIComponent(museoEnvironment.name);
+  window.location.replace(`login.html?environment=${environment}${window.location.hash}`);
+  return true;
+}
+
 async function initApp() {
+  if (redirectAuthCallbackToLogin()) return;
   renderSidebar();
   renderHeader();
   renderFooter();
