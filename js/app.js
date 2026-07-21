@@ -263,10 +263,17 @@ const currentUserPhotoKey = "museo-admin-current-user-photo";
 const currentAccessLevelKey = "museo-admin-access-level";
 const SUPABASE_REFRESH_MARGIN_SECONDS = 60;
 let employeeRecords = Object.values(defaultEmployeeProfiles);
-const currentAccessLevel = () => localStorage.getItem(currentAccessLevelKey) || "Empleado";
-const canManageEmployees = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
-const canDeleteEmployees = () => currentAccessLevel() === "Administrador";
+let currentPermissions = new Set();
+const hasPermission = (permission) => currentPermissions.has(permission);
+const canManageEmployees = () => hasPermission("employees.create") || hasPermission("employees.update.basic");
 
+async function refreshCurrentPermissions() {
+  if (!getSupabaseSession()?.access_token) {
+    currentPermissions.clear();
+    return;
+  }
+  currentPermissions = new Set(await fetchCurrentSupabasePermissions());
+}
 function getSupabaseSession() {
   return JSON.parse(localStorage.getItem(supabaseSessionKey) || "null");
 }
@@ -281,6 +288,7 @@ function clearSupabaseSession() {
 
 function clearLoginState(redirect = true, reason = "") {
   clearSupabaseSession();
+  currentPermissions.clear();
   localStorage.removeItem(currentUserKey);
   localStorage.removeItem(currentUserPhotoKey);
   localStorage.removeItem(currentAccessLevelKey);
@@ -901,7 +909,7 @@ function bindRentalForm() {
   const cancellation = document.querySelector("[data-rental-cancellation]");
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   const currentUser = () => localStorage.getItem(currentUserKey) || "Administrador";
-  const canAdjust = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
+  const canAdjust = () => hasPermission("rentals.manage");
   let spaces = defaultRentalSpaces;
   let requests = [];
   const getSpaces = () => spaces;
@@ -1369,7 +1377,7 @@ function bindInventoryModule() {
   let sortKey = "fecha";
   let sortDirection = "desc";
 
-  const canEditInventory = () => canManageEmployees();
+  const canEditInventory = () => hasPermission("inventory.manage");
   const saveRecords = async () => saveSystemCollection("inventario", "records", records);
   const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({
@@ -1561,34 +1569,6 @@ function bindInventoryModule() {
       form.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
-    if (deleteButton) {
-      if (!canEditInventory()) return;
-      const record = records.find((item) => item.id === deleteButton.dataset.inventoryDelete);
-      if (!record) return;
-      if (!confirm(`¿Eliminar el registro "${record.nombre}"?`)) return;
-      const nextRecords = records.filter((item) => item.id !== record.id);
-      const previousRecords = records;
-      try {
-        records = nextRecords;
-        await saveRecords();
-        renderRecords();
-        setMessage("Registro eliminado de Supabase.", "success");
-      } catch (error) {
-        records = previousRecords;
-        setMessage(`No se pudo eliminar en Supabase: ${error.message}`, "error");
-      }
-    }
-
-    if (sortButton) {
-      const nextSort = sortButton.dataset.inventorySort;
-      if (sortKey === nextSort) {
-        sortDirection = sortDirection === "asc" ? "desc" : "asc";
-      } else {
-        sortKey = nextSort;
-        sortDirection = "asc";
-      }
-      renderRecords();
-    }
   });
 
   if (cancelButton) {
@@ -1657,8 +1637,7 @@ function bindCalendarModules() {
   let records = [];
 
   const saveRecords = async () => saveSystemCollection(moduleKey, "records", records);
-  const currentAccessLevel = localStorage.getItem(currentAccessLevelKey) || "Empleado";
-  const canEdit = () => ["Ejecutivo", "Administrador"].includes(currentAccessLevel);
+  const canEdit = () => hasPermission("calendar.manage");
   const createId = () => {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
     return `calendar-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1885,23 +1864,6 @@ function bindCalendarModules() {
       form.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
-    if (deleteButton) {
-      if (!canEdit()) return;
-      const record = records.find((item) => item.id === deleteButton.dataset.calendarDelete);
-      if (!record) return;
-      if (!confirm("¿Eliminar este registro del calendario?")) return;
-      const nextRecords = records.filter((item) => item.id !== record.id);
-      const previousRecords = records;
-      try {
-        records = nextRecords;
-        await saveRecords();
-        renderCalendar();
-        setMessage("Registro eliminado de Supabase.", "success");
-      } catch (error) {
-        records = previousRecords;
-        setMessage(`No se pudo eliminar en Supabase: ${error.message}`, "error");
-      }
-    }
   });
 
   panel.querySelector("[data-calendar-prev]")?.addEventListener("click", () => {
@@ -2112,9 +2074,6 @@ function bindHumanResourcesModule() {
     const records = getEmployeeRecords();
     directory.innerHTML = records.map((employee) => {
       const isInactive = employee.estado === "Inactivo";
-      const deleteButton = canDeleteEmployees()
-        ? `<button type="button" data-employee-delete="${employee.id}">Eliminar</button>`
-        : "";
       const profileLink = canManageEmployees()
         ? `<a href="perfil-empleado.html?empleado=${encodeURIComponent(employee.id)}">Ver Perfil</a>`
         : "";
@@ -2123,7 +2082,6 @@ function bindHumanResourcesModule() {
           <button type="button" data-employee-edit="${employee.id}">Editar</button>
           <button type="button" data-employee-reset="${employee.id}" hidden aria-hidden="true">Restablecer contraseña</button>
           <button type="button" data-employee-toggle="${employee.id}">${isInactive ? "Activar" : "Desactivar"}</button>
-          ${deleteButton}
         `
         : "";
 
@@ -2285,7 +2243,6 @@ function bindHumanResourcesModule() {
     const editButton = event.target.closest("[data-employee-edit]");
     const resetButton = event.target.closest("[data-employee-reset]");
     const toggleButton = event.target.closest("[data-employee-toggle]");
-    const deleteButton = event.target.closest("[data-employee-delete]");
     const records = getEmployeeRecords();
 
     if (editButton) {
@@ -2320,26 +2277,6 @@ function bindHumanResourcesModule() {
       setMessage(`Empleado ${estado.toLowerCase()} correctamente.`, "success");
     }
 
-    if (deleteButton) {
-      if (!canDeleteEmployees()) return;
-      const employee = records.find((item) => item.id === deleteButton.dataset.employeeDelete);
-      if (!employee || !confirm(`¿Eliminar a ${employeeDisplayName(employee)} del directorio?`)) return;
-      const session = getSupabaseSession();
-      if (!session?.access_token || employee.source !== "supabase") {
-        setMessage("Entre a Supabase antes de eliminar empleados.", "error");
-        return;
-      }
-      try {
-        await deleteSupabaseEmployee(employee.id);
-
-      } catch (error) {
-        setMessage(`No se pudo eliminar en Supabase: ${error.message}`, "error");
-        return;
-      }
-      saveEmployeeRecords(records.filter((item) => item.id !== employee.id));
-      renderDirectory();
-      setMessage("Empleado eliminado del directorio.", "success");
-    }
   });
 
   cancelButton?.addEventListener("click", () => {
@@ -2378,7 +2315,7 @@ function bindNotificationsModule() {
 
   const list = module.querySelector("[data-notifications-list]");
   const message = module.querySelector("[data-notifications-message]");
-  const canEdit = canManageEmployees();
+  const canEdit = hasPermission("notifications.manage");
   let preferences = {};
   const notificationTypes = [
     { key: "temperatura", label: "Temp./Humedad", source: "Sensores ambientales" },
@@ -2500,11 +2437,7 @@ function bindFinanceModule() {
   if (summary) summary.innerHTML = "";
   if (panel) panel.innerHTML = "";
 
-  const allowedUsers = {
-    "Guillermo Torres": "museo2026",
-    "Alberto Soto": "museo2026",
-    "Contable del Museo": "museo2026"
-  };
+
   let activeTab = "resumen";
   let currentUser = "";
   let currentProfile = null;
@@ -3165,23 +3098,7 @@ function bindFinanceModule() {
     URL.revokeObjectURL(link.href);
   };
 
-  loginForm?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const data = new FormData(loginForm);
-    const user = data.get("usuario");
-    const password = data.get("password");
-    if (allowedUsers[user] !== password) {
-      loginMessage.textContent = "Credenciales inválidas.";
-      loginMessage.className = "form-message error";
-      return;
-    }
-    currentUser = user;
-    if (!getSupabaseSession()?.access_token) {
-      showFinanceGateError("Finanzas requiere una sesión activa de Supabase. Entre primero por Mi cuenta.");
-      return;
-    }
-    openModule();
-  });
+
 
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -3222,7 +3139,11 @@ function bindFinanceModule() {
     button.addEventListener("click", () => exportQuickBooks(button.dataset.qbExport));
   });
 
-  if (getSupabaseSession()?.access_token && canManageEmployees()) {
+  if (!getSupabaseSession()?.access_token) {
+    showFinanceGateError("Finanzas requiere una sesión activa de Supabase. Entre primero por Mi cuenta.");
+  } else if (!hasPermission("finance.read")) {
+    showFinanceGateError("Su cuenta no tiene el permiso finance.read para abrir Finanzas.");
+  } else {
     openModule();
   }
 }
@@ -3367,6 +3288,7 @@ async function initApp() {
   renderFooter();
   renderInlineIcons();
   bindHeaderActions();
+  await refreshCurrentPermissions().catch(() => currentPermissions.clear());
   await syncEmployeeCacheFromSupabase().catch(() => null);
   updateCurrentUserFromEmployeeCache();
   renderHeader();

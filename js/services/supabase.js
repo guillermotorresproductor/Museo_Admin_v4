@@ -61,7 +61,7 @@ function employeeToSupabasePayload(employee, museumId) {
     museum_id: museumId,
     first_name: employee.nombre,
     last_name: employee.apellidos,
-    photo_url: employee.foto || null,
+    photo_url: employee.foto && !employee.foto.startsWith("data:") ? employee.foto : null,
     position: employee.posicion,
     department: employee.departamento,
     email: employee.correo,
@@ -70,14 +70,12 @@ function employeeToSupabasePayload(employee, museumId) {
     hire_date: employee.fechaContratacion || null,
     work_schedule: employee.horario || null,
     education_level: employee.educacion || null,
-    medical_condition: employee.condicion || null,
-    access_level: (employee.acceso || "Empleado").toLowerCase(),
     status: employee.estado === "Inactivo" ? "inactivo" : "activo"
   };
 }
 
 async function fetchSupabaseEmployees() {
-  const data = await supabaseGet("/rest/v1/employees?select=*&order=created_at.asc");
+  const data = await supabaseGet("/rest/v1/employees?select=id,first_name,last_name,photo_url,position,department,email,phone,address,hire_date,work_schedule,education_level,status,created_at&order=created_at.asc");
   return data.map(employeeFromSupabase);
 }
 async function saveSupabaseEmployee(employee, museumId, id) {
@@ -112,24 +110,18 @@ async function updateSupabaseEmployee(id, employee, museumId) {
   }
 }
 async function updateSupabaseEmployeeStatus(id, status) {
-  const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(id)}`, {
-    method: "PATCH",
+  const response = await fetch(`${supabaseUrl}/functions/v1/set-employee-status`, {
+    method: "POST",
     headers: await supabaseAuthHeaders(),
-    body: JSON.stringify({ status: status === "Inactivo" ? "inactivo" : "activo" })
+    body: JSON.stringify({ employee_id: id, status: status === "Inactivo" ? "inactivo" : "activo" })
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.message || "No se pudo actualizar el estado en Supabase.");
+    throw new Error(data.error || "No se pudo actualizar el estado en Supabase.");
   }
 }
 
-async function deleteSupabaseEmployee(id) {
-  const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(id)}`, {
-    method: "DELETE",
-    headers: await supabaseAuthHeaders()
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(data.message || "No se pudo eliminar el empleado en Supabase.");
-  }
+async function fetchCurrentSupabasePermissions() {
+  const data = await supabasePost("/rest/v1/rpc/current_user_permissions", {});
+  return Array.isArray(data) ? data.map((item) => typeof item === "string" ? item : item.code).filter(Boolean) : [];
 }

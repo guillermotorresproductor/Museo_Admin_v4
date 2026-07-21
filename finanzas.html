@@ -16,24 +16,9 @@
         <section class="finance-gate card panel" data-finance-gate>
           <span class="module-icon theme-teal" data-icon="dollar"></span>
           <h3>Acceso a Finanzas</h3>
-          <p>Área restringida. Este módulo usa Supabase como fuente única de datos financieros.</p>
-          <form class="finance-login" data-finance-login>
-            <label class="field">
-              <span>Usuario</span>
-              <select name="usuario" required>
-                <option value="">Seleccione...</option>
-                <option>Guillermo Torres</option>
-                <option>Alberto Soto</option>
-                <option>Contable del Museo</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Contraseña</span>
-              <input type="password" name="password" required>
-            </label>
-            <button class="button submit-button" type="submit">Entrar</button>
-            <p class="form-message" data-finance-login-message></p>
-          </form>
+          <p>Área restringida. El acceso se valida con su sesión de Supabase y el permiso financiero asignado.</p>
+          <p class="form-message" data-finance-login-message></p>
+          <a class="button submit-button" href="login.html">Entrar a mi cuenta</a>
         </section>
 
         <section class="finance-module" data-finance-module hidden>
