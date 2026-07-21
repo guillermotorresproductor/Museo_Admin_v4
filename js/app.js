@@ -1,4 +1,4 @@
-﻿const appPages = {
+const appPages = {
   "index.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
   "dashboard.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
   "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Música." },
@@ -262,7 +262,7 @@ const currentUserKey = "museo-admin-current-user";
 const currentUserPhotoKey = "museo-admin-current-user-photo";
 const currentAccessLevelKey = "museo-admin-access-level";
 const SUPABASE_REFRESH_MARGIN_SECONDS = 60;
-= Object.values(defaultEmployeeProfiles);
+let employeeRecords = Object.values(defaultEmployeeProfiles);
 const currentAccessLevel = () => localStorage.getItem(currentAccessLevelKey) || "Empleado";
 const canManageEmployees = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
 const canDeleteEmployees = () => currentAccessLevel() === "Administrador";
@@ -461,8 +461,6 @@ function employeeToSupabasePayload(employee, museumId) {
     access_level: (employee.acceso || "Empleado").toLowerCase(),
     status: employee.estado === "Inactivo" ? "inactivo" : "activo"
   };
-}
-
 }
 
 async function fetchSupabaseEmployees() {
