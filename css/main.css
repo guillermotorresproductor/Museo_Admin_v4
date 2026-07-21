@@ -2187,8 +2187,14 @@ body {
 
 .profile-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 18px;
+}
+
+.profile-close-button {
+  margin-left: auto;
+  align-self: flex-start;
 }
 
 .employee-photo-card {
