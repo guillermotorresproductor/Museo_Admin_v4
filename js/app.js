@@ -261,7 +261,8 @@ const supabaseSystemRecordsTable = "app_records";
 const currentUserKey = "museo-admin-current-user";
 const currentUserPhotoKey = "museo-admin-current-user-photo";
 const currentAccessLevelKey = "museo-admin-access-level";
-let employeeRecords = Object.values(defaultEmployeeProfiles);
+const SUPABASE_REFRESH_MARGIN_SECONDS = 60;
+= Object.values(defaultEmployeeProfiles);
 const currentAccessLevel = () => localStorage.getItem(currentAccessLevelKey) || "Empleado";
 const canManageEmployees = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
 const canDeleteEmployees = () => currentAccessLevel() === "Administrador";
@@ -323,7 +324,7 @@ async function refreshSupabaseSession() {
 async function supabaseAuthHeaders() {
   let session = getSupabaseSession();
   const expiresAt = Number(session?.expires_at || 0);
-  const expiresSoon = expiresAt && Date.now() / 1000 > expiresAt - 60;
+  const expiresSoon = expiresAt && Date.now() / 1000 > expiresAt - SUPABASE_REFRESH_MARGIN_SECONDS;
 
   if (!session?.access_token || expiresSoon) {
     session = await refreshSupabaseSession();
@@ -351,11 +352,7 @@ async function signInWithSupabase(email, password) {
 async function fetchSupabaseProfile() {
   const session = getSupabaseSession();
   if (!session?.user?.id) return null;
-  const response = await fetch(`${supabaseUrl}/rest/v1/profiles?select=*&id=eq.${encodeURIComponent(session.user.id)}&limit=1`, {
-    headers: await supabaseAuthHeaders()
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "No se pudo leer el perfil del usuario.");
+const data = await supabaseGet(`/rest/v1/profiles?select=*&id=eq.${encodeURIComponent(session.user.id)}&limit=1`);
   return data[0] || null;
 }
 
@@ -465,13 +462,36 @@ function employeeToSupabasePayload(employee, museumId) {
     status: employee.estado === "Inactivo" ? "inactivo" : "activo"
   };
 }
+async function supabaseGet(path) {
+    const response = await fetch(`${supabaseUrl}${path}`, {
+        headers: await supabaseAuthHeaders(),
+    });
 
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.message || "Error consultando Supabase.");
+    }
+
+    return data;
+}
+async function supabasePost(path, body) {
+    const response = await fetch(`${supabaseUrl}${path}`, {
+        method: "POST",
+        headers: await supabaseAuthHeaders(),
+        body: JSON.stringify(body)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.message || "Error consultando Supabase.");
+    }
+
+    return data;
+}
 async function fetchSupabaseEmployees() {
-  const response = await fetch(`${supabaseUrl}/rest/v1/employees?select=*&order=created_at.asc`, {
-    headers: await supabaseAuthHeaders()
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "No se pudo leer el Directorio de Empleados.");
+  const data = await supabaseGet("/rest/v1/employees?select=*&order=created_at.asc");
   return data.map(employeeFromSupabase);
 }
 
