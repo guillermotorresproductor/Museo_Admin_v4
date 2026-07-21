@@ -2309,15 +2309,8 @@ function bindHumanResourcesModule() {
         return;
       }
       try {
-        const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employee.id)}`, {
-          method: "PATCH",
-          headers: await supabaseAuthHeaders(),
-          body: JSON.stringify({ status: estado === "Inactivo" ? "inactivo" : "activo" })
-        });
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.message || "No se pudo actualizar el estado en Supabase.");
-        }
+        await updateSupabaseEmployeeStatus(employee.id, estado);
+
       } catch (error) {
         setMessage(`No se pudo actualizar Supabase: ${error.message}`, "error");
         return;
@@ -2337,14 +2330,8 @@ function bindHumanResourcesModule() {
         return;
       }
       try {
-        const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employee.id)}`, {
-          method: "DELETE",
-          headers: await supabaseAuthHeaders()
-        });
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.message || "No se pudo eliminar el empleado en Supabase.");
-        }
+        await deleteSupabaseEmployee(employee.id);
+
       } catch (error) {
         setMessage(`No se pudo eliminar en Supabase: ${error.message}`, "error");
         return;

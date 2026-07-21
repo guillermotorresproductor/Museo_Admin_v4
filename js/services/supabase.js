@@ -111,3 +111,25 @@ async function updateSupabaseEmployee(id, employee, museumId) {
     throw new Error(data.message || "No se pudo actualizar Supabase.");
   }
 }
+async function updateSupabaseEmployeeStatus(id, status) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify({ status: status === "Inactivo" ? "inactivo" : "activo" })
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || "No se pudo actualizar el estado en Supabase.");
+  }
+}
+
+async function deleteSupabaseEmployee(id) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: await supabaseAuthHeaders()
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || "No se pudo eliminar el empleado en Supabase.");
+  }
+}
