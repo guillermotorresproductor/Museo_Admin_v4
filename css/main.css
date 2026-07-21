@@ -1784,6 +1784,17 @@ body {
   border-top: 1px solid var(--line);
 }
 
+.button.employee-form-close {
+  background: #000000;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.button.employee-form-close:focus-visible {
+  outline: 3px solid rgba(198, 163, 91, 0.5);
+  outline-offset: 2px;
+}
+
 .panel-heading-inline {
   display: flex;
   align-items: flex-start;
