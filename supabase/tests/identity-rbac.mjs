@@ -39,6 +39,8 @@ try {
   assert(await permission(employeeToken,"employees.read.all")===false,"Employee received read.all");
   assert(await permission(financeToken,"finance.read")===true,"Finance permission missing");
   assert(await permission(hrToken,"time.read.all")===true,"HR time.read.all permission missing");
+  assert(await permission(hrToken,"compensation.manage")===true,"HR compensation permission missing");
+  assert(await permission(financeToken,"compensation.read")===false,"Finance received compensation access");
   assert(await permission(financeToken,"employees.medical.read")===false,"Finance received medical access");
   assert(await permission(adminToken,"roles.assign")===true,"Admin role assignment missing");
   assert(await permission(adminToken,"finance.read")===false,"Admin inherited finance access");
@@ -53,15 +55,22 @@ try {
   const ownTime=await api(`/rest/v1/employee_time_entries?select=id,clock_in,clock_out&id=eq.${clockIn.data.entry.id}`,{headers:{apikey:anon,Authorization:`Bearer ${employeeToken}`}}); assert(ownTime.response.ok&&ownTime.data.length===1,"Employee could not read own time entry");
   const isolatedTime=await api(`/rest/v1/employee_time_entries?select=id&id=eq.${clockIn.data.entry.id}`,{headers:{apikey:anon,Authorization:`Bearer ${financeToken}`}}); assert(isolatedTime.response.ok&&isolatedTime.data.length===0,"Another employee could read the time entry");
   const hrTime=await api(`/rest/v1/employee_time_entries?select=id&id=eq.${clockIn.data.entry.id}`,{headers:{apikey:anon,Authorization:`Bearer ${hrToken}`}}); assert(hrTime.response.ok&&hrTime.data.length===1,"HR could not read museum attendance");
+  const directCompensation=await api("/rest/v1/employee_compensation",{method:"POST",headers:{apikey:anon,Authorization:`Bearer ${hrToken}`,"Content-Type":"application/json"},body:{employee_id:createdEmployees[0],museum_id:(await profile(hr.id)).museum_id,compensation_type:"hourly",hourly_rate:37.41,updated_by:hr.id}}); assert(directCompensation.response.status===403,"Direct compensation insert was not blocked");
+  const sensitiveSave=await api("/rest/v1/rpc/save_employee_sensitive_details",{method:"POST",headers:{apikey:anon,Authorization:`Bearer ${hrToken}`,"Content-Type":"application/json"},body:{target_employee_id:createdEmployees[0],compensation:{compensation_type:"hourly",hourly_rate:"37.41",standard_hours_week:"40",overtime_eligible:"true",bonus_type:"none"},emergency_contact:{full_name:"Emergency Test",relationship:"Friend",primary_phone:"7875550101"}}}); assert(sensitiveSave.response.ok&&sensitiveSave.data.saved===true,"Sensitive compensation save failed");
+  const hrCompensation=await api(`/rest/v1/employee_compensation?select=employee_id,hourly_rate&employee_id=eq.${createdEmployees[0]}`,{headers:{apikey:anon,Authorization:`Bearer ${hrToken}`}}); assert(hrCompensation.response.ok&&hrCompensation.data.length===1&&Number(hrCompensation.data[0].hourly_rate)===37.41,"HR could not read compensation");
+  const financeCompensation=await api(`/rest/v1/employee_compensation?select=employee_id&employee_id=eq.${createdEmployees[0]}`,{headers:{apikey:anon,Authorization:`Bearer ${financeToken}`}}); assert(financeCompensation.response.ok&&financeCompensation.data.length===0,"Finance could read compensation");
+  const sensitiveAudit=await api(`/rest/v1/audit_logs?select=old_value,new_value&record_id=eq.${createdEmployees[0]}&action=eq.UPDATE_SENSITIVE_EMPLOYEE_DETAILS`,{headers:serviceHeaders}); assert(sensitiveAudit.response.ok&&sensitiveAudit.data.length===1&&!JSON.stringify(sensitiveAudit.data).includes("37.41"),"Sensitive audit exposed salary");
   const clockOut=await invoke("clock-employee-time",employeeToken,{action:"clock_out"}); assert(clockOut.response.ok&&clockOut.data.entry?.clock_out,"Employee clock out failed");
   const timeAudits=await api(`/rest/v1/audit_logs?select=id&record_id=eq.${clockIn.data.entry.id}`,{headers:serviceHeaders}); assert(timeAudits.response.ok&&timeAudits.data.length===2,"Time clock audit trail is incomplete");
   const allowedEdge=await invoke("assign-sensitive-role",adminToken,{user_id:employee.id,role_code:"supervisor"}); assert(allowedEdge.response.ok,"Authorized role assignment failed");
   const statusEdge=await invoke("set-employee-status",adminToken,{employee_id:createdEmployees[0],status:"inactivo"}); assert(statusEdge.response.ok&&statusEdge.data.employee.status==="inactivo","Authorized employee deactivation failed");
   await api(`/rest/v1/employees?id=eq.${createdEmployees[0]}`,{method:"DELETE",headers:{apikey:anon,Authorization:`Bearer ${adminToken}`}});
   const stillPresent=await api(`/rest/v1/employees?select=id&id=eq.${createdEmployees[0]}`,{headers:serviceHeaders}); assert(stillPresent.response.ok&&stillPresent.data.length===1,"Physical employee delete was not blocked");
-  console.log(JSON.stringify({passed:true,checks:24}));
+  console.log(JSON.stringify({passed:true,checks:31}));
 } catch (error) { failure=error; }
 finally {
+  for (const id of createdEmployees) await api(`/rest/v1/employee_compensation?employee_id=eq.${id}`,{method:"DELETE",headers:serviceHeaders});
+  for (const id of createdEmployees) await api(`/rest/v1/employee_emergency_contacts?employee_id=eq.${id}`,{method:"DELETE",headers:serviceHeaders});
   if (createdTimeEntries.length) await api(`/rest/v1/audit_logs?record_id=in.(${createdTimeEntries.join(",")})`,{method:"DELETE",headers:serviceHeaders});
   for (const id of createdTimeEntries) await api(`/rest/v1/employee_time_entries?id=eq.${id}`,{method:"DELETE",headers:serviceHeaders});
   if (createdEmployees.length) await api(`/rest/v1/audit_logs?record_id=in.(${createdEmployees.join(",")})`,{method:"DELETE",headers:serviceHeaders});

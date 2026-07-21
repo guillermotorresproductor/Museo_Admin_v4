@@ -168,3 +168,20 @@ async function fetchSupabaseAttendance({ from, to, employeeId } = {}) {
   filters.push("limit=500");
   return supabaseGet(`/rest/v1/employee_time_entries?${filters.join("&")}`);
 }
+
+async function fetchSupabaseEmployeeSensitiveDetails(employeeId) {
+  const id = encodeURIComponent(employeeId);
+  const [compensation, emergencyContacts] = await Promise.all([
+    supabaseGet(`/rest/v1/employee_compensation?select=*&employee_id=eq.${id}&limit=1`),
+    supabaseGet(`/rest/v1/employee_emergency_contacts?select=*&employee_id=eq.${id}&limit=1`)
+  ]);
+  return { compensation: compensation[0] || null, emergencyContact: emergencyContacts[0] || null };
+}
+
+async function saveSupabaseEmployeeSensitiveDetails(employeeId, compensation, emergencyContact) {
+  return supabasePost("/rest/v1/rpc/save_employee_sensitive_details", {
+    target_employee_id: employeeId,
+    compensation,
+    emergency_contact: emergencyContact
+  });
+}

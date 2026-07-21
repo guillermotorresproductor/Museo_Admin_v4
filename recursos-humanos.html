@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Recursos Humanos</title>
-  <link rel="stylesheet" href="css/main.css?v=hr-attendance-20260721">
+  <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
 </head>
 <body>
   <div class="app-shell">
@@ -127,6 +127,24 @@
               </label>
             </div>
 
+
+            <section class="employee-sensitive-section" data-compensation-section hidden>
+              <p class="page-kicker">Información restringida</p><h3>Compensación</h3><p class="field-hint">Visible solamente para Recursos Humanos y Administración. QuickBooks todavía no está conectado.</p>
+              <div class="form-row"><label class="field"><span>Tipo de compensación</span><select name="compensationType"><option value="unconfigured">Pendiente de configurar</option><option value="hourly">Pago por hora</option><option value="salary">Salario fijo</option><option value="commission">Comisión</option><option value="mixed">Mixto</option><option value="stipend">Estipendio</option><option value="other">Otro</option></select></label><label class="field"><span>Tarifa por hora ($)</span><input type="number" name="hourlyRate" min="0" step="0.01"></label></div>
+              <div class="form-row"><label class="field"><span>Salario base ($)</span><input type="number" name="salaryAmount" min="0" step="0.01"></label><label class="field"><span>Periodo del salario</span><select name="salaryPeriod"><option value="">No aplica</option><option value="weekly">Semanal</option><option value="biweekly">Bisemanal</option><option value="semimonthly">Quincenal</option><option value="monthly">Mensual</option><option value="annual">Anual</option></select></label></div>
+              <div class="form-row"><label class="field"><span>Frecuencia de pago</span><select name="payFrequency"><option value="">Seleccione...</option><option value="weekly">Semanal</option><option value="biweekly">Bisemanal</option><option value="semimonthly">Quincenal</option><option value="monthly">Mensual</option></select></label><label class="field"><span>Horas regulares por semana</span><input type="number" name="standardHoursWeek" min="0" max="168" step="0.25"></label></div>
+              <div class="form-row"><label class="field"><span>Equivalente mensual estimado ($)</span><input type="text" name="monthlyEquivalent" readonly><small class="field-hint">Cálculo informativo; no reemplaza el salario contractual.</small></label><label class="field"><span>Elegible para horas extra</span><select name="overtimeEligible"><option value="true">Sí</option><option value="false">No</option></select></label></div>
+              <div class="form-row"><label class="field"><span>Tipo de bonificación</span><select name="bonusType"><option value="none">Ninguna</option><option value="fixed">Cantidad fija</option><option value="percentage">Porcentaje</option><option value="discretionary">Discrecional</option><option value="statutory">Bono legal aplicable</option></select></label><label class="field"><span>Bonificación fija ($)</span><input type="number" name="bonusAmount" min="0" step="0.01"></label></div>
+              <div class="form-row"><label class="field"><span>Bonificación (%)</span><input type="number" name="bonusPercent" min="0" max="100" step="0.01"></label><label class="field"><span>Vigente desde</span><input type="date" name="compensationEffectiveFrom"></label></div>
+              <label class="field"><span>Otra forma de compensación / notas internas</span><textarea name="compensationOther" rows="2"></textarea></label>
+            </section>
+            <section class="employee-sensitive-section" data-emergency-section hidden>
+              <p class="page-kicker">Información restringida</p><h3>Contacto de emergencia</h3>
+              <div class="form-row"><label class="field"><span>Nombre completo</span><input type="text" name="emergencyName"></label><label class="field"><span>Relación o parentesco</span><input type="text" name="emergencyRelationship"></label></div>
+              <div class="form-row"><label class="field"><span>Teléfono principal</span><input type="tel" name="emergencyPrimaryPhone"></label><label class="field"><span>Teléfono alterno</span><input type="tel" name="emergencyAlternatePhone"></label></div>
+              <div class="form-row"><label class="field"><span>Correo electrónico (opcional)</span><input type="email" name="emergencyEmail"></label><label class="field"><span>Notas breves</span><input type="text" name="emergencyNotes"></label></div>
+            </section>
+
             <div class="access-notice" role="note">
               La creación de este expediente no crea automáticamente una cuenta de acceso. Las cuentas se administran actualmente desde Supabase Authentication.
             </div>
@@ -200,8 +218,8 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=hr-attendance-20260721"></script>
-  <script src="js/app.js?v=hr-attendance-20260721"></script>
+  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
+  <script src="js/app.js?v=employee-sensitive-20260721"></script>
 </body>
 </html>
 

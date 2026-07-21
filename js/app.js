@@ -2241,6 +2241,29 @@ function bindHumanResourcesModule() {
   const photoStatus = module.querySelector("[data-employee-photo-status]");
   let selectedPhoto = "";
   let supabaseProfile = null;
+  const canReadSensitiveEmployeeData = () => hasPermission("compensation.read") && hasPermission("emergency_contact.read");
+  const canManageSensitiveEmployeeData = () => hasPermission("compensation.manage") && hasPermission("emergency_contact.manage");
+  module.querySelectorAll("[data-compensation-section], [data-emergency-section]").forEach((section) => { section.hidden = !canReadSensitiveEmployeeData(); });
+
+  const updateMonthlyEquivalent = () => {
+    const rate = Number(form.elements.hourlyRate?.value || 0), hours = Number(form.elements.standardHoursWeek?.value || 0), salary = Number(form.elements.salaryAmount?.value || 0), period = form.elements.salaryPeriod?.value;
+    const factors = { weekly: 52 / 12, biweekly: 26 / 12, semimonthly: 2, monthly: 1, annual: 1 / 12 };
+    const value = form.elements.compensationType?.value === "hourly" ? rate * hours * 52 / 12 : salary * (factors[period] || 0);
+    if (form.elements.monthlyEquivalent) form.elements.monthlyEquivalent.value = value ? value.toLocaleString("es-PR", { style: "currency", currency: "USD" }) : "";
+  };
+  ["compensationType","hourlyRate","standardHoursWeek","salaryAmount","salaryPeriod"].forEach((name) => form.elements[name]?.addEventListener("input", updateMonthlyEquivalent));
+
+  const sensitiveEmployeePayload = (data) => ({
+    compensation: { compensation_type:data.get("compensationType"),hourly_rate:data.get("hourlyRate"),salary_amount:data.get("salaryAmount"),salary_period:data.get("salaryPeriod"),pay_frequency:data.get("payFrequency"),standard_hours_week:data.get("standardHoursWeek"),overtime_eligible:data.get("overtimeEligible"),bonus_type:data.get("bonusType"),bonus_amount:data.get("bonusAmount"),bonus_percent:data.get("bonusPercent"),other_description:data.get("compensationOther"),effective_from:data.get("compensationEffectiveFrom") },
+    emergencyContact: { full_name:data.get("emergencyName"),relationship:data.get("emergencyRelationship"),primary_phone:data.get("emergencyPrimaryPhone"),alternate_phone:data.get("emergencyAlternatePhone"),email:data.get("emergencyEmail"),notes:data.get("emergencyNotes") }
+  });
+
+  const loadSensitiveEmployeeData = async (employeeId) => {
+    if (!canReadSensitiveEmployeeData() || !employeeId) return;
+    const { compensation:c, emergencyContact:e } = await fetchSupabaseEmployeeSensitiveDetails(employeeId);
+    const values={compensationType:c?.compensation_type||"unconfigured",hourlyRate:c?.hourly_rate??"",salaryAmount:c?.salary_amount??"",salaryPeriod:c?.salary_period||"",payFrequency:c?.pay_frequency||"",standardHoursWeek:c?.standard_hours_week??"",overtimeEligible:String(c?.overtime_eligible??true),bonusType:c?.bonus_type||"none",bonusAmount:c?.bonus_amount??"",bonusPercent:c?.bonus_percent??"",compensationOther:c?.other_description||"",compensationEffectiveFrom:c?.effective_from||"",emergencyName:e?.full_name||"",emergencyRelationship:e?.relationship||"",emergencyPrimaryPhone:e?.primary_phone||"",emergencyAlternatePhone:e?.alternate_phone||"",emergencyEmail:e?.email||"",emergencyNotes:e?.notes||""};
+    Object.entries(values).forEach(([name,value])=>{if(form.elements[name])form.elements[name].value=value;}); updateMonthlyEquivalent();
+  };
 
   const setMessage = (text, type = "") => {
     if (!message) return;
@@ -2317,6 +2340,7 @@ function bindHumanResourcesModule() {
     if (photoStatus) photoStatus.textContent = "Ninguna fotografía seleccionada.";
     if (submitButton) submitButton.textContent = "Crear Empleado";
     if (cancelButton) cancelButton.hidden = true;
+    updateMonthlyEquivalent();
   };
 
   const showForm = () => {
@@ -2336,7 +2360,7 @@ function bindHumanResourcesModule() {
     }
   };
 
-  const loadForm = (employee) => {
+  const loadForm = async (employee) => {
     showForm();
     Object.entries(employee).forEach(([key, value]) => {
       const field = form.elements[key];
@@ -2347,6 +2371,7 @@ function bindHumanResourcesModule() {
     if (photoStatus) photoStatus.textContent = selectedPhoto ? "Fotografía existente cargada." : "Ninguna fotografía seleccionada.";
     if (submitButton) submitButton.textContent = "Actualizar Empleado";
     if (cancelButton) cancelButton.hidden = false;
+    await loadSensitiveEmployeeData(employee.id).catch(() => setMessage("No se pudieron cargar los datos sensibles del empleado.", "error"));
     form.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
@@ -2430,7 +2455,9 @@ function bindHumanResourcesModule() {
       try {
         if (!supabaseProfile) supabaseProfile = await fetchSupabaseProfile();
         if (!supabaseProfile?.museum_id) throw new Error("No se encontró el museo asociado al perfil.");
-        await saveSupabaseEmployee(employee, supabaseProfile.museum_id, id);
+        const savedEmployee = await saveSupabaseEmployee(employee, supabaseProfile.museum_id, id);
+        const savedEmployeeId = savedEmployee[0]?.id || id;
+        if (canManageSensitiveEmployeeData()) { const sensitive = sensitiveEmployeePayload(data); await saveSupabaseEmployeeSensitiveDetails(savedEmployeeId, sensitive.compensation, sensitive.emergencyContact); }
 
         const syncedRecords = await fetchSupabaseEmployees();
         saveEmployeeRecords(syncedRecords);
@@ -2456,7 +2483,7 @@ function bindHumanResourcesModule() {
 
     if (editButton) {
       const employee = records.find((item) => item.id === editButton.dataset.employeeEdit);
-      if (employee) loadForm(employee);
+      if (employee) await loadForm(employee);
     }
 
     if (resetButton) {
