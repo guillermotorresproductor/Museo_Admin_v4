@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Recursos Humanos</title>
-  <link rel="stylesheet" href="css/main.css?v=employee-portal-20260721">
+  <link rel="stylesheet" href="css/main.css?v=hr-attendance-20260721">
 </head>
 <body>
   <div class="app-shell">
@@ -168,14 +168,40 @@
             <h3 id="employee-list-title">Listado de empleados</h3>
             <div class="employee-list section-stack" aria-label="Directorio de empleados" data-employee-directory></div>
           </section>
+
+          <section class="hr-attendance section-stack" data-attendance-module hidden aria-labelledby="attendance-title">
+            <div class="panel-heading-inline">
+              <div>
+                <p class="page-kicker">Asistencia</p>
+                <h3 id="attendance-title">Registro de asistencia</h3>
+                <p>Consulta protegida de entradas y salidas registradas por el personal.</p>
+              </div>
+              <button class="button secondary" type="button" data-attendance-refresh>Actualizar</button>
+            </div>
+            <form class="attendance-filters" data-attendance-filters>
+              <label class="field"><span>Empleado</span><select name="employeeId" data-attendance-employee><option value="">Todos los empleados</option></select></label>
+              <label class="field"><span>Desde</span><input type="date" name="from" required></label>
+              <label class="field"><span>Hasta</span><input type="date" name="to" required></label>
+              <button class="button" type="submit">Aplicar filtros</button>
+            </form>
+            <p class="form-message" data-attendance-message></p>
+            <div class="attendance-summary" data-attendance-summary></div>
+            <div class="table-wrap attendance-table-wrap">
+              <table class="data-table attendance-table">
+                <thead><tr><th>Empleado</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Duración</th><th>Estado</th></tr></thead>
+                <tbody data-attendance-body><tr><td colspan="6">Cargando asistencia...</td></tr></tbody>
+              </table>
+            </div>
+          </section>
+
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=employee-portal-20260721"></script>
-  <script src="js/app.js?v=employee-portal-20260721"></script>
+  <script src="js/services/supabase.js?v=hr-attendance-20260721"></script>
+  <script src="js/app.js?v=hr-attendance-20260721"></script>
 </body>
 </html>
 

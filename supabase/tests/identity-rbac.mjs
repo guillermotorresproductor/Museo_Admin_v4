@@ -30,14 +30,15 @@ async function createEmployee(user,label) { const p=await profile(user.id); cons
 async function invoke(name,token,body){return api(`/functions/v1/${name}`,{method:"POST",headers:{apikey:anon,Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body});}
 let failure;
 try {
-  const employee=await createUser("employee"), finance=await createUser("finance"), admin=await createUser("admin");
-  await assign(finance,"finanzas"); await assign(admin,"administrador");
-  await createEmployee(employee,"Employee"); await createEmployee(finance,"Finance"); await createEmployee(admin,"Admin");
-  const employeeToken=await signIn(employee), financeToken=await signIn(finance), adminToken=await signIn(admin);
+  const employee=await createUser("employee"), finance=await createUser("finance"), admin=await createUser("admin"), hr=await createUser("hr");
+  await assign(finance,"finanzas"); await assign(admin,"administrador"); await assign(hr,"recursos_humanos");
+  await createEmployee(employee,"Employee"); await createEmployee(finance,"Finance"); await createEmployee(admin,"Admin"); await createEmployee(hr,"HR");
+  const employeeToken=await signIn(employee), financeToken=await signIn(finance), adminToken=await signIn(admin), hrToken=await signIn(hr);
   assert(await permission(employeeToken,"employees.read.self")===true,"Employee self permission missing");
   assert(await permission(employeeToken,"time.clock")===true,"Employee time.clock permission missing");
   assert(await permission(employeeToken,"employees.read.all")===false,"Employee received read.all");
   assert(await permission(financeToken,"finance.read")===true,"Finance permission missing");
+  assert(await permission(hrToken,"time.read.all")===true,"HR time.read.all permission missing");
   assert(await permission(financeToken,"employees.medical.read")===false,"Finance received medical access");
   assert(await permission(adminToken,"roles.assign")===true,"Admin role assignment missing");
   assert(await permission(adminToken,"finance.read")===false,"Admin inherited finance access");
@@ -51,13 +52,14 @@ try {
   const duplicateClockIn=await invoke("clock-employee-time",employeeToken,{action:"clock_in"}); assert(duplicateClockIn.response.status===409,"Duplicate clock in was not blocked");
   const ownTime=await api(`/rest/v1/employee_time_entries?select=id,clock_in,clock_out&id=eq.${clockIn.data.entry.id}`,{headers:{apikey:anon,Authorization:`Bearer ${employeeToken}`}}); assert(ownTime.response.ok&&ownTime.data.length===1,"Employee could not read own time entry");
   const isolatedTime=await api(`/rest/v1/employee_time_entries?select=id&id=eq.${clockIn.data.entry.id}`,{headers:{apikey:anon,Authorization:`Bearer ${financeToken}`}}); assert(isolatedTime.response.ok&&isolatedTime.data.length===0,"Another employee could read the time entry");
+  const hrTime=await api(`/rest/v1/employee_time_entries?select=id&id=eq.${clockIn.data.entry.id}`,{headers:{apikey:anon,Authorization:`Bearer ${hrToken}`}}); assert(hrTime.response.ok&&hrTime.data.length===1,"HR could not read museum attendance");
   const clockOut=await invoke("clock-employee-time",employeeToken,{action:"clock_out"}); assert(clockOut.response.ok&&clockOut.data.entry?.clock_out,"Employee clock out failed");
   const timeAudits=await api(`/rest/v1/audit_logs?select=id&record_id=eq.${clockIn.data.entry.id}`,{headers:serviceHeaders}); assert(timeAudits.response.ok&&timeAudits.data.length===2,"Time clock audit trail is incomplete");
   const allowedEdge=await invoke("assign-sensitive-role",adminToken,{user_id:employee.id,role_code:"supervisor"}); assert(allowedEdge.response.ok,"Authorized role assignment failed");
   const statusEdge=await invoke("set-employee-status",adminToken,{employee_id:createdEmployees[0],status:"inactivo"}); assert(statusEdge.response.ok&&statusEdge.data.employee.status==="inactivo","Authorized employee deactivation failed");
   await api(`/rest/v1/employees?id=eq.${createdEmployees[0]}`,{method:"DELETE",headers:{apikey:anon,Authorization:`Bearer ${adminToken}`}});
   const stillPresent=await api(`/rest/v1/employees?select=id&id=eq.${createdEmployees[0]}`,{headers:serviceHeaders}); assert(stillPresent.response.ok&&stillPresent.data.length===1,"Physical employee delete was not blocked");
-  console.log(JSON.stringify({passed:true,checks:22}));
+  console.log(JSON.stringify({passed:true,checks:24}));
 } catch (error) { failure=error; }
 finally {
   if (createdTimeEntries.length) await api(`/rest/v1/audit_logs?record_id=in.(${createdTimeEntries.join(",")})`,{method:"DELETE",headers:serviceHeaders});

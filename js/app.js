@@ -2159,6 +2159,72 @@ function bindMaterialsRequestModule() {
   loadMaterialRequests();
 }
 
+function bindHrAttendanceView() {
+  const module = document.querySelector("[data-attendance-module]");
+  if (!module || !hasPermission("time.read.all")) return;
+  module.hidden = false;
+  const form = module.querySelector("[data-attendance-filters]");
+  const employeeSelect = module.querySelector("[data-attendance-employee]");
+  const summary = module.querySelector("[data-attendance-summary]");
+  const body = module.querySelector("[data-attendance-body]");
+  const message = module.querySelector("[data-attendance-message]");
+  const refreshButton = module.querySelector("[data-attendance-refresh]");
+  const employeeMap = new Map(getEmployeeRecords().map((employee) => [employee.id, employee]));
+  const today = new Date();
+  const localDate = (date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" }).format(date);
+  form.elements.to.value = localDate(today);
+  form.elements.from.value = localDate(new Date(today.getFullYear(), today.getMonth(), 1));
+  employeeSelect.innerHTML = '<option value="">Todos los empleados</option>' + getEmployeeRecords().map((employee) => `<option value="${safeHtml(employee.id)}">${safeHtml(employeeDisplayName(employee))}</option>`).join("");
+
+  const formatTime = (value) => value ? formatPortalDate(value, { hour: "numeric", minute: "2-digit" }) : "Pendiente";
+  const formatDate = (value) => formatPortalDate(value, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+  const durationHours = (entry) => entry.clock_out ? Math.max(0, (new Date(entry.clock_out) - new Date(entry.clock_in)) / 3600000) : 0;
+  const setMessage = (text, type = "") => { message.textContent = text; message.className = `form-message ${type}`.trim(); };
+
+  const render = (entries) => {
+    const completed = entries.filter((entry) => entry.clock_out);
+    const open = entries.length - completed.length;
+    const totalHours = completed.reduce((total, entry) => total + durationHours(entry), 0);
+    const employees = new Set(entries.map((entry) => entry.employee_id)).size;
+    summary.innerHTML = [
+      ["Registros", entries.length],
+      ["Empleados", employees],
+      ["Horas completadas", totalHours.toLocaleString("es-PR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+      ["Ponches abiertos", open]
+    ].map(([label, value]) => `<article><span>${label}</span><strong>${value}</strong></article>`).join("");
+    if (!entries.length) {
+      body.innerHTML = '<tr><td colspan="6">No hay registros para los filtros seleccionados.</td></tr>';
+      return;
+    }
+    body.innerHTML = entries.map((entry) => {
+      const employee = employeeMap.get(entry.employee_id);
+      const name = employee ? employeeDisplayName(employee) : "Empleado no disponible";
+      const duration = entry.clock_out ? `${durationHours(entry).toLocaleString("es-PR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h` : "En curso";
+      return `<tr><td><strong>${safeHtml(name)}</strong></td><td>${formatDate(entry.clock_in)}</td><td>${formatTime(entry.clock_in)}</td><td>${formatTime(entry.clock_out)}</td><td>${duration}</td><td><span class="attendance-status ${entry.clock_out ? "is-complete" : "is-open"}">${entry.clock_out ? "Completado" : "Activo"}</span></td></tr>`;
+    }).join("");
+  };
+
+  const load = async () => {
+    const data = new FormData(form);
+    const from = String(data.get("from") || "");
+    const to = String(data.get("to") || "");
+    if (from && to && from > to) { setMessage("La fecha inicial no puede ser posterior a la fecha final.", "error"); return; }
+    setMessage("Consultando asistencia en Supabase...");
+    refreshButton.disabled = true;
+    try {
+      const entries = await fetchSupabaseAttendance({ from, to, employeeId: String(data.get("employeeId") || "") });
+      render(entries);
+      setMessage("Asistencia actualizada desde Supabase.", "success");
+    } catch (error) {
+      body.innerHTML = '<tr><td colspan="6">No se pudo cargar la asistencia.</td></tr>';
+      setMessage(error.message || "No se pudo consultar la asistencia.", "error");
+    } finally { refreshButton.disabled = false; }
+  };
+  form.addEventListener("submit", (event) => { event.preventDefault(); load(); });
+  refreshButton.addEventListener("click", load);
+  load();
+}
+
 function bindHumanResourcesModule() {
   const module = document.querySelector("[data-hr-module]");
   if (!module) return;
@@ -2436,6 +2502,7 @@ function bindHumanResourcesModule() {
 
   renderDirectory();
   syncDirectoryFromSupabase();
+  bindHrAttendanceView();
 }
 
 function populateSystemDataSelects() {

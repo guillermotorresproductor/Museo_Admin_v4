@@ -158,3 +158,13 @@ async function fetchOwnSupabaseNotifications(limit = 5) {
   const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 20);
   return supabaseGet(`/rest/v1/employee_notifications?select=id,title,message,category,read_at,created_at&order=created_at.desc&limit=${safeLimit}`);
 }
+
+async function fetchSupabaseAttendance({ from, to, employeeId } = {}) {
+  const filters = ["select=id,employee_id,clock_in,clock_out,source,sync_status"];
+  if (from) filters.push(`clock_in=gte.${encodeURIComponent(new Date(`${from}T00:00:00-04:00`).toISOString())}`);
+  if (to) filters.push(`clock_in=lte.${encodeURIComponent(new Date(`${to}T23:59:59-04:00`).toISOString())}`);
+  if (employeeId) filters.push(`employee_id=eq.${encodeURIComponent(employeeId)}`);
+  filters.push("order=clock_in.desc");
+  filters.push("limit=500");
+  return supabaseGet(`/rest/v1/employee_time_entries?${filters.join("&")}`);
+}
