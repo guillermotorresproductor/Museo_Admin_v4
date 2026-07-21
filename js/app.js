@@ -2051,6 +2051,7 @@ function bindHumanResourcesModule() {
   const createButton = module.querySelector("[data-employee-create]");
   const submitButton = module.querySelector("[data-employee-submit]");
   const cancelButton = module.querySelector("[data-employee-cancel]");
+  const closeButton = module.querySelector("[data-employee-close]");
   const message = module.querySelector("[data-employee-message]");
   const photoInput = module.querySelector("[data-employee-photo-picker]");
   const photoTrigger = module.querySelector("[data-employee-photo-trigger]");
@@ -2305,6 +2306,12 @@ function bindHumanResourcesModule() {
   });
 
   cancelButton?.addEventListener("click", () => {
+    resetForm();
+    hideForm();
+    setMessage("");
+  });
+
+  closeButton?.addEventListener("click", () => {
     resetForm();
     hideForm();
     setMessage("");
