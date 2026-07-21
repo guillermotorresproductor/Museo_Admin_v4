@@ -80,3 +80,34 @@ async function fetchSupabaseEmployees() {
   const data = await supabaseGet("/rest/v1/employees?select=*&order=created_at.asc");
   return data.map(employeeFromSupabase);
 }
+async function saveSupabaseEmployee(employee, museumId, id) {
+  const payload = employeeToSupabasePayload(employee, museumId);
+  const isSupabaseId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  const path = isSupabaseId
+    ? `/rest/v1/employees?id=eq.${encodeURIComponent(id)}`
+    : "/rest/v1/employees";
+  const response = await fetch(`${supabaseUrl}${path}`, {
+    method: isSupabaseId ? "PATCH" : "POST",
+    headers: {
+      ...(await supabaseAuthHeaders()),
+      Prefer: "return=representation"
+    },
+    body: JSON.stringify(payload)
+  });
+  const saved = await response.json();
+  if (!response.ok) throw new Error(saved.message || "No se pudo guardar el empleado en Supabase.");
+  return saved;
+}
+
+async function updateSupabaseEmployee(id, employee, museumId) {
+  const payload = employeeToSupabasePayload(employee, museumId);
+  const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.message || "No se pudo actualizar Supabase.");
+  }
+}

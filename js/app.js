@@ -2264,21 +2264,8 @@ function bindHumanResourcesModule() {
       try {
         if (!supabaseProfile) supabaseProfile = await fetchSupabaseProfile();
         if (!supabaseProfile?.museum_id) throw new Error("No se encontró el museo asociado al perfil.");
-        const payload = employeeToSupabasePayload(employee, supabaseProfile.museum_id);
-        const isSupabaseId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-        const url = isSupabaseId
-          ? `${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(id)}`
-          : `${supabaseUrl}/rest/v1/employees`;
-        const response = await fetch(url, {
-          method: isSupabaseId ? "PATCH" : "POST",
-          headers: {
-            ...(await supabaseAuthHeaders()),
-            Prefer: "return=representation"
-          },
-          body: JSON.stringify(payload)
-        });
-        const saved = await response.json();
-        if (!response.ok) throw new Error(saved.message || "No se pudo guardar el empleado en Supabase.");
+        await saveSupabaseEmployee(employee, supabaseProfile.museum_id, id);
+
         const syncedRecords = await fetchSupabaseEmployees();
         saveEmployeeRecords(syncedRecords);
         renderDirectory();
@@ -3362,16 +3349,8 @@ function bindEmployeeProfile() {
     if (session?.access_token && profile.source === "supabase") {
       try {
         const supabaseProfile = await fetchSupabaseProfile();
-        const payload = employeeToSupabasePayload(updatedProfile, supabaseProfile.museum_id);
-        const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(profile.id)}`, {
-          method: "PATCH",
-          headers: await supabaseAuthHeaders(),
-          body: JSON.stringify(payload)
-        });
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.message || "No se pudo actualizar Supabase.");
-        }
+        await updateSupabaseEmployee(profile.id, updatedProfile, supabaseProfile.museum_id);
+
         const records = getEmployeeRecords();
         saveEmployeeRecords(records.map((employee) => employee.id === profile.id ? updatedProfile : employee));
         profile = updatedProfile;
