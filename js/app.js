@@ -2048,6 +2048,7 @@ function bindHumanResourcesModule() {
 
   const directory = module.querySelector("[data-employee-directory]");
   const form = module.querySelector("[data-employee-form]");
+  const createButton = module.querySelector("[data-employee-create]");
   const submitButton = module.querySelector("[data-employee-submit]");
   const cancelButton = module.querySelector("[data-employee-cancel]");
   const message = module.querySelector("[data-employee-message]");
@@ -2134,7 +2135,25 @@ function bindHumanResourcesModule() {
     if (cancelButton) cancelButton.hidden = true;
   };
 
+  const showForm = () => {
+    form.hidden = false;
+    if (createButton) {
+      createButton.hidden = true;
+      createButton.setAttribute("aria-expanded", "true");
+    }
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const hideForm = () => {
+    form.hidden = true;
+    if (createButton) {
+      createButton.hidden = !canManageEmployees();
+      createButton.setAttribute("aria-expanded", "false");
+    }
+  };
+
   const loadForm = (employee) => {
+    showForm();
     Object.entries(employee).forEach(([key, value]) => {
       const field = form.elements[key];
       if (field && key !== "foto") field.value = value || "";
@@ -2147,9 +2166,14 @@ function bindHumanResourcesModule() {
     form.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  if (!canManageEmployees()) {
-    form.hidden = true;
-  }
+  form.hidden = true;
+  if (createButton) createButton.hidden = !canManageEmployees();
+
+  createButton?.addEventListener("click", () => {
+    resetForm();
+    setMessage("");
+    showForm();
+  });
 
   photoTrigger?.addEventListener("click", () => {
     photoInput?.click();
@@ -2228,6 +2252,7 @@ function bindHumanResourcesModule() {
         saveEmployeeRecords(syncedRecords);
         renderDirectory();
         resetForm();
+        hideForm();
         setMessage(existing ? "Empleado actualizado en Supabase." : "Empleado creado en Supabase y agregado al directorio.", "success");
         return;
       } catch (error) {
@@ -2281,6 +2306,7 @@ function bindHumanResourcesModule() {
 
   cancelButton?.addEventListener("click", () => {
     resetForm();
+    hideForm();
     setMessage("");
   });
 

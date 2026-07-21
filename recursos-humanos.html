@@ -18,9 +18,12 @@
           <h3>Directorio de Empleados</h3>
           <p>Base central de empleados del Museo. Los módulos del sistema toman sus empleados desde este directorio.</p>
 
-          <div class="employee-list section-stack" aria-label="Directorio de empleados" data-employee-directory></div>
+          <div class="inventory-actions section-stack">
+            <button class="button" type="button" data-employee-create aria-controls="employee-form" aria-expanded="false" hidden>Crear empleado</button>
+          </div>
+          <p class="form-message" data-employee-message></p>
 
-          <form class="employee-form section-stack" data-employee-form>
+          <form id="employee-form" class="employee-form section-stack" data-employee-form hidden>
             <input type="hidden" name="id">
             <div class="panel-heading-inline">
               <div>
@@ -157,8 +160,13 @@
               <button class="button submit-button" type="submit" data-employee-submit>Crear Empleado</button>
               <button class="button secondary" type="button" data-employee-cancel hidden>Cancelar edición</button>
             </div>
-            <p class="form-message" data-employee-message></p>
           </form>
+
+          <section class="section-stack" aria-labelledby="employee-list-title">
+            <p class="page-kicker">Directorio</p>
+            <h3 id="employee-list-title">Listado de empleados</h3>
+            <div class="employee-list section-stack" aria-label="Directorio de empleados" data-employee-directory></div>
+          </section>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
