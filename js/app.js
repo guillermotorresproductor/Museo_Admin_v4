@@ -462,34 +462,9 @@ function employeeToSupabasePayload(employee, museumId) {
     status: employee.estado === "Inactivo" ? "inactivo" : "activo"
   };
 }
-async function supabaseGet(path) {
-    const response = await fetch(`${supabaseUrl}${path}`, {
-        headers: await supabaseAuthHeaders(),
-    });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-        throw new Error(data.message || "Error consultando Supabase.");
-    }
-
-    return data;
 }
-async function supabasePost(path, body) {
-    const response = await fetch(`${supabaseUrl}${path}`, {
-        method: "POST",
-        headers: await supabaseAuthHeaders(),
-        body: JSON.stringify(body)
-    });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-        throw new Error(data.message || "Error consultando Supabase.");
-    }
-
-    return data;
-}
 async function fetchSupabaseEmployees() {
   const data = await supabaseGet("/rest/v1/employees?select=*&order=created_at.asc");
   return data.map(employeeFromSupabase);
