@@ -824,8 +824,37 @@ function bindNotificationMenu() {
 function bindLoginDemo() {
   const form = document.querySelector("[data-login-form]");
   if (!form) return;
+
+  const loginCard = document.querySelector("[data-login-card]");
   const message = document.querySelector("[data-login-message]");
+  const inviteCard = document.querySelector("[data-invite-acceptance]");
+  const inviteForm = document.querySelector("[data-invite-password-form]");
+  const inviteMessage = document.querySelector("[data-invite-password-message]");
   const reason = new URLSearchParams(window.location.search).get("reason");
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const invitationAccessToken = hash.get("access_token");
+  const invitationType = hash.get("type");
+
+  if (invitationType === "invite" && invitationAccessToken && inviteCard && inviteForm) {
+    const expiresIn = Number(hash.get("expires_in") || 3600);
+    saveSupabaseSession({
+      access_token: invitationAccessToken,
+      refresh_token: hash.get("refresh_token") || "",
+      expires_in: expiresIn,
+      expires_at: Math.floor(Date.now() / 1000) + expiresIn,
+      token_type: hash.get("token_type") || "bearer"
+    });
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    if (loginCard) loginCard.hidden = true;
+    inviteCard.hidden = false;
+  } else if (hash.get("error_description")) {
+    if (message) {
+      message.textContent = hash.get("error_description");
+      message.className = "login-help error";
+    }
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  }
+
   if (message && reason === "idle") {
     message.textContent = "La sesión se cerró automáticamente por inactividad.";
     message.className = "login-help";
@@ -834,6 +863,63 @@ function bindLoginDemo() {
     message.textContent = "Sesión cerrada correctamente.";
     message.className = "login-help";
   }
+
+  inviteForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const formData = new FormData(inviteForm);
+    const password = String(formData.get("password") || "");
+    const confirmation = String(formData.get("passwordConfirmation") || "");
+    const strongPassword = password.length >= 12 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
+
+    if (!strongPassword) {
+      if (inviteMessage) {
+        inviteMessage.textContent = "La contraseña debe tener 12 caracteres o más, con mayúscula, minúscula, número y símbolo.";
+        inviteMessage.className = "login-help error";
+      }
+      return;
+    }
+    if (password !== confirmation) {
+      if (inviteMessage) {
+        inviteMessage.textContent = "Las contraseñas no coinciden.";
+        inviteMessage.className = "login-help error";
+      }
+      return;
+    }
+
+    const submitButton = inviteForm.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+    if (inviteMessage) {
+      inviteMessage.textContent = "Activando la cuenta...";
+      inviteMessage.className = "login-help";
+    }
+
+    try {
+      const session = getSupabaseSession();
+      if (!session?.access_token) throw new Error("El enlace de invitación no es válido o expiró.");
+      const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        method: "PUT",
+        headers: {
+          ...supabaseHeaders(),
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ password })
+      });
+      const user = await response.json();
+      if (!response.ok) throw new Error(user.msg || user.message || "No se pudo crear la contraseña.");
+
+      saveSupabaseSession({ ...session, user });
+      localStorage.setItem(currentUserKey, user.user_metadata?.full_name || user.email || "Empleado");
+      localStorage.setItem(currentAccessLevelKey, "Empleado");
+      localStorage.removeItem(currentUserPhotoKey);
+      window.location.replace("dashboard.html");
+    } catch (error) {
+      if (inviteMessage) {
+        inviteMessage.textContent = error.message || "No se pudo activar la cuenta.";
+        inviteMessage.className = "login-help error";
+      }
+      if (submitButton) submitButton.disabled = false;
+    }
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -870,7 +956,6 @@ function bindLoginDemo() {
     }
   });
 }
-
 function bindIdleLogout() {
   const timeoutMs = 8 * 60 * 1000;
   let timer = null;

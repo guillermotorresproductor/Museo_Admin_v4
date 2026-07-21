@@ -20,7 +20,7 @@
             <p>Entrada segura para el personal autorizado del Museo.</p>
           </div>
         </section>
-        <section class="card panel login-card">
+        <section class="card panel login-card" data-login-card>
           <h3>Entrar al Sistema</h3>
           <p>Use el correo electrónico y la contraseña asignados por Administración.</p>
           <form class="form-grid" data-login-form>
@@ -34,6 +34,23 @@
             </div>
             <button class="button" type="submit">Entrar</button>
             <p class="login-help" data-login-message>Acceso preparado para usuarios del Museo.</p>
+          </form>
+        </section>
+        <section class="card panel login-card" data-invite-acceptance hidden>
+          <h3>Crear contraseña</h3>
+          <p>Establezca una contraseña privada para activar su acceso al Museo.</p>
+          <form class="form-grid" data-invite-password-form>
+            <div class="field">
+              <label for="invite-password">Nueva contraseña</label>
+              <input id="invite-password" name="password" type="password" autocomplete="new-password" minlength="12" required>
+            </div>
+            <div class="field">
+              <label for="invite-password-confirmation">Confirmar contraseña</label>
+              <input id="invite-password-confirmation" name="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required>
+            </div>
+            <p class="field-hint">Use 12 caracteres o más e incluya mayúscula, minúscula, número y símbolo.</p>
+            <button class="button" type="submit">Activar mi cuenta</button>
+            <p class="login-help" data-invite-password-message>El enlace de invitación será validado antes de activar la cuenta.</p>
           </form>
         </section>
       </main>
