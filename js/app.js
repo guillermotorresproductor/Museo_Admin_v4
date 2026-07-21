@@ -254,9 +254,9 @@ const defaultEmployeeProfiles = {
   }
 };
 
-const supabaseUrl = "https://kfokfjngozgcwjpzxcsu.supabase.co";
-const supabasePublishableKey = "sb_publishable_wBGL3o2YcfbR_dvhT3mTnw_OXuHB0y3";
-const supabaseSessionKey = "museo-admin-supabase-session";
+const supabaseUrl = museoEnvironment.supabaseUrl;
+const supabasePublishableKey = museoEnvironment.supabasePublishableKey;
+const supabaseSessionKey = `museo-admin-supabase-session-${museoEnvironment.name}`;
 const supabaseSystemRecordsTable = "app_records";
 const currentUserKey = "museo-admin-current-user";
 const currentUserPhotoKey = "museo-admin-current-user-photo";
