@@ -264,15 +264,45 @@ const currentAccessLevelKey = "museo-admin-access-level";
 const SUPABASE_REFRESH_MARGIN_SECONDS = 60;
 let employeeRecords = Object.values(defaultEmployeeProfiles);
 let currentPermissions = new Set();
+let currentPermissionsLoaded = false;
 const hasPermission = (permission) => currentPermissions.has(permission);
 const canManageEmployees = () => hasPermission("employees.create") || hasPermission("employees.update.basic");
+const hasAdministrativeWorkspaceAccess = () =>
+  hasPermission("system.configure") || (hasPermission("audit.read") && hasPermission("notifications.manage"));
+const postLoginDestination = () => hasAdministrativeWorkspaceAccess() ? "dashboard.html" : "employee-portal.html";
+
+function enforceAuthenticatedPageAccess() {
+  if (!getSupabaseSession()?.access_token || !currentPermissionsLoaded) return false;
+  const page = currentPageName();
+  if (page === "login.html") return false;
+  if (hasAdministrativeWorkspaceAccess()) {
+    if (page === "employee-portal.html") {
+      window.location.replace("dashboard.html");
+      return true;
+    }
+    return false;
+  }
+  const allowedPages = new Map([
+    ["employee-portal.html", () => true],
+    ["recursos-humanos.html", () => hasPermission("employees.read.all")],
+    ["finanzas.html", () => hasPermission("finance.read")],
+    ["calendario.html", () => hasPermission("calendar.manage") || hasPermission("schedules.read.team")],
+    ["renta-espacios.html", () => hasPermission("rentals.manage")],
+    ["inventario.html", () => hasPermission("inventory.manage")]
+  ]);
+  if (allowedPages.get(page)?.()) return false;
+  window.location.replace("employee-portal.html");
+  return true;
+}
 
 async function refreshCurrentPermissions() {
   if (!getSupabaseSession()?.access_token) {
     currentPermissions.clear();
+    currentPermissionsLoaded = false;
     return;
   }
   currentPermissions = new Set(await fetchCurrentSupabasePermissions());
+  currentPermissionsLoaded = true;
 }
 function getSupabaseSession() {
   return JSON.parse(localStorage.getItem(supabaseSessionKey) || "null");
@@ -289,6 +319,7 @@ function clearSupabaseSession() {
 function clearLoginState(redirect = true, reason = "") {
   clearSupabaseSession();
   currentPermissions.clear();
+  currentPermissionsLoaded = false;
   localStorage.removeItem(currentUserKey);
   localStorage.removeItem(currentUserPhotoKey);
   localStorage.removeItem(currentAccessLevelKey);
@@ -911,7 +942,7 @@ function bindLoginDemo() {
       localStorage.setItem(currentUserKey, user.user_metadata?.full_name || user.email || "Empleado");
       localStorage.setItem(currentAccessLevelKey, "Empleado");
       localStorage.removeItem(currentUserPhotoKey);
-      window.location.replace("dashboard.html");
+      window.location.replace("employee-portal.html");
     } catch (error) {
       if (inviteMessage) {
         inviteMessage.textContent = error.message || "No se pudo activar la cuenta.";
@@ -938,7 +969,8 @@ function bindLoginDemo() {
         localStorage.setItem(currentUserKey, profile?.full_name || session.user.email || username);
         localStorage.setItem(currentAccessLevelKey, profile?.role === "administrador" ? "Administrador" : profile?.role === "ejecutivo" ? "Ejecutivo" : "Empleado");
         localStorage.removeItem(currentUserPhotoKey);
-        window.location.href = "dashboard.html";
+        await refreshCurrentPermissions();
+        window.location.href = postLoginDestination();
         return;
       } catch (error) {
         clearLoginState(false);
@@ -3427,6 +3459,83 @@ function bindEmployeeProfile() {
   });
 }
 
+function formatPortalDate(value, options) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("es-PR", { timeZone: "America/Puerto_Rico", ...options }).format(new Date(value));
+}
+
+function renderPortalTimeEntries(entries) {
+  const list = document.querySelector("[data-portal-time-list]");
+  if (!list) return;
+  if (!entries.length) {
+    list.innerHTML = '<p class="portal-empty">Todavía no hay ponches registrados.</p>';
+    return;
+  }
+  list.innerHTML = entries.map((entry) => `
+    <article class="portal-entry">
+      <div><strong>${formatPortalDate(entry.clock_in, { weekday: "short", month: "short", day: "numeric" })}</strong><span>${formatPortalDate(entry.clock_in, { hour: "numeric", minute: "2-digit" })} – ${entry.clock_out ? formatPortalDate(entry.clock_out, { hour: "numeric", minute: "2-digit" }) : "En curso"}</span></div>
+      <span class="portal-entry-status ${entry.clock_out ? "" : "is-open"}">${entry.clock_out ? "Completado" : "Activo"}</span>
+    </article>`).join("");
+}
+
+function renderPortalNotifications(notifications) {
+  const list = document.querySelector("[data-portal-notifications]");
+  if (!list) return;
+  if (!notifications.length) {
+    list.innerHTML = '<p class="portal-empty">No tienes notificaciones nuevas.</p>';
+    return;
+  }
+  list.innerHTML = notifications.map((item) => `<article class="portal-notification"><strong>${escapeHtml(item.title || "Aviso")}</strong><p>${escapeHtml(item.message || "")}</p><small>${formatPortalDate(item.created_at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></article>`).join("");
+}
+
+function renderPortalTools() {
+  const tools = [
+    { permission: "employees.read.all", href: "recursos-humanos.html", icon: "users", label: "Equipo" },
+    { permission: "finance.read", href: "finanzas.html", icon: "dollar", label: "Finanzas" },
+    { permission: "schedules.read.team", href: "calendario.html", icon: "calendar", label: "Calendario del equipo" },
+    { permission: "calendar.manage", href: "calendario.html", icon: "calendar", label: "Eventos" },
+    { permission: "rentals.manage", href: "renta-espacios.html", icon: "building", label: "Renta de espacios" },
+    { permission: "inventory.manage", href: "inventario.html", icon: "briefcase", label: "Inventario" }
+  ];
+  const available = tools.filter((tool, index, all) => hasPermission(tool.permission) && all.findIndex((candidate) => candidate.href === tool.href) === index);
+  const region = document.querySelector("[data-portal-tools]");
+  if (!region) return;
+  if (!available.length) { region.closest(".portal-section").hidden = true; return; }
+  region.innerHTML = available.map((tool) => `<a class="portal-tool" href="${tool.href}"><span class="portal-tool-icon">${iconSvg(tool.icon)}</span><span>${tool.label}</span></a>`).join("");
+}
+
+async function bindEmployeePortal() {
+  if (!document.querySelector("[data-employee-portal]")) return;
+  const session = getSupabaseSession();
+  if (!session?.access_token) { window.location.replace(`login.html?environment=${encodeURIComponent(museoEnvironment.name)}`); return; }
+  const employee = getEmployeeRecords().find((record) => record.authUserId === session.user?.id) || getEmployeeRecords()[0];
+  document.querySelector("[data-portal-name]").textContent = employee ? employeeDisplayName(employee) : (session.user?.email || "Empleado");
+  document.querySelector("[data-portal-role]").textContent = employee?.posicion || "Empleado";
+  document.querySelector("[data-portal-schedule]").textContent = employee?.horario || "Horario pendiente de asignación";
+  document.querySelector("[data-portal-date]").textContent = formatPortalDate(new Date(), { weekday: "long", month: "long", day: "numeric" });
+  const button = document.querySelector("[data-portal-clock-button]");
+  const status = document.querySelector("[data-portal-clock-status]");
+  const message = document.querySelector("[data-portal-message]");
+  const refresh = async () => {
+    const entries = await fetchOwnSupabaseTimeEntries(7);
+    renderPortalTimeEntries(entries);
+    const open = entries.find((entry) => !entry.clock_out);
+    button.dataset.action = open ? "clock_out" : "clock_in";
+    button.textContent = open ? "Registrar salida" : "Registrar entrada";
+    button.classList.toggle("is-clocked-in", Boolean(open));
+    status.textContent = open ? `Entrada registrada a las ${formatPortalDate(open.clock_in, { hour: "numeric", minute: "2-digit" })}` : "Fuera de turno";
+  };
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    message.textContent = button.dataset.action === "clock_out" ? "Registrando salida..." : "Registrando entrada...";
+    try { await clockSupabaseEmployeeTime(button.dataset.action); await refresh(); message.textContent = "Ponche registrado correctamente."; message.className = "portal-message success"; }
+    catch (error) { message.textContent = error.message || "No se pudo registrar el ponche."; message.className = "portal-message error"; }
+    finally { button.disabled = false; }
+  });
+  document.querySelector("[data-portal-logout]")?.addEventListener("click", () => clearLoginState(true, "logout"));
+  renderPortalTools();
+  await Promise.all([refresh(), fetchOwnSupabaseNotifications(5).then(renderPortalNotifications)]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
+}
 function redirectAuthCallbackToLogin() {
   const hash = new URLSearchParams(window.location.hash.slice(1));
   const callbackType = hash.get("type");
@@ -3447,6 +3556,7 @@ async function initApp() {
   renderInlineIcons();
   bindHeaderActions();
   await refreshCurrentPermissions().catch(() => currentPermissions.clear());
+  if (enforceAuthenticatedPageAccess()) return;
   await syncEmployeeCacheFromSupabase().catch(() => null);
   updateCurrentUserFromEmployeeCache();
   renderHeader();
@@ -3466,6 +3576,7 @@ async function initApp() {
   bindLoanReceiptForm();
   bindInventoryModule();
   bindCalendarModules();
+  await bindEmployeePortal();
 }
 
 document.addEventListener("DOMContentLoaded", initApp);

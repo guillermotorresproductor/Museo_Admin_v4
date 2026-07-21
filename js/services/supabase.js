@@ -137,3 +137,24 @@ async function inviteSupabaseEmployee(employeeId) {
   if (!response.ok) throw new Error(data.error || "No se pudo enviar la invitación.");
   return data;
 }
+
+async function fetchOwnSupabaseTimeEntries(limit = 7) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 7, 1), 30);
+  return supabaseGet(`/rest/v1/employee_time_entries?select=id,clock_in,clock_out,source,sync_status&order=clock_in.desc&limit=${safeLimit}`);
+}
+
+async function clockSupabaseEmployeeTime(action) {
+  const response = await fetch(`${supabaseUrl}/functions/v1/clock-employee-time`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify({ action })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "No se pudo registrar el ponche.");
+  return data;
+}
+
+async function fetchOwnSupabaseNotifications(limit = 5) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 20);
+  return supabaseGet(`/rest/v1/employee_notifications?select=id,title,message,category,read_at,created_at&order=created_at.desc&limit=${safeLimit}`);
+}
