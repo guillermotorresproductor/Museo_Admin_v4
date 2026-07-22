@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Recursos Humanos</title>
-  <link rel="stylesheet" href="css/main.css?v=attendance-schedules-20260721">
+  <link rel="stylesheet" href="css/main.css?v=attendance-controls-20260721">
 </head>
 <body>
   <div class="app-shell">
@@ -209,10 +209,23 @@
                 <label class="field"><span>Fecha final (opcional)</span><input type="date" name="effectiveUntil"></label>
                 <label class="field"><span>Tipo de turno</span><select name="shiftType"><option value="regular">Regular</option><option value="night">Nocturno</option><option value="weekend">Fin de semana</option><option value="special_activity">Actividad especial</option><option value="extraordinary">Extraordinario</option></select></label>
                 <fieldset class="schedule-days"><legend>Dias laborables</legend><label><input type="checkbox" name="weekday" value="1" checked> Lun</label><label><input type="checkbox" name="weekday" value="2" checked> Mar</label><label><input type="checkbox" name="weekday" value="3" checked> Mie</label><label><input type="checkbox" name="weekday" value="4" checked> Jue</label><label><input type="checkbox" name="weekday" value="5" checked> Vie</label><label><input type="checkbox" name="weekday" value="6"> Sab</label><label><input type="checkbox" name="weekday" value="7"> Dom</label></fieldset>
-                <button class="button" type="submit">Crear regla recurrente</button>
+                <input type="hidden" name="supersedesRuleId">
+                <button class="button" type="submit" data-schedule-submit>Crear regla recurrente</button><button class="button secondary" type="button" data-schedule-cancel-edit hidden>Cancelar edicion</button>
               </form>
               <p class="form-message" data-schedule-message></p>
               <div class="schedule-rule-list" data-schedule-rule-list><p>Cargando reglas...</p></div>
+              <form class="schedule-exception-form" data-schedule-exception-form hidden>
+                <h4>Excepcion por fecha</h4>
+                <label class="field"><span>Empleado</span><select name="employeeId" required></select></label>
+                <label class="field"><span>Regla</span><select name="ruleId" required></select></label>
+                <label class="field"><span>Fecha</span><input type="date" name="exceptionDate" required></label>
+                <label class="field"><span>Tipo</span><select name="exceptionType"><option value="cancelled">Cancelar turno</option><option value="override">Cambiar horario</option><option value="additional">Turno adicional</option></select></label>
+                <label class="field"><span>Nueva entrada</span><input type="time" name="startsLocal"></label>
+                <label class="field"><span>Nueva salida</span><input type="time" name="endsLocal"></label>
+                <label class="field schedule-exception-reason"><span>Motivo</span><input type="text" name="reason" minlength="3" required></label>
+                <button class="button" type="submit">Guardar excepcion</button>
+              </form>
+              <div class="schedule-upcoming"><h4>Proximos turnos</h4><div data-schedule-upcoming-list><p>Cargando turnos...</p></div></div>
             </section>
 
             <form class="attendance-filters" data-attendance-filters>

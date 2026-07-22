@@ -2164,39 +2164,34 @@ function bindAttendanceScheduleAdmin(module, employeeMap) {
   if (!region || (!hasPermission("time.read.all") && !hasPermission("schedules.manage"))) return;
   region.hidden = false;
   const form = region.querySelector("[data-schedule-rule-form]");
+  const exceptionForm = region.querySelector("[data-schedule-exception-form]");
   const list = region.querySelector("[data-schedule-rule-list]");
+  const upcomingList = region.querySelector("[data-schedule-upcoming-list]");
   const message = region.querySelector("[data-schedule-message]");
   const canManage = hasPermission("schedules.manage");
-  form.hidden = !canManage;
-  form.elements.employeeId.innerHTML = '<option value="">Seleccione un empleado</option>' + [...employeeMap.values()].map((employee) => `<option value="${safeHtml(employee.id)}">${safeHtml(employeeDisplayName(employee))}</option>`).join("");
-  form.elements.effectiveFrom.value = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" }).format(new Date());
+  form.hidden = !canManage; exceptionForm.hidden = !canManage;
+  const employeeOptions = '<option value="">Seleccione un empleado</option>' + [...employeeMap.values()].map((employee) => `<option value="${safeHtml(employee.id)}">${safeHtml(employeeDisplayName(employee))}</option>`).join("");
+  form.elements.employeeId.innerHTML = employeeOptions; exceptionForm.elements.employeeId.innerHTML = employeeOptions;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" }).format(new Date());
+  form.elements.effectiveFrom.value = today; exceptionForm.elements.exceptionDate.value = today;
   const dayNames = { 1: "Lun", 2: "Mar", 3: "Mie", 4: "Jue", 5: "Vie", 6: "Sab", 7: "Dom" };
+  let activeRules = [];
   const showMessage = (text, type = "") => { message.textContent = text; message.className = `form-message ${type}`.trim(); };
+  const resetEdit = () => { form.reset(); form.elements.effectiveFrom.value=today; form.elements.startsLocal.value="08:00"; form.elements.endsLocal.value="16:00"; form.elements.lunchMinutes.value="60"; form.elements.supersedesRuleId.value=""; region.querySelector("[data-schedule-submit]").textContent="Crear regla recurrente"; region.querySelector("[data-schedule-cancel-edit]").hidden=true; };
+  const refreshRuleOptions = () => { const employeeId=exceptionForm.elements.employeeId.value; exceptionForm.elements.ruleId.innerHTML='<option value="">Seleccione una regla</option>'+activeRules.filter(r=>!employeeId||r.employee_id===employeeId).map(r=>`<option value="${safeHtml(r.id)}">${safeHtml((r.weekdays||[]).map(d=>dayNames[d]).join(", "))} · ${safeHtml(String(r.starts_local).slice(0,5))}-${safeHtml(String(r.ends_local).slice(0,5))}</option>`).join(""); };
   const load = async () => {
     try {
-      const rules = await fetchSupabaseScheduleRules();
-      list.innerHTML = rules.length ? rules.map((rule) => {
-        const employee = employeeMap.get(rule.employee_id);
-        const days = (rule.weekdays || []).map((day) => dayNames[day]).join(", ");
-        const until = rule.effective_until ? ` hasta ${rule.effective_until}` : " sin fecha final";
-        return `<article class="schedule-rule-item"><div><strong>${safeHtml(employee ? employeeDisplayName(employee) : "Empleado")}</strong><span>${safeHtml(days)} · ${safeHtml(String(rule.starts_local).slice(0,5))}–${safeHtml(String(rule.ends_local).slice(0,5))}</span><small>Desde ${safeHtml(rule.effective_from)}${safeHtml(until)} · ${safeHtml(rule.shift_type)}</small></div><span class="attendance-status is-complete">Activa</span></article>`;
-      }).join("") : '<p>No hay reglas recurrentes configuradas.</p>';
-    } catch (error) { list.innerHTML = '<p>No se pudieron cargar las reglas.</p>'; showMessage(error.message || "No se pudieron cargar las reglas.", "error"); }
+      const [rules, shifts] = await Promise.all([fetchSupabaseScheduleRules(), fetchSupabaseUpcomingShifts(30)]); activeRules=rules; refreshRuleOptions();
+      list.innerHTML = rules.length ? rules.map((rule) => { const employee=employeeMap.get(rule.employee_id); const days=(rule.weekdays||[]).map(d=>dayNames[d]).join(", "); const until=rule.effective_until?` hasta ${rule.effective_until}`:" sin fecha final"; return `<article class="schedule-rule-item" data-rule-id="${safeHtml(rule.id)}"><div><strong>${safeHtml(employee?employeeDisplayName(employee):"Empleado")}</strong><span>${safeHtml(days)} · ${safeHtml(String(rule.starts_local).slice(0,5))}-${safeHtml(String(rule.ends_local).slice(0,5))}</span><small>Desde ${safeHtml(rule.effective_from)}${safeHtml(until)} · ${safeHtml(rule.shift_type)} · v${Number(rule.version_no||1)}</small></div>${canManage?`<div class="schedule-rule-actions"><button class="button secondary" type="button" data-edit-rule="${safeHtml(rule.id)}">Editar</button><button class="button secondary" type="button" data-deactivate-rule="${safeHtml(rule.id)}">Desactivar</button></div>`:'<span class="attendance-status is-complete">Activa</span>'}</article>`; }).join(""):'<p>No hay reglas recurrentes configuradas.</p>';
+      upcomingList.innerHTML=shifts.length?shifts.map(shift=>{const employee=employeeMap.get(shift.employee_id);return `<article class="schedule-upcoming-item"><strong>${safeHtml(employee?employeeDisplayName(employee):"Empleado")}</strong><span>${formatPortalDate(shift.starts_at,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})} - ${formatPortalDate(shift.ends_at,{hour:"numeric",minute:"2-digit"})}</span><small>${safeHtml(shift.shift_type)}</small></article>`;}).join(""):'<p>No hay turnos futuros.</p>';
+    } catch(error){showMessage(error.message||"No se pudo cargar la programacion.","error");}
   };
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const data = new FormData(form);
-    const weekdays = data.getAll("weekday").map(Number);
-    if (!weekdays.length) { showMessage("Seleccione al menos un dia de trabajo.", "error"); return; }
-    const button = form.querySelector('button[type="submit"]');
-    button.disabled = true; showMessage("Creando regla y generando turnos...");
-    try {
-      const result = await createSupabaseScheduleRule({ employee_id: data.get("employeeId"), weekdays, starts_local: data.get("startsLocal"), ends_local: data.get("endsLocal"), expected_lunch_minutes: data.get("lunchMinutes"), effective_from: data.get("effectiveFrom"), effective_until: data.get("effectiveUntil"), shift_type: data.get("shiftType"), timezone: "America/Puerto_Rico" });
-      showMessage(`Regla creada. ${Number(result.generated_shifts || 0)} turnos nuevos generados sin duplicar existentes.`, "success");
-      await load();
-    } catch (error) { showMessage(error.message || "No se pudo crear la regla.", "error"); }
-    finally { button.disabled = false; }
-  });
+  exceptionForm.elements.employeeId.addEventListener("change",refreshRuleOptions);
+  exceptionForm.elements.exceptionType.addEventListener("change",()=>{const needsTime=exceptionForm.elements.exceptionType.value!=="cancelled";exceptionForm.elements.startsLocal.required=needsTime;exceptionForm.elements.endsLocal.required=needsTime;});
+  region.querySelector("[data-schedule-cancel-edit]").addEventListener("click",resetEdit);
+  list.addEventListener("click",async(event)=>{const edit=event.target.closest("[data-edit-rule]");const deactivate=event.target.closest("[data-deactivate-rule]");if(edit){const rule=activeRules.find(r=>r.id===edit.dataset.editRule);if(!rule)return;form.elements.employeeId.value=rule.employee_id;form.elements.employeeId.disabled=true;form.elements.startsLocal.value=String(rule.starts_local).slice(0,5);form.elements.endsLocal.value=String(rule.ends_local).slice(0,5);form.elements.lunchMinutes.value=rule.expected_lunch_minutes??"";form.elements.effectiveFrom.value=rule.effective_from;form.elements.effectiveUntil.value=rule.effective_until||"";form.elements.shiftType.value=rule.shift_type;form.elements.supersedesRuleId.value=rule.id;form.querySelectorAll('[name="weekday"]').forEach(box=>box.checked=(rule.weekdays||[]).includes(Number(box.value)));region.querySelector("[data-schedule-submit]").textContent="Guardar nueva version";region.querySelector("[data-schedule-cancel-edit]").hidden=false;form.scrollIntoView({behavior:"smooth",block:"center"});}if(deactivate){const reason=window.prompt("Motivo para desactivar esta regla:");if(!reason)return;try{await deactivateSupabaseScheduleRule(deactivate.dataset.deactivateRule,reason);showMessage("Regla desactivada. Los turnos historicos se conservaron.","success");await load();}catch(error){showMessage(error.message||"No se pudo desactivar.","error");}}});
+  form.addEventListener("submit",async(event)=>{event.preventDefault();const data=new FormData(form);const weekdays=data.getAll("weekday").map(Number);if(!weekdays.length){showMessage("Seleccione al menos un dia.","error");return;}const button=region.querySelector("[data-schedule-submit]");button.disabled=true;try{const employeeId=form.elements.employeeId.value;const result=await createSupabaseScheduleRule({employee_id:employeeId,weekdays,starts_local:data.get("startsLocal"),ends_local:data.get("endsLocal"),expected_lunch_minutes:data.get("lunchMinutes"),effective_from:data.get("effectiveFrom"),effective_until:data.get("effectiveUntil"),shift_type:data.get("shiftType"),timezone:"America/Puerto_Rico",supersedes_rule_id:data.get("supersedesRuleId")});showMessage(`Regla guardada. ${Number(result.generated_shifts||0)} turnos nuevos.`,"success");form.elements.employeeId.disabled=false;resetEdit();await load();}catch(error){showMessage(error.message||"No se pudo guardar la regla.","error");}finally{button.disabled=false;}});
+  exceptionForm.addEventListener("submit",async(event)=>{event.preventDefault();const data=new FormData(exceptionForm);const button=exceptionForm.querySelector('button[type="submit"]');button.disabled=true;try{await createSupabaseScheduleException({employee_id:data.get("employeeId"),rule_id:data.get("ruleId"),exception_date:data.get("exceptionDate"),exception_type:data.get("exceptionType"),starts_local:data.get("startsLocal"),ends_local:data.get("endsLocal"),shift_type:"regular",reason:data.get("reason")});showMessage("Excepcion guardada sin eliminar historial.","success");exceptionForm.reset();exceptionForm.elements.exceptionDate.value=today;await load();}catch(error){showMessage(error.message||"No se pudo guardar la excepcion.","error");}finally{button.disabled=false;}});
   load();
 }
 

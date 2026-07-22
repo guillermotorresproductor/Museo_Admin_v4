@@ -179,18 +179,22 @@ async function fetchSupabaseAttendance({ from, to, employeeId } = {}) {
 }
 
 async function fetchSupabaseScheduleRules() {
-  return supabaseGet("/rest/v1/attendance_schedule_rules?select=id,employee_id,weekdays,starts_local,ends_local,effective_from,effective_until,shift_type,expected_lunch_minutes,timezone,active&active=eq.true&order=effective_from.desc");
+  return supabaseGet("/rest/v1/attendance_schedule_rules?select=id,employee_id,weekdays,starts_local,ends_local,effective_from,effective_until,shift_type,expected_lunch_minutes,timezone,active,version_no,supersedes_rule_id&active=eq.true&order=effective_from.desc");
 }
 
-async function createSupabaseScheduleRule(rule) {
-  const response = await fetch(`${supabaseUrl}/functions/v1/manage-attendance-schedules`, {
-    method: "POST",
-    headers: await supabaseAuthHeaders(),
-    body: JSON.stringify({ action: "create_rule", rule })
-  });
+async function manageSupabaseSchedule(action, payload = {}) {
+  const response = await fetch(`${supabaseUrl}/functions/v1/manage-attendance-schedules`, { method: "POST", headers: await supabaseAuthHeaders(), body: JSON.stringify({ action, ...payload }) });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "No se pudo crear la regla de horario.");
+  if (!response.ok) throw new Error(data.error || "No se pudo administrar el horario.");
   return data;
+}
+
+async function createSupabaseScheduleRule(rule) { return manageSupabaseSchedule(rule.supersedes_rule_id ? "revise_rule" : "create_rule", { rule }); }
+async function deactivateSupabaseScheduleRule(ruleId, reason) { return manageSupabaseSchedule("deactivate_rule", { rule_id: ruleId, reason }); }
+async function createSupabaseScheduleException(exception) { return manageSupabaseSchedule("create_exception", { exception }); }
+async function fetchSupabaseUpcomingShifts(limit = 30) {
+  const now = encodeURIComponent(new Date().toISOString());
+  return supabaseGet(`/rest/v1/employee_shifts?select=id,employee_id,starts_at,ends_at,shift_type,status,schedule_rule_id&starts_at=gte.${now}&status=eq.scheduled&order=starts_at.asc&limit=${Math.min(Math.max(Number(limit)||30,1),100)}`);
 }
 
 async function fetchSupabaseEmployeeSensitiveDetails(employeeId) {
