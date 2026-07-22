@@ -3610,21 +3610,47 @@ async function bindEmployeePortal() {
   const button = document.querySelector("[data-portal-clock-button]");
   const status = document.querySelector("[data-portal-clock-status]");
   const message = document.querySelector("[data-portal-message]");
+  const actionLabels = {
+    clock_in: "Registrar entrada",
+    lunch_out: "Salida a almuerzo",
+    lunch_in: "Regreso de almuerzo",
+    clock_out: "Registrar salida"
+  };
+  const nextAction = (events) => {
+    const latest = events[0]?.event_type;
+    return latest === "clock_in" ? "lunch_out" : latest === "lunch_out" ? "lunch_in" : latest === "lunch_in" ? "clock_out" : "clock_in";
+  };
+  const requestPresence = () => new Promise((resolve, reject) => {
+    if (!navigator.geolocation) { reject(new Error("Este dispositivo no permite validar la ubicacion.")); return; }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => resolve({ method: "geolocation", latitude: coords.latitude, longitude: coords.longitude, accuracy_meters: coords.accuracy }),
+      () => reject(new Error("Debe permitir la ubicacion para confirmar que esta en el Museo.")),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+    );
+  });
   const refresh = async () => {
-    const entries = await fetchOwnSupabaseTimeEntries(7);
+    const [entries, events] = await Promise.all([fetchOwnSupabaseTimeEntries(7), fetchOwnSupabaseAttendanceEvents(28)]);
     renderPortalTimeEntries(entries);
-    const open = entries.find((entry) => !entry.clock_out);
-    button.dataset.action = open ? "clock_out" : "clock_in";
-    button.textContent = open ? "Registrar salida" : "Registrar entrada";
-    button.classList.toggle("is-clocked-in", Boolean(open));
-    status.textContent = open ? `Entrada registrada a las ${formatPortalDate(open.clock_in, { hour: "numeric", minute: "2-digit" })}` : "Fuera de turno";
+    const action = nextAction(events);
+    button.dataset.action = action;
+    button.textContent = actionLabels[action];
+    button.classList.toggle("is-clocked-in", action !== "clock_in");
+    const latest = events[0];
+    status.textContent = latest && action !== "clock_in" ? `Ultimo registro: ${formatPortalDate(latest.occurred_at, { hour: "numeric", minute: "2-digit" })}` : "Fuera de turno";
   };
   button.addEventListener("click", async () => {
     button.disabled = true;
-    message.textContent = button.dataset.action === "clock_out" ? "Registrando salida..." : "Registrando entrada...";
-    try { await clockSupabaseEmployeeTime(button.dataset.action); await refresh(); message.textContent = "Ponche registrado correctamente."; message.className = "portal-message success"; }
-    catch (error) { message.textContent = error.message || "No se pudo registrar el ponche."; message.className = "portal-message error"; }
-    finally { button.disabled = false; }
+    message.textContent = "Validando presencia fisica...";
+    try {
+      const presence = await requestPresence();
+      await clockSupabaseEmployeeTime(button.dataset.action, presence);
+      await refresh();
+      message.textContent = "Ponche registrado correctamente.";
+      message.className = "portal-message success";
+    } catch (error) {
+      message.textContent = error.message || "No se pudo registrar el ponche.";
+      message.className = "portal-message error";
+    } finally { button.disabled = false; }
   });
   document.querySelector("[data-portal-logout]")?.addEventListener("click", () => clearLoginState(true, "logout"));
   renderPortalTools();

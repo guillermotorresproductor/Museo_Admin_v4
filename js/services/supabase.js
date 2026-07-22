@@ -143,14 +143,23 @@ async function fetchOwnSupabaseTimeEntries(limit = 7) {
   return supabaseGet(`/rest/v1/employee_time_entries?select=id,clock_in,clock_out,source,sync_status&order=clock_in.desc&limit=${safeLimit}`);
 }
 
-async function clockSupabaseEmployeeTime(action) {
+async function fetchOwnSupabaseAttendanceEvents(limit = 28) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 28, 1), 100);
+  return supabaseGet(`/rest/v1/attendance_events?select=id,shift_id,event_type,occurred_at,classification&order=occurred_at.desc&limit=${safeLimit}`);
+}
+
+async function clockSupabaseEmployeeTime(action, presence = {}) {
   const response = await fetch(`${supabaseUrl}/functions/v1/clock-employee-time`, {
     method: "POST",
     headers: await supabaseAuthHeaders(),
-    body: JSON.stringify({ action })
+    body: JSON.stringify({ action, presence })
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "No se pudo registrar el ponche.");
+  if (!response.ok) {
+    const error = new Error(data.error || "No se pudo registrar el ponche.");
+    error.code = data.code || "ATTENDANCE_ERROR";
+    throw error;
+  }
   return data;
 }
 
