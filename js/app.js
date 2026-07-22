@@ -2195,6 +2195,46 @@ function bindAttendanceScheduleAdmin(module, employeeMap) {
   load();
 }
 
+function bindAttendanceCorrectionReview(module, employeeMap) {
+  const region = module.querySelector("[data-attendance-corrections]");
+  if (!region || !hasPermission("attendance.corrections.approve")) return;
+  region.hidden = false;
+  const list = region.querySelector("[data-attendance-correction-list]");
+  const message = region.querySelector("[data-attendance-correction-message]");
+  const refreshButton = region.querySelector("[data-corrections-refresh]");
+  const labels = { clock_in: "Entrada", lunch_out: "Salida a almuerzo", lunch_in: "Regreso de almuerzo", clock_out: "Salida final" };
+  const setMessage = (text, type = "") => { message.textContent = text; message.className = `form-message ${type}`.trim(); };
+  const load = async () => {
+    refreshButton.disabled = true;
+    try {
+      const requests = await fetchSupabasePendingCorrections();
+      list.innerHTML = requests.length ? requests.map((request) => {
+        const employee = employeeMap.get(request.employee_id);
+        return `<article class="attendance-correction-item" data-correction-id="${safeHtml(request.id)}"><div><strong>${safeHtml(employee ? employeeDisplayName(employee) : "Empleado")}</strong><span>${safeHtml(labels[request.requested_event_type] || request.requested_event_type)} · ${formatPortalDate(request.requested_occurred_at, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span><small>${safeHtml(request.reason)}</small><small>Solicitada ${formatPortalDate(request.requested_at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></div><div class="attendance-correction-actions"><button class="button" type="button" data-correction-decision="approved">Aprobar</button><button class="button secondary" type="button" data-correction-decision="rejected">Rechazar</button></div></article>`;
+      }).join("") : "<p>No hay solicitudes pendientes.</p>";
+      setMessage(requests.length ? `${requests.length} solicitud${requests.length === 1 ? "" : "es"} pendiente${requests.length === 1 ? "" : "s"}.` : "Bandeja al dia.", "success");
+    } catch (error) { setMessage(error.message || "No se pudieron cargar las solicitudes.", "error"); }
+    finally { refreshButton.disabled = false; }
+  };
+  list.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-correction-decision]");
+    if (!button) return;
+    const requestId = button.closest("[data-correction-id]")?.dataset.correctionId;
+    const decision = button.dataset.correctionDecision;
+    const reason = window.prompt(decision === "approved" ? "Motivo de aprobacion:" : "Motivo del rechazo:");
+    if (!requestId || !reason) return;
+    button.disabled = true;
+    try {
+      await decideSupabaseAttendanceCorrection(requestId, decision, reason);
+      setMessage(decision === "approved" ? "Correccion aprobada y registrada sin alterar el original." : "Solicitud rechazada y conservada en el historial.", "success");
+      await load();
+    } catch (error) { setMessage(error.message || "No se pudo registrar la decision.", "error"); }
+    finally { button.disabled = false; }
+  });
+  refreshButton.addEventListener("click", load);
+  load();
+}
+
 function bindHrAttendanceView() {
   const module = document.querySelector("[data-attendance-module]");
   if (!module || !hasPermission("time.read.all")) return;
@@ -2211,6 +2251,7 @@ function bindHrAttendanceView() {
   const refreshButton = module.querySelector("[data-attendance-refresh]");
   const employeeMap = new Map(getEmployeeRecords().map((employee) => [employee.id, employee]));
   bindAttendanceScheduleAdmin(module, employeeMap);
+  bindAttendanceCorrectionReview(module, employeeMap);
   const today = new Date();
   const localDate = (date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" }).format(date);
   form.elements.to.value = localDate(today);
@@ -3658,6 +3699,50 @@ function renderPortalTools() {
   region.innerHTML = available.map((tool) => `<a class="portal-tool" href="${tool.href}"><span class="portal-tool-icon">${iconSvg(tool.icon)}</span><span>${tool.label}</span></a>`).join("");
 }
 
+function bindPortalAttendanceCorrections() {
+  const region = document.querySelector("[data-portal-corrections]");
+  if (!region) return Promise.resolve();
+  if (!hasPermission("attendance.corrections.request")) { region.hidden = true; return Promise.resolve(); }
+  const form = region.querySelector("[data-correction-form]");
+  const toggle = region.querySelector("[data-correction-toggle]");
+  const cancel = region.querySelector("[data-correction-cancel]");
+  const list = region.querySelector("[data-correction-list]");
+  const message = region.querySelector("[data-correction-message]");
+  const shiftSelect = form.elements.shiftId;
+  const labels = { clock_in: "Entrada", lunch_out: "Salida a almuerzo", lunch_in: "Regreso de almuerzo", clock_out: "Salida final" };
+  let events = [];
+  const setMessage = (text, type = "") => { message.textContent = text; message.className = `portal-message ${type}`.trim(); };
+  const renderRequests = (requests) => {
+    const statusLabels = { pending: "Pendiente", approved: "Aprobada", rejected: "Rechazada", partially_approved: "Aprobada parcialmente", cancelled_by_requester: "Cancelada" };
+    list.innerHTML = requests.length ? requests.map((request) => `<article class="portal-correction-item"><strong>${safeHtml(labels[request.requested_event_type] || request.requested_event_type)}</strong><span>${formatPortalDate(request.requested_occurred_at, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span><small>${safeHtml(request.reason)}</small><span class="portal-entry-status ${request.status === "pending" ? "is-open" : ""}">${safeHtml(statusLabels[request.status] || request.status)}</span>${request.decision_reason ? `<small>Decision: ${safeHtml(request.decision_reason)}</small>` : ""}</article>`).join("") : '<p class="portal-empty">No has solicitado correcciones.</p>';
+  };
+  const load = async () => {
+    const [shifts, attendanceEvents, requests] = await Promise.all([fetchOwnSupabaseCorrectionShifts(45), fetchOwnSupabaseAttendanceEvents(100), fetchOwnSupabaseCorrectionRequests()]);
+    events = attendanceEvents;
+    shiftSelect.innerHTML = '<option value="">Seleccione un turno</option>' + shifts.map((shift) => `<option value="${safeHtml(shift.id)}">${formatPortalDate(shift.starts_at, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} - ${formatPortalDate(shift.ends_at, { hour: "numeric", minute: "2-digit" })}</option>`).join("");
+    renderRequests(requests);
+  };
+  toggle.addEventListener("click", () => { form.hidden = false; toggle.hidden = true; });
+  cancel.addEventListener("click", () => { form.hidden = true; toggle.hidden = false; form.reset(); setMessage("El registro original no sera modificado."); });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const shiftId = String(data.get("shiftId") || "");
+    const eventType = String(data.get("eventType") || "");
+    const original = events.find((item) => item.shift_id === shiftId && item.event_type === eventType && !item.correction_request_id);
+    const submit = form.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    try {
+      await requestSupabaseAttendanceCorrection({ shift_id: shiftId, original_event_id: original?.id || null, event_type: eventType, proposed_occurred_at: new Date(String(data.get("proposedAt"))).toISOString(), reason: String(data.get("reason") || "") });
+      form.reset(); form.hidden = true; toggle.hidden = false;
+      setMessage("Solicitud enviada al supervisor. El registro original no fue modificado.", "success");
+      await load();
+    } catch (error) { setMessage(error.message || "No se pudo enviar la solicitud.", "error"); }
+    finally { submit.disabled = false; }
+  });
+  return load().catch((error) => { setMessage(error.message || "No se pudieron cargar las correcciones.", "error"); });
+}
+
 async function bindEmployeePortal() {
   if (!document.querySelector("[data-employee-portal]")) return;
   const session = getSupabaseSession();
@@ -3714,7 +3799,7 @@ async function bindEmployeePortal() {
   });
   document.querySelector("[data-portal-logout]")?.addEventListener("click", () => clearLoginState(true, "logout"));
   renderPortalTools();
-  await Promise.all([refresh(), fetchOwnSupabaseNotifications(5).then(renderPortalNotifications)]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
+  await Promise.all([refresh(), fetchOwnSupabaseNotifications(5).then(renderPortalNotifications), bindPortalAttendanceCorrections()]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
 }
 function redirectAuthCallbackToLogin() {
   const hash = new URLSearchParams(window.location.hash.slice(1));

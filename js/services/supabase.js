@@ -145,7 +145,7 @@ async function fetchOwnSupabaseTimeEntries(limit = 7) {
 
 async function fetchOwnSupabaseAttendanceEvents(limit = 28) {
   const safeLimit = Math.min(Math.max(Number(limit) || 28, 1), 100);
-  return supabaseGet(`/rest/v1/attendance_events?select=id,shift_id,event_type,occurred_at,classification&order=occurred_at.desc&limit=${safeLimit}`);
+  return supabaseGet(`/rest/v1/attendance_events?select=id,shift_id,event_type,occurred_at,classification,supersedes_event_id,correction_request_id&order=occurred_at.desc&limit=${safeLimit}`);
 }
 
 async function clockSupabaseEmployeeTime(action, presence = {}) {
@@ -161,6 +161,40 @@ async function clockSupabaseEmployeeTime(action, presence = {}) {
     throw error;
   }
   return data;
+}
+
+async function fetchOwnSupabaseCorrectionShifts(days = 45) {
+  const safeDays = Math.min(Math.max(Number(days) || 45, 1), 180);
+  const from = encodeURIComponent(new Date(Date.now() - safeDays * 86400000).toISOString());
+  const to = encodeURIComponent(new Date(Date.now() + 86400000).toISOString());
+  return supabaseGet(`/rest/v1/employee_shifts?select=id,starts_at,ends_at,shift_type,status&starts_at=gte.${from}&starts_at=lte.${to}&order=starts_at.desc&limit=200`);
+}
+
+async function fetchOwnSupabaseCorrectionRequests() {
+  return supabaseGet("/rest/v1/attendance_correction_requests?select=id,shift_id,original_event_id,requested_event_type,requested_occurred_at,reason,status,requested_at,decided_at,decision_reason,corrected_event_id&order=requested_at.desc&limit=100");
+}
+
+async function fetchSupabasePendingCorrections() {
+  return supabaseGet("/rest/v1/attendance_correction_requests?select=id,employee_id,shift_id,original_event_id,requested_event_type,requested_occurred_at,reason,status,requested_by,requested_at&status=eq.pending&order=requested_at.asc&limit=200");
+}
+
+async function manageSupabaseAttendanceCorrection(action, payload = {}) {
+  const response = await fetch(`${supabaseUrl}/functions/v1/manage-attendance-corrections`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify({ action, ...payload })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "No se pudo procesar la correccion de asistencia.");
+  return data;
+}
+
+async function requestSupabaseAttendanceCorrection(payload) {
+  return manageSupabaseAttendanceCorrection("request", payload);
+}
+
+async function decideSupabaseAttendanceCorrection(requestId, decision, reason) {
+  return manageSupabaseAttendanceCorrection("decide", { request_id: requestId, decision, reason });
 }
 
 async function fetchOwnSupabaseNotifications(limit = 5) {

@@ -235,6 +235,11 @@
               <button class="button" type="submit">Aplicar filtros</button>
             </form>
             <p class="form-message" data-attendance-message></p>
+            <section class="attendance-corrections" data-attendance-corrections hidden>
+              <div class="panel-heading-inline"><div><p class="page-kicker">Revision</p><h4>Correcciones pendientes</h4><p>Las decisiones conservan el ponche original y quedan auditadas.</p></div><button class="button secondary" type="button" data-corrections-refresh>Actualizar solicitudes</button></div>
+              <div class="attendance-correction-list" data-attendance-correction-list><p>No hay solicitudes pendientes.</p></div>
+              <p class="form-message" data-attendance-correction-message></p>
+            </section>
             <div class="attendance-summary" data-attendance-summary></div>
             <div class="table-wrap attendance-table-wrap">
               <table class="data-table attendance-table">
@@ -250,8 +255,8 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=attendance-toggle-20260721"></script>
-  <script src="js/app.js?v=attendance-toggle-20260721"></script>
+  <script src="js/services/supabase.js?v=attendance-corrections-20260721"></script>
+  <script src="js/app.js?v=attendance-corrections-20260721"></script>
 </body>
 </html>
 
