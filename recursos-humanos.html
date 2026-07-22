@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Recursos Humanos</title>
-  <link rel="stylesheet" href="css/main.css?v=attendance-controls-20260721">
+  <link rel="stylesheet" href="css/main.css?v=attendance-toggle-20260721">
 </head>
 <body>
   <div class="app-shell">
@@ -181,7 +181,7 @@
             </div>
           </form>
 
-          <section class="section-stack" aria-labelledby="employee-list-title">
+          <section class="section-stack" data-employee-directory-section aria-labelledby="employee-list-title">
             <p class="page-kicker">Directorio</p>
             <h3 id="employee-list-title">Listado de empleados</h3>
             <div class="employee-list section-stack" aria-label="Directorio de empleados" data-employee-directory></div>
@@ -194,7 +194,7 @@
                 <h3 id="attendance-title">Registro de asistencia</h3>
                 <p>Consulta protegida de entradas y salidas registradas por el personal.</p>
               </div>
-              <button class="button secondary" type="button" data-attendance-refresh>Actualizar</button>
+              <div class="attendance-heading-actions"><button class="button secondary" type="button" data-attendance-refresh>Actualizar</button><button class="button attendance-close" type="button" data-attendance-close>Cerrar</button></div>
             </div>
             <section class="attendance-schedules" data-schedule-admin hidden aria-labelledby="schedule-admin-title">
               <div class="panel-heading-inline">
@@ -250,8 +250,8 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=attendance-schedules-20260721"></script>
-  <script src="js/app.js?v=attendance-schedules-20260721"></script>
+  <script src="js/services/supabase.js?v=attendance-toggle-20260721"></script>
+  <script src="js/app.js?v=attendance-toggle-20260721"></script>
 </body>
 </html>
 

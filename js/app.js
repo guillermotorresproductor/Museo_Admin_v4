@@ -2198,7 +2198,11 @@ function bindAttendanceScheduleAdmin(module, employeeMap) {
 function bindHrAttendanceView() {
   const module = document.querySelector("[data-attendance-module]");
   if (!module || !hasPermission("time.read.all")) return;
-  module.hidden = false;
+  module.hidden = true;
+  const directorySection = document.querySelector("[data-employee-directory-section]");
+  const directory = document.querySelector("[data-employee-directory]");
+  const createButton = document.querySelector("[data-employee-create]");
+  const closeButton = module.querySelector("[data-attendance-close]");
   const form = module.querySelector("[data-attendance-filters]");
   const employeeSelect = module.querySelector("[data-attendance-employee]");
   const summary = module.querySelector("[data-attendance-summary]");
@@ -2259,7 +2263,24 @@ function bindHrAttendanceView() {
   };
   form.addEventListener("submit", (event) => { event.preventDefault(); load(); });
   refreshButton.addEventListener("click", load);
-  load();
+  directory?.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-open-attendance]");
+    if (!trigger) return;
+    const employeeId = trigger.dataset.openAttendance;
+    directorySection.hidden = true;
+    if (createButton) createButton.hidden = true;
+    module.hidden = false;
+    employeeSelect.value = employeeId;
+    module.querySelectorAll('[name="employeeId"]').forEach((select) => { if ([...select.options].some((option) => option.value === employeeId)) select.value = employeeId; });
+    load();
+    module.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  closeButton?.addEventListener("click", () => {
+    module.hidden = true;
+    directorySection.hidden = false;
+    if (createButton) createButton.hidden = false;
+    directorySection.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 function bindHumanResourcesModule() {
@@ -2322,6 +2343,7 @@ function bindHumanResourcesModule() {
       const profileLink = canManageEmployees()
         ? `<a href="perfil-empleado.html?empleado=${encodeURIComponent(employee.id)}">Ver Perfil</a>`
         : "";
+      const attendanceAction = hasPermission("time.read.all") ? `<button type="button" data-open-attendance="${employee.id}">Registro de asistencia</button>` : "";
       const adminActions = canManageEmployees()
         ? `
           <button type="button" data-employee-edit="${employee.id}">Editar</button>
@@ -2339,6 +2361,7 @@ function bindHumanResourcesModule() {
           </span>
           <span class="employee-actions">
             ${profileLink}
+            ${attendanceAction}
             ${adminActions}
           </span>
         </article>
