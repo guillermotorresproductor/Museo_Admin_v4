@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Login</title>
-  <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
+  <link rel="stylesheet" href="css/main.css?v=password-recovery-20260721">
 </head>
 <body>
   <div class="app-shell">
@@ -33,7 +33,21 @@
               <input id="password" name="password" type="password" autocomplete="current-password" required>
             </div>
             <button class="button" type="submit">Entrar</button>
+            <button class="login-recovery-link" type="button" data-recovery-toggle>¿Olvidaste tu contraseña?</button>
             <p class="login-help" data-login-message>Acceso preparado para usuarios del Museo.</p>
+          </form>
+        </section>
+        <section class="card panel login-card" data-recovery-card hidden>
+          <h3>Recuperar contraseña</h3>
+          <p>Enviaremos un enlace seguro al correo registrado.</p>
+          <form class="form-grid" data-recovery-form>
+            <div class="field">
+              <label for="recovery-email">Correo electrónico</label>
+              <input id="recovery-email" name="email" type="email" autocomplete="email" required>
+            </div>
+            <button class="button" type="submit">Enviar enlace</button>
+            <button class="login-recovery-link" type="button" data-recovery-cancel>Volver al acceso</button>
+            <p class="login-help" data-recovery-message></p>
           </form>
         </section>
         <section class="card panel login-card" data-invite-acceptance hidden>
@@ -49,8 +63,8 @@
               <input id="invite-password-confirmation" name="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required>
             </div>
             <p class="field-hint">Use 12 caracteres o más e incluya mayúscula, minúscula, número y símbolo.</p>
-            <button class="button" type="submit">Activar mi cuenta</button>
-            <p class="login-help" data-invite-password-message>El enlace de invitación será validado antes de activar la cuenta.</p>
+            <button class="button" type="submit">Guardar nueva contraseña</button>
+            <p class="login-help" data-invite-password-message>El enlace seguro será validado antes de guardar la contraseña.</p>
           </form>
         </section>
       </main>
@@ -58,8 +72,8 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=employee-sensitive-20260721"></script>
+  <script src="js/services/supabase.js?v=password-recovery-20260721"></script>
+  <script src="js/app.js?v=password-recovery-20260721"></script>
 </body>
 </html>
 

@@ -861,6 +861,9 @@ function bindLoginDemo() {
   const inviteCard = document.querySelector("[data-invite-acceptance]");
   const inviteForm = document.querySelector("[data-invite-password-form]");
   const inviteMessage = document.querySelector("[data-invite-password-message]");
+  const recoveryCard = document.querySelector("[data-recovery-card]");
+  const recoveryForm = document.querySelector("[data-recovery-form]");
+  const recoveryMessage = document.querySelector("[data-recovery-message]");
   const reason = new URLSearchParams(window.location.search).get("reason");
   const hash = new URLSearchParams(window.location.hash.slice(1));
   const invitationAccessToken = hash.get("access_token");
@@ -894,6 +897,31 @@ function bindLoginDemo() {
     message.textContent = "Sesión cerrada correctamente.";
     message.className = "login-help";
   }
+
+  document.querySelector("[data-recovery-toggle]")?.addEventListener("click", () => {
+    recoveryForm.elements.email.value = form.elements.username.value || "";
+    loginCard.hidden = true;
+    recoveryCard.hidden = false;
+  });
+  document.querySelector("[data-recovery-cancel]")?.addEventListener("click", () => {
+    recoveryCard.hidden = true;
+    loginCard.hidden = false;
+  });
+  recoveryForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = recoveryForm.querySelector('button[type="submit"]');
+    button.disabled = true;
+    recoveryMessage.textContent = "Solicitando enlace seguro...";
+    recoveryMessage.className = "login-help";
+    try {
+      await requestSupabasePasswordRecovery(String(new FormData(recoveryForm).get("email") || "").trim());
+      recoveryMessage.textContent = "Si el correo está registrado, recibirá un enlace para crear una nueva contraseña.";
+      recoveryMessage.className = "login-help success";
+    } catch (error) {
+      recoveryMessage.textContent = error.message || "No se pudo solicitar el enlace.";
+      recoveryMessage.className = "login-help error";
+    } finally { button.disabled = false; }
+  });
 
   inviteForm?.addEventListener("submit", async (event) => {
     event.preventDefault();

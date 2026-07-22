@@ -598,6 +598,8 @@ input {
   font-size: 0.9rem;
 }
 
+.login-recovery-link{justify-self:start;border:0;padding:2px 0;background:transparent;color:#111827;font:inherit;font-size:.86rem;font-weight:800;text-decoration:underline;cursor:pointer}.login-recovery-link:hover,.login-recovery-link:focus-visible{color:#159447;outline:none}
+
 .form-panel {
   padding: 28px;
 }

@@ -163,6 +163,19 @@ async function clockSupabaseEmployeeTime(action, presence = {}) {
   return data;
 }
 
+async function requestSupabasePasswordRecovery(email) {
+  const redirectTo = `${window.location.origin}${window.location.pathname}?environment=${encodeURIComponent(museoEnvironment.name)}`;
+  const response = await fetch(`${supabaseUrl}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`, {
+    method: "POST",
+    headers: supabaseHeaders(),
+    body: JSON.stringify({ email })
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error_description || data.msg || "No se pudo solicitar la recuperación.");
+  }
+}
+
 async function fetchOwnSupabaseCorrectionShifts(days = 45) {
   const safeDays = Math.min(Math.max(Number(days) || 45, 1), 180);
   const from = encodeURIComponent(new Date(Date.now() - safeDays * 86400000).toISOString());
