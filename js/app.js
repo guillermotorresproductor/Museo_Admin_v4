@@ -269,7 +269,11 @@ const hasPermission = (permission) => currentPermissions.has(permission);
 const canManageEmployees = () => hasPermission("employees.create") || hasPermission("employees.update.basic");
 const hasAdministrativeWorkspaceAccess = () =>
   hasPermission("system.configure") || (hasPermission("audit.read") && hasPermission("notifications.manage"));
-const postLoginDestination = () => hasAdministrativeWorkspaceAccess() ? "dashboard.html" : "employee-portal.html";
+const postLoginDestination = () => {
+  if (hasAdministrativeWorkspaceAccess()) return "dashboard.html";
+  if (hasPermission("employees.read.all") && hasPermission("attendance.corrections.approve")) return "recursos-humanos.html";
+  return "employee-portal.html";
+};
 
 function enforceAuthenticatedPageAccess() {
   if (!getSupabaseSession()?.access_token || !currentPermissionsLoaded) return false;
@@ -281,6 +285,10 @@ function enforceAuthenticatedPageAccess() {
       return true;
     }
     return false;
+  }
+  if (page === "employee-portal.html" && postLoginDestination() !== "employee-portal.html") {
+    window.location.replace(postLoginDestination());
+    return true;
   }
   const allowedPages = new Map([
     ["employee-portal.html", () => true],
@@ -970,7 +978,8 @@ function bindLoginDemo() {
       localStorage.setItem(currentUserKey, user.user_metadata?.full_name || user.email || "Empleado");
       localStorage.setItem(currentAccessLevelKey, "Empleado");
       localStorage.removeItem(currentUserPhotoKey);
-      window.location.replace("employee-portal.html");
+      await refreshCurrentPermissions();
+      window.location.replace(postLoginDestination());
     } catch (error) {
       if (inviteMessage) {
         inviteMessage.textContent = error.message || "No se pudo activar la cuenta.";
@@ -3775,10 +3784,16 @@ async function bindEmployeePortal() {
   if (!document.querySelector("[data-employee-portal]")) return;
   const session = getSupabaseSession();
   if (!session?.access_token) { window.location.replace(`login.html?environment=${encodeURIComponent(museoEnvironment.name)}`); return; }
-  const employee = getEmployeeRecords().find((record) => record.authUserId === session.user?.id) || getEmployeeRecords()[0];
-  document.querySelector("[data-portal-name]").textContent = employee ? employeeDisplayName(employee) : (session.user?.email || "Empleado");
-  document.querySelector("[data-portal-role]").textContent = employee?.posicion || "Empleado";
-  document.querySelector("[data-portal-schedule]").textContent = employee?.horario || "Horario pendiente de asignación";
+  const profile = await fetchSupabaseProfile();
+  const employee = getEmployeeRecords().find((record) => record.authUserId === session.user?.id);
+  document.querySelector("[data-portal-name]").textContent = employee ? employeeDisplayName(employee) : (profile?.full_name || session.user?.email || "Usuario");
+  document.querySelector("[data-portal-role]").textContent = employee?.posicion || (hasPermission("attendance.corrections.approve") ? "Recursos Humanos" : "Usuario autorizado");
+  document.querySelector("[data-portal-schedule]").textContent = employee?.horario || "Sin jornada de empleado vinculada";
+  if (!employee) {
+    document.querySelector(".portal-clock-card")?.setAttribute("hidden", "");
+    document.querySelector("[data-portal-time-list]")?.closest(".portal-section")?.setAttribute("hidden", "");
+    document.querySelector("[data-portal-corrections]")?.setAttribute("hidden", "");
+  }
   document.querySelector("[data-portal-date]").textContent = formatPortalDate(new Date(), { weekday: "long", month: "long", day: "numeric" });
   const button = document.querySelector("[data-portal-clock-button]");
   const status = document.querySelector("[data-portal-clock-status]");
