@@ -146,7 +146,7 @@
             </section>
 
             <div class="access-notice" role="note">
-              La creación de este expediente no crea automáticamente una cuenta de acceso. Las cuentas se administran actualmente desde Supabase Authentication.
+              La creación de este expediente no crea automáticamente una cuenta de acceso. Las cuentas se administran desde el servicio seguro de identidad.
             </div>
             <input type="hidden" name="usuario">
             <input type="hidden" name="passwordTemporal">
@@ -159,7 +159,7 @@
                   <option>Ejecutivo</option>
                   <option>Administrador</option>
                 </select>
-                <small class="field-hint">Este valor pertenece al expediente. El acceso efectivo depende del perfil asociado en Supabase.</small>
+                <small class="field-hint">Este valor pertenece al expediente. El acceso efectivo depende del perfil de identidad asociado.</small>
               </label>
               <label class="field">
                 <span>Estado</span>
@@ -255,8 +255,8 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=attendance-corrections-20260721"></script>
-  <script src="js/app.js?v=attendance-corrections-20260721"></script>
+  <script src="js/services/supabase.js?v=provider-neutral-20260721"></script>
+  <script src="js/app.js?v=provider-neutral-20260721"></script>
 </body>
 </html>
 

@@ -2221,7 +2221,7 @@ function bindAttendanceScheduleAdmin(module, employeeMap) {
       const [rules, shifts] = await Promise.all([fetchSupabaseScheduleRules(), fetchSupabaseUpcomingShifts(30)]); activeRules=rules; refreshRuleOptions();
       list.innerHTML = rules.length ? rules.map((rule) => { const employee=employeeMap.get(rule.employee_id); const days=(rule.weekdays||[]).map(d=>dayNames[d]).join(", "); const until=rule.effective_until?` hasta ${rule.effective_until}`:" sin fecha final"; return `<article class="schedule-rule-item" data-rule-id="${safeHtml(rule.id)}"><div><strong>${safeHtml(employee?employeeDisplayName(employee):"Empleado")}</strong><span>${safeHtml(days)} · ${safeHtml(String(rule.starts_local).slice(0,5))}-${safeHtml(String(rule.ends_local).slice(0,5))}</span><small>Desde ${safeHtml(rule.effective_from)}${safeHtml(until)} · ${safeHtml(rule.shift_type)} · v${Number(rule.version_no||1)}</small></div>${canManage?`<div class="schedule-rule-actions"><button class="button secondary" type="button" data-edit-rule="${safeHtml(rule.id)}">Editar</button><button class="button secondary" type="button" data-deactivate-rule="${safeHtml(rule.id)}">Desactivar</button></div>`:'<span class="attendance-status is-complete">Activa</span>'}</article>`; }).join(""):'<p>No hay reglas recurrentes configuradas.</p>';
       upcomingList.innerHTML=shifts.length?shifts.map(shift=>{const employee=employeeMap.get(shift.employee_id);return `<article class="schedule-upcoming-item"><strong>${safeHtml(employee?employeeDisplayName(employee):"Empleado")}</strong><span>${formatPortalDate(shift.starts_at,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})} - ${formatPortalDate(shift.ends_at,{hour:"numeric",minute:"2-digit"})}</span><small>${safeHtml(shift.shift_type)}</small></article>`;}).join(""):'<p>No hay turnos futuros.</p>';
-    } catch(error){showMessage(error.message||"No se pudo cargar la programacion.","error");}
+    } catch(error){showMessage(providerNeutralMessage(error,"No se pudo cargar la programacion."),"error");}
   };
   exceptionForm.elements.employeeId.addEventListener("change",refreshRuleOptions);
   exceptionForm.elements.exceptionType.addEventListener("change",()=>{const needsTime=exceptionForm.elements.exceptionType.value!=="cancelled";exceptionForm.elements.startsLocal.required=needsTime;exceptionForm.elements.endsLocal.required=needsTime;});
@@ -2230,6 +2230,12 @@ function bindAttendanceScheduleAdmin(module, employeeMap) {
   form.addEventListener("submit",async(event)=>{event.preventDefault();const data=new FormData(form);const weekdays=data.getAll("weekday").map(Number);if(!weekdays.length){showMessage("Seleccione al menos un dia.","error");return;}const button=region.querySelector("[data-schedule-submit]");button.disabled=true;try{const employeeId=form.elements.employeeId.value;const result=await createSupabaseScheduleRule({employee_id:employeeId,weekdays,starts_local:data.get("startsLocal"),ends_local:data.get("endsLocal"),expected_lunch_minutes:data.get("lunchMinutes"),effective_from:data.get("effectiveFrom"),effective_until:data.get("effectiveUntil"),shift_type:data.get("shiftType"),timezone:"America/Puerto_Rico",supersedes_rule_id:data.get("supersedesRuleId")});showMessage(`Regla guardada. ${Number(result.generated_shifts||0)} turnos nuevos.`,"success");form.elements.employeeId.disabled=false;resetEdit();await load();}catch(error){showMessage(error.message||"No se pudo guardar la regla.","error");}finally{button.disabled=false;}});
   exceptionForm.addEventListener("submit",async(event)=>{event.preventDefault();const data=new FormData(exceptionForm);const button=exceptionForm.querySelector('button[type="submit"]');button.disabled=true;try{await createSupabaseScheduleException({employee_id:data.get("employeeId"),rule_id:data.get("ruleId"),exception_date:data.get("exceptionDate"),exception_type:data.get("exceptionType"),starts_local:data.get("startsLocal"),ends_local:data.get("endsLocal"),shift_type:"regular",reason:data.get("reason")});showMessage("Excepcion guardada sin eliminar historial.","success");exceptionForm.reset();exceptionForm.elements.exceptionDate.value=today;await load();}catch(error){showMessage(error.message||"No se pudo guardar la excepcion.","error");}finally{button.disabled=false;}});
   load();
+}
+
+function providerNeutralMessage(error, fallback) {
+  return String(error?.message || fallback || "No se pudo completar la operación.")
+    .replace(/Supabase Authentication/gi, "el servicio de identidad")
+    .replace(/Supabase/gi, "el servicio");
 }
 
 function bindAttendanceCorrectionReview(module, employeeMap) {
@@ -2250,7 +2256,7 @@ function bindAttendanceCorrectionReview(module, employeeMap) {
         return `<article class="attendance-correction-item" data-correction-id="${safeHtml(request.id)}"><div><strong>${safeHtml(employee ? employeeDisplayName(employee) : "Empleado")}</strong><span>${safeHtml(labels[request.requested_event_type] || request.requested_event_type)} · ${formatPortalDate(request.requested_occurred_at, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span><small>${safeHtml(request.reason)}</small><small>Solicitada ${formatPortalDate(request.requested_at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></div><div class="attendance-correction-actions"><button class="button" type="button" data-correction-decision="approved">Aprobar</button><button class="button secondary" type="button" data-correction-decision="rejected">Rechazar</button></div></article>`;
       }).join("") : "<p>No hay solicitudes pendientes.</p>";
       setMessage(requests.length ? `${requests.length} solicitud${requests.length === 1 ? "" : "es"} pendiente${requests.length === 1 ? "" : "s"}.` : "Bandeja al dia.", "success");
-    } catch (error) { setMessage(error.message || "No se pudieron cargar las solicitudes.", "error"); }
+    } catch (error) { setMessage(providerNeutralMessage(error, "No se pudieron cargar las solicitudes."), "error"); }
     finally { refreshButton.disabled = false; }
   };
   list.addEventListener("click", async (event) => {
@@ -2265,7 +2271,7 @@ function bindAttendanceCorrectionReview(module, employeeMap) {
       await decideSupabaseAttendanceCorrection(requestId, decision, reason);
       setMessage(decision === "approved" ? "Correccion aprobada y registrada sin alterar el original." : "Solicitud rechazada y conservada en el historial.", "success");
       await load();
-    } catch (error) { setMessage(error.message || "No se pudo registrar la decision.", "error"); }
+    } catch (error) { setMessage(providerNeutralMessage(error, "No se pudo registrar la decision."), "error"); }
     finally { button.disabled = false; }
   });
   refreshButton.addEventListener("click", load);
@@ -2328,15 +2334,15 @@ function bindHrAttendanceView() {
     const from = String(data.get("from") || "");
     const to = String(data.get("to") || "");
     if (from && to && from > to) { setMessage("La fecha inicial no puede ser posterior a la fecha final.", "error"); return; }
-    setMessage("Consultando asistencia en Supabase...");
+    setMessage("CONSULTANDO ASISTENCIA...");
     refreshButton.disabled = true;
     try {
       const entries = await fetchSupabaseAttendance({ from, to, employeeId: String(data.get("employeeId") || "") });
       render(entries);
-      setMessage("Asistencia actualizada desde Supabase.", "success");
+      setMessage("ASISTENCIA ACTUALIZADA.", "success");
     } catch (error) {
       body.innerHTML = '<tr><td colspan="6">No se pudo cargar la asistencia.</td></tr>';
-      setMessage(error.message || "No se pudo consultar la asistencia.", "error");
+      setMessage(providerNeutralMessage(error, "No se pudo consultar la asistencia."), "error");
     } finally { refreshButton.disabled = false; }
   };
   form.addEventListener("submit", (event) => { event.preventDefault(); load(); });
@@ -2450,23 +2456,23 @@ function bindHumanResourcesModule() {
   const syncDirectoryFromSupabase = async () => {
     const session = getSupabaseSession();
     if (!session?.access_token) {
-      setMessage("Directorio en modo local. Entre a su cuenta para sincronizar con Supabase.");
+      setMessage("DIRECTORIO EN MODO LOCAL. ENTRE A SU CUENTA PARA SINCRONIZAR.");
       return;
     }
 
     try {
-      setMessage("Sincronizando Directorio de Empleados con Supabase...");
+      setMessage("SINCRONIZANDO DIRECTORIO DE EMPLEADOS...");
       supabaseProfile = await fetchSupabaseProfile();
       const records = await fetchSupabaseEmployees();
       if (records.length) {
         saveEmployeeRecords(records);
         renderDirectory();
-        setMessage("Directorio sincronizado con Supabase.", "success");
+        setMessage("DIRECTORIO SINCRONIZADO.", "success");
       } else {
-        setMessage("Supabase está conectado, pero todavía no hay empleados registrados.", "success");
+        setMessage("DIRECTORIO CONECTADO. AUN NO HAY EMPLEADOS REGISTRADOS.", "success");
       }
     } catch (error) {
-      setMessage("No se pudo sincronizar con Supabase. Se muestra el directorio local.", "error");
+      setMessage("NO SE PUDO SINCRONIZAR. SE MUESTRA EL DIRECTORIO LOCAL.", "error");
     }
   };
 
@@ -2602,15 +2608,15 @@ function bindHumanResourcesModule() {
         renderDirectory();
         resetForm();
         hideForm();
-        setMessage(existing ? "Empleado actualizado en Supabase." : "Empleado creado en Supabase y agregado al directorio.", "success");
+        setMessage(existing ? "EMPLEADO ACTUALIZADO." : "EMPLEADO CREADO Y AGREGADO AL DIRECTORIO.", "success");
         return;
       } catch (error) {
-        setMessage(`No se pudo guardar en Supabase: ${error.message}. No se guardó una copia local para evitar datos distintos entre computadoras.`, "error");
+        setMessage(`${providerNeutralMessage(error, "No se pudo guardar el empleado.")} No se guardó una copia local para evitar datos distintos entre computadoras.`, "error");
         return;
       }
     }
 
-    setMessage("Entre a Supabase antes de crear o editar empleados. No se guardó una copia local.", "error");
+    setMessage("ENTRE A SU CUENTA ANTES DE CREAR O EDITAR EMPLEADOS. NO SE GUARDO UNA COPIA LOCAL.", "error");
   });
 
   directory.addEventListener("click", async (event) => {
@@ -2627,7 +2633,7 @@ function bindHumanResourcesModule() {
     if (resetButton) {
       const employee = records.find((item) => item.id === resetButton.dataset.employeeReset);
       if (!employee) return;
-      setMessage("El restablecimiento real de contraseña debe hacerse desde Supabase Authentication o desde un backend seguro.", "error");
+      setMessage("EL RESTABLECIMIENTO DE CONTRASEÑA DEBE HACERSE DESDE EL SERVICIO SEGURO DE IDENTIDAD.", "error");
     }
 
     if (toggleButton) {
@@ -2636,14 +2642,14 @@ function bindHumanResourcesModule() {
       const estado = employee.estado === "Inactivo" ? "Activo" : "Inactivo";
       const session = getSupabaseSession();
       if (!session?.access_token || employee.source !== "supabase") {
-        setMessage("Entre a Supabase antes de activar o desactivar empleados.", "error");
+        setMessage("ENTRE A SU CUENTA ANTES DE ACTIVAR O DESACTIVAR EMPLEADOS.", "error");
         return;
       }
       try {
         await updateSupabaseEmployeeStatus(employee.id, estado);
 
       } catch (error) {
-        setMessage(`No se pudo actualizar Supabase: ${error.message}`, "error");
+        setMessage(providerNeutralMessage(error, "No se pudo actualizar el empleado."), "error");
         return;
       }
       saveEmployeeRecords(records.map((item) => item.id === employee.id ? { ...item, estado } : item));

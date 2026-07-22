@@ -7,7 +7,7 @@ async function supabaseGet(path) {
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.message || "Error consultando Supabase.");
+        throw new Error(data.message || "No se pudo consultar el servicio de datos.");
     }
 
     return data;
@@ -24,7 +24,7 @@ async function supabaseGet(path) {
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.message || "Error consultando Supabase.");
+        throw new Error(data.message || "No se pudo consultar el servicio de datos.");
     }
 
     return data;
@@ -94,7 +94,7 @@ async function saveSupabaseEmployee(employee, museumId, id) {
     body: JSON.stringify(payload)
   });
   const saved = await response.json();
-  if (!response.ok) throw new Error(saved.message || "No se pudo guardar el empleado en Supabase.");
+  if (!response.ok) throw new Error(saved.message || "No se pudo guardar el empleado.");
   return saved;
 }
 
@@ -107,7 +107,7 @@ async function updateSupabaseEmployee(id, employee, museumId) {
   });
   if (!response.ok) {
     const data = await response.json();
-    throw new Error(data.message || "No se pudo actualizar Supabase.");
+    throw new Error(data.message || "No se pudo actualizar el empleado.");
   }
 }
 async function updateSupabaseEmployeeStatus(id, status) {
@@ -118,7 +118,7 @@ async function updateSupabaseEmployeeStatus(id, status) {
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.error || "No se pudo actualizar el estado en Supabase.");
+    throw new Error(data.error || "No se pudo actualizar el estado del empleado.");
   }
 }
 
