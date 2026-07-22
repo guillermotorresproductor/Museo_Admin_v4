@@ -2159,6 +2159,47 @@ function bindMaterialsRequestModule() {
   loadMaterialRequests();
 }
 
+function bindAttendanceScheduleAdmin(module, employeeMap) {
+  const region = module.querySelector("[data-schedule-admin]");
+  if (!region || (!hasPermission("time.read.all") && !hasPermission("schedules.manage"))) return;
+  region.hidden = false;
+  const form = region.querySelector("[data-schedule-rule-form]");
+  const list = region.querySelector("[data-schedule-rule-list]");
+  const message = region.querySelector("[data-schedule-message]");
+  const canManage = hasPermission("schedules.manage");
+  form.hidden = !canManage;
+  form.elements.employeeId.innerHTML = '<option value="">Seleccione un empleado</option>' + [...employeeMap.values()].map((employee) => `<option value="${safeHtml(employee.id)}">${safeHtml(employeeDisplayName(employee))}</option>`).join("");
+  form.elements.effectiveFrom.value = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" }).format(new Date());
+  const dayNames = { 1: "Lun", 2: "Mar", 3: "Mie", 4: "Jue", 5: "Vie", 6: "Sab", 7: "Dom" };
+  const showMessage = (text, type = "") => { message.textContent = text; message.className = `form-message ${type}`.trim(); };
+  const load = async () => {
+    try {
+      const rules = await fetchSupabaseScheduleRules();
+      list.innerHTML = rules.length ? rules.map((rule) => {
+        const employee = employeeMap.get(rule.employee_id);
+        const days = (rule.weekdays || []).map((day) => dayNames[day]).join(", ");
+        const until = rule.effective_until ? ` hasta ${rule.effective_until}` : " sin fecha final";
+        return `<article class="schedule-rule-item"><div><strong>${safeHtml(employee ? employeeDisplayName(employee) : "Empleado")}</strong><span>${safeHtml(days)} · ${safeHtml(String(rule.starts_local).slice(0,5))}–${safeHtml(String(rule.ends_local).slice(0,5))}</span><small>Desde ${safeHtml(rule.effective_from)}${safeHtml(until)} · ${safeHtml(rule.shift_type)}</small></div><span class="attendance-status is-complete">Activa</span></article>`;
+      }).join("") : '<p>No hay reglas recurrentes configuradas.</p>';
+    } catch (error) { list.innerHTML = '<p>No se pudieron cargar las reglas.</p>'; showMessage(error.message || "No se pudieron cargar las reglas.", "error"); }
+  };
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const weekdays = data.getAll("weekday").map(Number);
+    if (!weekdays.length) { showMessage("Seleccione al menos un dia de trabajo.", "error"); return; }
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true; showMessage("Creando regla y generando turnos...");
+    try {
+      const result = await createSupabaseScheduleRule({ employee_id: data.get("employeeId"), weekdays, starts_local: data.get("startsLocal"), ends_local: data.get("endsLocal"), expected_lunch_minutes: data.get("lunchMinutes"), effective_from: data.get("effectiveFrom"), effective_until: data.get("effectiveUntil"), shift_type: data.get("shiftType"), timezone: "America/Puerto_Rico" });
+      showMessage(`Regla creada. ${Number(result.generated_shifts || 0)} turnos nuevos generados sin duplicar existentes.`, "success");
+      await load();
+    } catch (error) { showMessage(error.message || "No se pudo crear la regla.", "error"); }
+    finally { button.disabled = false; }
+  });
+  load();
+}
+
 function bindHrAttendanceView() {
   const module = document.querySelector("[data-attendance-module]");
   if (!module || !hasPermission("time.read.all")) return;
@@ -2170,6 +2211,7 @@ function bindHrAttendanceView() {
   const message = module.querySelector("[data-attendance-message]");
   const refreshButton = module.querySelector("[data-attendance-refresh]");
   const employeeMap = new Map(getEmployeeRecords().map((employee) => [employee.id, employee]));
+  bindAttendanceScheduleAdmin(module, employeeMap);
   const today = new Date();
   const localDate = (date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" }).format(date);
   form.elements.to.value = localDate(today);

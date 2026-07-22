@@ -178,6 +178,21 @@ async function fetchSupabaseAttendance({ from, to, employeeId } = {}) {
   return supabaseGet(`/rest/v1/employee_time_entries?${filters.join("&")}`);
 }
 
+async function fetchSupabaseScheduleRules() {
+  return supabaseGet("/rest/v1/attendance_schedule_rules?select=id,employee_id,weekdays,starts_local,ends_local,effective_from,effective_until,shift_type,expected_lunch_minutes,timezone,active&active=eq.true&order=effective_from.desc");
+}
+
+async function createSupabaseScheduleRule(rule) {
+  const response = await fetch(`${supabaseUrl}/functions/v1/manage-attendance-schedules`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify({ action: "create_rule", rule })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "No se pudo crear la regla de horario.");
+  return data;
+}
+
 async function fetchSupabaseEmployeeSensitiveDetails(employeeId) {
   const id = encodeURIComponent(employeeId);
   const [compensation, emergencyContacts] = await Promise.all([

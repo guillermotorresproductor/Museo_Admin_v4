@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Recursos Humanos</title>
-  <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
+  <link rel="stylesheet" href="css/main.css?v=attendance-schedules-20260721">
 </head>
 <body>
   <div class="app-shell">
@@ -196,6 +196,25 @@
               </div>
               <button class="button secondary" type="button" data-attendance-refresh>Actualizar</button>
             </div>
+            <section class="attendance-schedules" data-schedule-admin hidden aria-labelledby="schedule-admin-title">
+              <div class="panel-heading-inline">
+                <div><p class="page-kicker">Programacion</p><h4 id="schedule-admin-title">Turnos recurrentes</h4><p>Define una regla semanal y el servidor mantendra 90 dias de turnos futuros.</p></div>
+              </div>
+              <form class="schedule-rule-form" data-schedule-rule-form hidden>
+                <label class="field"><span>Empleado</span><select name="employeeId" required><option value="">Seleccione un empleado</option></select></label>
+                <label class="field"><span>Hora de entrada</span><input type="time" name="startsLocal" value="08:00" required></label>
+                <label class="field"><span>Hora de salida</span><input type="time" name="endsLocal" value="16:00" required></label>
+                <label class="field"><span>Almuerzo esperado (minutos)</span><input type="number" name="lunchMinutes" min="0" max="240" value="60"></label>
+                <label class="field"><span>Fecha de inicio</span><input type="date" name="effectiveFrom" required></label>
+                <label class="field"><span>Fecha final (opcional)</span><input type="date" name="effectiveUntil"></label>
+                <label class="field"><span>Tipo de turno</span><select name="shiftType"><option value="regular">Regular</option><option value="night">Nocturno</option><option value="weekend">Fin de semana</option><option value="special_activity">Actividad especial</option><option value="extraordinary">Extraordinario</option></select></label>
+                <fieldset class="schedule-days"><legend>Dias laborables</legend><label><input type="checkbox" name="weekday" value="1" checked> Lun</label><label><input type="checkbox" name="weekday" value="2" checked> Mar</label><label><input type="checkbox" name="weekday" value="3" checked> Mie</label><label><input type="checkbox" name="weekday" value="4" checked> Jue</label><label><input type="checkbox" name="weekday" value="5" checked> Vie</label><label><input type="checkbox" name="weekday" value="6"> Sab</label><label><input type="checkbox" name="weekday" value="7"> Dom</label></fieldset>
+                <button class="button" type="submit">Crear regla recurrente</button>
+              </form>
+              <p class="form-message" data-schedule-message></p>
+              <div class="schedule-rule-list" data-schedule-rule-list><p>Cargando reglas...</p></div>
+            </section>
+
             <form class="attendance-filters" data-attendance-filters>
               <label class="field"><span>Empleado</span><select name="employeeId" data-attendance-employee><option value="">Todos los empleados</option></select></label>
               <label class="field"><span>Desde</span><input type="date" name="from" required></label>
@@ -218,8 +237,8 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=employee-sensitive-20260721"></script>
+  <script src="js/services/supabase.js?v=attendance-schedules-20260721"></script>
+  <script src="js/app.js?v=attendance-schedules-20260721"></script>
 </body>
 </html>
 
