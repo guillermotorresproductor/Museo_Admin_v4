@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Uso, Cesión y Arrendamiento</title>
-  <link rel="stylesheet" href="css/main.css?v=encoding-papeleria-20260708">
+  <link rel="stylesheet" href="css/main.css?v=renta-espacios-20260726">
 </head>
 <body>
   <div class="app-shell">
@@ -13,7 +13,18 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="card panel rental-panel" data-rental-module>
+        <section class="rental-catalog-intro">
+          <div>
+            <p class="page-kicker">Facilidades del Museo</p>
+            <h2>Seleccione el espacio para su actividad</h2>
+            <p>Conozca sus características, fotografías, tarifas y condiciones antes de presentar la solicitud.</p>
+          </div>
+          <a class="button secondary" href="#solicitud">Ir directamente a la solicitud</a>
+        </section>
+
+        <section class="rental-catalog" data-rental-catalog aria-label="Espacios disponibles"></section>
+
+        <section class="card panel rental-panel" id="solicitud" data-rental-module>
           <div class="panel-heading-inline">
             <div>
               <p class="page-kicker">Reservaciones</p>
@@ -131,9 +142,10 @@
             <section class="rental-calculation" aria-label="Cálculo automático">
               <div><span>Precio por día</span><strong data-rental-rate>$0.00</strong></div>
               <div><span>Cantidad de días</span><strong data-rental-days>0</strong></div>
+              <div><span>Fianza reembolsable</span><strong data-rental-deposit>$0.00</strong></div>
               <div><span>Subtotal</span><strong data-rental-subtotal>$0.00</strong></div>
               <div><span>Impuestos</span><strong data-rental-tax>$0.00</strong></div>
-              <div><span>Total</span><strong data-rental-total>$0.00</strong></div>
+              <div><span>Total inicial</span><strong data-rental-total>$0.00</strong></div>
             </section>
 
             <section class="rental-documents" aria-label="Documentos requeridos">
@@ -164,12 +176,15 @@
               </div>
             </section>
 
-            <section class="rental-terms" aria-label="Reglas de cancelación">
+            <section class="rental-terms" aria-label="Normas y reglas de cancelación">
+              <h3>Normas generales para el uso de las facilidades</h3>
+              <ol data-rental-general-rules></ol>
               <h3>Reglas de cancelación</h3>
               <ol>
-                <li>Cancelación con 30 días o más de anticipación: devolución del 100%.</li>
-                <li>Cancelación entre 29 días y 2 días antes del evento: el Museo podrá retener hasta un 50%.</li>
-                <li>Cancelación el día anterior o el mismo día: no procede devolución.</li>
+                <li>Con 30 días o más de anticipación, el Museo podrá autorizar la devolución total.</li>
+                <li>Luego de ese término y hasta dos días antes de la actividad, el Museo podrá retener hasta un 50%.</li>
+                <li>Si la cancelación ocurre el día anterior a la actividad, no procede devolución.</li>
+                <li>En casos de fuerza mayor, el Museo podrá autorizar un crédito utilizable dentro de un año.</li>
               </ol>
               <p data-rental-cancellation>El cálculo de cancelación aparecerá al seleccionar una fecha.</p>
             </section>
@@ -218,8 +233,6 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=encoding-papeleria-20260708"></script>
+  <script src="js/app.js?v=renta-espacios-20260726"></script>
 </body>
 </html>
-
-

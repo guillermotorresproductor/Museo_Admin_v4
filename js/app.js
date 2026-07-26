@@ -10,6 +10,7 @@
   "solicitud-materiales.html": { title: "Solicitud de Materiales", subtitle: "Registro de solicitudes de mantenimiento." },
   "ruta-digital.html": { title: "Ruta Digital de Mantenimiento", subtitle: "Control de recorrido por áreas." },
   "renta-espacios.html": { title: "Renta de Espacios", subtitle: "Solicitud de áreas y tarifas oficiales." },
+  "renta-espacio.html": { title: "Renta de Espacios", subtitle: "Ficha, fotografías y condiciones del espacio." },
   "administracion.html": { title: "Administración", subtitle: "Recursos humanos, notificaciones, reportes y finanzas." },
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
   "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
@@ -52,7 +53,7 @@ const navigationGroups = [
     items: [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
       { href: "calendario.html", label: "Calendario de Eventos del Museo", icon: "calendar" },
-      { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building" },
+      { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building", activePages: ["renta-espacio.html"] },
       { href: "ujieres.html", label: "Ujieres", icon: "users" },
       { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"] },
       { href: "documentos.html", label: "Formularios y Papelería", icon: "file", activePages: ["deposito-artes.html", "empleados.html", "recibo-prestamo.html", "reglamento.html"] },
@@ -598,17 +599,223 @@ const defaultFinanceRows = [
 
 const excludedFinanceConcepts = new Set(["Contingencia", "Ahorros"]);
 
+const rentalGeneralRules = [
+  "Toda solicitud requiere la aprobación previa del Municipio Autónomo de Guaynabo y se formalizará mediante el documento correspondiente.",
+  "La actividad deberá ser compatible con los fines culturales, educativos e institucionales del Museo. No se permiten actividades político-partidistas.",
+  "El solicitante deberá presentar identificación con fotografía o, para una entidad jurídica, la resolución corporativa correspondiente.",
+  "Se requiere una póliza de responsabilidad pública vigente, con relevo de responsabilidad a favor del Municipio y el Municipio como asegurado adicional, salvo que se autorice una cubierta mediante un programa del MAG.",
+  "El pago deberá realizarse antes de la actividad en la Oficina de Recaudaciones del MAG y la evidencia del pago deberá presentarse antes del uso del espacio.",
+  "El montaje, la decoración, la escenografía y la instalación o remoción de equipos deberán informarse en la solicitud y coordinarse previamente con la Administración.",
+  "No se permite alterar, perforar o afectar paredes, pisos, techos, pintura, superficies ni elementos permanentes del Museo.",
+  "El área deberá entregarse en condiciones adecuadas de orden y limpieza. El usuario responderá por los daños ocasionados a las facilidades, equipos o propiedad del Museo.",
+  "El solicitante será responsable por la conducta, la seguridad y el cumplimiento de las normas por parte de invitados, empleados, suplidores y contratistas.",
+  "El MAG podrá revocar, suspender o modificar una autorización para proteger el interés público, la seguridad, las facilidades o la operación del Museo."
+];
+
 const defaultRentalSpaces = [
-  { id: "ballroom", name: "Ballroom", description: "Espacio principal para actividades de gran formato.", canon: 1000, billing: "por día", capacity: 300, schedule: "8:00 AM - 11:00 PM", setup: "2 horas", breakdown: "2 horas", status: "Disponible", equipment: ["Sonido base", "Aire acondicionado", "Iluminación"] },
-  { id: "anfiteatro", name: "Anfiteatro", description: "Área para presentaciones, charlas y eventos institucionales.", canon: 1000, billing: "por día", capacity: 200, schedule: "8:00 AM - 11:00 PM", setup: "2 horas", breakdown: "2 horas", status: "Disponible", equipment: ["Tarima", "Sonido base", "Aire acondicionado"] },
-  { id: "mezzanine", name: "Mezzanine", description: "Espacio abierto para actividades culturales y recepciones.", canon: 1000, billing: "por día", capacity: 150, schedule: "8:00 AM - 10:00 PM", setup: "2 horas", breakdown: "1 hora", status: "Disponible", equipment: ["Área abierta", "Aire acondicionado"] },
-  { id: "cine-bienvenida", name: "Cine Bienvenida", description: "Espacio audiovisual inmersivo para documentales, conferencias, talleres, lanzamientos, presentaciones educativas, exhibiciones multimedia y experiencias de hasta 180 grados.", canon: 600, billing: "por día", capacity: 80, schedule: "8:00 AM - 10:00 PM", setup: "1 hora", breakdown: "1 hora", status: "Disponible", equipment: ["Pantalla panorámica de hasta 180°", "Sistema profesional de proyección", "Sistema profesional de sonido", "Aire acondicionado", "Butacas para el público"] },
-  { id: "salon-adiestramiento", name: "Salón de Adiestramiento (Usos Múltiples)", description: "Salón para talleres, reuniones, seminarios y actividades educativas.", canon: 300, billing: "por día", capacity: 60, schedule: "8:00 AM - 8:00 PM", setup: "1 hora", breakdown: "1 hora", status: "Disponible", equipment: ["Mesas", "Sillas", "Pantalla"] },
-  { id: "lobby", name: "Vestíbulo (Lobby)", description: "Área de bienvenida para recepciones y actividades compatibles con la misión del Museo.", canon: 600, billing: "por día", capacity: 100, schedule: "8:00 AM - 10:00 PM", setup: "1 hora", breakdown: "1 hora", status: "Disponible", equipment: ["Área abierta", "Aire acondicionado"] },
-  { id: "plazoleta", name: "Plazoleta", description: "Espacio exterior para actividades culturales y comunitarias.", canon: 600, billing: "por día", capacity: 200, schedule: "8:00 AM - 10:00 PM", setup: "2 horas", breakdown: "2 horas", status: "Disponible", equipment: ["Área exterior"] },
-  { id: "estacionamiento", name: "Estacionamiento", description: "Área exterior para usos especiales autorizados.", canon: 2500, billing: "por día", capacity: 250, schedule: "8:00 AM - 11:00 PM", setup: "2 horas", breakdown: "2 horas", status: "Disponible", equipment: ["Área vehicular"] },
-  { id: "cafeteria", name: "Cafetería (Café/Bar Móvil)", description: "Concesión comercial compatible con la naturaleza del Museo.", canon: 1500, billing: "mensuales", capacity: 0, schedule: "Según contrato", setup: "Según contrato", breakdown: "Según contrato", status: "Disponible", equipment: ["Según contrato"] },
-  { id: "gift-shop", name: "Gift Shop", description: "Concesión comercial sujeta a contrato aprobado por el MAG.", canon: 0, billing: "según contrato aprobado por el MAG", capacity: 0, schedule: "Según contrato", setup: "Según contrato", breakdown: "Según contrato", status: "Disponible", equipment: ["Según contrato"] }
+  {
+    id: "ballroom",
+    slug: "salon-lito-pena",
+    name: "Salón Lito Peña",
+    regulatoryName: "Ballroom",
+    description: "Espacio exclusivo, elegante y versátil para conferencias, galas, eventos corporativos, actividades culturales y eventos de formato mediano. La renta incluye el foyer frente a los elevadores, ideal para recepción, registro, cóctel, mesas altas o barra de bienvenida.",
+    canon: 1000,
+    deposit: 500,
+    billing: "por día",
+    area: "2,596 pies²",
+    capacity: 100,
+    capacityLabel: "100 personas en conferencia / 80 con mesas",
+    schedule: "6:00 p.m. - 12:00 a.m.",
+    setup: "Según horario coordinado con la Administración",
+    breakdown: "12:00 a.m. - 1:00 a.m.",
+    status: "Disponible",
+    equipment: ["Sonido básico", "Iluminación básica", "Aire acondicionado", "Foyer o área de cóctel"],
+    idealFor: ["Galas y bodas", "Conferencias", "Eventos corporativos", "Actividades culturales"],
+    requirements: ["Proveedores y detalles del montaje con un mínimo de dos semanas de anticipación", "Aprobación previa para catering, DJ, sonido adicional, tarima y equipo audiovisual", "Decoración previamente ensamblada", "No se permite confeti, humo ni chispas frías"],
+    images: [
+      "assets/rentals/salon-lito-pena-01.webp",
+      "assets/rentals/salon-lito-pena-02.webp",
+      "assets/rentals/salon-lito-pena-03.webp",
+      "assets/rentals/salon-lito-pena-foyer-01.webp",
+      "assets/rentals/salon-lito-pena-foyer-02.webp",
+      "assets/rentals/salon-lito-pena-foyer-03.webp"
+    ]
+  },
+  {
+    id: "mezzanine",
+    slug: "mezzanine-raices",
+    name: "Mezzanine Raíces",
+    regulatoryName: "Mezzanine",
+    description: "Espacio interior amplio y contemporáneo en el primer nivel, integrado a la experiencia cultural del Museo. Su distribución abierta permite conferencias, presentaciones artísticas, exhibiciones temporeras, recepciones y lanzamientos de productos.",
+    canon: 1000,
+    deposit: 500,
+    billing: "por día",
+    area: "3,131 pies²",
+    capacity: 150,
+    capacityLabel: "Sujeta al plano de montaje aprobado",
+    schedule: "Según disponibilidad y autorización del Museo",
+    setup: "Coordinado previamente con la Administración",
+    breakdown: "Coordinado previamente con la Administración",
+    status: "Disponible",
+    equipment: ["Área abierta", "Aire acondicionado", "Podio disponible sujeto a coordinación"],
+    idealFor: ["Conferencias", "Presentaciones culturales", "Exhibiciones temporeras", "Lanzamientos de productos"],
+    requirements: ["El montaje debe proteger las vitrinas, obras y elementos museográficos", "Los pasillos, salidas y accesos deberán permanecer despejados"],
+    images: [
+      "assets/rentals/mezzanine-raices-01.webp",
+      "assets/rentals/mezzanine-raices-02.webp",
+      "assets/rentals/mezzanine-raices-03.webp"
+    ]
+  },
+  {
+    id: "cine-bienvenida",
+    slug: "cine-180",
+    name: "Cine 180°",
+    regulatoryName: "Espacio audiovisual del Museo",
+    description: "Sala audiovisual inmersiva con pantalla panorámica curva para documentales, conferencias, talleres, lanzamientos, presentaciones educativas y experiencias multimedia.",
+    canon: 600,
+    deposit: 300,
+    billing: "por día",
+    area: "Configuración fija",
+    capacity: 24,
+    capacityLabel: "24 butacas",
+    schedule: "Según disponibilidad y autorización del Museo",
+    setup: "1 hora, coordinada previamente",
+    breakdown: "1 hora",
+    status: "Disponible",
+    equipment: ["Pantalla panorámica de hasta 180°", "Sistema profesional de proyección", "Sistema profesional de sonido", "Aire acondicionado", "Butacas fijas"],
+    idealFor: ["Presentaciones culturales", "Presentaciones de productos", "Conferencias", "Proyecciones educativas"],
+    requirements: ["Todo contenido audiovisual deberá entregarse con anticipación para prueba técnica", "La operación de los sistemas estará a cargo de personal autorizado"],
+    images: [
+      "assets/rentals/cine-180-presentacion-cultural.webp",
+      "assets/rentals/cine-180-presentacion-producto.webp",
+      "assets/rentals/cine-180-conferenciante.webp"
+    ]
+  },
+  {
+    id: "lobby",
+    slug: "el-lobby",
+    name: "El Lobby",
+    regulatoryName: "Vestíbulo (Lobby)",
+    description: "Vestíbulo principal del Museo, diseñado para recepciones, registros, cócteles y actividades de bienvenida compatibles con la misión institucional.",
+    canon: 600,
+    deposit: 300,
+    billing: "por día",
+    area: "1,300 pies²",
+    capacity: 100,
+    capacityLabel: "Sujeta al plano de montaje aprobado",
+    schedule: "Según disponibilidad y autorización del Museo",
+    setup: "Coordinado previamente con la Administración",
+    breakdown: "1 hora",
+    status: "Disponible",
+    equipment: ["Área abierta", "Aire acondicionado", "Mostradores de recepción"],
+    idealFor: ["Recepciones", "Registro de invitados", "Cócteles", "Actividades institucionales"],
+    requirements: ["Deberán mantenerse despejadas las entradas, salidas, escaleras y rutas de circulación", "La actividad no podrá interferir con la operación regular sin autorización"],
+    images: [
+      "assets/rentals/el-lobby-recepcion-formal.webp",
+      "assets/rentals/el-lobby-registro-bienvenida.webp",
+      "assets/rentals/el-lobby-coctel-nocturno.webp"
+    ]
+  },
+  {
+    id: "plazoleta",
+    slug: "terraza-de-la-musica",
+    name: "La Terraza de la Música",
+    regulatoryName: "Plazoleta",
+    description: "Espacio exterior contiguo al anfiteatro, ideal para cafés culturales, música en vivo, encuentros sociales y actividades comunitarias.",
+    canon: 600,
+    deposit: 300,
+    billing: "por día",
+    area: "1,158 pies²",
+    capacity: 200,
+    capacityLabel: "Sujeta al plano de montaje aprobado",
+    schedule: "Según disponibilidad y autorización del Museo",
+    setup: "Coordinado previamente con la Administración",
+    breakdown: "Coordinado previamente con la Administración",
+    status: "Disponible",
+    equipment: ["Área exterior parcialmente cubierta"],
+    idealFor: ["Café cultural", "Música en vivo", "Recepciones", "Actividades comunitarias"],
+    requirements: ["El plan deberá considerar condiciones del tiempo y seguridad de equipos", "Tarimas, sonido, iluminación y mobiliario requieren aprobación previa"],
+    images: [
+      "assets/rentals/la-terraza-cafe-vista-amplia.webp",
+      "assets/rentals/la-terraza-cafe-vista-frontal.webp",
+      "assets/rentals/la-terraza-cafe-vista-inversa.webp"
+    ]
+  },
+  {
+    id: "salon-adiestramiento",
+    slug: "salon-multiuso",
+    name: "Salón Multiuso",
+    regulatoryName: "Salón de Adiestramiento (Usos Múltiples)",
+    description: "Salón flexible para actividades educativas, ensayos, talleres, clases, reuniones, conferencias y presentaciones compatibles con los fines del Museo.",
+    canon: 300,
+    deposit: 300,
+    billing: "por día",
+    area: "Configuración flexible",
+    capacity: 60,
+    capacityLabel: "Sujeta al plano de montaje aprobado",
+    schedule: "Según disponibilidad y autorización del Museo",
+    setup: "1 hora, coordinada previamente",
+    breakdown: "1 hora",
+    status: "Disponible",
+    equipment: ["Mesas", "Sillas", "Aire acondicionado"],
+    idealFor: ["Talleres y clases", "Ensayos", "Reuniones", "Presentaciones de productos"],
+    requirements: ["La distribución deberá conservar rutas de salida y circulación", "Equipos especiales y sonido adicional requieren aprobación previa"],
+    images: [
+      "assets/rentals/salon-multiuso-ensayo-orquesta.webp",
+      "assets/rentals/salon-multiuso-presentacion-productos.webp",
+      "assets/rentals/salon-multiuso-clase-de-baile.webp"
+    ]
+  },
+  {
+    id: "anfiteatro",
+    slug: "anfiteatro-andy-montanez",
+    name: "Anfiteatro Andy Montañez",
+    regulatoryName: "Anfiteatro",
+    description: "Anfiteatro techado al aire libre para conciertos, presentaciones artísticas, actividades culturales, charlas y eventos institucionales. Incluye el uso del área de camerinos.",
+    canon: 1000,
+    deposit: 500,
+    billing: "por día",
+    area: "Anfiteatro techado al aire libre",
+    capacity: 120,
+    capacityLabel: "120 personas aproximadamente",
+    schedule: "Según disponibilidad y autorización del Museo",
+    setup: "Coordinado previamente con la Administración",
+    breakdown: "Coordinado previamente con la Administración",
+    status: "Disponible",
+    equipment: ["Tarima fija", "Área de camerinos", "Infraestructura para producción sujeta a evaluación técnica"],
+    idealFor: ["Conciertos", "Presentaciones artísticas", "Charlas", "Actividades institucionales"],
+    requirements: ["Luces, sonido, instrumentos y producción técnica requieren coordinación y aprobación previa", "La capacidad y los accesos de seguridad no podrán alterarse"],
+    images: [
+      "assets/rentals/anfiteatro-concierto-vista-frontal.webp",
+      "assets/rentals/anfiteatro-concierto-vista-general.webp",
+      "assets/rentals/anfiteatro-concierto-desde-tarima.webp"
+    ]
+  },
+  {
+    id: "estacionamiento",
+    slug: "estacionamiento",
+    name: "Estacionamiento",
+    regulatoryName: "Estacionamiento",
+    description: "Área exterior de gran escala disponible para eventos masivos, festivales, ferias y actividades autorizadas compatibles con las operaciones y fines del Museo.",
+    canon: 2500,
+    deposit: 500,
+    billing: "por día",
+    area: "Área exterior del Museo",
+    capacity: 0,
+    capacityLabel: "Según plan operacional, de seguridad y emergencias aprobado",
+    schedule: "Según disponibilidad y autorización del Museo",
+    setup: "Según plan de producción aprobado",
+    breakdown: "Según plan de producción aprobado",
+    status: "Disponible",
+    equipment: ["Área exterior; producción, tarima, sonido, iluminación y kioscos no incluidos"],
+    idealFor: ["Eventos masivos", "Festivales", "Ferias", "Conciertos exteriores"],
+    requirements: ["Requiere plan operacional, técnico, de seguridad, emergencias, tránsito, accesos y manejo de desperdicios", "Tarimas, kioscos, generadores, sonido e iluminación requieren aprobación previa"],
+    images: [
+      "assets/rentals/estacionamiento-evento-vista-aerea-cercana.webp",
+      "assets/rentals/estacionamiento-evento-vista-baja.webp",
+      "assets/rentals/estacionamiento-evento-vista-aerea-general.webp"
+    ]
+  }
 ];
 
 function iconSvg(name) {
@@ -945,6 +1152,130 @@ function bindIdleLogout() {
   schedule();
 }
 
+function rentalMoney(value) {
+  return Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
+}
+
+function rentalSpaceCard(space) {
+  const cover = space.images?.[0] || "";
+  return `
+    <article class="rental-space-card">
+      <a class="rental-space-card-image" href="renta-espacio.html?espacio=${encodeURIComponent(space.slug)}">
+        <img src="${safeHtml(cover)}" alt="${safeHtml(space.name)}" loading="lazy">
+      </a>
+      <div class="rental-space-card-body">
+        <div class="rental-space-card-heading">
+          <div>
+            <p class="rental-regulatory-name">${safeHtml(space.regulatoryName)}</p>
+            <h3>${safeHtml(space.name)}</h3>
+          </div>
+          <span class="rental-status-badge">${safeHtml(space.status)}</span>
+        </div>
+        <p>${safeHtml(space.description)}</p>
+        <div class="rental-card-facts">
+          <span><strong>${rentalMoney(space.canon)}</strong> ${safeHtml(space.billing)}</span>
+          <span><strong>${rentalMoney(space.deposit)}</strong> fianza</span>
+          <span><strong>${safeHtml(space.area)}</strong></span>
+        </div>
+        <a class="button rental-card-button" href="renta-espacio.html?espacio=${encodeURIComponent(space.slug)}">Ver espacio y solicitar</a>
+      </div>
+    </article>
+  `;
+}
+
+function bindRentalCatalog() {
+  const catalog = document.querySelector("[data-rental-catalog]");
+  if (!catalog) return;
+  catalog.innerHTML = defaultRentalSpaces.map(rentalSpaceCard).join("");
+}
+
+function bindRentalGeneralRules() {
+  document.querySelectorAll("[data-rental-general-rules]").forEach((list) => {
+    list.innerHTML = rentalGeneralRules.map((rule) => `<li>${safeHtml(rule)}</li>`).join("");
+  });
+}
+
+function bindRentalSpacePage() {
+  const detail = document.querySelector("[data-rental-public-detail]");
+  if (!detail) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const requestedSlug = params.get("espacio");
+  const space = defaultRentalSpaces.find((item) => item.slug === requestedSlug) || defaultRentalSpaces[0];
+  const pageTitle = document.querySelector("[data-rental-public-title]");
+  const pageSubtitle = document.querySelector("[data-rental-public-subtitle]");
+  if (pageTitle) pageTitle.textContent = space.name;
+  if (pageSubtitle) pageSubtitle.textContent = space.regulatoryName;
+  document.title = `${space.name} | Renta de Espacios`;
+
+  const listMarkup = (items) => items.map((item) => `<li>${safeHtml(item)}</li>`).join("");
+  detail.innerHTML = `
+    <section class="rental-detail-hero">
+      <div class="rental-detail-main-image">
+        <img src="${safeHtml(space.images[0])}" alt="${safeHtml(space.name)}" data-rental-main-image>
+      </div>
+      <div class="rental-detail-copy">
+        <p class="page-kicker">${safeHtml(space.regulatoryName)}</p>
+        <h2>${safeHtml(space.name)}</h2>
+        <p>${safeHtml(space.description)}</p>
+        <div class="rental-price-block">
+          <div><span>Canon</span><strong>${rentalMoney(space.canon)} ${safeHtml(space.billing)}</strong></div>
+          <div><span>Fianza reembolsable</span><strong>${rentalMoney(space.deposit)}</strong></div>
+        </div>
+        <a class="button submit-button" href="renta-espacios.html?espacio=${encodeURIComponent(space.id)}#solicitud">Solicitar este espacio</a>
+      </div>
+    </section>
+
+    <div class="rental-thumbnail-grid" aria-label="Galería de ${safeHtml(space.name)}">
+      ${space.images.map((image, index) => `
+        <button type="button" class="${index === 0 ? "is-active" : ""}" data-rental-thumbnail="${safeHtml(image)}" aria-label="Ver fotografía ${index + 1}">
+          <img src="${safeHtml(image)}" alt="" loading="lazy">
+        </button>
+      `).join("")}
+    </div>
+
+    <section class="rental-detail-facts">
+      <div><span>Área</span><strong>${safeHtml(space.area)}</strong></div>
+      <div><span>Capacidad</span><strong>${safeHtml(space.capacityLabel)}</strong></div>
+      <div><span>Horario</span><strong>${safeHtml(space.schedule)}</strong></div>
+      <div><span>Montaje</span><strong>${safeHtml(space.setup)}</strong></div>
+      <div><span>Desmontaje</span><strong>${safeHtml(space.breakdown)}</strong></div>
+    </section>
+
+    <section class="rental-detail-columns">
+      <article>
+        <h3>Ideal para</h3>
+        <ul>${listMarkup(space.idealFor || [])}</ul>
+      </article>
+      <article>
+        <h3>Incluye</h3>
+        <ul>${listMarkup(space.equipment || [])}</ul>
+      </article>
+      <article>
+        <h3>Requisitos particulares</h3>
+        <ul>${listMarkup(space.requirements || [])}</ul>
+      </article>
+    </section>
+
+    <section class="rental-rules-card">
+      <p class="page-kicker">Reglamento del Museo</p>
+      <h3>Normas generales aplicables a todos los espacios</h3>
+      <ol>${listMarkup(rentalGeneralRules)}</ol>
+      <p>La aprobación final, los límites de capacidad y cualquier condición adicional dependerán de la actividad y del plano de montaje presentado.</p>
+    </section>
+  `;
+
+  detail.addEventListener("click", (event) => {
+    const thumbnail = event.target.closest("[data-rental-thumbnail]");
+    if (!thumbnail) return;
+    const mainImage = detail.querySelector("[data-rental-main-image]");
+    if (mainImage) mainImage.src = thumbnail.dataset.rentalThumbnail;
+    detail.querySelectorAll("[data-rental-thumbnail]").forEach((button) => {
+      button.classList.toggle("is-active", button === thumbnail);
+    });
+  });
+}
+
 function bindRentalForm() {
   const form = document.querySelector("#rental-form");
   if (!form) return;
@@ -967,7 +1298,7 @@ function bindRentalForm() {
     const previousSpaces = spaces;
     spaces = nextSpaces;
     try {
-      await saveSystemCollection("renta_espacios", "spaces", spaces);
+      await saveSystemCollection("renta_espacios", "spaces_v2", spaces);
     } catch (error) {
       spaces = previousSpaces;
       throw error;
@@ -1001,9 +1332,10 @@ function bindRentalForm() {
     const space = selectedSpace();
     const days = daysBetween();
     const rate = space?.canon || 0;
+    const deposit = space?.deposit || 0;
     const subtotal = rate * days;
     const tax = 0;
-    return { rate, days, subtotal, tax, total: subtotal + tax };
+    return { rate, days, deposit, subtotal, tax, total: subtotal + deposit + tax };
   };
   const setMessage = (text, type = "") => {
     if (!message) return;
@@ -1042,13 +1374,17 @@ function bindRentalForm() {
       <p>${safeHtml(space.description)}</p>
       <div class="rental-feature-grid">
         <span><strong>Canon:</strong> ${space.canon ? money(space.canon) : space.billing}</span>
-        <span><strong>Capacidad:</strong> ${space.capacity || "Según contrato"}</span>
+        <span><strong>Fianza:</strong> ${money(space.deposit)}</span>
+        <span><strong>Área:</strong> ${safeHtml(space.area || "Según configuración")}</span>
+        <span><strong>Capacidad:</strong> ${safeHtml(space.capacityLabel || "Según montaje aprobado")}</span>
         <span><strong>Horario:</strong> ${safeHtml(space.schedule)}</span>
         <span><strong>Montaje:</strong> ${safeHtml(space.setup)}</span>
         <span><strong>Desmontaje:</strong> ${safeHtml(space.breakdown)}</span>
         <span><strong>Estado:</strong> ${safeHtml(space.status)}</span>
       </div>
       <p><strong>Equipos incluidos:</strong> ${space.equipment.map(safeHtml).join(", ")}</p>
+      <p><strong>Requisitos particulares:</strong> ${(space.requirements || []).map(safeHtml).join(" · ")}</p>
+      <a class="rental-detail-link" href="renta-espacio.html?espacio=${encodeURIComponent(space.slug)}">Ver fotografías y ficha completa</a>
     `;
   };
 
@@ -1056,13 +1392,14 @@ function bindRentalForm() {
     const calc = currentCalculation();
     document.querySelector("[data-rental-rate]").textContent = money(calc.rate);
     document.querySelector("[data-rental-days]").textContent = calc.days;
+    document.querySelector("[data-rental-deposit]").textContent = money(calc.deposit);
     document.querySelector("[data-rental-subtotal]").textContent = money(calc.subtotal);
     document.querySelector("[data-rental-tax]").textContent = money(calc.tax);
     document.querySelector("[data-rental-total]").textContent = money(calc.total);
 
     if (cancellation && dateValue("fecha")) {
       const daysBefore = Math.ceil((new Date(`${dateValue("fecha")}T12:00:00`) - new Date()) / 86400000);
-      const refund = daysBefore >= 30 ? "devolución estimada del 100%" : daysBefore >= 2 ? "el Museo podrá retener hasta un 50%" : "no procede devolución";
+      const refund = daysBefore >= 30 ? "el Museo podrá autorizar la devolución total" : daysBefore >= 2 ? "el Museo podrá retener hasta un 50%" : "no procede devolución";
       cancellation.textContent = `Según la fecha seleccionada, en caso de cancelación aplicaría: ${refund}.`;
     }
   };
@@ -1121,6 +1458,7 @@ function bindRentalForm() {
         <label><small>Nombre</small><input type="text" value="${safeHtml(space.name)}" data-rental-space-id="${space.id}" data-rental-space-field="name"></label>
         <label><small>Descripción</small><textarea rows="3" data-rental-space-id="${space.id}" data-rental-space-field="description">${safeHtml(space.description)}</textarea></label>
         <label><small>Canon</small><input type="number" min="0" step="0.01" value="${Number(space.canon || 0)}" data-rental-space-id="${space.id}" data-rental-space-field="canon"></label>
+        <label><small>Fianza</small><input type="number" min="0" step="0.01" value="${Number(space.deposit || 0)}" data-rental-space-id="${space.id}" data-rental-space-field="deposit"></label>
         <label><small>Capacidad</small><input type="number" min="0" step="1" value="${Number(space.capacity || 0)}" data-rental-space-id="${space.id}" data-rental-space-field="capacity"></label>
         <label><small>Horarios disponibles</small><input type="text" value="${safeHtml(space.schedule)}" data-rental-space-id="${space.id}" data-rental-space-field="schedule"></label>
         <label><small>Montaje</small><input type="text" value="${safeHtml(space.setup)}" data-rental-space-id="${space.id}" data-rental-space-field="setup"></label>
@@ -1182,6 +1520,7 @@ function bindRentalForm() {
       espacio: space.name,
       descripcion: data.get("descripcion"),
       precioDia: calc.rate,
+      fianza: calc.deposit,
       dias: calc.days,
       subtotal: calc.subtotal,
       impuestos: calc.tax,
@@ -1235,7 +1574,7 @@ function bindRentalForm() {
     const space = spaces.find((item) => item.id === field.dataset.rentalSpaceId);
     if (!space) return;
     const key = field.dataset.rentalSpaceField;
-    if (key === "canon" || key === "capacity") {
+    if (key === "canon" || key === "deposit" || key === "capacity") {
       space[key] = Number(field.value || 0);
     } else if (key === "equipment") {
       space[key] = field.value.split(",").map((item) => item.trim()).filter(Boolean);
@@ -1255,7 +1594,7 @@ function bindRentalForm() {
 
   const loadRentalData = async () => {
     try {
-      spaces = await fetchSystemCollection("renta_espacios", "spaces", defaultRentalSpaces);
+      spaces = await fetchSystemCollection("renta_espacios", "spaces_v2", defaultRentalSpaces);
       requests = await fetchSystemCollection("renta_espacios", "requests", []);
       setMessage("Datos de renta cargados desde Supabase.", "success");
     } catch (error) {
@@ -1266,6 +1605,13 @@ function bindRentalForm() {
     renderCalculation();
     renderHistory();
     renderConfig();
+
+    const requestedSpace = new URLSearchParams(window.location.search).get("espacio");
+    if (requestedSpace && spaceSelect && getSpaces().some((space) => space.id === requestedSpace)) {
+      spaceSelect.value = requestedSpace;
+      renderSpaceDetail();
+      renderCalculation();
+    }
   };
 
   loadRentalData();
@@ -3463,6 +3809,9 @@ async function initApp() {
   bindNotificationMenu();
   bindLoginDemo();
   bindIdleLogout();
+  bindRentalCatalog();
+  bindRentalGeneralRules();
+  bindRentalSpacePage();
   bindRentalForm();
   bindLoanReceiptForm();
   bindInventoryModule();
@@ -3470,7 +3819,3 @@ async function initApp() {
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
-
-
-
-
