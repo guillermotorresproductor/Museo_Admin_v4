@@ -633,9 +633,9 @@ const defaultRentalSpaces = [
     idealFor: ["Galas y bodas", "Conferencias", "Eventos corporativos", "Actividades culturales"],
     requirements: ["Proveedores y detalles del montaje con un mínimo de dos semanas de anticipación", "Aprobación previa para catering, DJ, sonido adicional, tarima y equipo audiovisual", "Decoración previamente ensamblada", "No se permite confeti, humo ni chispas frías"],
     images: [
+      "assets/rentals/salon-lito-pena-03.webp",
       "assets/rentals/salon-lito-pena-01.webp",
       "assets/rentals/salon-lito-pena-02.webp",
-      "assets/rentals/salon-lito-pena-03.webp",
       "assets/rentals/salon-lito-pena-foyer-01.webp",
       "assets/rentals/salon-lito-pena-foyer-02.webp",
       "assets/rentals/salon-lito-pena-foyer-03.webp"
@@ -686,8 +686,8 @@ const defaultRentalSpaces = [
     idealFor: ["Presentaciones culturales", "Presentaciones de productos", "Conferencias", "Proyecciones educativas"],
     requirements: ["Todo contenido audiovisual deberá entregarse con anticipación para prueba técnica", "La operación de los sistemas estará a cargo de personal autorizado"],
     images: [
-      "assets/rentals/cine-180-presentacion-cultural.webp",
       "assets/rentals/cine-180-presentacion-producto.webp",
+      "assets/rentals/cine-180-presentacion-cultural.webp",
       "assets/rentals/cine-180-conferenciante.webp"
     ]
   },
@@ -711,9 +711,9 @@ const defaultRentalSpaces = [
     idealFor: ["Recepciones", "Registro de invitados", "Cócteles", "Actividades institucionales"],
     requirements: ["Deberán mantenerse despejadas las entradas, salidas, escaleras y rutas de circulación", "La actividad no podrá interferir con la operación regular sin autorización"],
     images: [
+      "assets/rentals/el-lobby-coctel-nocturno.webp",
       "assets/rentals/el-lobby-recepcion-formal.webp",
-      "assets/rentals/el-lobby-registro-bienvenida.webp",
-      "assets/rentals/el-lobby-coctel-nocturno.webp"
+      "assets/rentals/el-lobby-registro-bienvenida.webp"
     ]
   },
   {
@@ -736,8 +736,8 @@ const defaultRentalSpaces = [
     idealFor: ["Café cultural", "Música en vivo", "Recepciones", "Actividades comunitarias"],
     requirements: ["El plan deberá considerar condiciones del tiempo y seguridad de equipos", "Tarimas, sonido, iluminación y mobiliario requieren aprobación previa"],
     images: [
-      "assets/rentals/la-terraza-cafe-vista-amplia.webp",
       "assets/rentals/la-terraza-cafe-vista-frontal.webp",
+      "assets/rentals/la-terraza-cafe-vista-amplia.webp",
       "assets/rentals/la-terraza-cafe-vista-inversa.webp"
     ]
   },
@@ -771,7 +771,7 @@ const defaultRentalSpaces = [
     slug: "anfiteatro-andy-montanez",
     name: "Anfiteatro Andy Montañez",
     regulatoryName: "Anfiteatro",
-    description: "Anfiteatro techado al aire libre para conciertos, presentaciones artísticas, actividades culturales, charlas y eventos institucionales. Incluye el uso del área de camerinos.",
+    description: "Anfiteatro techado al aire libre para conciertos, presentaciones artísticas, actividades culturales, charlas y eventos institucionales. Incluye un camerino privado para el artista con baño y un camerino comunal para músicos y bailarines.",
     canon: 1000,
     deposit: 500,
     billing: "por evento",
@@ -782,13 +782,15 @@ const defaultRentalSpaces = [
     setup: "Coordinado previamente con la Administración",
     breakdown: "Coordinado previamente con la Administración",
     status: "Disponible",
-    equipment: ["Tarima fija", "Área de camerinos", "Infraestructura para producción sujeta a evaluación técnica"],
+    equipment: ["Tarima fija", "Camerino privado con baño", "Camerino comunal para músicos y bailarines", "Infraestructura para producción sujeta a evaluación técnica"],
     idealFor: ["Conciertos", "Presentaciones artísticas", "Charlas", "Actividades institucionales"],
     requirements: ["Luces, sonido, instrumentos y producción técnica requieren coordinación y aprobación previa", "La capacidad y los accesos de seguridad no podrán alterarse"],
     images: [
       "assets/rentals/anfiteatro-concierto-vista-frontal.webp",
-      "assets/rentals/anfiteatro-concierto-vista-general.webp",
-      "assets/rentals/anfiteatro-concierto-desde-tarima.webp"
+      "assets/rentals/anfiteatro-concierto-desde-tarima.webp",
+      "assets/rentals/anfiteatro-camerino-privado.webp",
+      "assets/rentals/anfiteatro-camerino-privado-bano.webp",
+      "assets/rentals/anfiteatro-camerino-comunal.webp"
     ]
   },
   {
@@ -811,9 +813,9 @@ const defaultRentalSpaces = [
     idealFor: ["Eventos masivos", "Festivales", "Ferias", "Conciertos exteriores"],
     requirements: ["Requiere plan operacional, técnico, de seguridad, emergencias, tránsito, accesos y manejo de desperdicios", "Tarimas, kioscos, generadores, sonido e iluminación requieren aprobación previa"],
     images: [
+      "assets/rentals/estacionamiento-evento-vista-aerea-general.webp",
       "assets/rentals/estacionamiento-evento-vista-aerea-cercana.webp",
-      "assets/rentals/estacionamiento-evento-vista-baja.webp",
-      "assets/rentals/estacionamiento-evento-vista-aerea-general.webp"
+      "assets/rentals/estacionamiento-evento-vista-baja.webp"
     ]
   }
 ];
@@ -1158,6 +1160,9 @@ function rentalMoney(value) {
 
 function rentalSpaceCard(space) {
   const cover = space.images?.[0] || "";
+  const displayName = space.slug === "salon-lito-pena"
+    ? "Salón<br>Lito Peña"
+    : safeHtml(space.name);
   return `
     <article class="rental-space-card">
       <a class="rental-space-card-image" href="renta-espacio.html?espacio=${encodeURIComponent(space.slug)}">
@@ -1167,7 +1172,7 @@ function rentalSpaceCard(space) {
         <div class="rental-space-card-heading">
           <div>
             <p class="rental-regulatory-name">${safeHtml(space.regulatoryName)}</p>
-            <h3>${safeHtml(space.name)}</h3>
+            <h3>${displayName}</h3>
           </div>
           <span class="rental-status-badge">${safeHtml(space.status)}</span>
         </div>
@@ -1202,6 +1207,9 @@ function bindRentalSpacePage() {
   const params = new URLSearchParams(window.location.search);
   const requestedSlug = params.get("espacio");
   const space = defaultRentalSpaces.find((item) => item.slug === requestedSlug) || defaultRentalSpaces[0];
+  const displayName = space.slug === "salon-lito-pena"
+    ? "Salón<br>Lito Peña"
+    : safeHtml(space.name);
   const pageTitle = document.querySelector("[data-rental-public-title]");
   const pageSubtitle = document.querySelector("[data-rental-public-subtitle]");
   if (pageTitle) pageTitle.textContent = space.name;
@@ -1214,9 +1222,9 @@ function bindRentalSpacePage() {
       <div class="rental-detail-main-image">
         <img src="${safeHtml(space.images[0])}" alt="${safeHtml(space.name)}" data-rental-main-image>
       </div>
-      <div class="rental-detail-copy">
+      <div class="rental-detail-copy" data-rental-space-slug="${safeHtml(space.slug)}">
         <p class="page-kicker">${safeHtml(space.regulatoryName)}</p>
-        <h2>${safeHtml(space.name)}</h2>
+        <h2>${displayName}</h2>
         <p>${safeHtml(space.description)}</p>
         <div class="rental-price-block">
           <div><span>Canon</span><strong>${rentalMoney(space.canon)} ${safeHtml(space.billing)}</strong></div>

@@ -1095,6 +1095,10 @@ input {
   line-height: 1.03;
 }
 
+.rental-detail-copy[data-rental-space-slug="estacionamiento"] h2 {
+  font-size: clamp(1.7rem, 3vw, 2.45rem);
+}
+
 .rental-detail-copy > p:not(.page-kicker) {
   color: var(--muted);
   line-height: 1.65;
