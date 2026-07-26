@@ -786,7 +786,7 @@ const defaultRentalSpaces = [
     idealFor: ["Conciertos", "Presentaciones artísticas", "Charlas", "Actividades institucionales"],
     requirements: ["Luces, sonido, instrumentos y producción técnica requieren coordinación y aprobación previa", "La capacidad y los accesos de seguridad no podrán alterarse"],
     images: [
-      "assets/rentals/anfiteatro-concierto-vista-frontal.webp",
+      "assets/rentals/anfiteatro-concierto-vista-general.webp",
       "assets/rentals/anfiteatro-concierto-desde-tarima.webp",
       "assets/rentals/anfiteatro-camerino-privado.webp",
       "assets/rentals/anfiteatro-camerino-privado-bano.webp",
