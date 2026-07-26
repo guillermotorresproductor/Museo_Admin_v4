@@ -1003,6 +1003,50 @@ input {
   font-weight: 950;
 }
 
+.rental-internal-production {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border: 1px solid #c58b21;
+  border-radius: 14px;
+  background: #fff9e8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.rental-internal-production[hidden],
+.rental-internal-production-status[hidden] {
+  display: none !important;
+}
+
+.rental-internal-production p {
+  margin: 5px 0 0;
+  color: var(--muted);
+}
+
+.rental-internal-production-button {
+  flex: 0 0 auto;
+  background: #3f3f46;
+  color: #fff;
+}
+
+.rental-internal-production-button.is-active {
+  background: #a66f0a;
+  box-shadow: 0 0 0 3px rgba(197, 139, 33, 0.2);
+}
+
+.rental-internal-production-status {
+  margin: 18px 0 0;
+  padding: 12px 16px;
+  border: 2px solid #a66f0a;
+  border-radius: 10px;
+  background: #fff9e8;
+  color: #744d05;
+  font-weight: 900;
+  text-align: center;
+}
+
 .rental-admin-panel {
   margin-top: 22px;
   padding: 28px;
@@ -3231,6 +3275,7 @@ body {
   body:has(.rental-request-page) .sidebar-backdrop,
   body:has(.rental-request-page) .site-footer,
   .rental-request-page .rental-detail-nav,
+  .rental-request-page .rental-internal-production,
   .rental-request-page .inventory-actions,
   .rental-request-page .form-message {
     display: none !important;

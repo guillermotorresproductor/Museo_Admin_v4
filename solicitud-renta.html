@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Solicitud de Renta | Museo de la Música</title>
-  <link rel="stylesheet" href="css/main.css?v=renta-espacios-20260726d">
+  <link rel="stylesheet" href="css/main.css?v=renta-espacios-20260726e">
 </head>
 <body>
   <div class="app-shell">
@@ -120,6 +120,20 @@
 
             <section class="rental-space-detail" data-rental-space-detail hidden></section>
 
+            <section class="rental-internal-production" data-rental-internal-control hidden>
+              <div>
+                <strong>Uso administrativo</strong>
+                <p>Active esta opción únicamente cuando la actividad sea una producción oficial interna del Museo.</p>
+              </div>
+              <button class="button rental-internal-production-button" type="button" data-rental-internal aria-pressed="false">
+                PRODUCCIÓN INTERNA DEL MUSEO
+              </button>
+            </section>
+
+            <p class="rental-internal-production-status" data-rental-internal-status hidden>
+              PRODUCCIÓN INTERNA DEL MUSEO — CONTRATO SIN CANON DE RENTA NI FIANZA
+            </p>
+
             <section class="rental-calculation" aria-label="Cálculo automático">
               <div><span data-rental-rate-label>Precio por evento</span><strong data-rental-rate>$0.00</strong></div>
               <div><span data-rental-duration-label>Cantidad de días</span><strong data-rental-days>0</strong></div>
@@ -187,6 +201,6 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=renta-espacios-20260726d"></script>
+  <script src="js/app.js?v=renta-espacios-20260726e"></script>
 </body>
 </html>

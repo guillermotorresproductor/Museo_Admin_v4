@@ -748,7 +748,7 @@ const defaultRentalSpaces = [
     regulatoryName: "Salón de Adiestramiento (Usos Múltiples)",
     description: "Salón flexible para actividades educativas, ensayos, talleres, clases, reuniones, conferencias y presentaciones compatibles con los fines del Museo.",
     canon: 300,
-    deposit: 300,
+    deposit: 50,
     billing: "evento completo · $40 por hora",
     hourlyRate: 40,
     minimumHours: 2,
@@ -764,7 +764,9 @@ const defaultRentalSpaces = [
     idealFor: ["Talleres y clases", "Ensayos", "Reuniones", "Presentaciones de productos"],
     requirements: [
       "Evento completo: $300 por un máximo de 8 horas",
+      "La fianza para bloquear la fecha del evento completo es de $50",
       "Alquiler por hora: $40, con reservación mínima de 2 horas y costo mínimo de $80",
+      "En el alquiler por horas no aplica fianza",
       "La distribución deberá conservar rutas de salida y circulación",
       "Equipos especiales, mobiliario y sonido requieren coordinación y aprobación previa"
     ],
@@ -1187,7 +1189,9 @@ function rentalSpaceCard(space) {
         <p>${safeHtml(space.description)}</p>
         <div class="rental-card-facts">
           <span><strong>${rentalMoney(space.canon)}</strong> ${safeHtml(space.billing)}</span>
-          <span><strong>${rentalMoney(space.deposit)}</strong> fianza</span>
+          <span>${space.slug === "salon-multiuso"
+            ? `<strong>${rentalMoney(space.deposit)}</strong> fianza solo evento completo`
+            : `<strong>${rentalMoney(space.deposit)}</strong> fianza`}</span>
           <span><strong>${safeHtml(space.area)}</strong></span>
         </div>
         <a class="button rental-card-button" href="renta-espacio.html?espacio=${encodeURIComponent(space.slug)}">Ver espacio y solicitar</a>
@@ -1226,6 +1230,9 @@ function bindRentalSpacePage() {
   const priceDescription = space.slug === "salon-multiuso"
     ? `${rentalMoney(space.canon)} evento completo (hasta ${space.fullEventHours} horas) · ${rentalMoney(space.hourlyRate)} por hora (mínimo ${space.minimumHours} horas)`
     : `${rentalMoney(space.canon)} ${safeHtml(space.billing)}`;
+  const depositDescription = space.slug === "salon-multiuso"
+    ? `${rentalMoney(space.deposit)} solo para evento completo · No aplica por horas`
+    : rentalMoney(space.deposit);
 
   const listMarkup = (items) => items.map((item) => `<li>${safeHtml(item)}</li>`).join("");
   detail.innerHTML = `
@@ -1239,7 +1246,7 @@ function bindRentalSpacePage() {
         <p>${safeHtml(space.description)}</p>
         <div class="rental-price-block">
           <div><span>Canon</span><strong>${priceDescription}</strong></div>
-          <div><span>Fianza reembolsable</span><strong>${rentalMoney(space.deposit)}</strong></div>
+          <div><span>Fianza reembolsable</span><strong>${depositDescription}</strong></div>
         </div>
         <a class="button submit-button" href="solicitud-renta.html?espacio=${encodeURIComponent(space.id)}">Solicitar este espacio</a>
       </div>
@@ -1301,6 +1308,11 @@ function bindRentalForm() {
   const currentUser = () => localStorage.getItem(currentUserKey) || "Administrador";
   const canAdjust = () => Boolean(getSupabaseSession()?.access_token) && ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
   const isAuthorizedAdmin = canAdjust();
+  const canCreateInternalProduction = () => Boolean(getSupabaseSession()?.access_token) && currentAccessLevel() === "Administrador";
+  const internalProductionControl = document.querySelector("[data-rental-internal-control]");
+  const internalProductionButton = document.querySelector("[data-rental-internal]");
+  const internalProductionStatus = document.querySelector("[data-rental-internal-status]");
+  let isInternalProduction = false;
   if (adminPanel) adminPanel.hidden = !isAuthorizedAdmin;
   if (adminPanel && !isAuthorizedAdmin && !form) return;
   const normalizeRentalSpaces = (storedSpaces) => {
@@ -1312,7 +1324,7 @@ function bindRentalForm() {
       return {
         ...mergedSpace,
         canon: 300,
-        deposit: 300,
+        deposit: 50,
         billing: "evento completo · $40 por hora",
         hourlyRate: 40,
         minimumHours: 2,
@@ -1323,7 +1335,9 @@ function bindRentalForm() {
         equipment: ["No incluye equipos"],
         requirements: [
           "Evento completo: $300 por un máximo de 8 horas",
+          "La fianza para bloquear la fecha del evento completo es de $50",
           "Alquiler por hora: $40, con reservación mínima de 2 horas y costo mínimo de $80",
+          "En el alquiler por horas no aplica fianza",
           "La distribución deberá conservar rutas de salida y circulación",
           "Equipos especiales, mobiliario y sonido requieren coordinación y aprobación previa"
         ]
@@ -1379,14 +1393,27 @@ function bindRentalForm() {
     const space = selectedSpace();
     const days = daysBetween();
     const rate = space?.canon || 0;
-    const deposit = space?.deposit || 0;
     const pricingMode = form?.elements.modalidadTarifa?.value || "evento";
     const hours = hoursBetween();
     const isHourlyMultiuse = space?.slug === "salon-multiuso" && pricingMode === "horas";
-    const unitRate = isHourlyMultiuse ? Number(space.hourlyRate || 0) : rate;
-    const subtotal = isHourlyMultiuse ? unitRate * hours : rate;
+    const authorizedInternalProduction = isInternalProduction && canCreateInternalProduction();
+    const standardRate = isHourlyMultiuse ? Number(space.hourlyRate || 0) : rate;
+    const unitRate = authorizedInternalProduction ? 0 : standardRate;
+    const deposit = authorizedInternalProduction || isHourlyMultiuse ? 0 : Number(space?.deposit || 0);
+    const subtotal = authorizedInternalProduction ? 0 : (isHourlyMultiuse ? standardRate * hours : rate);
     const tax = 0;
-    return { rate: unitRate, days, hours, pricingMode, isHourlyMultiuse, deposit, subtotal, tax, total: subtotal + deposit + tax };
+    return {
+      rate: unitRate,
+      days,
+      hours,
+      pricingMode,
+      isHourlyMultiuse,
+      isInternalProduction: authorizedInternalProduction,
+      deposit,
+      subtotal,
+      tax,
+      total: subtotal + deposit + tax
+    };
   };
   const setMessage = (text, type = "") => {
     if (!message) return;
@@ -1448,7 +1475,9 @@ function bindRentalForm() {
         <span><strong>Canon:</strong> ${space.slug === "salon-multiuso"
           ? `${money(space.canon)} evento completo / ${money(space.hourlyRate)} por hora`
           : (space.canon ? `${money(space.canon)} ${space.billing}` : space.billing)}</span>
-        <span><strong>Fianza:</strong> ${money(space.deposit)}</span>
+        <span><strong>Fianza:</strong> ${space.slug === "salon-multiuso"
+          ? `${money(space.deposit)} para evento completo · No aplica por horas`
+          : money(space.deposit)}</span>
         <span><strong>Área:</strong> ${safeHtml(space.area || "Según configuración")}</span>
         <span><strong>Capacidad:</strong> ${safeHtml(space.capacityLabel || "Según montaje aprobado")}</span>
         <span><strong>Horario:</strong> ${safeHtml(space.schedule)}</span>
@@ -1481,6 +1510,13 @@ function bindRentalForm() {
       const node = document.querySelector(selector);
       if (node) node.textContent = value;
     });
+    if (internalProductionButton) {
+      internalProductionButton.classList.toggle("is-active", calc.isInternalProduction);
+      internalProductionButton.setAttribute("aria-pressed", String(calc.isInternalProduction));
+    }
+    if (internalProductionStatus) {
+      internalProductionStatus.hidden = !calc.isInternalProduction;
+    }
 
     if (cancellation && dateValue("fecha")) {
       const daysBefore = Math.ceil((new Date(`${dateValue("fecha")}T12:00:00`) - new Date()) / 86400000);
@@ -1644,6 +1680,7 @@ function bindRentalForm() {
       espacio: space.name,
       descripcion: data.get("descripcion"),
       modalidadTarifa: calc.pricingMode,
+      produccionInterna: calc.isInternalProduction,
       horas: calc.hours,
       precioDia: calc.rate,
       fianza: calc.deposit,
@@ -1658,13 +1695,19 @@ function bindRentalForm() {
         campo: input.name,
         archivos: Array.from(input.files || []).map((file) => file.name)
       })),
-      audit: [auditEntry("Pendiente", "Solicitud creada desde el formulario público de renta.")]
+      audit: [auditEntry(
+        "Pendiente",
+        calc.isInternalProduction
+          ? "Solicitud creada como Producción Interna del Museo por un Administrador. Canon y fianza exentos."
+          : "Solicitud creada desde el formulario de renta."
+      )]
     };
 
     try {
       await saveRequests([...currentRequests, request]);
       renderHistory();
       form.reset();
+      isInternalProduction = false;
       renderSpaceDetail();
       renderCalculation();
       updateRequestTitle();
@@ -1688,8 +1731,30 @@ function bindRentalForm() {
     window.print();
   });
 
+  if (internalProductionControl) {
+    internalProductionControl.hidden = !canCreateInternalProduction();
+  }
+  internalProductionButton?.addEventListener("click", () => {
+    if (!canCreateInternalProduction()) {
+      isInternalProduction = false;
+      if (internalProductionControl) internalProductionControl.hidden = true;
+      setMessage("Esta función está disponible únicamente para Administradores autenticados.", "error");
+      renderCalculation();
+      return;
+    }
+    isInternalProduction = !isInternalProduction;
+    renderCalculation();
+    setMessage(
+      isInternalProduction
+        ? "Producción interna activada: el contrato conservará toda la información con canon y fianza en $0."
+        : "Producción interna desactivada: se restauraron los cargos regulares.",
+      "success"
+    );
+  });
+
   document.querySelector("[data-rental-reset]")?.addEventListener("click", () => {
     form?.reset();
+    isInternalProduction = false;
     renderSpaceDetail();
     renderCalculation();
     updateRequestTitle();
