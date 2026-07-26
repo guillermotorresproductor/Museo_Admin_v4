@@ -1008,6 +1008,16 @@ input {
   padding: 28px;
 }
 
+.rental-approval-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: #159447;
+}
+
+.rental-approved-by {
+  min-width: 180px;
+}
+
 .rental-config-card {
   display: grid;
   gap: 6px;
@@ -3212,5 +3222,40 @@ body {
 @media (max-width: 680px) {
   .calendar-panel {
     padding: 20px;
+  }
+}
+
+@media print {
+  body:has(.rental-request-page) .sidebar,
+  body:has(.rental-request-page) .site-header,
+  body:has(.rental-request-page) .sidebar-backdrop,
+  body:has(.rental-request-page) .site-footer,
+  .rental-request-page .rental-detail-nav,
+  .rental-request-page .inventory-actions,
+  .rental-request-page .form-message {
+    display: none !important;
+  }
+
+  body:has(.rental-request-page) .main-area,
+  body:has(.rental-request-page) .page-content,
+  .rental-request-page .rental-panel {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .rental-request-page input,
+  .rental-request-page select,
+  .rental-request-page textarea {
+    border: 1px solid #9ca3af;
+    background: #fff;
+    color: #000;
+  }
+
+  .rental-request-page input[type="file"] {
+    display: none;
   }
 }

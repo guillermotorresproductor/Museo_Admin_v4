@@ -1230,7 +1230,7 @@ function bindRentalSpacePage() {
           <div><span>Canon</span><strong>${rentalMoney(space.canon)} ${safeHtml(space.billing)}</strong></div>
           <div><span>Fianza reembolsable</span><strong>${rentalMoney(space.deposit)}</strong></div>
         </div>
-        <a class="button submit-button" href="renta-espacios.html?espacio=${encodeURIComponent(space.id)}#solicitud">Solicitar este espacio</a>
+        <a class="button submit-button" href="solicitud-renta.html?espacio=${encodeURIComponent(space.id)}">Solicitar este espacio</a>
       </div>
     </section>
 
@@ -1259,17 +1259,6 @@ function bindRentalSpacePage() {
         <h3>Incluye</h3>
         <ul>${listMarkup(space.equipment || [])}</ul>
       </article>
-      <article>
-        <h3>Requisitos particulares</h3>
-        <ul>${listMarkup(space.requirements || [])}</ul>
-      </article>
-    </section>
-
-    <section class="rental-rules-card">
-      <p class="page-kicker">Reglamento del Museo</p>
-      <h3>Normas generales aplicables a todos los espacios</h3>
-      <ol>${listMarkup(rentalGeneralRules)}</ol>
-      <p>La aprobación final, los límites de capacidad y cualquier condición adicional dependerán de la actividad y del plano de montaje presentado.</p>
     </section>
   `;
 
@@ -1286,19 +1275,23 @@ function bindRentalSpacePage() {
 
 function bindRentalForm() {
   const form = document.querySelector("#rental-form");
-  if (!form) return;
+  const adminPanel = document.querySelector("[data-rental-admin]");
+  if (!form && !adminPanel) return;
 
-  const module = document.querySelector("[data-rental-module]");
   const message = document.querySelector("[data-rental-message]");
+  const adminMessage = document.querySelector("[data-rental-admin-message]");
+  const requestTitle = document.querySelector("[data-rental-request-title]");
   const spaceSelect = document.querySelector("[data-rental-space]");
   const spaceDetail = document.querySelector("[data-rental-space-detail]");
-  const statusSelect = document.querySelector("[data-rental-status]");
   const historyBody = document.querySelector("[data-rental-history]");
   const configPanel = document.querySelector("[data-rental-config]");
   const cancellation = document.querySelector("[data-rental-cancellation]");
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   const currentUser = () => localStorage.getItem(currentUserKey) || "Administrador";
-  const canAdjust = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
+  const canAdjust = () => Boolean(getSupabaseSession()?.access_token) && ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
+  const isAuthorizedAdmin = canAdjust();
+  if (adminPanel) adminPanel.hidden = !isAuthorizedAdmin;
+  if (adminPanel && !isAuthorizedAdmin && !form) return;
   let spaces = defaultRentalSpaces;
   let requests = [];
   const getSpaces = () => spaces;
@@ -1324,7 +1317,7 @@ function bindRentalForm() {
     }
   };
   const selectedSpace = () => getSpaces().find((space) => space.id === spaceSelect?.value);
-  const dateValue = (name) => form.elements[name]?.value;
+  const dateValue = (name) => form?.elements[name]?.value;
   const daysBetween = () => {
     const start = new Date(`${dateValue("fecha")}T12:00:00`);
     const end = new Date(`${dateValue("fechaFinal") || dateValue("fecha")}T12:00:00`);
@@ -1341,7 +1334,7 @@ function bindRentalForm() {
     const days = daysBetween();
     const rate = space?.canon || 0;
     const deposit = space?.deposit || 0;
-    const subtotal = rate * days;
+    const subtotal = rate;
     const tax = 0;
     return { rate, days, deposit, subtotal, tax, total: subtotal + deposit + tax };
   };
@@ -1349,6 +1342,11 @@ function bindRentalForm() {
     if (!message) return;
     message.textContent = text;
     message.className = `form-message ${type}`.trim();
+  };
+  const setAdminMessage = (text, type = "") => {
+    if (!adminMessage) return;
+    adminMessage.textContent = text;
+    adminMessage.className = `form-message ${type}`.trim();
   };
   const createSequence = (prefix, count) => `${prefix}-${String(count + 1).padStart(4, "0")}`;
   const auditEntry = (estado, comentarios = "") => ({
@@ -1366,6 +1364,13 @@ function bindRentalForm() {
         `<option value="${space.id}"${space.status !== "Disponible" ? " disabled" : ""}>${space.name} - ${space.canon ? money(space.canon) : space.billing} ${space.canon ? space.billing : ""}</option>`
       )).join("")}`;
     }
+  };
+
+  const updateRequestTitle = () => {
+    if (!requestTitle) return;
+    const space = selectedSpace();
+    requestTitle.textContent = space ? `Solicitud de Renta de ${space.name}` : "Solicitud de Renta";
+    document.title = space ? `Solicitud de Renta de ${space.name} | Museo de la Música` : "Solicitud de Renta | Museo de la Música";
   };
 
   const renderSpaceDetail = () => {
@@ -1398,12 +1403,18 @@ function bindRentalForm() {
 
   const renderCalculation = () => {
     const calc = currentCalculation();
-    document.querySelector("[data-rental-rate]").textContent = money(calc.rate);
-    document.querySelector("[data-rental-days]").textContent = calc.days;
-    document.querySelector("[data-rental-deposit]").textContent = money(calc.deposit);
-    document.querySelector("[data-rental-subtotal]").textContent = money(calc.subtotal);
-    document.querySelector("[data-rental-tax]").textContent = money(calc.tax);
-    document.querySelector("[data-rental-total]").textContent = money(calc.total);
+    const values = {
+      "[data-rental-rate]": money(calc.rate),
+      "[data-rental-days]": calc.days,
+      "[data-rental-deposit]": money(calc.deposit),
+      "[data-rental-subtotal]": money(calc.subtotal),
+      "[data-rental-tax]": money(calc.tax),
+      "[data-rental-total]": money(calc.total)
+    };
+    Object.entries(values).forEach(([selector, value]) => {
+      const node = document.querySelector(selector);
+      if (node) node.textContent = value;
+    });
 
     if (cancellation && dateValue("fecha")) {
       const daysBefore = Math.ceil((new Date(`${dateValue("fecha")}T12:00:00`) - new Date()) / 86400000);
@@ -1413,7 +1424,7 @@ function bindRentalForm() {
   };
 
   const hasConflict = () => {
-    const spaceId = spaceSelect.value;
+    const spaceId = spaceSelect?.value;
     if (!spaceId || !dateValue("fecha") || !dateValue("horaInicio") || !dateValue("horaFinal")) return null;
     const current = {
       fecha: dateValue("fecha"),
@@ -1445,8 +1456,18 @@ function bindRentalForm() {
   };
 
   const renderHistory = () => {
-    if (!historyBody) return;
+    if (!historyBody || !isAuthorizedAdmin) return;
     const requests = getRequests();
+    const administrators = getEmployeeRecords()
+      .filter((employee) => employee.acceso === "Administrador" && employee.estado !== "Inactivo")
+      .map((employee) => ({ id: employee.id, name: employeeDisplayName(employee) }))
+      .filter((employee) => employee.name);
+    const approverOptions = (request) => `
+      <option value="">Seleccione...</option>
+      ${administrators.map((administrator) => `
+        <option value="${safeHtml(administrator.id)}"${request.aprobadoPorId === administrator.id ? " selected" : ""}>${safeHtml(administrator.name)}</option>
+      `).join("")}
+    `;
     historyBody.innerHTML = requests.length ? requests.map((request) => `
       <tr>
         <td>${safeHtml(request.numeroSolicitud)}</td>
@@ -1454,9 +1475,11 @@ function bindRentalForm() {
         <td>${safeHtml(request.espacio)}</td>
         <td>${safeHtml(request.fecha)}</td>
         <td>${money(request.total)}</td>
+        <td><input class="rental-approval-checkbox" type="checkbox" data-rental-approval="${safeHtml(request.id)}"${request.estado === "Aprobada" ? " checked" : ""} aria-label="Marcar ${safeHtml(request.numeroSolicitud)} como aprobada"></td>
+        <td><select class="rental-approved-by" data-rental-approved-by="${safeHtml(request.id)}" aria-label="Aprobado por">${approverOptions(request)}</select></td>
         <td>${safeHtml(request.estado)}</td>
       </tr>
-    `).join("") : `<tr><td colspan="6">No hay solicitudes registradas.</td></tr>`;
+    `).join("") : `<tr><td colspan="8">No hay solicitudes registradas.</td></tr>`;
   };
 
   const renderConfig = () => {
@@ -1477,7 +1500,7 @@ function bindRentalForm() {
     `).join("");
   };
 
-  form.addEventListener("submit", async (event) => {
+  form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const requiredFields = Array.from(form.querySelectorAll("[required]"));
     const invalidFields = requiredFields.filter((field) => {
@@ -1533,21 +1556,23 @@ function bindRentalForm() {
       subtotal: calc.subtotal,
       impuestos: calc.tax,
       total: calc.total,
-      estado: data.get("estado"),
+      estado: "Pendiente",
+      aprobadoPorId: "",
+      aprobadoPor: "",
       documentos: Array.from(form.querySelectorAll('input[type="file"]')).map((input) => ({
         campo: input.name,
         archivos: Array.from(input.files || []).map((file) => file.name)
       })),
-      audit: [auditEntry(data.get("estado"), "Solicitud creada desde el portal administrativo.")]
+      audit: [auditEntry("Pendiente", "Solicitud creada desde el formulario público de renta.")]
     };
 
     try {
       await saveRequests([...currentRequests, request]);
-      if (request.estado === "Aprobada") await syncApprovedRequest(request);
       renderHistory();
       form.reset();
       renderSpaceDetail();
       renderCalculation();
+      updateRequestTitle();
       setMessage(`Solicitud ${request.numeroSolicitud} registrada en Supabase.`, "success");
     } catch (error) {
       setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
@@ -1555,24 +1580,67 @@ function bindRentalForm() {
   });
 
   ["change", "input"].forEach((eventName) => {
-    form.addEventListener(eventName, (event) => {
-      if (event.target.matches("[data-rental-space]")) renderSpaceDetail();
+    form?.addEventListener(eventName, (event) => {
+      if (event.target.matches("[data-rental-space]")) {
+        renderSpaceDetail();
+        updateRequestTitle();
+      }
       renderCalculation();
     });
   });
 
-  statusSelect?.addEventListener("change", () => {
-    if (!canAdjust() && statusSelect.value !== "Pendiente") {
-      statusSelect.value = "Pendiente";
-      setMessage("Solo Administrador o Ejecutivo puede cambiar el estado de una solicitud.", "error");
-    }
+  document.querySelector("[data-rental-print]")?.addEventListener("click", () => {
+    window.print();
   });
 
   document.querySelector("[data-rental-reset]")?.addEventListener("click", () => {
-    form.reset();
+    form?.reset();
     renderSpaceDetail();
     renderCalculation();
+    updateRequestTitle();
     setMessage("");
+  });
+
+  historyBody?.addEventListener("change", async (event) => {
+    if (!isAuthorizedAdmin) return;
+    const approval = event.target.closest("[data-rental-approval]");
+    const approverField = event.target.closest("[data-rental-approved-by]");
+    const requestId = approval?.dataset.rentalApproval || approverField?.dataset.rentalApprovedBy;
+    if (!requestId) return;
+    const request = getRequests().find((item) => item.id === requestId);
+    if (!request) return;
+    const row = event.target.closest("tr");
+    const selectedApprover = row?.querySelector("[data-rental-approved-by]")?.value || "";
+    const administrator = getEmployeeRecords().find((employee) => employee.id === selectedApprover && employee.acceso === "Administrador");
+
+    if (approval?.checked && !administrator) {
+      approval.checked = false;
+      setAdminMessage("Seleccione primero el administrador que aprueba la solicitud.", "error");
+      return;
+    }
+
+    if (approval) {
+      request.estado = approval.checked ? "Aprobada" : "Pendiente";
+      request.aprobadoPorId = approval.checked ? administrator.id : "";
+      request.aprobadoPor = approval.checked ? employeeDisplayName(administrator) : "";
+      request.audit = [...(request.audit || []), auditEntry(
+        request.estado,
+        approval.checked ? `Aprobada por ${request.aprobadoPor}.` : "Aprobación retirada."
+      )];
+    } else {
+      request.aprobadoPorId = administrator?.id || "";
+      request.aprobadoPor = administrator ? employeeDisplayName(administrator) : "";
+    }
+
+    try {
+      await saveRequests([...getRequests()]);
+      if (request.estado === "Aprobada") await syncApprovedRequest(request);
+      renderHistory();
+      setAdminMessage(`Solicitud ${request.numeroSolicitud} actualizada.`, "success");
+    } catch (error) {
+      renderHistory();
+      setAdminMessage(`No se pudo actualizar la solicitud: ${error.message}`, "error");
+    }
   });
 
   configPanel?.addEventListener("change", async (event) => {
@@ -1594,19 +1662,26 @@ function bindRentalForm() {
       populateSpaces();
       renderSpaceDetail();
       renderCalculation();
-      setMessage("Configuración del espacio actualizada en Supabase.", "success");
+      setAdminMessage("Configuración del espacio actualizada en Supabase.", "success");
     } catch (error) {
-      setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
+      setAdminMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
     }
   });
 
   const loadRentalData = async () => {
+    if (isAuthorizedAdmin) {
+      try {
+        await syncEmployeeCacheFromSupabase();
+      } catch (error) {
+        setAdminMessage(`No se pudo cargar la lista de administradores: ${error.message}`, "error");
+      }
+    }
     try {
       spaces = await fetchSystemCollection("renta_espacios", "spaces_v2", defaultRentalSpaces);
       requests = await fetchSystemCollection("renta_espacios", "requests", []);
-      setMessage("Datos de renta cargados desde Supabase.", "success");
     } catch (error) {
       setMessage(`No se pudo cargar Renta desde Supabase: ${error.message}`, "error");
+      setAdminMessage(`No se pudo cargar Renta desde Supabase: ${error.message}`, "error");
     }
     populateSpaces();
     renderSpaceDetail();
@@ -1620,6 +1695,7 @@ function bindRentalForm() {
       renderSpaceDetail();
       renderCalculation();
     }
+    updateRequestTitle();
   };
 
   loadRentalData();
