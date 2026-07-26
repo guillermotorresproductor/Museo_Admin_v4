@@ -749,17 +749,25 @@ const defaultRentalSpaces = [
     description: "Salón flexible para actividades educativas, ensayos, talleres, clases, reuniones, conferencias y presentaciones compatibles con los fines del Museo.",
     canon: 300,
     deposit: 300,
-    billing: "por evento",
+    billing: "evento completo · $40 por hora",
+    hourlyRate: 40,
+    minimumHours: 2,
+    fullEventHours: 8,
     area: "Configuración flexible",
     capacity: 60,
-    capacityLabel: "Sujeta al plano de montaje aprobado",
-    schedule: "Según disponibilidad y autorización del Museo",
+    capacityLabel: "60 personas, sujeto al plano de montaje aprobado",
+    schedule: "8:00 a. m. - 10:00 p. m.",
     setup: "1 hora, coordinada previamente",
     breakdown: "1 hora",
     status: "Disponible",
-    equipment: ["Mesas", "Sillas", "Aire acondicionado"],
+    equipment: ["No incluye equipos"],
     idealFor: ["Talleres y clases", "Ensayos", "Reuniones", "Presentaciones de productos"],
-    requirements: ["La distribución deberá conservar rutas de salida y circulación", "Equipos especiales y sonido adicional requieren aprobación previa"],
+    requirements: [
+      "Evento completo: $300 por un máximo de 8 horas",
+      "Alquiler por hora: $40, con reservación mínima de 2 horas y costo mínimo de $80",
+      "La distribución deberá conservar rutas de salida y circulación",
+      "Equipos especiales, mobiliario y sonido requieren coordinación y aprobación previa"
+    ],
     images: [
       "assets/rentals/salon-multiuso-ensayo-orquesta.webp",
       "assets/rentals/salon-multiuso-presentacion-productos.webp",
@@ -1215,6 +1223,9 @@ function bindRentalSpacePage() {
   if (pageTitle) pageTitle.textContent = space.name;
   if (pageSubtitle) pageSubtitle.textContent = space.regulatoryName;
   document.title = `${space.name} | Renta de Espacios`;
+  const priceDescription = space.slug === "salon-multiuso"
+    ? `${rentalMoney(space.canon)} evento completo (hasta ${space.fullEventHours} horas) · ${rentalMoney(space.hourlyRate)} por hora (mínimo ${space.minimumHours} horas)`
+    : `${rentalMoney(space.canon)} ${safeHtml(space.billing)}`;
 
   const listMarkup = (items) => items.map((item) => `<li>${safeHtml(item)}</li>`).join("");
   detail.innerHTML = `
@@ -1227,7 +1238,7 @@ function bindRentalSpacePage() {
         <h2>${displayName}</h2>
         <p>${safeHtml(space.description)}</p>
         <div class="rental-price-block">
-          <div><span>Canon</span><strong>${rentalMoney(space.canon)} ${safeHtml(space.billing)}</strong></div>
+          <div><span>Canon</span><strong>${priceDescription}</strong></div>
           <div><span>Fianza reembolsable</span><strong>${rentalMoney(space.deposit)}</strong></div>
         </div>
         <a class="button submit-button" href="solicitud-renta.html?espacio=${encodeURIComponent(space.id)}">Solicitar este espacio</a>
@@ -1292,7 +1303,34 @@ function bindRentalForm() {
   const isAuthorizedAdmin = canAdjust();
   if (adminPanel) adminPanel.hidden = !isAuthorizedAdmin;
   if (adminPanel && !isAuthorizedAdmin && !form) return;
-  let spaces = defaultRentalSpaces;
+  const normalizeRentalSpaces = (storedSpaces) => {
+    const records = Array.isArray(storedSpaces) ? storedSpaces : [];
+    return defaultRentalSpaces.map((defaultSpace) => {
+      const storedSpace = records.find((item) => item?.id === defaultSpace.id);
+      const mergedSpace = storedSpace ? { ...defaultSpace, ...storedSpace } : { ...defaultSpace };
+      if (defaultSpace.id !== "salon-adiestramiento") return mergedSpace;
+      return {
+        ...mergedSpace,
+        canon: 300,
+        deposit: 300,
+        billing: "evento completo · $40 por hora",
+        hourlyRate: 40,
+        minimumHours: 2,
+        fullEventHours: 8,
+        capacity: 60,
+        capacityLabel: "60 personas, sujeto al plano de montaje aprobado",
+        schedule: "8:00 a. m. - 10:00 p. m.",
+        equipment: ["No incluye equipos"],
+        requirements: [
+          "Evento completo: $300 por un máximo de 8 horas",
+          "Alquiler por hora: $40, con reservación mínima de 2 horas y costo mínimo de $80",
+          "La distribución deberá conservar rutas de salida y circulación",
+          "Equipos especiales, mobiliario y sonido requieren coordinación y aprobación previa"
+        ]
+      };
+    });
+  };
+  let spaces = normalizeRentalSpaces(defaultRentalSpaces);
   let requests = [];
   const getSpaces = () => spaces;
   const saveSpaces = async (nextSpaces) => {
@@ -1324,6 +1362,14 @@ function bindRentalForm() {
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
     return Math.max(1, Math.round((end - start) / 86400000) + 1);
   };
+  const hoursBetween = () => {
+    const startValue = dateValue("horaInicio");
+    const endValue = dateValue("horaFinal");
+    if (!startValue || !endValue) return 0;
+    const [startHour, startMinute] = startValue.split(":").map(Number);
+    const [endHour, endMinute] = endValue.split(":").map(Number);
+    return Math.max(0, ((endHour * 60 + endMinute) - (startHour * 60 + startMinute)) / 60);
+  };
   const overlaps = (aStart, aEnd, bStart, bEnd) => aStart < bEnd && bStart < aEnd;
   const requestRange = (request) => ({
     start: new Date(`${request.fecha}T${request.horaInicio || "00:00"}`),
@@ -1334,9 +1380,13 @@ function bindRentalForm() {
     const days = daysBetween();
     const rate = space?.canon || 0;
     const deposit = space?.deposit || 0;
-    const subtotal = rate;
+    const pricingMode = form?.elements.modalidadTarifa?.value || "evento";
+    const hours = hoursBetween();
+    const isHourlyMultiuse = space?.slug === "salon-multiuso" && pricingMode === "horas";
+    const unitRate = isHourlyMultiuse ? Number(space.hourlyRate || 0) : rate;
+    const subtotal = isHourlyMultiuse ? unitRate * hours : rate;
     const tax = 0;
-    return { rate, days, deposit, subtotal, tax, total: subtotal + deposit + tax };
+    return { rate: unitRate, days, hours, pricingMode, isHourlyMultiuse, deposit, subtotal, tax, total: subtotal + deposit + tax };
   };
   const setMessage = (text, type = "") => {
     if (!message) return;
@@ -1382,11 +1432,22 @@ function bindRentalForm() {
       return;
     }
     spaceDetail.hidden = false;
+    const multiusePricing = space.slug === "salon-multiuso" ? `
+      <div class="field rental-pricing-mode">
+        <label for="rental-pricing-mode">Modalidad de alquiler</label>
+        <select id="rental-pricing-mode" name="modalidadTarifa" required>
+          <option value="evento">Evento completo — ${money(space.canon)}, máximo ${space.fullEventHours} horas</option>
+          <option value="horas">Por horas — ${money(space.hourlyRate)} por hora, mínimo ${space.minimumHours} horas</option>
+        </select>
+      </div>
+    ` : "";
     spaceDetail.innerHTML = `
       <h3>${safeHtml(space.name)}</h3>
       <p>${safeHtml(space.description)}</p>
       <div class="rental-feature-grid">
-        <span><strong>Canon:</strong> ${space.canon ? money(space.canon) : space.billing}</span>
+        <span><strong>Canon:</strong> ${space.slug === "salon-multiuso"
+          ? `${money(space.canon)} evento completo / ${money(space.hourlyRate)} por hora`
+          : (space.canon ? `${money(space.canon)} ${space.billing}` : space.billing)}</span>
         <span><strong>Fianza:</strong> ${money(space.deposit)}</span>
         <span><strong>Área:</strong> ${safeHtml(space.area || "Según configuración")}</span>
         <span><strong>Capacidad:</strong> ${safeHtml(space.capacityLabel || "Según montaje aprobado")}</span>
@@ -1397,15 +1458,20 @@ function bindRentalForm() {
       </div>
       <p><strong>Equipos incluidos:</strong> ${space.equipment.map(safeHtml).join(", ")}</p>
       <p><strong>Requisitos particulares:</strong> ${(space.requirements || []).map(safeHtml).join(" · ")}</p>
+      ${multiusePricing}
       <a class="rental-detail-link" href="renta-espacio.html?espacio=${encodeURIComponent(space.slug)}">Ver fotografías y ficha completa</a>
     `;
   };
 
   const renderCalculation = () => {
     const calc = currentCalculation();
+    const rateLabel = document.querySelector("[data-rental-rate-label]");
+    const durationLabel = document.querySelector("[data-rental-duration-label]");
+    if (rateLabel) rateLabel.textContent = calc.isHourlyMultiuse ? "Tarifa por hora" : "Precio por evento";
+    if (durationLabel) durationLabel.textContent = calc.isHourlyMultiuse ? "Cantidad de horas" : "Cantidad de días";
     const values = {
       "[data-rental-rate]": money(calc.rate),
-      "[data-rental-days]": calc.days,
+      "[data-rental-days]": calc.isHourlyMultiuse ? calc.hours.toLocaleString("es-PR", { maximumFractionDigits: 2 }) : calc.days,
       "[data-rental-deposit]": money(calc.deposit),
       "[data-rental-subtotal]": money(calc.subtotal),
       "[data-rental-tax]": money(calc.tax),
@@ -1527,6 +1593,33 @@ function bindRentalForm() {
       return;
     }
 
+    const selected = selectedSpace();
+    const calculation = currentCalculation();
+    if (selected?.slug === "salon-multiuso") {
+      const start = dateValue("horaInicio");
+      const end = dateValue("horaFinal");
+      if (dateValue("fechaFinal") !== dateValue("fecha")) {
+        setMessage("El alquiler del Salón Multiuso debe registrarse para una sola fecha.", "error");
+        return;
+      }
+      if (start < "08:00" || end > "22:00") {
+        setMessage("El Salón Multiuso está disponible de 8:00 a. m. a 10:00 p. m.", "error");
+        return;
+      }
+      if (calculation.hours <= 0) {
+        setMessage("La hora de finalización debe ser posterior a la hora de inicio.", "error");
+        return;
+      }
+      if (calculation.pricingMode === "horas" && calculation.hours < selected.minimumHours) {
+        setMessage(`El alquiler por horas requiere un mínimo de ${selected.minimumHours} horas.`, "error");
+        return;
+      }
+      if (calculation.pricingMode === "evento" && calculation.hours > selected.fullEventHours) {
+        setMessage(`La tarifa de evento completo cubre un máximo de ${selected.fullEventHours} horas.`, "error");
+        return;
+      }
+    }
+
     const data = new FormData(form);
     const currentRequests = getRequests();
     const space = selectedSpace();
@@ -1550,6 +1643,8 @@ function bindRentalForm() {
       espacioId: space.id,
       espacio: space.name,
       descripcion: data.get("descripcion"),
+      modalidadTarifa: calc.pricingMode,
+      horas: calc.hours,
       precioDia: calc.rate,
       fianza: calc.deposit,
       dias: calc.days,
@@ -1677,7 +1772,7 @@ function bindRentalForm() {
       }
     }
     try {
-      spaces = await fetchSystemCollection("renta_espacios", "spaces_v2", defaultRentalSpaces);
+      spaces = normalizeRentalSpaces(await fetchSystemCollection("renta_espacios", "spaces_v2", defaultRentalSpaces));
       requests = await fetchSystemCollection("renta_espacios", "requests", []);
     } catch (error) {
       setMessage(`No se pudo cargar Renta desde Supabase: ${error.message}`, "error");
