@@ -161,7 +161,6 @@ const defaultEmployeeProfiles = {
     horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
     notificaciones: "Recibe notificaciones administrativas, cambios de horario y alertas internas.",
     acceso: "Administrador",
-    usuario: "gtorres",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -182,7 +181,6 @@ const defaultEmployeeProfiles = {
     horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
     notificaciones: "Recibe avisos de ruta digital, materiales y calendario de obras.",
     acceso: "Empleado",
-    usuario: "jperez",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -203,7 +201,6 @@ const defaultEmployeeProfiles = {
     horario: "Martes a sábado, 8:00 AM - 4:00 PM",
     notificaciones: "Recibe avisos de inspección, mantenimiento preventivo y tareas asignadas.",
     acceso: "Empleado",
-    usuario: "dortiz",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -224,7 +221,6 @@ const defaultEmployeeProfiles = {
     horario: "Según calendario de eventos",
     notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
     acceso: "Empleado",
-    usuario: "arivera",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -245,7 +241,6 @@ const defaultEmployeeProfiles = {
     horario: "Según calendario de eventos",
     notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
     acceso: "Empleado",
-    usuario: "cmendez",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -3117,13 +3112,12 @@ function bindHumanResourcesModule() {
       educacion: data.get("educacion"),
       condicion: data.get("condicion").trim(),
       usuario: data.get("usuario").trim(),
-      passwordTemporal: data.get("passwordTemporal").trim(),
       acceso: data.get("acceso"),
       estado: data.get("estado"),
       notificaciones: data.get("notificaciones").trim()
     };
 
-    if (!employee.nombre || !employee.apellidos || !employee.posicion || !employee.departamento || !employee.correo || !employee.usuario || !employee.passwordTemporal) {
+    if (!employee.nombre || !employee.apellidos || !employee.posicion || !employee.departamento || !employee.correo) {
       setMessage("Complete los campos obligatorios antes de crear el empleado.", "error");
       return;
     }
