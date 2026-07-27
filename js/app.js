@@ -261,6 +261,7 @@ const supabaseUrl = "https://kfokfjngozgcwjpzxcsu.supabase.co";
 const supabasePublishableKey = "sb_publishable_wBGL3o2YcfbR_dvhT3mTnw_OXuHB0y3";
 const supabaseSessionKey = "museo-admin-supabase-session";
 const supabaseSystemRecordsTable = "app_records";
+const supabaseRentalDocumentsBucket = "rental-documents";
 const currentUserKey = "museo-admin-current-user";
 const currentUserPhotoKey = "museo-admin-current-user-photo";
 const currentAccessLevelKey = "museo-admin-access-level";
@@ -421,6 +422,115 @@ async function saveSystemCollection(module, recordKey, payload) {
     const data = await response.json().catch(() => ({}));
     throw new Error(explainSystemRecordsError(data, "guardar"));
   }
+}
+
+function safeStorageFileName(fileName = "documento") {
+  return String(fileName)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase() || "documento";
+}
+
+async function uploadRentalDocuments(requestId, fileInputs) {
+  const profile = await currentMuseumContext();
+  const files = fileInputs.flatMap((input) => (
+    Array.from(input.files || []).map((file) => ({ field: input.name, file }))
+  ));
+  if (!files.length) return [];
+
+  const allowedTypes = new Set([
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+  ]);
+  const maximumSize = 15 * 1024 * 1024;
+  files.forEach(({ file }) => {
+    if (!allowedTypes.has(file.type)) {
+      throw new Error(`El archivo ${file.name} no tiene un formato permitido.`);
+    }
+    if (file.size > maximumSize) {
+      throw new Error(`El archivo ${file.name} excede el máximo de 15 MB.`);
+    }
+  });
+
+  const uploaded = [];
+  try {
+    for (const { field, file } of files) {
+      const uniquePart = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const path = `${profile.museum_id}/${requestId}/${uniquePart}-${safeStorageFileName(file.name)}`;
+      const response = await fetch(
+        `${supabaseUrl}/storage/v1/object/${supabaseRentalDocumentsBucket}/${path.split("/").map(encodeURIComponent).join("/")}`,
+        {
+          method: "POST",
+          headers: {
+            ...(await supabaseAuthHeaders()),
+            "Content-Type": file.type,
+            "x-upsert": "false"
+          },
+          body: file
+        }
+      );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || `No se pudo guardar ${file.name} en el expediente digital.`);
+      }
+      uploaded.push({
+        campo: field,
+        nombre: file.name,
+        tipo: file.type,
+        tamano: file.size,
+        bucket: supabaseRentalDocumentsBucket,
+        ruta: path,
+        cargadoEn: new Date().toISOString(),
+        cargadoPorId: profile.id
+      });
+    }
+    return uploaded;
+  } catch (error) {
+    if (uploaded.length) {
+      await deleteRentalDocuments(uploaded.map((document) => document.ruta)).catch(() => {});
+    }
+    throw error;
+  }
+}
+
+async function deleteRentalDocuments(paths = []) {
+  if (!paths.length) return;
+  const response = await fetch(`${supabaseUrl}/storage/v1/object/${supabaseRentalDocumentsBucket}`, {
+    method: "DELETE",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify({ prefixes: paths })
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "No se pudieron retirar los documentos incompletos.");
+  }
+}
+
+async function createRentalDocumentDownloadUrl(path, expiresIn = 300) {
+  if (!["Administrador", "Ejecutivo"].includes(currentAccessLevel())) {
+    throw new Error("Solo Administradores y Ejecutivos pueden abrir documentos de renta.");
+  }
+  const encodedPath = String(path).split("/").map(encodeURIComponent).join("/");
+  const response = await fetch(
+    `${supabaseUrl}/storage/v1/object/sign/${supabaseRentalDocumentsBucket}/${encodedPath}`,
+    {
+      method: "POST",
+      headers: await supabaseAuthHeaders(),
+      body: JSON.stringify({ expiresIn })
+    }
+  );
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.signedURL) {
+    throw new Error(data.message || "No se pudo crear el enlace privado del documento.");
+  }
+  return `${supabaseUrl}/storage/v1${data.signedURL}`;
 }
 
 function employeeFromSupabase(row) {
@@ -1319,6 +1429,7 @@ function bindRentalForm() {
   const municipalPaymentStatus = document.querySelector("[data-rental-payment-status]");
   const municipalPaymentValidationDate = document.querySelector("[data-rental-payment-validation-date]");
   const municipalPaymentRegisteredBy = document.querySelector("[data-rental-payment-registered-by]");
+  const submitButton = form?.querySelector('button[type="submit"]');
   let isInternalProduction = false;
   if (adminPanel) adminPanel.hidden = !isAuthorizedAdmin;
   if (adminPanel && !isAuthorizedAdmin && !form) return;
@@ -1693,8 +1804,23 @@ function bindRentalForm() {
     const municipalReceipt = isAuthorizedAdmin && !calc.isInternalProduction
       ? String(data.get("numeroReciboMunicipal") || "").trim()
       : "";
+    const requestId = `rental-${Date.now()}`;
+    let uploadedDocuments = [];
+    if (submitButton) submitButton.disabled = true;
+    setMessage("Guardando documentos en el expediente digital privado...", "");
+    try {
+      uploadedDocuments = await uploadRentalDocuments(
+        requestId,
+        Array.from(form.querySelectorAll('input[type="file"]'))
+      );
+    } catch (error) {
+      if (submitButton) submitButton.disabled = false;
+      setMessage(`No se pudo completar el expediente digital: ${error.message}`, "error");
+      return;
+    }
+
     const request = {
-      id: `rental-${Date.now()}`,
+      id: requestId,
       numeroSolicitud: createSequence("SOL", currentRequests.length),
       numeroRecibo: municipalReceipt,
       reciboValidadoEn: municipalReceipt ? new Date().toISOString() : "",
@@ -1727,10 +1853,7 @@ function bindRentalForm() {
       estado: "Pendiente",
       aprobadoPorId: "",
       aprobadoPor: "",
-      documentos: Array.from(form.querySelectorAll('input[type="file"]')).map((input) => ({
-        campo: input.name,
-        archivos: Array.from(input.files || []).map((file) => file.name)
-      })),
+      documentos: uploadedDocuments,
       audit: [auditEntry(
         "Pendiente",
         calc.isInternalProduction
@@ -1748,8 +1871,11 @@ function bindRentalForm() {
       renderSpaceDetail();
       renderCalculation();
       updateRequestTitle();
+      if (submitButton) submitButton.disabled = false;
       setMessage(`Solicitud ${request.numeroSolicitud} registrada en Supabase.`, "success");
     } catch (error) {
+      await deleteRentalDocuments(uploadedDocuments.map((document) => document.ruta)).catch(() => {});
+      if (submitButton) submitButton.disabled = false;
       setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
     }
   });
