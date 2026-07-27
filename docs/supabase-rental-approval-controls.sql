@@ -188,6 +188,38 @@ begin
 end;
 $$;
 
+create or replace function public.log_rental_blocked_event(
+  p_request_key text,
+  p_action text
+)
+returns uuid
+language plpgsql security definer set search_path = public, auth as $
+declare
+  target_museum_id uuid;
+  event_id uuid;
+begin
+  target_museum_id := public.current_rental_admin_museum();
+  if target_museum_id is null then
+    raise exception 'Administrative rental permission is required.';
+  end if;
+  if p_action not in (
+    'rental.approval.blocked_missing_receipt',
+    'rental.receipt.duplicate',
+    'rental.control.failed'
+  ) then
+    raise exception 'Unsupported blocked rental event.';
+  end if;
+  insert into public.rental_approval_audit_logs
+    (museum_id, request_key, actor_user_id, action, result, details)
+  values (
+    target_museum_id, coalesce(nullif(btrim(p_request_key), ''), 'unknown'),
+    auth.uid(), p_action, 'blocked', '{}'::jsonb
+  )
+  returning id into event_id;
+  return event_id;
+end;
+$;
+
 alter table public.rental_approval_controls enable row level security;
 alter table public.rental_approval_audit_logs enable row level security;
 
@@ -200,7 +232,11 @@ on public.rental_approval_audit_logs for select to authenticated
 using (museum_id = public.current_rental_admin_museum());
 
 revoke all on function public.current_rental_admin_museum() from public;
+revoke all on function public.current_rental_admin_museum() from public;
+grant execute on function public.current_rental_admin_museum() to authenticated;
 revoke all on function public.record_rental_municipal_receipt(text, text, boolean) from public;
 revoke all on function public.set_rental_approval(text, boolean, boolean) from public;
 grant execute on function public.record_rental_municipal_receipt(text, text, boolean) to authenticated;
 grant execute on function public.set_rental_approval(text, boolean, boolean) to authenticated;
+revoke all on function public.log_rental_blocked_event(text, text) from public;
+grant execute on function public.log_rental_blocked_event(text, text) to authenticated;
