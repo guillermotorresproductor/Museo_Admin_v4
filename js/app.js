@@ -162,7 +162,6 @@ const defaultEmployeeProfiles = {
     notificaciones: "Recibe notificaciones administrativas, cambios de horario y alertas internas.",
     acceso: "Administrador",
     usuario: "gtorres",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -184,7 +183,6 @@ const defaultEmployeeProfiles = {
     notificaciones: "Recibe avisos de ruta digital, materiales y calendario de obras.",
     acceso: "Empleado",
     usuario: "jperez",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -206,7 +204,6 @@ const defaultEmployeeProfiles = {
     notificaciones: "Recibe avisos de inspección, mantenimiento preventivo y tareas asignadas.",
     acceso: "Empleado",
     usuario: "dortiz",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -228,7 +225,6 @@ const defaultEmployeeProfiles = {
     notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
     acceso: "Empleado",
     usuario: "arivera",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -250,7 +246,6 @@ const defaultEmployeeProfiles = {
     notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
     acceso: "Empleado",
     usuario: "cmendez",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -551,7 +546,6 @@ function employeeFromSupabase(row) {
     educacion: row.education_level || "",
     condicion: row.medical_condition || "",
     usuario: row.email || "",
-    passwordTemporal: "",
     acceso: row.access_level ? row.access_level.charAt(0).toUpperCase() + row.access_level.slice(1) : "Empleado",
     estado: row.status === "inactivo" ? "Inactivo" : "Activo",
     notificaciones: "",
