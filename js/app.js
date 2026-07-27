@@ -1971,6 +1971,12 @@ function bindRentalForm() {
           p_internal_production: Boolean(request.produccionInterna)
         });
       } catch (error) {
+        await callRentalApprovalControl("log_rental_blocked_event", {
+          p_request_key: request.id,
+          p_action: String(error.message || "").toLowerCase().includes("already assigned")
+            ? "rental.receipt.duplicate"
+            : "rental.control.failed"
+        }).catch(() => null);
         renderHistory();
         setAdminMessage(`No se pudo registrar el recibo: ${error.message}`, "error");
         return;
@@ -1990,6 +1996,12 @@ function bindRentalForm() {
           p_internal_production: Boolean(request.produccionInterna)
         });
       } catch (error) {
+        await callRentalApprovalControl("log_rental_blocked_event", {
+          p_request_key: request.id,
+          p_action: String(error.message || "").toLowerCase().includes("receipt")
+            ? "rental.approval.blocked_missing_receipt"
+            : "rental.control.failed"
+        }).catch(() => null);
         approval.checked = request.estado === "Aprobada";
         setAdminMessage(`Supabase rechazó la aprobación: ${error.message}`, "error");
         return;
