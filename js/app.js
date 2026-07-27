@@ -161,8 +161,6 @@ const defaultEmployeeProfiles = {
     horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
     notificaciones: "Recibe notificaciones administrativas, cambios de horario y alertas internas.",
     acceso: "Administrador",
-    usuario: "gtorres",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -183,8 +181,6 @@ const defaultEmployeeProfiles = {
     horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
     notificaciones: "Recibe avisos de ruta digital, materiales y calendario de obras.",
     acceso: "Empleado",
-    usuario: "jperez",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -205,8 +201,6 @@ const defaultEmployeeProfiles = {
     horario: "Martes a sábado, 8:00 AM - 4:00 PM",
     notificaciones: "Recibe avisos de inspección, mantenimiento preventivo y tareas asignadas.",
     acceso: "Empleado",
-    usuario: "dortiz",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -227,8 +221,6 @@ const defaultEmployeeProfiles = {
     horario: "Según calendario de eventos",
     notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
     acceso: "Empleado",
-    usuario: "arivera",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -249,8 +241,6 @@ const defaultEmployeeProfiles = {
     horario: "Según calendario de eventos",
     notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
     acceso: "Empleado",
-    usuario: "cmendez",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -551,7 +541,6 @@ function employeeFromSupabase(row) {
     educacion: row.education_level || "",
     condicion: row.medical_condition || "",
     usuario: row.email || "",
-    passwordTemporal: "",
     acceso: row.access_level ? row.access_level.charAt(0).toUpperCase() + row.access_level.slice(1) : "Empleado",
     estado: row.status === "inactivo" ? "Inactivo" : "Activo",
     notificaciones: "",
@@ -1403,6 +1392,19 @@ function bindRentalSpacePage() {
   });
 }
 
+async function callRentalApprovalControl(functionName, payload) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${functionName}`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(result?.message || "Supabase rechazó la operación de aprobación.");
+  }
+  return result;
+}
+
 function bindRentalForm() {
   const form = document.querySelector("#rental-form");
   const adminPanel = document.querySelector("[data-rental-admin]");
@@ -1956,7 +1958,25 @@ function bindRentalForm() {
     }
 
     if (receiptField) {
-      request.numeroRecibo = receiptField.value.trim();
+      const nextReceipt = receiptField.value.trim();
+      try {
+        await callRentalApprovalControl("record_rental_municipal_receipt", {
+          p_request_key: request.id,
+          p_receipt_number: nextReceipt || null,
+          p_internal_production: Boolean(request.produccionInterna)
+        });
+      } catch (error) {
+        await callRentalApprovalControl("log_rental_blocked_event", {
+          p_request_key: request.id,
+          p_action: String(error.message || "").toLowerCase().includes("already assigned")
+            ? "rental.receipt.duplicate"
+            : "rental.control.failed"
+        }).catch(() => null);
+        renderHistory();
+        setAdminMessage(`No se pudo registrar el recibo: ${error.message}`, "error");
+        return;
+      }
+      request.numeroRecibo = nextReceipt;
       request.audit = [...(request.audit || []), auditEntry(
         request.estado,
         request.numeroRecibo
@@ -1964,6 +1984,23 @@ function bindRentalForm() {
           : "Número de recibo municipal eliminado."
       )];
     } else if (approval) {
+      try {
+        await callRentalApprovalControl("set_rental_approval", {
+          p_request_key: request.id,
+          p_approved: Boolean(approval.checked),
+          p_internal_production: Boolean(request.produccionInterna)
+        });
+      } catch (error) {
+        await callRentalApprovalControl("log_rental_blocked_event", {
+          p_request_key: request.id,
+          p_action: String(error.message || "").toLowerCase().includes("receipt")
+            ? "rental.approval.blocked_missing_receipt"
+            : "rental.control.failed"
+        }).catch(() => null);
+        approval.checked = request.estado === "Aprobada";
+        setAdminMessage(`Supabase rechazó la aprobación: ${error.message}`, "error");
+        return;
+      }
       request.estado = approval.checked ? "Aprobada" : "Pendiente";
       request.aprobadoPorId = approval.checked ? administrator.id : "";
       request.aprobadoPor = approval.checked ? employeeDisplayName(administrator) : "";
@@ -3074,14 +3111,12 @@ function bindHumanResourcesModule() {
       horario: data.get("horario").trim(),
       educacion: data.get("educacion"),
       condicion: data.get("condicion").trim(),
-      usuario: data.get("usuario").trim(),
-      passwordTemporal: data.get("passwordTemporal").trim(),
       acceso: data.get("acceso"),
       estado: data.get("estado"),
       notificaciones: data.get("notificaciones").trim()
     };
 
-    if (!employee.nombre || !employee.apellidos || !employee.posicion || !employee.departamento || !employee.correo || !employee.usuario || !employee.passwordTemporal) {
+    if (!employee.nombre || !employee.apellidos || !employee.posicion || !employee.departamento || !employee.correo) {
       setMessage("Complete los campos obligatorios antes de crear el empleado.", "error");
       return;
     }
