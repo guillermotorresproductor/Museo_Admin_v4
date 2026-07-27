@@ -193,7 +193,7 @@ create or replace function public.log_rental_blocked_event(
   p_action text
 )
 returns uuid
-language plpgsql security definer set search_path = public, auth as $
+language plpgsql security definer set search_path = public, auth as $$
 declare
   target_museum_id uuid;
   event_id uuid;
@@ -220,7 +220,7 @@ begin
   returning id into event_id;
   return event_id;
 end;
-$;
+$$;
 
 alter table public.rental_approval_controls enable row level security;
 alter table public.rental_approval_audit_logs enable row level security;
