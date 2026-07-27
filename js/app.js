@@ -1397,6 +1397,19 @@ function bindRentalSpacePage() {
   });
 }
 
+async function callRentalApprovalControl(functionName, payload) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${functionName}`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(result?.message || "Supabase rechazó la operación de aprobación.");
+  }
+  return result;
+}
+
 function bindRentalForm() {
   const form = document.querySelector("#rental-form");
   const adminPanel = document.querySelector("[data-rental-admin]");
@@ -1950,7 +1963,19 @@ function bindRentalForm() {
     }
 
     if (receiptField) {
-      request.numeroRecibo = receiptField.value.trim();
+      const nextReceipt = receiptField.value.trim();
+      try {
+        await callRentalApprovalControl("record_rental_municipal_receipt", {
+          p_request_key: request.id,
+          p_receipt_number: nextReceipt || null,
+          p_internal_production: Boolean(request.produccionInterna)
+        });
+      } catch (error) {
+        renderHistory();
+        setAdminMessage(`No se pudo registrar el recibo: ${error.message}`, "error");
+        return;
+      }
+      request.numeroRecibo = nextReceipt;
       request.audit = [...(request.audit || []), auditEntry(
         request.estado,
         request.numeroRecibo
@@ -1958,6 +1983,17 @@ function bindRentalForm() {
           : "Número de recibo municipal eliminado."
       )];
     } else if (approval) {
+      try {
+        await callRentalApprovalControl("set_rental_approval", {
+          p_request_key: request.id,
+          p_approved: Boolean(approval.checked),
+          p_internal_production: Boolean(request.produccionInterna)
+        });
+      } catch (error) {
+        approval.checked = request.estado === "Aprobada";
+        setAdminMessage(`Supabase rechazó la aprobación: ${error.message}`, "error");
+        return;
+      }
       request.estado = approval.checked ? "Aprobada" : "Pendiente";
       request.aprobadoPorId = approval.checked ? administrator.id : "";
       request.aprobadoPor = approval.checked ? employeeDisplayName(administrator) : "";
