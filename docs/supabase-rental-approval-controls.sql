@@ -232,7 +232,6 @@ on public.rental_approval_audit_logs for select to authenticated
 using (museum_id = public.current_rental_admin_museum());
 
 revoke all on function public.current_rental_admin_museum() from public;
-revoke all on function public.current_rental_admin_museum() from public;
 grant execute on function public.current_rental_admin_museum() to authenticated;
 revoke all on function public.record_rental_municipal_receipt(text, text, boolean) from public;
 revoke all on function public.set_rental_approval(text, boolean, boolean) from public;
