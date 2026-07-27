@@ -3111,7 +3111,6 @@ function bindHumanResourcesModule() {
       horario: data.get("horario").trim(),
       educacion: data.get("educacion"),
       condicion: data.get("condicion").trim(),
-      usuario: data.get("usuario").trim(),
       acceso: data.get("acceso"),
       estado: data.get("estado"),
       notificaciones: data.get("notificaciones").trim()
