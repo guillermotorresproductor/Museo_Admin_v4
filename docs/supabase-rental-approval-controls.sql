@@ -78,11 +78,6 @@ begin
   if nullif(btrim(p_request_key), '') is null then
     raise exception 'Rental request key is required.';
   end if;
-  if not coalesce(p_internal_production, false)
-     and nullif(btrim(p_receipt_number), '') is null then
-    raise exception 'Municipal receipt number is required.';
-  end if;
-
   insert into public.rental_approval_controls (
     museum_id, request_key, municipal_receipt_number, internal_production,
     receipt_registered_by, receipt_registered_at, updated_at
