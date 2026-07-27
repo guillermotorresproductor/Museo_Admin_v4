@@ -4066,6 +4066,18 @@ const officialMembershipPlans = [
     benefits: ["Entrada gratuita e ilimitada durante un año para un adulto."]
   },
   {
+    code: "cortesia-anual",
+    name: "Membresía de Cortesía",
+    audience: "Otorgada por la Administración por un año",
+    price: 0,
+    billingPeriod: "annual",
+    benefits: [
+      "Entrada gratuita e ilimitada durante un año para un individuo.",
+      "No requiere aportación económica.",
+      "Emisión sujeta a autorización administrativa."
+    ]
+  },
+  {
     code: "familiar",
     name: "Membresía Familiar",
     audience: "Dos adultos y hasta tres niños menores de edad",
@@ -4528,7 +4540,9 @@ function bindMembershipsModule() {
   });
   module.querySelector("[data-membership-new]")?.addEventListener("click", () => openForm());
   module.querySelector("[data-membership-export]")?.addEventListener("click", exportMembers);
-  module.querySelectorAll("[data-membership-close]").forEach((button) => button.addEventListener("click", () => dialog?.close()));
+  document.querySelectorAll("[data-membership-close]").forEach((button) => {
+    button.addEventListener("click", () => dialog?.close());
+  });
   search?.addEventListener("input", renderMembers);
   list?.addEventListener("click", (event) => {
     const editButton = event.target.closest("[data-membership-edit]");
