@@ -171,6 +171,32 @@
               </div>
             </section>
 
+            <section class="rental-municipal-payment" data-rental-municipal-payment hidden aria-label="Validación de pago municipal">
+              <div class="panel-heading-inline">
+                <div>
+                  <p class="page-kicker">Uso interno autorizado</p>
+                  <h3>Validación de pago municipal</h3>
+                  <p>Complete esta sección con el número oficial emitido por el Municipio de Guaynabo.</p>
+                </div>
+                <span class="rental-payment-status" data-rental-payment-status>Pendiente</span>
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label for="rental-municipal-receipt">Número de recibo del Municipio de Guaynabo</label>
+                  <input id="rental-municipal-receipt" name="numeroReciboMunicipal" type="text" autocomplete="off" data-rental-municipal-receipt>
+                </div>
+                <div class="field">
+                  <label for="rental-payment-validation-date">Fecha de validación</label>
+                  <input id="rental-payment-validation-date" name="fechaValidacionPago" type="text" readonly data-rental-payment-validation-date>
+                </div>
+              </div>
+              <div class="field">
+                <label for="rental-payment-registered-by">Registrado por</label>
+                <input id="rental-payment-registered-by" name="pagoRegistradoPor" type="text" readonly data-rental-payment-registered-by>
+              </div>
+              <p class="rental-payment-note">La solicitud no podrá aprobarse sin este recibo, excepto cuando sea una Producción Interna del Museo.</p>
+            </section>
+
             <section class="rental-terms" aria-label="Normas y reglas de cancelación">
               <h3>Normas generales para el uso de las facilidades</h3>
               <ol data-rental-general-rules></ol>
@@ -201,6 +227,6 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=renta-espacios-20260726e"></script>
+  <script src="js/app.js?v=pagos-municipales-20260728"></script>
 </body>
 </html>

@@ -1314,6 +1314,11 @@ function bindRentalForm() {
   const internalProductionControl = document.querySelector("[data-rental-internal-control]");
   const internalProductionButton = document.querySelector("[data-rental-internal]");
   const internalProductionStatus = document.querySelector("[data-rental-internal-status]");
+  const municipalPaymentSection = document.querySelector("[data-rental-municipal-payment]");
+  const municipalReceiptField = document.querySelector("[data-rental-municipal-receipt]");
+  const municipalPaymentStatus = document.querySelector("[data-rental-payment-status]");
+  const municipalPaymentValidationDate = document.querySelector("[data-rental-payment-validation-date]");
+  const municipalPaymentRegisteredBy = document.querySelector("[data-rental-payment-registered-by]");
   let isInternalProduction = false;
   if (adminPanel) adminPanel.hidden = !isAuthorizedAdmin;
   if (adminPanel && !isAuthorizedAdmin && !form) return;
@@ -1435,6 +1440,28 @@ function bindRentalForm() {
     estado,
     comentarios
   });
+
+  const updateMunicipalPayment = () => {
+    if (municipalPaymentSection) municipalPaymentSection.hidden = !isAuthorizedAdmin;
+    if (!isAuthorizedAdmin) return;
+
+    const hasReceipt = Boolean(String(municipalReceiptField?.value || "").trim());
+    const isExempt = isInternalProduction && canCreateInternalProduction();
+    if (municipalPaymentStatus) {
+      municipalPaymentStatus.textContent = isExempt
+        ? "Exento · Producción interna"
+        : (hasReceipt ? "Recibo registrado" : "Pendiente");
+      municipalPaymentStatus.classList.toggle("is-validated", hasReceipt || isExempt);
+    }
+    if (municipalPaymentValidationDate) {
+      municipalPaymentValidationDate.value = hasReceipt && !isExempt
+        ? new Date().toLocaleString("es-PR")
+        : "";
+    }
+    if (municipalPaymentRegisteredBy) {
+      municipalPaymentRegisteredBy.value = hasReceipt && !isExempt ? currentUser() : "";
+    }
+  };
 
   const populateSpaces = () => {
     const spaces = getSpaces();
@@ -1663,10 +1690,16 @@ function bindRentalForm() {
     const currentRequests = getRequests();
     const space = selectedSpace();
     const calc = currentCalculation();
+    const municipalReceipt = isAuthorizedAdmin && !calc.isInternalProduction
+      ? String(data.get("numeroReciboMunicipal") || "").trim()
+      : "";
     const request = {
       id: `rental-${Date.now()}`,
       numeroSolicitud: createSequence("SOL", currentRequests.length),
-      numeroRecibo: "",
+      numeroRecibo: municipalReceipt,
+      reciboValidadoEn: municipalReceipt ? new Date().toISOString() : "",
+      reciboRegistradoPorId: municipalReceipt ? (getSupabaseSession()?.user?.id || "") : "",
+      reciboRegistradoPor: municipalReceipt ? currentUser() : "",
       nombre: data.get("nombre"),
       organizacion: data.get("organizacion"),
       contacto: data.get("contacto"),
@@ -1711,6 +1744,7 @@ function bindRentalForm() {
       renderHistory();
       form.reset();
       isInternalProduction = false;
+      updateMunicipalPayment();
       renderSpaceDetail();
       renderCalculation();
       updateRequestTitle();
@@ -1737,6 +1771,11 @@ function bindRentalForm() {
   if (internalProductionControl) {
     internalProductionControl.hidden = !canCreateInternalProduction();
   }
+  if (municipalPaymentSection) {
+    municipalPaymentSection.hidden = !isAuthorizedAdmin;
+  }
+  municipalReceiptField?.addEventListener("input", updateMunicipalPayment);
+  updateMunicipalPayment();
   internalProductionButton?.addEventListener("click", () => {
     if (!canCreateInternalProduction()) {
       isInternalProduction = false;
@@ -1746,6 +1785,7 @@ function bindRentalForm() {
       return;
     }
     isInternalProduction = !isInternalProduction;
+    updateMunicipalPayment();
     renderCalculation();
     setMessage(
       isInternalProduction
@@ -1758,6 +1798,7 @@ function bindRentalForm() {
   document.querySelector("[data-rental-reset]")?.addEventListener("click", () => {
     form?.reset();
     isInternalProduction = false;
+    updateMunicipalPayment();
     renderSpaceDetail();
     renderCalculation();
     updateRequestTitle();
