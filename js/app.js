@@ -11,6 +11,7 @@
   "ruta-digital.html": { title: "Ruta Digital de Mantenimiento", subtitle: "Control de recorrido por áreas." },
   "renta-espacios.html": { title: "Renta de Espacios", subtitle: "Solicitud de áreas y tarifas oficiales." },
   "renta-espacio.html": { title: "Renta de Espacios", subtitle: "Ficha, fotografías y condiciones del espacio." },
+  "membresias.html": { title: "Membresías", subtitle: "Socios, beneficios, renovaciones y participación." },
   "administracion.html": { title: "Administración", subtitle: "Recursos humanos, notificaciones, reportes y finanzas." },
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
   "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
@@ -54,6 +55,7 @@ const navigationGroups = [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
       { href: "calendario.html", label: "Calendario de Eventos del Museo", icon: "calendar" },
       { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building", activePages: ["renta-espacio.html"] },
+      { href: "membresias.html", label: "Membresías", icon: "users" },
       { href: "ujieres.html", label: "Ujieres", icon: "users" },
       { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"] },
       { href: "documentos.html", label: "Formularios y Papelería", icon: "file", activePages: ["deposito-artes.html", "empleados.html", "recibo-prestamo.html", "reglamento.html"] },
@@ -4032,6 +4034,645 @@ function bindEmployeeProfile() {
   });
 }
 
+const officialMembershipPlans = [
+  {
+    code: "pequenos-melomanos",
+    name: "Pequeños Melómanos",
+    audience: "Niños hasta 12 años",
+    price: 20,
+    siblingPrice: 15,
+    billingPeriod: "annual",
+    benefits: [
+      "Invitaciones a actividades especiales para niños.",
+      "Participación en talleres musicales interactivos.",
+      "Acceso a experiencias educativas diseñadas para jóvenes amantes de la música.",
+      "Certificado anual como Amigo del Museo."
+    ]
+  },
+  {
+    code: "comunidad-especial",
+    name: "Estudiantes, Maestros, Diversidad Funcional y Seniors (60+)",
+    audience: "Requiere identificación válida",
+    price: 25,
+    billingPeriod: "annual",
+    benefits: ["Entrada gratuita e ilimitada durante un año para un individuo."]
+  },
+  {
+    code: "individual",
+    name: "Membresía Individual",
+    audience: "Un adulto",
+    price: 50,
+    billingPeriod: "annual",
+    benefits: ["Entrada gratuita e ilimitada durante un año para un adulto."]
+  },
+  {
+    code: "familiar",
+    name: "Membresía Familiar",
+    audience: "Dos adultos y hasta tres niños menores de edad",
+    price: 100,
+    billingPeriod: "annual",
+    benefits: [
+      "Entrada gratuita e ilimitada para dos adultos y hasta tres niños menores de edad.",
+      "Acceso a actividades familiares especiales.",
+      "Participación en programas educativos para toda la familia."
+    ]
+  },
+  {
+    code: "amigo-musica",
+    name: "Amigo de la Música",
+    audience: "Familia y hasta cuatro invitados por visita",
+    price: 250,
+    billingPeriod: "annual",
+    benefits: [
+      "Entrada para una familia y hasta cuatro invitados por visita.",
+      "Publicación anual o catálogo digital del Museo.",
+      "Recorrido guiado exclusivo una vez al año.",
+      "Invitación a encuentros especiales con artistas, músicos, historiadores e investigadores."
+    ]
+  },
+  {
+    code: "colaborador-cultural",
+    name: "Colaborador Cultural",
+    audience: "Dos familias y hasta cuatro invitados por visita",
+    price: 500,
+    billingPeriod: "annual",
+    benefits: [
+      "Entrada para dos familias y hasta cuatro invitados por visita.",
+      "Cinco pases de cortesía para invitados.",
+      "Publicación anual del Museo.",
+      "Recorrido guiado privado anual.",
+      "Invitación a actividades especiales de apoyo institucional."
+    ]
+  },
+  {
+    code: "socio-ejecutivo",
+    name: "Socio Ejecutivo",
+    audience: "Tres familias",
+    price: 1000,
+    billingPeriod: "annual",
+    benefits: [
+      "Entrada para tres familias durante un año.",
+      "Diez pases de cortesía para invitados.",
+      "Publicaciones especiales y material educativo exclusivo.",
+      "Reconocimiento en el Informe Anual del Museo.",
+      "Recorrido privado anual con personal directivo.",
+      "Invitación a actividades VIP y eventos protocolares."
+    ]
+  },
+  {
+    code: "socio-fundador",
+    name: "Socio Fundador",
+    audience: "Disponible únicamente durante el período inaugural",
+    price: 1000,
+    billingPeriod: "one_time",
+    benefits: [
+      "Todos los beneficios de la Membresía Ejecutiva.",
+      "Reconocimiento permanente como Socio Fundador.",
+      "Inclusión del nombre en el Muro de Fundadores.",
+      "Certificado oficial numerado e insignia exclusiva.",
+      "Invitación especial a la ceremonia inaugural.",
+      "Acceso preferencial durante el primer año de operaciones.",
+      "Fotografía oficial, reconocimiento en el archivo histórico y reunión anual con la dirección."
+    ]
+  },
+  {
+    code: "fundador-distinguido",
+    name: "Fundador Distinguido",
+    audience: "Círculo de Fundadores",
+    price: 2500,
+    billingPeriod: "one_time",
+    benefits: [
+      "Todos los beneficios del Socio Fundador.",
+      "Reconocimiento especial destacado en el Muro de Fundadores.",
+      "Invitación para dos personas a todas las actividades inaugurales.",
+      "Reconocimiento en publicaciones oficiales relacionadas con la apertura."
+    ]
+  },
+  {
+    code: "fundador-patron",
+    name: "Fundador Patrón",
+    audience: "Círculo de Fundadores",
+    price: 5000,
+    billingPeriod: "one_time",
+    benefits: [
+      "Todos los beneficios del Fundador Distinguido.",
+      "Reconocimiento preferencial en el Muro de Fundadores.",
+      "Invitación VIP a eventos especiales y actividades protocolares.",
+      "Oportunidad de auspiciar un programa educativo o actividad cultural específica."
+    ]
+  },
+  {
+    code: "patrocinador",
+    name: "Patrocinador",
+    audience: "Empresa, fundación u organización",
+    price: 2500,
+    billingPeriod: "annual",
+    benefits: ["Veinticinco pases de cortesía.", "Tres Membresías Familiares."]
+  },
+  {
+    code: "corporativo",
+    name: "Corporativo",
+    audience: "Empresa, fundación u organización",
+    price: 5000,
+    billingPeriod: "annual",
+    benefits: ["Cincuenta pases de cortesía.", "Seis Membresías Familiares."]
+  },
+  {
+    code: "benefactor",
+    name: "Benefactor",
+    audience: "Empresa, fundación u organización",
+    price: 10000,
+    billingPeriod: "annual",
+    benefits: [
+      "Cien pases de cortesía.",
+      "Diez Membresías Familiares.",
+      "Reconocimiento especial en comunicados de prensa relacionados con la aportación."
+    ]
+  },
+  {
+    code: "mecenas-musical",
+    name: "Círculo de Mecenas Musicales",
+    audience: "Individuos, empresas y fundaciones",
+    price: 25000,
+    billingPeriod: "annual_from",
+    benefits: [
+      "Reconocimiento permanente dentro del Museo.",
+      "Acceso VIP a eventos especiales.",
+      "Encuentros privados con artistas, músicos e invitados especiales.",
+      "Oportunidades de auspicio de exhibiciones, galerías, programas educativos y proyectos de investigación.",
+      "Reconocimiento destacado en publicaciones institucionales y actividades oficiales."
+    ]
+  }
+];
+
+const generalMembershipBenefits = [
+  "Entrada gratuita e ilimitada al Museo durante un año.",
+  "Credencial oficial de Socio del Museo de la Música de Puerto Rico.",
+  "Boletín digital con noticias, actividades y eventos especiales.",
+  "Invitaciones a inauguraciones de exhibiciones y nuevas experiencias museográficas.",
+  "Acceso preferencial a conferencias, conversatorios, presentaciones musicales y actividades educativas.",
+  "Descuentos en talleres, cursos, programas educativos, tienda oficial y alquiler de espacios.",
+  "Invitación a la Fiesta Anual de Socios y Amigos del Museo.",
+  "Oportunidad de participar en actividades exclusivas para miembros."
+];
+
+function bindMembershipsModule() {
+  const module = document.querySelector("[data-memberships-module]");
+  if (!module) return;
+
+  const list = module.querySelector("[data-membership-list]");
+  const message = module.querySelector("[data-membership-message]");
+  const dialog = document.querySelector("[data-membership-dialog]");
+  const form = document.querySelector("[data-membership-form]");
+  const attendanceDialog = document.querySelector("[data-membership-attendance-dialog]");
+  const attendanceForm = document.querySelector("[data-membership-attendance-form]");
+  const planSelect = form?.querySelector("[data-membership-plan-select]");
+  const search = module.querySelector("[data-membership-search]");
+  let members = [];
+  let attendanceRecords = [];
+  let profile = null;
+
+  const money = (value) => Number(value || 0).toLocaleString("es-PR", {
+    style: "currency",
+    currency: "USD"
+  });
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text;
+    message.className = `form-message${type ? ` ${type}` : ""}`;
+  };
+  const periodLabel = (period) => ({
+    annual: "anuales",
+    one_time: "aportación única",
+    annual_from: "anuales, desde"
+  }[period] || "anuales");
+  const planByCode = (code) => officialMembershipPlans.find((plan) => plan.code === code);
+  const memberName = (member) => `${member.first_name || ""} ${member.last_name || ""}`.trim();
+  const normalizeInterests = (value) => Array.isArray(value)
+    ? value
+    : String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
+
+  const membershipHeaders = async () => ({
+    ...(await supabaseAuthHeaders()),
+    Prefer: "return=representation"
+  });
+
+  const requireAuthorizedProfile = async () => {
+    profile = await currentMuseumContext();
+    if (!["administrador", "ejecutivo"].includes(profile.role)) {
+      throw new Error("El módulo de Membresías está disponible únicamente para Administradores y Ejecutivos.");
+    }
+    return profile;
+  };
+
+  const fetchMembers = async () => {
+    await requireAuthorizedProfile();
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/museum_members?select=*&museum_id=eq.${encodeURIComponent(profile.museum_id)}&order=last_name.asc,first_name.asc`,
+      { headers: await membershipHeaders() }
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      if (String(data.message || "").includes("museum_members")) {
+        throw new Error("Falta instalar la base protegida de Membresías en Supabase.");
+      }
+      throw new Error(data.message || "No se pudieron cargar los socios.");
+    }
+    members = data;
+    const attendanceResponse = await fetch(
+      `${supabaseUrl}/rest/v1/membership_attendance?select=*&museum_id=eq.${encodeURIComponent(profile.museum_id)}&order=attended_at.desc`,
+      { headers: await membershipHeaders() }
+    );
+    const attendanceData = await attendanceResponse.json();
+    if (!attendanceResponse.ok) throw new Error(attendanceData.message || "No se pudo cargar la asistencia.");
+    attendanceRecords = attendanceData;
+  };
+
+  const saveAudit = async (memberId, action, details = {}) => {
+    const response = await fetch(`${supabaseUrl}/rest/v1/membership_audit_logs`, {
+      method: "POST",
+      headers: await membershipHeaders(),
+      body: JSON.stringify({
+        museum_id: profile.museum_id,
+        member_id: memberId,
+        action,
+        details,
+        performed_by: profile.id
+      })
+    });
+    if (!response.ok) throw new Error("El socio se guardó, pero no se pudo completar la auditoría.");
+  };
+
+  const statusClass = (status) => ({
+    Activo: "is-active",
+    Pendiente: "is-pending",
+    Vencido: "is-expired",
+    Inactivo: "is-inactive"
+  }[status] || "is-inactive");
+
+  const renderStats = () => {
+    const today = new Date();
+    const inThirtyDays = new Date(today);
+    inThirtyDays.setDate(inThirtyDays.getDate() + 30);
+    const active = members.filter((member) => member.status === "Activo").length;
+    const expiring = members.filter((member) => {
+      if (member.status !== "Activo" || !member.expiration_date) return false;
+      const expiration = new Date(`${member.expiration_date}T12:00:00`);
+      return expiration >= today && expiration <= inThirtyDays;
+    }).length;
+    const pending = members.filter((member) => member.status === "Pendiente" || member.status === "Vencido").length;
+    const revenue = members.reduce((sum, member) => sum + Number(member.amount_paid || 0), 0);
+    const values = { active, expiring, pending, revenue: money(revenue) };
+    Object.entries(values).forEach(([key, value]) => {
+      const target = module.querySelector(`[data-membership-stat="${key}"]`);
+      if (target) target.textContent = value;
+    });
+  };
+
+  const renderMembers = () => {
+    if (!list) return;
+    const query = String(search?.value || "").trim().toLowerCase();
+    const filtered = members.filter((member) => [
+      memberName(member),
+      member.email,
+      member.member_number,
+      planByCode(member.plan_code)?.name
+    ].some((value) => String(value || "").toLowerCase().includes(query)));
+    list.innerHTML = filtered.length ? filtered.map((member) => {
+      const plan = planByCode(member.plan_code);
+      const communication = member.email_consent || member.sms_consent
+        ? [member.email_consent ? "Correo" : "", member.sms_consent ? "SMS" : ""].filter(Boolean).join(" / ")
+        : "No autorizado";
+      return `
+        <tr>
+          <td>
+            <strong>${safeHtml(memberName(member))}</strong>
+            <small>${safeHtml(member.member_number || "")}<br>${safeHtml(member.email || "")}</small>
+          </td>
+          <td>${safeHtml(plan?.name || member.plan_code)}</td>
+          <td>
+            <small>Inicio: ${safeHtml(member.start_date || "-")}<br>Vence: ${safeHtml(member.expiration_date || "No aplica")}</small>
+          </td>
+          <td><span class="membership-status ${statusClass(member.status)}">${safeHtml(member.status)}</span></td>
+          <td>${safeHtml(communication)}</td>
+          <td>
+            <div class="membership-row-actions">
+              <button class="table-action" type="button" data-membership-edit="${member.id}">Editar</button>
+              <button class="table-action" type="button" data-membership-attendance="${member.id}">Asistencia</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("") : '<tr><td colspan="6">No se encontraron socios.</td></tr>';
+    renderStats();
+    renderInsights();
+  };
+
+  const renderPlans = () => {
+    const grid = module.querySelector('[data-membership-view="plans"]');
+    if (!grid) return;
+    grid.innerHTML = officialMembershipPlans.map((plan) => `
+      <article class="card membership-plan-card">
+        <p class="page-kicker">${safeHtml(plan.audience)}</p>
+        <h3>${safeHtml(plan.name)}</h3>
+        <p class="membership-price">
+          ${plan.billingPeriod === "annual_from" ? "Desde " : ""}${money(plan.price)}
+          <small>${periodLabel(plan.billingPeriod)}</small>
+        </p>
+        ${plan.siblingPrice ? `<p class="membership-special-price">${money(plan.siblingPrice)} por cada hermano adicional</p>` : ""}
+        <ul>
+          ${plan.benefits.map((benefit) => `<li>${safeHtml(benefit)}</li>`).join("")}
+        </ul>
+      </article>
+    `).join("") + `
+      <article class="card membership-plan-card membership-general-benefits">
+        <p class="page-kicker">Todos los socios</p>
+        <h3>Beneficios generales</h3>
+        <ul>${generalMembershipBenefits.map((benefit) => `<li>${safeHtml(benefit)}</li>`).join("")}</ul>
+      </article>
+    `;
+  };
+
+  const renderInsights = () => {
+    const target = module.querySelector("[data-membership-insights]");
+    if (!target) return;
+    const interestCounts = new Map();
+    members.filter((member) => member.analytics_consent).forEach((member) => {
+      normalizeInterests(member.interests).forEach((interest) => {
+        const key = interest.toLocaleLowerCase("es");
+        interestCounts.set(key, { label: interest, count: (interestCounts.get(key)?.count || 0) + 1 });
+      });
+    });
+    const interests = [...interestCounts.values()].sort((a, b) => b.count - a.count);
+    const emailCount = members.filter((member) => member.email_consent).length;
+    const smsCount = members.filter((member) => member.sms_consent).length;
+    const analyticsCount = members.filter((member) => member.analytics_consent).length;
+    const eligibleMemberIds = new Set(members.filter((member) => member.analytics_consent).map((member) => member.id));
+    const categoryCounts = new Map();
+    attendanceRecords.filter((record) => eligibleMemberIds.has(record.member_id)).forEach((record) => {
+      const category = record.event_category || "Otro";
+      categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
+    });
+    const attendanceCategories = [...categoryCounts.entries()].sort((a, b) => b[1] - a[1]);
+    target.innerHTML = `
+      <article>
+        <span>Autorizan correo</span>
+        <strong>${emailCount}</strong>
+      </article>
+      <article>
+        <span>Autorizan SMS</span>
+        <strong>${smsCount}</strong>
+      </article>
+      <article>
+        <span>Autorizan análisis</span>
+        <strong>${analyticsCount}</strong>
+      </article>
+      <article>
+        <span>Asistencias autorizadas</span>
+        <strong>${attendanceRecords.filter((record) => eligibleMemberIds.has(record.member_id)).length}</strong>
+      </article>
+      <article class="membership-interest-summary">
+        <span>Intereses principales</span>
+        <div>${interests.length
+          ? interests.slice(0, 12).map((item) => `<span>${safeHtml(item.label)} <strong>${item.count}</strong></span>`).join("")
+          : "<small>No hay intereses autorizados registrados.</small>"
+        }</div>
+      </article>
+      <article class="membership-interest-summary">
+        <span>Asistencia por tipo de actividad</span>
+        <div>${attendanceCategories.length
+          ? attendanceCategories.map(([label, count]) => `<span>${safeHtml(label)} <strong>${count}</strong></span>`).join("")
+          : "<small>No hay asistencias autorizadas registradas.</small>"
+        }</div>
+      </article>
+    `;
+  };
+
+  const defaultStartDate = () => new Date().toISOString().slice(0, 10);
+  const suggestedExpiration = (startDate, planCode) => {
+    const plan = planByCode(planCode);
+    if (!startDate || plan?.billingPeriod === "one_time") return "";
+    const date = new Date(`${startDate}T12:00:00`);
+    date.setFullYear(date.getFullYear() + 1);
+    return date.toISOString().slice(0, 10);
+  };
+  const generatedMemberNumber = () => {
+    const year = new Date().getFullYear();
+    const sequence = String(members.length + 1).padStart(4, "0");
+    return `MMPR-${year}-${sequence}`;
+  };
+
+  const openForm = (member = null) => {
+    if (!form || !dialog) return;
+    form.reset();
+    form.elements.id.value = member?.id || "";
+    form.elements.first_name.value = member?.first_name || "";
+    form.elements.last_name.value = member?.last_name || "";
+    form.elements.email.value = member?.email || "";
+    form.elements.phone.value = member?.phone || "";
+    form.elements.organization_name.value = member?.organization_name || "";
+    form.elements.plan_code.value = member?.plan_code || "individual";
+    form.elements.member_number.value = member?.member_number || generatedMemberNumber();
+    form.elements.start_date.value = member?.start_date || defaultStartDate();
+    form.elements.expiration_date.value = member?.expiration_date || suggestedExpiration(form.elements.start_date.value, form.elements.plan_code.value);
+    form.elements.status.value = member?.status || "Activo";
+    form.elements.amount_paid.value = member?.amount_paid ?? planByCode(form.elements.plan_code.value)?.price ?? 0;
+    form.elements.interests.value = normalizeInterests(member?.interests).join(", ");
+    form.elements.notes.value = member?.notes || "";
+    form.elements.email_consent.checked = Boolean(member?.email_consent);
+    form.elements.sms_consent.checked = Boolean(member?.sms_consent);
+    form.elements.analytics_consent.checked = Boolean(member?.analytics_consent);
+    const title = form.querySelector("[data-membership-form-title]");
+    if (title) title.textContent = member ? "Editar socio" : "Nuevo socio";
+    dialog.showModal();
+  };
+
+  const exportMembers = () => {
+    const headers = ["Número", "Nombre", "Apellidos", "Correo", "Teléfono", "Membresía", "Estado", "Inicio", "Vencimiento", "Autoriza correo", "Autoriza SMS", "Intereses"];
+    const quote = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const rows = members.filter((member) => member.email_consent || member.sms_consent).map((member) => [
+      member.member_number,
+      member.first_name,
+      member.last_name,
+      member.email,
+      member.phone,
+      planByCode(member.plan_code)?.name || member.plan_code,
+      member.status,
+      member.start_date,
+      member.expiration_date,
+      member.email_consent ? "Sí" : "No",
+      member.sms_consent ? "Sí" : "No",
+      normalizeInterests(member.interests).join("; ")
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map(quote).join(",")).join("\r\n");
+    const blob = new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `socios-museo-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  planSelect.innerHTML = officialMembershipPlans.map((plan) =>
+    `<option value="${plan.code}">${safeHtml(plan.name)} - ${money(plan.price)}</option>`
+  ).join("");
+  renderPlans();
+
+  module.querySelectorAll("[data-membership-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      module.querySelectorAll("[data-membership-tab]").forEach((tab) => tab.classList.toggle("is-active", tab === button));
+      module.querySelectorAll("[data-membership-view]").forEach((view) => {
+        view.hidden = view.dataset.membershipView !== button.dataset.membershipTab;
+      });
+    });
+  });
+  module.querySelector("[data-membership-new]")?.addEventListener("click", () => openForm());
+  module.querySelector("[data-membership-export]")?.addEventListener("click", exportMembers);
+  module.querySelectorAll("[data-membership-close]").forEach((button) => button.addEventListener("click", () => dialog?.close()));
+  search?.addEventListener("input", renderMembers);
+  list?.addEventListener("click", (event) => {
+    const editButton = event.target.closest("[data-membership-edit]");
+    if (editButton) {
+      openForm(members.find((member) => member.id === editButton.dataset.membershipEdit));
+      return;
+    }
+    const attendanceButton = event.target.closest("[data-membership-attendance]");
+    if (!attendanceButton || !attendanceForm || !attendanceDialog) return;
+    const member = members.find((item) => item.id === attendanceButton.dataset.membershipAttendance);
+    attendanceForm.reset();
+    attendanceForm.elements.member_id.value = member.id;
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    attendanceForm.elements.attended_at.value = now.toISOString().slice(0, 16);
+    const label = attendanceDialog.querySelector("[data-membership-attendance-member]");
+    if (label) label.textContent = memberName(member);
+    attendanceDialog.showModal();
+  });
+  document.querySelectorAll("[data-membership-attendance-close]").forEach((button) => {
+    button.addEventListener("click", () => attendanceDialog?.close());
+  });
+  form?.elements.plan_code.addEventListener("change", () => {
+    const plan = planByCode(form.elements.plan_code.value);
+    form.elements.amount_paid.value = plan?.price || 0;
+    form.elements.expiration_date.value = suggestedExpiration(form.elements.start_date.value, plan?.code);
+  });
+  form?.elements.start_date.addEventListener("change", () => {
+    form.elements.expiration_date.value = suggestedExpiration(form.elements.start_date.value, form.elements.plan_code.value);
+  });
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const id = String(data.get("id") || "");
+    const payload = {
+      museum_id: profile.museum_id,
+      member_number: String(data.get("member_number") || generatedMemberNumber()).trim(),
+      first_name: String(data.get("first_name") || "").trim(),
+      last_name: String(data.get("last_name") || "").trim(),
+      email: String(data.get("email") || "").trim() || null,
+      phone: String(data.get("phone") || "").trim() || null,
+      organization_name: String(data.get("organization_name") || "").trim() || null,
+      plan_code: String(data.get("plan_code") || ""),
+      status: String(data.get("status") || "Activo"),
+      start_date: String(data.get("start_date") || ""),
+      expiration_date: String(data.get("expiration_date") || "") || null,
+      amount_paid: Number(data.get("amount_paid") || 0),
+      interests: normalizeInterests(data.get("interests")),
+      notes: String(data.get("notes") || "").trim() || null,
+      email_consent: data.get("email_consent") === "on",
+      sms_consent: data.get("sms_consent") === "on",
+      analytics_consent: data.get("analytics_consent") === "on",
+      consent_updated_at: new Date().toISOString(),
+      updated_by: profile.id,
+      updated_at: new Date().toISOString()
+    };
+    if (!id) payload.created_by = profile.id;
+    try {
+      const response = await fetch(
+        `${supabaseUrl}/rest/v1/museum_members${id ? `?id=eq.${encodeURIComponent(id)}` : ""}`,
+        {
+          method: id ? "PATCH" : "POST",
+          headers: await membershipHeaders(),
+          body: JSON.stringify(payload)
+        }
+      );
+      const saved = await response.json();
+      if (!response.ok) throw new Error(saved.message || "No se pudo guardar el socio.");
+      const savedMember = saved[0];
+      await saveAudit(savedMember.id, id ? "member_updated" : "member_created", {
+        plan_code: savedMember.plan_code,
+        status: savedMember.status
+      });
+      dialog.close();
+      await fetchMembers();
+      renderMembers();
+      setMessage(id ? "Expediente actualizado en Supabase." : "Socio registrado en Supabase.", "success");
+    } catch (error) {
+      setMessage(error.message, "error");
+    }
+  });
+
+  attendanceForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(attendanceForm);
+    const memberId = String(data.get("member_id") || "");
+    const member = members.find((item) => item.id === memberId);
+    if (!member) return;
+    if (!member.analytics_consent) {
+      setMessage("El socio no ha autorizado el uso de su asistencia para análisis institucional.", "error");
+      return;
+    }
+    try {
+      const response = await fetch(`${supabaseUrl}/rest/v1/membership_attendance`, {
+        method: "POST",
+        headers: await membershipHeaders(),
+        body: JSON.stringify({
+          museum_id: profile.museum_id,
+          member_id: memberId,
+          event_name: String(data.get("event_name") || "").trim(),
+          event_category: String(data.get("event_category") || ""),
+          attended_at: new Date(String(data.get("attended_at") || "")).toISOString(),
+          recorded_by: profile.id
+        })
+      });
+      const saved = await response.json();
+      if (!response.ok) throw new Error(saved.message || "No se pudo registrar la asistencia.");
+      await saveAudit(memberId, "attendance_recorded", {
+        event_name: String(data.get("event_name") || "").trim(),
+        event_category: String(data.get("event_category") || "")
+      });
+      attendanceDialog.close();
+      await fetchMembers();
+      renderMembers();
+      setMessage("Asistencia registrada en Supabase.", "success");
+    } catch (error) {
+      setMessage(error.message, "error");
+    }
+  });
+
+  const initialize = async () => {
+    if (!getSupabaseSession()?.access_token) {
+      list.innerHTML = '<tr><td colspan="6">Entre por Mi cuenta para consultar Membresías.</td></tr>';
+      module.querySelector("[data-membership-new]").disabled = true;
+      module.querySelector("[data-membership-export]").disabled = true;
+      setMessage("Este módulo contiene información protegida y requiere una sesión administrativa.", "error");
+      return;
+    }
+    try {
+      await fetchMembers();
+      renderMembers();
+      setMessage("Información de socios cargada desde Supabase.", "success");
+    } catch (error) {
+      list.innerHTML = `<tr><td colspan="6">${safeHtml(error.message)}</td></tr>`;
+      module.querySelector("[data-membership-new]").disabled = true;
+      module.querySelector("[data-membership-export]").disabled = true;
+      setMessage(error.message, "error");
+    }
+  };
+
+  initialize();
+}
+
 async function initApp() {
   renderSidebar();
   renderHeader();
@@ -4060,6 +4701,7 @@ async function initApp() {
   bindLoanReceiptForm();
   bindInventoryModule();
   bindCalendarModules();
+  bindMembershipsModule();
 }
 
 document.addEventListener("DOMContentLoaded", initApp);

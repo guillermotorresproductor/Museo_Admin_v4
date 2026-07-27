@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Museo Admin v4.0 | Membresías</title>
+  <link rel="stylesheet" href="css/main.css?v=membresias-20260728">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" data-sidebar></aside>
+    <div class="sidebar-backdrop" data-sidebar-backdrop></div>
+    <div class="main-area">
+      <header class="site-header" data-header></header>
+      <main class="page-content">
+        <section class="membership-shell" data-memberships-module>
+          <div class="card panel membership-intro">
+            <div>
+              <p class="page-kicker">Relación con nuestros socios</p>
+              <h3>Programa de Membresías</h3>
+              <p>Expedientes, beneficios, renovaciones, asistencia e intereses de los socios del Museo.</p>
+            </div>
+            <div class="membership-actions">
+              <button class="button secondary" type="button" data-membership-export>Exportar contactos autorizados</button>
+              <button class="button submit-button" type="button" data-membership-new>Nuevo socio</button>
+            </div>
+          </div>
+
+          <div class="membership-stats" aria-label="Resumen de membresías">
+            <article class="card membership-stat">
+              <span>Socios activos</span>
+              <strong data-membership-stat="active">0</strong>
+            </article>
+            <article class="card membership-stat">
+              <span>Próximos a vencer</span>
+              <strong data-membership-stat="expiring">0</strong>
+            </article>
+            <article class="card membership-stat">
+              <span>Renovaciones pendientes</span>
+              <strong data-membership-stat="pending">0</strong>
+            </article>
+            <article class="card membership-stat">
+              <span>Ingresos registrados</span>
+              <strong data-membership-stat="revenue">$0.00</strong>
+            </article>
+          </div>
+
+          <nav class="membership-tabs card" aria-label="Secciones de membresías">
+            <button class="is-active" type="button" data-membership-tab="members">Socios</button>
+            <button type="button" data-membership-tab="plans">Clasificaciones y beneficios</button>
+            <button type="button" data-membership-tab="insights">Asistencia e intereses</button>
+          </nav>
+
+          <section class="card panel membership-panel" data-membership-view="members">
+            <div class="panel-heading-inline">
+              <div>
+                <p class="page-kicker">Directorio protegido</p>
+                <h3>Miembros y socios del Museo</h3>
+                <p>La información se consulta y guarda únicamente en el servidor institucional.</p>
+              </div>
+              <label class="membership-search">
+                <span class="sr-only">Buscar socio</span>
+                <input type="search" placeholder="Buscar por nombre, correo o número..." data-membership-search>
+              </label>
+            </div>
+            <div class="table-wrap section-stack">
+              <table class="data-table membership-table">
+                <thead>
+                  <tr>
+                    <th>Socio</th>
+                    <th>Membresía</th>
+                    <th>Vigencia</th>
+                    <th>Estado</th>
+                    <th>Comunicaciones</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody data-membership-list>
+                  <tr><td colspan="6">Cargando socios...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="membership-plan-grid" data-membership-view="plans" hidden></section>
+
+          <section class="card panel membership-panel" data-membership-view="insights" hidden>
+            <div class="panel-heading-inline">
+              <div>
+                <p class="page-kicker">Relación y participación</p>
+                <h3>Asistencia e intereses</h3>
+                <p>Resumen agregado para orientar actividades, promociones y comunicaciones del Museo.</p>
+              </div>
+            </div>
+            <div class="membership-insights" data-membership-insights></div>
+          </section>
+
+          <p class="form-message" data-membership-message></p>
+        </section>
+
+        <dialog class="membership-dialog" data-membership-dialog>
+          <form method="dialog" class="membership-form" data-membership-form>
+            <div class="membership-dialog-header">
+              <div>
+                <p class="page-kicker">Expediente administrativo</p>
+                <h3 data-membership-form-title>Nuevo socio</h3>
+              </div>
+              <button class="icon-button" type="button" aria-label="Cerrar" data-membership-close>&times;</button>
+            </div>
+
+            <input type="hidden" name="id">
+            <div class="form-row">
+              <label class="field">
+                <span>Nombre</span>
+                <input type="text" name="first_name" required>
+              </label>
+              <label class="field">
+                <span>Apellidos</span>
+                <input type="text" name="last_name" required>
+              </label>
+            </div>
+            <label class="field">
+              <span>Empresa, fundación u organización (si aplica)</span>
+              <input type="text" name="organization_name">
+            </label>
+            <div class="form-row">
+              <label class="field">
+                <span>Correo electrónico</span>
+                <input type="email" name="email" required>
+              </label>
+              <label class="field">
+                <span>Teléfono</span>
+                <input type="tel" name="phone">
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="field">
+                <span>Clasificación</span>
+                <select name="plan_code" required data-membership-plan-select></select>
+              </label>
+              <label class="field">
+                <span>Número de socio</span>
+                <input type="text" name="member_number" placeholder="Se genera automáticamente">
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="field">
+                <span>Fecha de inicio</span>
+                <input type="date" name="start_date" required>
+              </label>
+              <label class="field">
+                <span>Fecha de vencimiento</span>
+                <input type="date" name="expiration_date">
+              </label>
+            </div>
+            <div class="form-row">
+              <label class="field">
+                <span>Estado</span>
+                <select name="status" required>
+                  <option value="Activo">Activo</option>
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="Vencido">Vencido</option>
+                  <option value="Inactivo">Inactivo</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Aportación registrada</span>
+                <input type="number" name="amount_paid" min="0" step="0.01">
+              </label>
+            </div>
+            <label class="field">
+              <span>Intereses musicales y culturales</span>
+              <input type="text" name="interests" placeholder="Ej. plena, música clásica, talleres infantiles">
+              <small>Separe los intereses con comas.</small>
+            </label>
+            <label class="field">
+              <span>Notas administrativas</span>
+              <textarea name="notes" rows="3"></textarea>
+            </label>
+            <div class="membership-consents">
+              <label><input type="checkbox" name="email_consent"> Autoriza promociones y recordatorios por correo electrónico.</label>
+              <label><input type="checkbox" name="sms_consent"> Autoriza promociones y recordatorios por mensaje de texto.</label>
+              <label><input type="checkbox" name="analytics_consent"> Autoriza usar asistencia e intereses para análisis institucional.</label>
+            </div>
+            <div class="inventory-actions">
+              <button class="button submit-button" type="submit">Guardar socio</button>
+              <button class="button secondary" type="button" data-membership-close>Cancelar</button>
+            </div>
+          </form>
+        </dialog>
+
+        <dialog class="membership-dialog membership-attendance-dialog" data-membership-attendance-dialog>
+          <form method="dialog" class="membership-form" data-membership-attendance-form>
+            <div class="membership-dialog-header">
+              <div>
+                <p class="page-kicker">Participación del socio</p>
+                <h3>Registrar asistencia</h3>
+                <p data-membership-attendance-member></p>
+              </div>
+              <button class="icon-button" type="button" aria-label="Cerrar" data-membership-attendance-close>&times;</button>
+            </div>
+            <input type="hidden" name="member_id">
+            <label class="field">
+              <span>Actividad o evento</span>
+              <input type="text" name="event_name" required>
+            </label>
+            <div class="form-row">
+              <label class="field">
+                <span>Categoría</span>
+                <select name="event_category" required>
+                  <option value="Concierto">Concierto</option>
+                  <option value="Exhibición">Exhibición</option>
+                  <option value="Taller">Taller</option>
+                  <option value="Conferencia">Conferencia</option>
+                  <option value="Actividad familiar">Actividad familiar</option>
+                  <option value="Evento especial">Evento especial</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Fecha y hora</span>
+                <input type="datetime-local" name="attended_at" required>
+              </label>
+            </div>
+            <div class="inventory-actions">
+              <button class="button submit-button" type="submit">Guardar asistencia</button>
+              <button class="button secondary" type="button" data-membership-attendance-close>Cancelar</button>
+            </div>
+          </form>
+        </dialog>
+      </main>
+      <footer class="site-footer" data-footer></footer>
+    </div>
+  </div>
+  <script src="js/app.js?v=membresias-20260728"></script>
+</body>
+</html>
