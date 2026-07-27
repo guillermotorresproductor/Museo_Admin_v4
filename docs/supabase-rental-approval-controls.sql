@@ -202,10 +202,12 @@ begin
   if target_museum_id is null then
     raise exception 'Administrative rental permission is required.';
   end if;
-  if p_action not in (
-    'rental.approval.blocked_missing_receipt',
-    'rental.receipt.duplicate',
-    'rental.control.failed'
+  if not (
+    p_action in (
+      'rental.approval.blocked_missing_receipt',
+      'rental.receipt.duplicate',
+      'rental.control.failed'
+    )
   ) then
     raise exception 'Unsupported blocked rental event.';
   end if;
