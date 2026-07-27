@@ -1579,11 +1579,12 @@ function bindRentalForm() {
         <td>${safeHtml(request.espacio)}</td>
         <td>${safeHtml(request.fecha)}</td>
         <td>${money(request.total)}</td>
+        <td><input type="text" value="${safeHtml(request.numeroRecibo || "")}" data-rental-receipt="${safeHtml(request.id)}" placeholder="Recibo MAG" aria-label="Número de recibo del Municipio de Guaynabo"></td>
         <td><input class="rental-approval-checkbox" type="checkbox" data-rental-approval="${safeHtml(request.id)}"${request.estado === "Aprobada" ? " checked" : ""} aria-label="Marcar ${safeHtml(request.numeroSolicitud)} como aprobada"></td>
         <td><select class="rental-approved-by" data-rental-approved-by="${safeHtml(request.id)}" aria-label="Aprobado por">${approverOptions(request)}</select></td>
         <td>${safeHtml(request.estado)}</td>
       </tr>
-    `).join("") : `<tr><td colspan="8">No hay solicitudes registradas.</td></tr>`;
+    `).join("") : `<tr><td colspan="9">No hay solicitudes registradas.</td></tr>`;
   };
 
   const renderConfig = () => {
@@ -1665,7 +1666,7 @@ function bindRentalForm() {
     const request = {
       id: `rental-${Date.now()}`,
       numeroSolicitud: createSequence("SOL", currentRequests.length),
-      numeroRecibo: createSequence("REC", currentRequests.length),
+      numeroRecibo: "",
       nombre: data.get("nombre"),
       organizacion: data.get("organizacion"),
       contacto: data.get("contacto"),
@@ -1767,7 +1768,8 @@ function bindRentalForm() {
     if (!isAuthorizedAdmin) return;
     const approval = event.target.closest("[data-rental-approval]");
     const approverField = event.target.closest("[data-rental-approved-by]");
-    const requestId = approval?.dataset.rentalApproval || approverField?.dataset.rentalApprovedBy;
+    const receiptField = event.target.closest("[data-rental-receipt]");
+    const requestId = approval?.dataset.rentalApproval || approverField?.dataset.rentalApprovedBy || receiptField?.dataset.rentalReceipt;
     if (!requestId) return;
     const request = getRequests().find((item) => item.id === requestId);
     if (!request) return;
@@ -1780,8 +1782,21 @@ function bindRentalForm() {
       setAdminMessage("Seleccione primero el administrador que aprueba la solicitud.", "error");
       return;
     }
+    if (approval?.checked && !request.produccionInterna && !String(request.numeroRecibo || "").trim()) {
+      approval.checked = false;
+      setAdminMessage("Ingrese primero el número de recibo emitido por el Municipio de Guaynabo.", "error");
+      return;
+    }
 
-    if (approval) {
+    if (receiptField) {
+      request.numeroRecibo = receiptField.value.trim();
+      request.audit = [...(request.audit || []), auditEntry(
+        request.estado,
+        request.numeroRecibo
+          ? `Recibo del Municipio de Guaynabo registrado: ${request.numeroRecibo}.`
+          : "Número de recibo municipal eliminado."
+      )];
+    } else if (approval) {
       request.estado = approval.checked ? "Aprobada" : "Pendiente";
       request.aprobadoPorId = approval.checked ? administrator.id : "";
       request.aprobadoPor = approval.checked ? employeeDisplayName(administrator) : "";
@@ -4487,8 +4502,9 @@ function bindMembershipsModule() {
     form.elements.member_number.value = member?.member_number || generatedMemberNumber();
     form.elements.start_date.value = member?.start_date || defaultStartDate();
     form.elements.expiration_date.value = member?.expiration_date || suggestedExpiration(form.elements.start_date.value, form.elements.plan_code.value);
-    form.elements.status.value = member?.status || "Activo";
+    form.elements.status.value = member?.status || "Pendiente";
     form.elements.amount_paid.value = member?.amount_paid ?? planByCode(form.elements.plan_code.value)?.price ?? 0;
+    form.elements.municipal_receipt_number.value = member?.municipal_receipt_number || "";
     form.elements.interests.value = normalizeInterests(member?.interests).join(", ");
     form.elements.notes.value = member?.notes || "";
     form.elements.email_consent.checked = Boolean(member?.email_consent);
@@ -4500,7 +4516,7 @@ function bindMembershipsModule() {
   };
 
   const exportMembers = () => {
-    const headers = ["Número", "Nombre", "Apellidos", "Correo", "Teléfono", "Membresía", "Estado", "Inicio", "Vencimiento", "Autoriza correo", "Autoriza SMS", "Intereses"];
+    const headers = ["Número", "Nombre", "Apellidos", "Correo", "Teléfono", "Membresía", "Estado", "Inicio", "Vencimiento", "Recibo Municipio de Guaynabo", "Autoriza correo", "Autoriza SMS", "Intereses"];
     const quote = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
     const rows = members.filter((member) => member.email_consent || member.sms_consent).map((member) => [
       member.member_number,
@@ -4512,6 +4528,7 @@ function bindMembershipsModule() {
       member.status,
       member.start_date,
       member.expiration_date,
+      member.municipal_receipt_number,
       member.email_consent ? "Sí" : "No",
       member.sms_consent ? "Sí" : "No",
       normalizeInterests(member.interests).join("; ")
@@ -4578,6 +4595,14 @@ function bindMembershipsModule() {
     event.preventDefault();
     const data = new FormData(form);
     const id = String(data.get("id") || "");
+    const planCode = String(data.get("plan_code") || "");
+    const status = String(data.get("status") || "Pendiente");
+    const municipalReceiptNumber = String(data.get("municipal_receipt_number") || "").trim();
+    if (status === "Activo" && planCode !== "cortesia-anual" && !municipalReceiptNumber) {
+      setMessage("Para activar la membresía, ingrese el número de recibo emitido por el Municipio de Guaynabo.", "error");
+      form.elements.municipal_receipt_number.focus();
+      return;
+    }
     const payload = {
       museum_id: profile.museum_id,
       member_number: String(data.get("member_number") || generatedMemberNumber()).trim(),
@@ -4586,11 +4611,12 @@ function bindMembershipsModule() {
       email: String(data.get("email") || "").trim() || null,
       phone: String(data.get("phone") || "").trim() || null,
       organization_name: String(data.get("organization_name") || "").trim() || null,
-      plan_code: String(data.get("plan_code") || ""),
-      status: String(data.get("status") || "Activo"),
+      plan_code: planCode,
+      status,
       start_date: String(data.get("start_date") || ""),
       expiration_date: String(data.get("expiration_date") || "") || null,
       amount_paid: Number(data.get("amount_paid") || 0),
+      municipal_receipt_number: municipalReceiptNumber || null,
       interests: normalizeInterests(data.get("interests")),
       notes: String(data.get("notes") || "").trim() || null,
       email_consent: data.get("email_consent") === "on",
@@ -4615,7 +4641,8 @@ function bindMembershipsModule() {
       const savedMember = saved[0];
       await saveAudit(savedMember.id, id ? "member_updated" : "member_created", {
         plan_code: savedMember.plan_code,
-        status: savedMember.status
+        status: savedMember.status,
+        municipal_receipt_number: savedMember.municipal_receipt_number
       });
       dialog.close();
       await fetchMembers();
