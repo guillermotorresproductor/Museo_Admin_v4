@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Renta de Espacios</title>
+  <title>Espacio | Renta de Espacios</title>
   <link rel="stylesheet" href="css/main.css?v=renta-espacios-20260726e">
 </head>
 <body>
@@ -12,16 +12,16 @@
     <div class="sidebar-backdrop" data-sidebar-backdrop></div>
     <div class="main-area">
       <header class="site-header" data-header></header>
-      <main class="page-content">
-        <section class="rental-catalog-intro">
+      <main class="page-content rental-public-page">
+        <nav class="rental-detail-nav" aria-label="Navegación de renta">
+          <a href="renta-espacios.html">← Todos los espacios</a>
           <div>
-            <p class="page-kicker">Facilidades del Museo</p>
-            <h2>Seleccione el espacio para su actividad</h2>
-            <p>Explore los salones y áreas disponibles del Museo."Las imágenes son representaciones artísticas generadas por Inteligencia Artificial con fines ilustrativos, diseñadas para mostrar el potencial de ambientación y decoración de cada espacio."</p>
+            <span data-rental-public-subtitle>Facilidad del Museo</span>
+            <strong data-rental-public-title>Renta de espacios</strong>
           </div>
-        </section>
+        </nav>
 
-        <section class="rental-catalog" data-rental-catalog aria-label="Espacios disponibles"></section>
+        <div data-rental-public-detail></div>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>

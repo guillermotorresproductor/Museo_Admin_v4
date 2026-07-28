@@ -10,6 +10,8 @@
   "solicitud-materiales.html": { title: "Solicitud de Materiales", subtitle: "Registro de solicitudes de mantenimiento." },
   "ruta-digital.html": { title: "Ruta Digital de Mantenimiento", subtitle: "Control de recorrido por áreas." },
   "renta-espacios.html": { title: "Renta de Espacios", subtitle: "Solicitud de áreas y tarifas oficiales." },
+  "renta-espacio.html": { title: "Renta de Espacios", subtitle: "Ficha, fotografías y condiciones del espacio." },
+  "membresias.html": { title: "Membresías", subtitle: "Socios, beneficios, renovaciones y participación." },
   "administracion.html": { title: "Administración", subtitle: "Dirección ejecutiva, recursos humanos, notificaciones, reportes y finanzas." },
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
   "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
@@ -52,7 +54,8 @@ const navigationGroups = [
     items: [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
       { href: "calendario.html", label: "Calendario de Eventos del Museo", icon: "calendar" },
-      { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building" },
+      { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building", activePages: ["renta-espacio.html"] },
+      { href: "membresias.html", label: "Membresías", icon: "users" },
       { href: "ujieres.html", label: "Ujieres", icon: "users" },
       { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"] },
       { href: "documentos.html", label: "Formularios y Papelería", icon: "file", activePages: ["deposito-artes.html", "empleados.html", "recibo-prestamo.html", "reglamento.html"] },
@@ -159,8 +162,6 @@ const defaultEmployeeProfiles = {
     horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
     notificaciones: "Recibe notificaciones administrativas, cambios de horario y alertas internas.",
     acceso: "Administrador",
-    usuario: "gtorres",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -181,8 +182,6 @@ const defaultEmployeeProfiles = {
     horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
     notificaciones: "Recibe avisos de ruta digital, materiales y calendario de obras.",
     acceso: "Empleado",
-    usuario: "jperez",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -203,8 +202,6 @@ const defaultEmployeeProfiles = {
     horario: "Martes a sábado, 8:00 AM - 4:00 PM",
     notificaciones: "Recibe avisos de inspección, mantenimiento preventivo y tareas asignadas.",
     acceso: "Empleado",
-    usuario: "dortiz",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -225,8 +222,6 @@ const defaultEmployeeProfiles = {
     horario: "Según calendario de eventos",
     notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
     acceso: "Empleado",
-    usuario: "arivera",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -247,8 +242,6 @@ const defaultEmployeeProfiles = {
     horario: "Según calendario de eventos",
     notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
     acceso: "Empleado",
-    usuario: "cmendez",
-    passwordTemporal: "Temporal-2026",
     fechaContratacion: "2026-07-01",
     estado: "Activo",
     foto: ""
@@ -259,6 +252,7 @@ const supabaseUrl = "https://kfokfjngozgcwjpzxcsu.supabase.co";
 const supabasePublishableKey = "sb_publishable_wBGL3o2YcfbR_dvhT3mTnw_OXuHB0y3";
 const supabaseSessionKey = "museo-admin-supabase-session";
 const supabaseSystemRecordsTable = "app_records";
+const supabaseRentalDocumentsBucket = "rental-documents";
 const currentUserKey = "museo-admin-current-user";
 const currentUserPhotoKey = "museo-admin-current-user-photo";
 const currentAccessLevelKey = "museo-admin-access-level";
@@ -421,6 +415,115 @@ async function saveSystemCollection(module, recordKey, payload) {
   }
 }
 
+function safeStorageFileName(fileName = "documento") {
+  return String(fileName)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase() || "documento";
+}
+
+async function uploadRentalDocuments(requestId, fileInputs) {
+  const profile = await currentMuseumContext();
+  const files = fileInputs.flatMap((input) => (
+    Array.from(input.files || []).map((file) => ({ field: input.name, file }))
+  ));
+  if (!files.length) return [];
+
+  const allowedTypes = new Set([
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+  ]);
+  const maximumSize = 15 * 1024 * 1024;
+  files.forEach(({ file }) => {
+    if (!allowedTypes.has(file.type)) {
+      throw new Error(`El archivo ${file.name} no tiene un formato permitido.`);
+    }
+    if (file.size > maximumSize) {
+      throw new Error(`El archivo ${file.name} excede el máximo de 15 MB.`);
+    }
+  });
+
+  const uploaded = [];
+  try {
+    for (const { field, file } of files) {
+      const uniquePart = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const path = `${profile.museum_id}/${requestId}/${uniquePart}-${safeStorageFileName(file.name)}`;
+      const response = await fetch(
+        `${supabaseUrl}/storage/v1/object/${supabaseRentalDocumentsBucket}/${path.split("/").map(encodeURIComponent).join("/")}`,
+        {
+          method: "POST",
+          headers: {
+            ...(await supabaseAuthHeaders()),
+            "Content-Type": file.type,
+            "x-upsert": "false"
+          },
+          body: file
+        }
+      );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || `No se pudo guardar ${file.name} en el expediente digital.`);
+      }
+      uploaded.push({
+        campo: field,
+        nombre: file.name,
+        tipo: file.type,
+        tamano: file.size,
+        bucket: supabaseRentalDocumentsBucket,
+        ruta: path,
+        cargadoEn: new Date().toISOString(),
+        cargadoPorId: profile.id
+      });
+    }
+    return uploaded;
+  } catch (error) {
+    if (uploaded.length) {
+      await deleteRentalDocuments(uploaded.map((document) => document.ruta)).catch(() => {});
+    }
+    throw error;
+  }
+}
+
+async function deleteRentalDocuments(paths = []) {
+  if (!paths.length) return;
+  const response = await fetch(`${supabaseUrl}/storage/v1/object/${supabaseRentalDocumentsBucket}`, {
+    method: "DELETE",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify({ prefixes: paths })
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "No se pudieron retirar los documentos incompletos.");
+  }
+}
+
+async function createRentalDocumentDownloadUrl(path, expiresIn = 300) {
+  if (!["Administrador", "Ejecutivo"].includes(currentAccessLevel())) {
+    throw new Error("Solo Administradores y Ejecutivos pueden abrir documentos de renta.");
+  }
+  const encodedPath = String(path).split("/").map(encodeURIComponent).join("/");
+  const response = await fetch(
+    `${supabaseUrl}/storage/v1/object/sign/${supabaseRentalDocumentsBucket}/${encodedPath}`,
+    {
+      method: "POST",
+      headers: await supabaseAuthHeaders(),
+      body: JSON.stringify({ expiresIn })
+    }
+  );
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.signedURL) {
+    throw new Error(data.message || "No se pudo crear el enlace privado del documento.");
+  }
+  return `${supabaseUrl}/storage/v1${data.signedURL}`;
+}
+
 function employeeFromSupabase(row) {
   return {
     id: row.id,
@@ -439,7 +542,6 @@ function employeeFromSupabase(row) {
     educacion: row.education_level || "",
     condicion: row.medical_condition || "",
     usuario: row.email || "",
-    passwordTemporal: "",
     acceso: row.access_level ? row.access_level.charAt(0).toUpperCase() + row.access_level.slice(1) : "Empleado",
     estado: row.status === "inactivo" ? "Inactivo" : "Activo",
     notificaciones: "",
@@ -599,17 +701,235 @@ const defaultFinanceRows = [
 
 const excludedFinanceConcepts = new Set(["Contingencia", "Ahorros"]);
 
+const rentalGeneralRules = [
+  "Toda solicitud requiere la aprobación previa del Municipio Autónomo de Guaynabo y se formalizará mediante el documento correspondiente.",
+  "La actividad deberá ser compatible con los fines culturales, educativos e institucionales del Museo. No se permiten actividades político-partidistas.",
+  "El solicitante deberá presentar identificación con fotografía o, para una entidad jurídica, la resolución corporativa correspondiente.",
+  "Se requiere una póliza de responsabilidad pública vigente, con relevo de responsabilidad a favor del Municipio y el Municipio como asegurado adicional, salvo que se autorice una cubierta mediante un programa del MAG.",
+  "El pago deberá realizarse antes de la actividad en la Oficina de Recaudaciones del MAG y la evidencia del pago deberá presentarse antes del uso del espacio.",
+  "El montaje, la decoración, la escenografía y la instalación o remoción de equipos deberán informarse en la solicitud y coordinarse previamente con la Administración.",
+  "No se permite alterar, perforar o afectar paredes, pisos, techos, pintura, superficies ni elementos permanentes del Museo.",
+  "El área deberá entregarse en condiciones adecuadas de orden y limpieza. El usuario responderá por los daños ocasionados a las facilidades, equipos o propiedad del Museo.",
+  "El solicitante será responsable por la conducta, la seguridad y el cumplimiento de las normas por parte de invitados, empleados, suplidores y contratistas.",
+  "El MAG podrá revocar, suspender o modificar una autorización para proteger el interés público, la seguridad, las facilidades o la operación del Museo."
+];
+
 const defaultRentalSpaces = [
-  { id: "ballroom", name: "Ballroom", description: "Espacio principal para actividades de gran formato.", canon: 1000, billing: "por día", capacity: 300, schedule: "8:00 AM - 11:00 PM", setup: "2 horas", breakdown: "2 horas", status: "Disponible", equipment: ["Sonido base", "Aire acondicionado", "Iluminación"] },
-  { id: "anfiteatro", name: "Anfiteatro", description: "Área para presentaciones, charlas y eventos institucionales.", canon: 1000, billing: "por día", capacity: 200, schedule: "8:00 AM - 11:00 PM", setup: "2 horas", breakdown: "2 horas", status: "Disponible", equipment: ["Tarima", "Sonido base", "Aire acondicionado"] },
-  { id: "mezzanine", name: "Mezzanine", description: "Espacio abierto para actividades culturales y recepciones.", canon: 1000, billing: "por día", capacity: 150, schedule: "8:00 AM - 10:00 PM", setup: "2 horas", breakdown: "1 hora", status: "Disponible", equipment: ["Área abierta", "Aire acondicionado"] },
-  { id: "cine-bienvenida", name: "Cine Bienvenida", description: "Espacio audiovisual inmersivo para documentales, conferencias, talleres, lanzamientos, presentaciones educativas, exhibiciones multimedia y experiencias de hasta 180 grados.", canon: 600, billing: "por día", capacity: 80, schedule: "8:00 AM - 10:00 PM", setup: "1 hora", breakdown: "1 hora", status: "Disponible", equipment: ["Pantalla panorámica de hasta 180°", "Sistema profesional de proyección", "Sistema profesional de sonido", "Aire acondicionado", "Butacas para el público"] },
-  { id: "salon-adiestramiento", name: "Salón de Adiestramiento (Usos Múltiples)", description: "Salón para talleres, reuniones, seminarios y actividades educativas.", canon: 300, billing: "por día", capacity: 60, schedule: "8:00 AM - 8:00 PM", setup: "1 hora", breakdown: "1 hora", status: "Disponible", equipment: ["Mesas", "Sillas", "Pantalla"] },
-  { id: "lobby", name: "Vestíbulo (Lobby)", description: "Área de bienvenida para recepciones y actividades compatibles con la misión del Museo.", canon: 600, billing: "por día", capacity: 100, schedule: "8:00 AM - 10:00 PM", setup: "1 hora", breakdown: "1 hora", status: "Disponible", equipment: ["Área abierta", "Aire acondicionado"] },
-  { id: "plazoleta", name: "Plazoleta", description: "Espacio exterior para actividades culturales y comunitarias.", canon: 600, billing: "por día", capacity: 200, schedule: "8:00 AM - 10:00 PM", setup: "2 horas", breakdown: "2 horas", status: "Disponible", equipment: ["Área exterior"] },
-  { id: "estacionamiento", name: "Estacionamiento", description: "Área exterior para usos especiales autorizados.", canon: 2500, billing: "por día", capacity: 250, schedule: "8:00 AM - 11:00 PM", setup: "2 horas", breakdown: "2 horas", status: "Disponible", equipment: ["Área vehicular"] },
-  { id: "cafeteria", name: "Cafetería (Café/Bar Móvil)", description: "Concesión comercial compatible con la naturaleza del Museo.", canon: 1500, billing: "mensuales", capacity: 0, schedule: "Según contrato", setup: "Según contrato", breakdown: "Según contrato", status: "Disponible", equipment: ["Según contrato"] },
-  { id: "gift-shop", name: "Gift Shop", description: "Concesión comercial sujeta a contrato aprobado por el MAG.", canon: 0, billing: "según contrato aprobado por el MAG", capacity: 0, schedule: "Según contrato", setup: "Según contrato", breakdown: "Según contrato", status: "Disponible", equipment: ["Según contrato"] }
+  {
+    id: "ballroom",
+    slug: "salon-lito-pena",
+    name: "Salón Lito Peña",
+    regulatoryName: "Ballroom",
+    description: "Espacio exclusivo, elegante y versátil para conferencias, galas, eventos corporativos, actividades culturales y eventos de formato mediano. La renta incluye el foyer frente a los elevadores, ideal para recepción, registro, cóctel, mesas altas o barra de bienvenida.",
+    canon: 1000,
+    deposit: 500,
+    billing: "por evento",
+    area: "2,596 pies²",
+    capacity: 100,
+    capacityLabel: "100 personas en conferencia / 80 con mesas",
+    schedule: "6:00 p.m. - 12:00 a.m.",
+    setup: "Según horario coordinado con la Administración",
+    breakdown: "12:00 a.m. - 1:00 a.m.",
+    status: "Disponible",
+    equipment: ["Sonido básico", "Iluminación básica", "Aire acondicionado", "Foyer o área de cóctel"],
+    idealFor: ["Galas y bodas", "Conferencias", "Eventos corporativos", "Actividades culturales"],
+    requirements: ["Proveedores y detalles del montaje con un mínimo de dos semanas de anticipación", "Aprobación previa para catering, DJ, sonido adicional, tarima y equipo audiovisual", "Decoración previamente ensamblada", "No se permite confeti, humo ni chispas frías"],
+    images: [
+      "assets/rentals/salon-lito-pena-03.webp",
+      "assets/rentals/salon-lito-pena-01.webp",
+      "assets/rentals/salon-lito-pena-02.webp",
+      "assets/rentals/salon-lito-pena-foyer-01.webp",
+      "assets/rentals/salon-lito-pena-foyer-02.webp",
+      "assets/rentals/salon-lito-pena-foyer-03.webp"
+    ]
+  },
+  {
+    id: "mezzanine",
+    slug: "mezzanine-raices",
+    name: "Mezzanine Raíces",
+    regulatoryName: "Mezzanine",
+    description: "Espacio interior amplio y contemporáneo en el primer nivel, integrado a la experiencia cultural del Museo. Su distribución abierta permite conferencias, presentaciones artísticas, exhibiciones temporeras, recepciones y lanzamientos de productos.",
+    canon: 1000,
+    deposit: 500,
+    billing: "por evento",
+    area: "3,131 pies²",
+    capacity: 150,
+    capacityLabel: "Sujeta al plano de montaje aprobado",
+    schedule: "Según disponibilidad y autorización del Museo",
+    setup: "Coordinado previamente con la Administración",
+    breakdown: "Coordinado previamente con la Administración",
+    status: "Disponible",
+    equipment: ["Área abierta", "Aire acondicionado", "Podio disponible sujeto a coordinación"],
+    idealFor: ["Conferencias", "Presentaciones culturales", "Exhibiciones temporeras", "Lanzamientos de productos"],
+    requirements: ["El montaje debe proteger las vitrinas, obras y elementos museográficos", "Los pasillos, salidas y accesos deberán permanecer despejados"],
+    images: [
+      "assets/rentals/mezzanine-raices-01.webp",
+      "assets/rentals/mezzanine-raices-02.webp",
+      "assets/rentals/mezzanine-raices-03.webp"
+    ]
+  },
+  {
+    id: "cine-bienvenida",
+    slug: "cine-180",
+    name: "Cine 180°",
+    regulatoryName: "Espacio audiovisual del Museo",
+    description: "Sala audiovisual inmersiva con pantalla panorámica curva para documentales, conferencias, talleres, lanzamientos, presentaciones educativas y experiencias multimedia.",
+    canon: 600,
+    deposit: 300,
+    billing: "por evento",
+    area: "Configuración fija",
+    capacity: 24,
+    capacityLabel: "24 butacas",
+    schedule: "Según disponibilidad y autorización del Museo",
+    setup: "1 hora, coordinada previamente",
+    breakdown: "1 hora",
+    status: "Disponible",
+    equipment: ["Pantalla panorámica de hasta 180°", "Sistema profesional de proyección", "Sistema profesional de sonido", "Aire acondicionado", "Butacas fijas"],
+    idealFor: ["Presentaciones culturales", "Presentaciones de productos", "Conferencias", "Proyecciones educativas"],
+    requirements: ["Todo contenido audiovisual deberá entregarse con anticipación para prueba técnica", "La operación de los sistemas estará a cargo de personal autorizado"],
+    images: [
+      "assets/rentals/cine-180-presentacion-producto.webp",
+      "assets/rentals/cine-180-presentacion-cultural.webp",
+      "assets/rentals/cine-180-conferenciante.webp"
+    ]
+  },
+  {
+    id: "lobby",
+    slug: "el-lobby",
+    name: "El Lobby",
+    regulatoryName: "Vestíbulo (Lobby)",
+    description: "Vestíbulo principal del Museo, diseñado para recepciones, registros, cócteles y actividades de bienvenida compatibles con la misión institucional.",
+    canon: 600,
+    deposit: 300,
+    billing: "por evento",
+    area: "1,300 pies²",
+    capacity: 100,
+    capacityLabel: "Sujeta al plano de montaje aprobado",
+    schedule: "Según disponibilidad y autorización del Museo",
+    setup: "Coordinado previamente con la Administración",
+    breakdown: "1 hora",
+    status: "Disponible",
+    equipment: ["Área abierta", "Aire acondicionado", "Mostradores de recepción"],
+    idealFor: ["Recepciones", "Registro de invitados", "Cócteles", "Actividades institucionales"],
+    requirements: ["Deberán mantenerse despejadas las entradas, salidas, escaleras y rutas de circulación", "La actividad no podrá interferir con la operación regular sin autorización"],
+    images: [
+      "assets/rentals/el-lobby-coctel-nocturno.webp",
+      "assets/rentals/el-lobby-recepcion-formal.webp",
+      "assets/rentals/el-lobby-registro-bienvenida.webp"
+    ]
+  },
+  {
+    id: "plazoleta",
+    slug: "terraza-de-la-musica",
+    name: "La Terraza de la Música",
+    regulatoryName: "Plazoleta",
+    description: "Espacio exterior contiguo al anfiteatro, ideal para cafés culturales, música en vivo, encuentros sociales y actividades comunitarias.",
+    canon: 600,
+    deposit: 300,
+    billing: "por evento",
+    area: "1,158 pies²",
+    capacity: 200,
+    capacityLabel: "Sujeta al plano de montaje aprobado",
+    schedule: "Según disponibilidad y autorización del Museo",
+    setup: "Coordinado previamente con la Administración",
+    breakdown: "Coordinado previamente con la Administración",
+    status: "Disponible",
+    equipment: ["Área exterior parcialmente cubierta"],
+    idealFor: ["Café cultural", "Música en vivo", "Recepciones", "Actividades comunitarias"],
+    requirements: ["El plan deberá considerar condiciones del tiempo y seguridad de equipos", "Tarimas, sonido, iluminación y mobiliario requieren aprobación previa"],
+    images: [
+      "assets/rentals/la-terraza-cafe-vista-frontal.webp",
+      "assets/rentals/la-terraza-cafe-vista-amplia.webp",
+      "assets/rentals/la-terraza-cafe-vista-inversa.webp"
+    ]
+  },
+  {
+    id: "salon-adiestramiento",
+    slug: "salon-multiuso",
+    name: "Salón Multiuso",
+    regulatoryName: "Salón de Adiestramiento (Usos Múltiples)",
+    description: "Salón flexible para actividades educativas, ensayos, talleres, clases, reuniones, conferencias y presentaciones compatibles con los fines del Museo.",
+    canon: 300,
+    deposit: 50,
+    billing: "evento completo · $40 por hora",
+    hourlyRate: 40,
+    minimumHours: 2,
+    fullEventHours: 8,
+    area: "Configuración flexible",
+    capacity: 60,
+    capacityLabel: "60 personas, sujeto al plano de montaje aprobado",
+    schedule: "8:00 a. m. - 10:00 p. m.",
+    setup: "1 hora, coordinada previamente",
+    breakdown: "1 hora",
+    status: "Disponible",
+    equipment: ["No incluye equipos"],
+    idealFor: ["Talleres y clases", "Ensayos", "Reuniones", "Presentaciones de productos"],
+    requirements: [
+      "Evento completo: $300 por un máximo de 8 horas",
+      "La fianza para bloquear la fecha del evento completo es de $50",
+      "Alquiler por hora: $40, con reservación mínima de 2 horas y costo mínimo de $80",
+      "En el alquiler por horas no aplica fianza",
+      "La distribución deberá conservar rutas de salida y circulación",
+      "Equipos especiales, mobiliario y sonido requieren coordinación y aprobación previa"
+    ],
+    images: [
+      "assets/rentals/salon-multiuso-ensayo-orquesta.webp",
+      "assets/rentals/salon-multiuso-presentacion-productos.webp",
+      "assets/rentals/salon-multiuso-clase-de-baile.webp"
+    ]
+  },
+  {
+    id: "anfiteatro",
+    slug: "anfiteatro-andy-montanez",
+    name: "Anfiteatro Andy Montañez",
+    regulatoryName: "Anfiteatro",
+    description: "Anfiteatro techado al aire libre para conciertos, presentaciones artísticas, actividades culturales, charlas y eventos institucionales. Incluye un camerino privado para el artista con baño y un camerino comunal para músicos y bailarines.",
+    canon: 1000,
+    deposit: 500,
+    billing: "por evento",
+    area: "Anfiteatro techado al aire libre",
+    capacity: 120,
+    capacityLabel: "120 personas aproximadamente",
+    schedule: "Según disponibilidad y autorización del Museo",
+    setup: "Coordinado previamente con la Administración",
+    breakdown: "Coordinado previamente con la Administración",
+    status: "Disponible",
+    equipment: ["Tarima fija", "Camerino privado con baño", "Camerino comunal para músicos y bailarines", "Infraestructura para producción sujeta a evaluación técnica"],
+    idealFor: ["Conciertos", "Presentaciones artísticas", "Charlas", "Actividades institucionales"],
+    requirements: ["Luces, sonido, instrumentos y producción técnica requieren coordinación y aprobación previa", "La capacidad y los accesos de seguridad no podrán alterarse"],
+    images: [
+      "assets/rentals/anfiteatro-concierto-vista-general.webp",
+      "assets/rentals/anfiteatro-concierto-desde-tarima.webp",
+      "assets/rentals/anfiteatro-camerino-privado.webp",
+      "assets/rentals/anfiteatro-camerino-privado-bano.webp",
+      "assets/rentals/anfiteatro-camerino-comunal.webp"
+    ]
+  },
+  {
+    id: "estacionamiento",
+    slug: "estacionamiento",
+    name: "Estacionamiento",
+    regulatoryName: "Estacionamiento",
+    description: "Área exterior de gran escala disponible para eventos masivos, festivales, ferias y actividades autorizadas compatibles con las operaciones y fines del Museo.",
+    canon: 2500,
+    deposit: 500,
+    billing: "por evento",
+    area: "Área exterior del Museo",
+    capacity: 0,
+    capacityLabel: "Según plan operacional, de seguridad y emergencias aprobado",
+    schedule: "Según disponibilidad y autorización del Museo",
+    setup: "Según plan de producción aprobado",
+    breakdown: "Según plan de producción aprobado",
+    status: "Disponible",
+    equipment: ["Área exterior; producción, tarima, sonido, iluminación y kioscos no incluidos"],
+    idealFor: ["Eventos masivos", "Festivales", "Ferias", "Conciertos exteriores"],
+    requirements: ["Requiere plan operacional, técnico, de seguridad, emergencias, tránsito, accesos y manejo de desperdicios", "Tarimas, kioscos, generadores, sonido e iluminación requieren aprobación previa"],
+    images: [
+      "assets/rentals/estacionamiento-evento-vista-aerea-general.webp",
+      "assets/rentals/estacionamiento-evento-vista-aerea-cercana.webp",
+      "assets/rentals/estacionamiento-evento-vista-baja.webp"
+    ]
+  }
 ];
 
 function iconSvg(name) {
@@ -946,29 +1266,213 @@ function bindIdleLogout() {
   schedule();
 }
 
+function rentalMoney(value) {
+  return Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
+}
+
+function rentalSpaceCard(space) {
+  const cover = space.images?.[0] || "";
+  const displayName = space.slug === "salon-lito-pena"
+    ? "Salón<br>Lito Peña"
+    : safeHtml(space.name);
+  return `
+    <article class="rental-space-card">
+      <a class="rental-space-card-image" href="renta-espacio.html?espacio=${encodeURIComponent(space.slug)}">
+        <img src="${safeHtml(cover)}" alt="${safeHtml(space.name)}" loading="lazy">
+      </a>
+      <div class="rental-space-card-body">
+        <div class="rental-space-card-heading">
+          <div>
+            <p class="rental-regulatory-name">${safeHtml(space.regulatoryName)}</p>
+            <h3>${displayName}</h3>
+          </div>
+          <span class="rental-status-badge">${safeHtml(space.status)}</span>
+        </div>
+        <p>${safeHtml(space.description)}</p>
+        <div class="rental-card-facts">
+          <span><strong>${rentalMoney(space.canon)}</strong> ${safeHtml(space.billing)}</span>
+          <span>${space.slug === "salon-multiuso"
+            ? `<strong>${rentalMoney(space.deposit)}</strong> fianza solo evento completo`
+            : `<strong>${rentalMoney(space.deposit)}</strong> fianza`}</span>
+          <span><strong>${safeHtml(space.area)}</strong></span>
+        </div>
+        <a class="button rental-card-button" href="renta-espacio.html?espacio=${encodeURIComponent(space.slug)}">Ver espacio y solicitar</a>
+      </div>
+    </article>
+  `;
+}
+
+function bindRentalCatalog() {
+  const catalog = document.querySelector("[data-rental-catalog]");
+  if (!catalog) return;
+  catalog.innerHTML = defaultRentalSpaces.map(rentalSpaceCard).join("");
+}
+
+function bindRentalGeneralRules() {
+  document.querySelectorAll("[data-rental-general-rules]").forEach((list) => {
+    list.innerHTML = rentalGeneralRules.map((rule) => `<li>${safeHtml(rule)}</li>`).join("");
+  });
+}
+
+function bindRentalSpacePage() {
+  const detail = document.querySelector("[data-rental-public-detail]");
+  if (!detail) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const requestedSlug = params.get("espacio");
+  const space = defaultRentalSpaces.find((item) => item.slug === requestedSlug) || defaultRentalSpaces[0];
+  const displayName = space.slug === "salon-lito-pena"
+    ? "Salón<br>Lito Peña"
+    : safeHtml(space.name);
+  const pageTitle = document.querySelector("[data-rental-public-title]");
+  const pageSubtitle = document.querySelector("[data-rental-public-subtitle]");
+  if (pageTitle) pageTitle.textContent = space.name;
+  if (pageSubtitle) pageSubtitle.textContent = space.regulatoryName;
+  document.title = `${space.name} | Renta de Espacios`;
+  const priceDescription = space.slug === "salon-multiuso"
+    ? `${rentalMoney(space.canon)} evento completo (hasta ${space.fullEventHours} horas) · ${rentalMoney(space.hourlyRate)} por hora (mínimo ${space.minimumHours} horas)`
+    : `${rentalMoney(space.canon)} ${safeHtml(space.billing)}`;
+  const depositDescription = space.slug === "salon-multiuso"
+    ? `${rentalMoney(space.deposit)} solo para evento completo · No aplica por horas`
+    : rentalMoney(space.deposit);
+
+  const listMarkup = (items) => items.map((item) => `<li>${safeHtml(item)}</li>`).join("");
+  detail.innerHTML = `
+    <section class="rental-detail-hero">
+      <div class="rental-detail-main-image">
+        <img src="${safeHtml(space.images[0])}" alt="${safeHtml(space.name)}" data-rental-main-image>
+      </div>
+      <div class="rental-detail-copy" data-rental-space-slug="${safeHtml(space.slug)}">
+        <p class="page-kicker">${safeHtml(space.regulatoryName)}</p>
+        <h2>${displayName}</h2>
+        <p>${safeHtml(space.description)}</p>
+        <div class="rental-price-block">
+          <div><span>Canon</span><strong>${priceDescription}</strong></div>
+          <div><span>Fianza reembolsable</span><strong>${depositDescription}</strong></div>
+        </div>
+        <a class="button submit-button" href="solicitud-renta.html?espacio=${encodeURIComponent(space.id)}">Solicitar este espacio</a>
+      </div>
+    </section>
+
+    <div class="rental-thumbnail-grid" aria-label="Galería de ${safeHtml(space.name)}">
+      ${space.images.map((image, index) => `
+        <button type="button" class="${index === 0 ? "is-active" : ""}" data-rental-thumbnail="${safeHtml(image)}" aria-label="Ver fotografía ${index + 1}">
+          <img src="${safeHtml(image)}" alt="" loading="lazy">
+        </button>
+      `).join("")}
+    </div>
+
+    <section class="rental-detail-facts">
+      <div><span>Área</span><strong>${safeHtml(space.area)}</strong></div>
+      <div><span>Capacidad</span><strong>${safeHtml(space.capacityLabel)}</strong></div>
+      <div><span>Horario</span><strong>${safeHtml(space.schedule)}</strong></div>
+      <div><span>Montaje</span><strong>${safeHtml(space.setup)}</strong></div>
+      <div><span>Desmontaje</span><strong>${safeHtml(space.breakdown)}</strong></div>
+    </section>
+
+    <section class="rental-detail-columns">
+      <article>
+        <h3>Ideal para</h3>
+        <ul>${listMarkup(space.idealFor || [])}</ul>
+      </article>
+      <article>
+        <h3>Incluye</h3>
+        <ul>${listMarkup(space.equipment || [])}</ul>
+      </article>
+    </section>
+  `;
+
+  detail.addEventListener("click", (event) => {
+    const thumbnail = event.target.closest("[data-rental-thumbnail]");
+    if (!thumbnail) return;
+    const mainImage = detail.querySelector("[data-rental-main-image]");
+    if (mainImage) mainImage.src = thumbnail.dataset.rentalThumbnail;
+    detail.querySelectorAll("[data-rental-thumbnail]").forEach((button) => {
+      button.classList.toggle("is-active", button === thumbnail);
+    });
+  });
+}
+
+async function callRentalApprovalControl(functionName, payload) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${functionName}`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(result?.message || "Supabase rechazó la operación de aprobación.");
+  }
+  return result;
+}
+
 function bindRentalForm() {
   const form = document.querySelector("#rental-form");
-  if (!form) return;
+  const adminPanel = document.querySelector("[data-rental-admin]");
+  if (!form && !adminPanel) return;
 
-  const module = document.querySelector("[data-rental-module]");
   const message = document.querySelector("[data-rental-message]");
+  const adminMessage = document.querySelector("[data-rental-admin-message]");
+  const requestTitle = document.querySelector("[data-rental-request-title]");
   const spaceSelect = document.querySelector("[data-rental-space]");
   const spaceDetail = document.querySelector("[data-rental-space-detail]");
-  const statusSelect = document.querySelector("[data-rental-status]");
   const historyBody = document.querySelector("[data-rental-history]");
   const configPanel = document.querySelector("[data-rental-config]");
   const cancellation = document.querySelector("[data-rental-cancellation]");
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   const currentUser = () => localStorage.getItem(currentUserKey) || "Administrador";
-  const canAdjust = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
-  let spaces = defaultRentalSpaces;
+  const canAdjust = () => Boolean(getSupabaseSession()?.access_token) && ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
+  const isAuthorizedAdmin = canAdjust();
+  const canCreateInternalProduction = () => Boolean(getSupabaseSession()?.access_token) && currentAccessLevel() === "Administrador";
+  const internalProductionControl = document.querySelector("[data-rental-internal-control]");
+  const internalProductionButton = document.querySelector("[data-rental-internal]");
+  const internalProductionStatus = document.querySelector("[data-rental-internal-status]");
+  const municipalPaymentSection = document.querySelector("[data-rental-municipal-payment]");
+  const municipalReceiptField = document.querySelector("[data-rental-municipal-receipt]");
+  const municipalPaymentStatus = document.querySelector("[data-rental-payment-status]");
+  const municipalPaymentValidationDate = document.querySelector("[data-rental-payment-validation-date]");
+  const municipalPaymentRegisteredBy = document.querySelector("[data-rental-payment-registered-by]");
+  const submitButton = form?.querySelector('button[type="submit"]');
+  let isInternalProduction = false;
+  if (adminPanel) adminPanel.hidden = !isAuthorizedAdmin;
+  if (adminPanel && !isAuthorizedAdmin && !form) return;
+  const normalizeRentalSpaces = (storedSpaces) => {
+    const records = Array.isArray(storedSpaces) ? storedSpaces : [];
+    return defaultRentalSpaces.map((defaultSpace) => {
+      const storedSpace = records.find((item) => item?.id === defaultSpace.id);
+      const mergedSpace = storedSpace ? { ...defaultSpace, ...storedSpace } : { ...defaultSpace };
+      if (defaultSpace.id !== "salon-adiestramiento") return mergedSpace;
+      return {
+        ...mergedSpace,
+        canon: 300,
+        deposit: 50,
+        billing: "evento completo · $40 por hora",
+        hourlyRate: 40,
+        minimumHours: 2,
+        fullEventHours: 8,
+        capacity: 60,
+        capacityLabel: "60 personas, sujeto al plano de montaje aprobado",
+        schedule: "8:00 a. m. - 10:00 p. m.",
+        equipment: ["No incluye equipos"],
+        requirements: [
+          "Evento completo: $300 por un máximo de 8 horas",
+          "La fianza para bloquear la fecha del evento completo es de $50",
+          "Alquiler por hora: $40, con reservación mínima de 2 horas y costo mínimo de $80",
+          "En el alquiler por horas no aplica fianza",
+          "La distribución deberá conservar rutas de salida y circulación",
+          "Equipos especiales, mobiliario y sonido requieren coordinación y aprobación previa"
+        ]
+      };
+    });
+  };
+  let spaces = normalizeRentalSpaces(defaultRentalSpaces);
   let requests = [];
   const getSpaces = () => spaces;
   const saveSpaces = async (nextSpaces) => {
     const previousSpaces = spaces;
     spaces = nextSpaces;
     try {
-      await saveSystemCollection("renta_espacios", "spaces", spaces);
+      await saveSystemCollection("renta_espacios", "spaces_v2", spaces);
     } catch (error) {
       spaces = previousSpaces;
       throw error;
@@ -986,12 +1490,20 @@ function bindRentalForm() {
     }
   };
   const selectedSpace = () => getSpaces().find((space) => space.id === spaceSelect?.value);
-  const dateValue = (name) => form.elements[name]?.value;
+  const dateValue = (name) => form?.elements[name]?.value;
   const daysBetween = () => {
     const start = new Date(`${dateValue("fecha")}T12:00:00`);
     const end = new Date(`${dateValue("fechaFinal") || dateValue("fecha")}T12:00:00`);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
     return Math.max(1, Math.round((end - start) / 86400000) + 1);
+  };
+  const hoursBetween = () => {
+    const startValue = dateValue("horaInicio");
+    const endValue = dateValue("horaFinal");
+    if (!startValue || !endValue) return 0;
+    const [startHour, startMinute] = startValue.split(":").map(Number);
+    const [endHour, endMinute] = endValue.split(":").map(Number);
+    return Math.max(0, ((endHour * 60 + endMinute) - (startHour * 60 + startMinute)) / 60);
   };
   const overlaps = (aStart, aEnd, bStart, bEnd) => aStart < bEnd && bStart < aEnd;
   const requestRange = (request) => ({
@@ -1002,14 +1514,37 @@ function bindRentalForm() {
     const space = selectedSpace();
     const days = daysBetween();
     const rate = space?.canon || 0;
-    const subtotal = rate * days;
+    const pricingMode = form?.elements.modalidadTarifa?.value || "evento";
+    const hours = hoursBetween();
+    const isHourlyMultiuse = space?.slug === "salon-multiuso" && pricingMode === "horas";
+    const authorizedInternalProduction = isInternalProduction && canCreateInternalProduction();
+    const standardRate = isHourlyMultiuse ? Number(space.hourlyRate || 0) : rate;
+    const unitRate = authorizedInternalProduction ? 0 : standardRate;
+    const deposit = authorizedInternalProduction || isHourlyMultiuse ? 0 : Number(space?.deposit || 0);
+    const subtotal = authorizedInternalProduction ? 0 : (isHourlyMultiuse ? standardRate * hours : rate);
     const tax = 0;
-    return { rate, days, subtotal, tax, total: subtotal + tax };
+    return {
+      rate: unitRate,
+      days,
+      hours,
+      pricingMode,
+      isHourlyMultiuse,
+      isInternalProduction: authorizedInternalProduction,
+      deposit,
+      subtotal,
+      tax,
+      total: subtotal + deposit + tax
+    };
   };
   const setMessage = (text, type = "") => {
     if (!message) return;
     message.textContent = text;
     message.className = `form-message ${type}`.trim();
+  };
+  const setAdminMessage = (text, type = "") => {
+    if (!adminMessage) return;
+    adminMessage.textContent = text;
+    adminMessage.className = `form-message ${type}`.trim();
   };
   const createSequence = (prefix, count) => `${prefix}-${String(count + 1).padStart(4, "0")}`;
   const auditEntry = (estado, comentarios = "") => ({
@@ -1020,6 +1555,28 @@ function bindRentalForm() {
     comentarios
   });
 
+  const updateMunicipalPayment = () => {
+    if (municipalPaymentSection) municipalPaymentSection.hidden = !isAuthorizedAdmin;
+    if (!isAuthorizedAdmin) return;
+
+    const hasReceipt = Boolean(String(municipalReceiptField?.value || "").trim());
+    const isExempt = isInternalProduction && canCreateInternalProduction();
+    if (municipalPaymentStatus) {
+      municipalPaymentStatus.textContent = isExempt
+        ? "Exento · Producción interna"
+        : (hasReceipt ? "Recibo registrado" : "Pendiente");
+      municipalPaymentStatus.classList.toggle("is-validated", hasReceipt || isExempt);
+    }
+    if (municipalPaymentValidationDate) {
+      municipalPaymentValidationDate.value = hasReceipt && !isExempt
+        ? new Date().toLocaleString("es-PR")
+        : "";
+    }
+    if (municipalPaymentRegisteredBy) {
+      municipalPaymentRegisteredBy.value = hasReceipt && !isExempt ? currentUser() : "";
+    }
+  };
+
   const populateSpaces = () => {
     const spaces = getSpaces();
     if (spaceSelect) {
@@ -1027,6 +1584,13 @@ function bindRentalForm() {
         `<option value="${space.id}"${space.status !== "Disponible" ? " disabled" : ""}>${space.name} - ${space.canon ? money(space.canon) : space.billing} ${space.canon ? space.billing : ""}</option>`
       )).join("")}`;
     }
+  };
+
+  const updateRequestTitle = () => {
+    if (!requestTitle) return;
+    const space = selectedSpace();
+    requestTitle.textContent = space ? `Solicitud de Renta de ${space.name}` : "Solicitud de Renta";
+    document.title = space ? `Solicitud de Renta de ${space.name} | Museo de la Música` : "Solicitud de Renta | Museo de la Música";
   };
 
   const renderSpaceDetail = () => {
@@ -1038,38 +1602,74 @@ function bindRentalForm() {
       return;
     }
     spaceDetail.hidden = false;
+    const multiusePricing = space.slug === "salon-multiuso" ? `
+      <div class="field rental-pricing-mode">
+        <label for="rental-pricing-mode">Modalidad de alquiler</label>
+        <select id="rental-pricing-mode" name="modalidadTarifa" required>
+          <option value="evento">Evento completo — ${money(space.canon)}, máximo ${space.fullEventHours} horas</option>
+          <option value="horas">Por horas — ${money(space.hourlyRate)} por hora, mínimo ${space.minimumHours} horas</option>
+        </select>
+      </div>
+    ` : "";
     spaceDetail.innerHTML = `
       <h3>${safeHtml(space.name)}</h3>
       <p>${safeHtml(space.description)}</p>
       <div class="rental-feature-grid">
-        <span><strong>Canon:</strong> ${space.canon ? money(space.canon) : space.billing}</span>
-        <span><strong>Capacidad:</strong> ${space.capacity || "Según contrato"}</span>
+        <span><strong>Canon:</strong> ${space.slug === "salon-multiuso"
+          ? `${money(space.canon)} evento completo / ${money(space.hourlyRate)} por hora`
+          : (space.canon ? `${money(space.canon)} ${space.billing}` : space.billing)}</span>
+        <span><strong>Fianza:</strong> ${space.slug === "salon-multiuso"
+          ? `${money(space.deposit)} para evento completo · No aplica por horas`
+          : money(space.deposit)}</span>
+        <span><strong>Área:</strong> ${safeHtml(space.area || "Según configuración")}</span>
+        <span><strong>Capacidad:</strong> ${safeHtml(space.capacityLabel || "Según montaje aprobado")}</span>
         <span><strong>Horario:</strong> ${safeHtml(space.schedule)}</span>
         <span><strong>Montaje:</strong> ${safeHtml(space.setup)}</span>
         <span><strong>Desmontaje:</strong> ${safeHtml(space.breakdown)}</span>
         <span><strong>Estado:</strong> ${safeHtml(space.status)}</span>
       </div>
       <p><strong>Equipos incluidos:</strong> ${space.equipment.map(safeHtml).join(", ")}</p>
+      <p><strong>Requisitos particulares:</strong> ${(space.requirements || []).map(safeHtml).join(" · ")}</p>
+      ${multiusePricing}
+      <a class="rental-detail-link" href="renta-espacio.html?espacio=${encodeURIComponent(space.slug)}">Ver fotografías y ficha completa</a>
     `;
   };
 
   const renderCalculation = () => {
     const calc = currentCalculation();
-    document.querySelector("[data-rental-rate]").textContent = money(calc.rate);
-    document.querySelector("[data-rental-days]").textContent = calc.days;
-    document.querySelector("[data-rental-subtotal]").textContent = money(calc.subtotal);
-    document.querySelector("[data-rental-tax]").textContent = money(calc.tax);
-    document.querySelector("[data-rental-total]").textContent = money(calc.total);
+    const rateLabel = document.querySelector("[data-rental-rate-label]");
+    const durationLabel = document.querySelector("[data-rental-duration-label]");
+    if (rateLabel) rateLabel.textContent = calc.isHourlyMultiuse ? "Tarifa por hora" : "Precio por evento";
+    if (durationLabel) durationLabel.textContent = calc.isHourlyMultiuse ? "Cantidad de horas" : "Cantidad de días";
+    const values = {
+      "[data-rental-rate]": money(calc.rate),
+      "[data-rental-days]": calc.isHourlyMultiuse ? calc.hours.toLocaleString("es-PR", { maximumFractionDigits: 2 }) : calc.days,
+      "[data-rental-deposit]": money(calc.deposit),
+      "[data-rental-subtotal]": money(calc.subtotal),
+      "[data-rental-tax]": money(calc.tax),
+      "[data-rental-total]": money(calc.total)
+    };
+    Object.entries(values).forEach(([selector, value]) => {
+      const node = document.querySelector(selector);
+      if (node) node.textContent = value;
+    });
+    if (internalProductionButton) {
+      internalProductionButton.classList.toggle("is-active", calc.isInternalProduction);
+      internalProductionButton.setAttribute("aria-pressed", String(calc.isInternalProduction));
+    }
+    if (internalProductionStatus) {
+      internalProductionStatus.hidden = !calc.isInternalProduction;
+    }
 
     if (cancellation && dateValue("fecha")) {
       const daysBefore = Math.ceil((new Date(`${dateValue("fecha")}T12:00:00`) - new Date()) / 86400000);
-      const refund = daysBefore >= 30 ? "devolución estimada del 100%" : daysBefore >= 2 ? "el Museo podrá retener hasta un 50%" : "no procede devolución";
+      const refund = daysBefore >= 30 ? "el Museo podrá autorizar la devolución total" : daysBefore >= 2 ? "el Museo podrá retener hasta un 50%" : "no procede devolución";
       cancellation.textContent = `Según la fecha seleccionada, en caso de cancelación aplicaría: ${refund}.`;
     }
   };
 
   const hasConflict = () => {
-    const spaceId = spaceSelect.value;
+    const spaceId = spaceSelect?.value;
     if (!spaceId || !dateValue("fecha") || !dateValue("horaInicio") || !dateValue("horaFinal")) return null;
     const current = {
       fecha: dateValue("fecha"),
@@ -1101,8 +1701,18 @@ function bindRentalForm() {
   };
 
   const renderHistory = () => {
-    if (!historyBody) return;
+    if (!historyBody || !isAuthorizedAdmin) return;
     const requests = getRequests();
+    const administrators = getEmployeeRecords()
+      .filter((employee) => employee.acceso === "Administrador" && employee.estado !== "Inactivo")
+      .map((employee) => ({ id: employee.id, name: employeeDisplayName(employee) }))
+      .filter((employee) => employee.name);
+    const approverOptions = (request) => `
+      <option value="">Seleccione...</option>
+      ${administrators.map((administrator) => `
+        <option value="${safeHtml(administrator.id)}"${request.aprobadoPorId === administrator.id ? " selected" : ""}>${safeHtml(administrator.name)}</option>
+      `).join("")}
+    `;
     historyBody.innerHTML = requests.length ? requests.map((request) => `
       <tr>
         <td>${safeHtml(request.numeroSolicitud)}</td>
@@ -1110,9 +1720,12 @@ function bindRentalForm() {
         <td>${safeHtml(request.espacio)}</td>
         <td>${safeHtml(request.fecha)}</td>
         <td>${money(request.total)}</td>
+        <td><input type="text" value="${safeHtml(request.numeroRecibo || "")}" data-rental-receipt="${safeHtml(request.id)}" placeholder="Recibo MAG" aria-label="Número de recibo del Municipio de Guaynabo"></td>
+        <td><input class="rental-approval-checkbox" type="checkbox" data-rental-approval="${safeHtml(request.id)}"${request.estado === "Aprobada" ? " checked" : ""} aria-label="Marcar ${safeHtml(request.numeroSolicitud)} como aprobada"></td>
+        <td><select class="rental-approved-by" data-rental-approved-by="${safeHtml(request.id)}" aria-label="Aprobado por">${approverOptions(request)}</select></td>
         <td>${safeHtml(request.estado)}</td>
       </tr>
-    `).join("") : `<tr><td colspan="6">No hay solicitudes registradas.</td></tr>`;
+    `).join("") : `<tr><td colspan="9">No hay solicitudes registradas.</td></tr>`;
   };
 
   const renderConfig = () => {
@@ -1122,6 +1735,7 @@ function bindRentalForm() {
         <label><small>Nombre</small><input type="text" value="${safeHtml(space.name)}" data-rental-space-id="${space.id}" data-rental-space-field="name"></label>
         <label><small>Descripción</small><textarea rows="3" data-rental-space-id="${space.id}" data-rental-space-field="description">${safeHtml(space.description)}</textarea></label>
         <label><small>Canon</small><input type="number" min="0" step="0.01" value="${Number(space.canon || 0)}" data-rental-space-id="${space.id}" data-rental-space-field="canon"></label>
+        <label><small>Fianza</small><input type="number" min="0" step="0.01" value="${Number(space.deposit || 0)}" data-rental-space-id="${space.id}" data-rental-space-field="deposit"></label>
         <label><small>Capacidad</small><input type="number" min="0" step="1" value="${Number(space.capacity || 0)}" data-rental-space-id="${space.id}" data-rental-space-field="capacity"></label>
         <label><small>Horarios disponibles</small><input type="text" value="${safeHtml(space.schedule)}" data-rental-space-id="${space.id}" data-rental-space-field="schedule"></label>
         <label><small>Montaje</small><input type="text" value="${safeHtml(space.setup)}" data-rental-space-id="${space.id}" data-rental-space-field="setup"></label>
@@ -1132,7 +1746,7 @@ function bindRentalForm() {
     `).join("");
   };
 
-  form.addEventListener("submit", async (event) => {
+  form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const requiredFields = Array.from(form.querySelectorAll("[required]"));
     const invalidFields = requiredFields.filter((field) => {
@@ -1159,14 +1773,62 @@ function bindRentalForm() {
       return;
     }
 
+    const selected = selectedSpace();
+    const calculation = currentCalculation();
+    if (selected?.slug === "salon-multiuso") {
+      const start = dateValue("horaInicio");
+      const end = dateValue("horaFinal");
+      if (dateValue("fechaFinal") !== dateValue("fecha")) {
+        setMessage("El alquiler del Salón Multiuso debe registrarse para una sola fecha.", "error");
+        return;
+      }
+      if (start < "08:00" || end > "22:00") {
+        setMessage("El Salón Multiuso está disponible de 8:00 a. m. a 10:00 p. m.", "error");
+        return;
+      }
+      if (calculation.hours <= 0) {
+        setMessage("La hora de finalización debe ser posterior a la hora de inicio.", "error");
+        return;
+      }
+      if (calculation.pricingMode === "horas" && calculation.hours < selected.minimumHours) {
+        setMessage(`El alquiler por horas requiere un mínimo de ${selected.minimumHours} horas.`, "error");
+        return;
+      }
+      if (calculation.pricingMode === "evento" && calculation.hours > selected.fullEventHours) {
+        setMessage(`La tarifa de evento completo cubre un máximo de ${selected.fullEventHours} horas.`, "error");
+        return;
+      }
+    }
+
     const data = new FormData(form);
     const currentRequests = getRequests();
     const space = selectedSpace();
     const calc = currentCalculation();
+    const municipalReceipt = isAuthorizedAdmin && !calc.isInternalProduction
+      ? String(data.get("numeroReciboMunicipal") || "").trim()
+      : "";
+    const requestId = `rental-${Date.now()}`;
+    let uploadedDocuments = [];
+    if (submitButton) submitButton.disabled = true;
+    setMessage("Guardando documentos en el expediente digital privado...", "");
+    try {
+      uploadedDocuments = await uploadRentalDocuments(
+        requestId,
+        Array.from(form.querySelectorAll('input[type="file"]'))
+      );
+    } catch (error) {
+      if (submitButton) submitButton.disabled = false;
+      setMessage(`No se pudo completar el expediente digital: ${error.message}`, "error");
+      return;
+    }
+
     const request = {
-      id: `rental-${Date.now()}`,
+      id: requestId,
       numeroSolicitud: createSequence("SOL", currentRequests.length),
-      numeroRecibo: createSequence("REC", currentRequests.length),
+      numeroRecibo: municipalReceipt,
+      reciboValidadoEn: municipalReceipt ? new Date().toISOString() : "",
+      reciboRegistradoPorId: municipalReceipt ? (getSupabaseSession()?.user?.id || "") : "",
+      reciboRegistradoPor: municipalReceipt ? currentUser() : "",
       nombre: data.get("nombre"),
       organizacion: data.get("organizacion"),
       contacto: data.get("contacto"),
@@ -1182,51 +1844,185 @@ function bindRentalForm() {
       espacioId: space.id,
       espacio: space.name,
       descripcion: data.get("descripcion"),
+      modalidadTarifa: calc.pricingMode,
+      produccionInterna: calc.isInternalProduction,
+      horas: calc.hours,
       precioDia: calc.rate,
+      fianza: calc.deposit,
       dias: calc.days,
       subtotal: calc.subtotal,
       impuestos: calc.tax,
       total: calc.total,
-      estado: data.get("estado"),
-      documentos: Array.from(form.querySelectorAll('input[type="file"]')).map((input) => ({
-        campo: input.name,
-        archivos: Array.from(input.files || []).map((file) => file.name)
-      })),
-      audit: [auditEntry(data.get("estado"), "Solicitud creada desde el portal administrativo.")]
+      estado: "Pendiente",
+      aprobadoPorId: "",
+      aprobadoPor: "",
+      documentos: uploadedDocuments,
+      audit: [auditEntry(
+        "Pendiente",
+        calc.isInternalProduction
+          ? "Solicitud creada como Producción Interna del Museo por un Administrador. Canon y fianza exentos."
+          : "Solicitud creada desde el formulario de renta."
+      )]
     };
 
     try {
       await saveRequests([...currentRequests, request]);
-      if (request.estado === "Aprobada") await syncApprovedRequest(request);
       renderHistory();
       form.reset();
+      isInternalProduction = false;
+      updateMunicipalPayment();
       renderSpaceDetail();
       renderCalculation();
+      updateRequestTitle();
+      if (submitButton) submitButton.disabled = false;
       setMessage(`Solicitud ${request.numeroSolicitud} registrada en Supabase.`, "success");
     } catch (error) {
+      await deleteRentalDocuments(uploadedDocuments.map((document) => document.ruta)).catch(() => {});
+      if (submitButton) submitButton.disabled = false;
       setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
     }
   });
 
   ["change", "input"].forEach((eventName) => {
-    form.addEventListener(eventName, (event) => {
-      if (event.target.matches("[data-rental-space]")) renderSpaceDetail();
+    form?.addEventListener(eventName, (event) => {
+      if (event.target.matches("[data-rental-space]")) {
+        renderSpaceDetail();
+        updateRequestTitle();
+      }
       renderCalculation();
     });
   });
 
-  statusSelect?.addEventListener("change", () => {
-    if (!canAdjust() && statusSelect.value !== "Pendiente") {
-      statusSelect.value = "Pendiente";
-      setMessage("Solo Administrador o Ejecutivo puede cambiar el estado de una solicitud.", "error");
+  document.querySelector("[data-rental-print]")?.addEventListener("click", () => {
+    window.print();
+  });
+
+  if (internalProductionControl) {
+    internalProductionControl.hidden = !canCreateInternalProduction();
+  }
+  if (municipalPaymentSection) {
+    municipalPaymentSection.hidden = !isAuthorizedAdmin;
+  }
+  municipalReceiptField?.addEventListener("input", updateMunicipalPayment);
+  updateMunicipalPayment();
+  internalProductionButton?.addEventListener("click", () => {
+    if (!canCreateInternalProduction()) {
+      isInternalProduction = false;
+      if (internalProductionControl) internalProductionControl.hidden = true;
+      setMessage("Esta función está disponible únicamente para Administradores autenticados.", "error");
+      renderCalculation();
+      return;
     }
+    isInternalProduction = !isInternalProduction;
+    updateMunicipalPayment();
+    renderCalculation();
+    setMessage(
+      isInternalProduction
+        ? "Producción interna activada: el contrato conservará toda la información con canon y fianza en $0."
+        : "Producción interna desactivada: se restauraron los cargos regulares.",
+      "success"
+    );
   });
 
   document.querySelector("[data-rental-reset]")?.addEventListener("click", () => {
-    form.reset();
+    form?.reset();
+    isInternalProduction = false;
+    updateMunicipalPayment();
     renderSpaceDetail();
     renderCalculation();
+    updateRequestTitle();
     setMessage("");
+  });
+
+  historyBody?.addEventListener("change", async (event) => {
+    if (!isAuthorizedAdmin) return;
+    const approval = event.target.closest("[data-rental-approval]");
+    const approverField = event.target.closest("[data-rental-approved-by]");
+    const receiptField = event.target.closest("[data-rental-receipt]");
+    const requestId = approval?.dataset.rentalApproval || approverField?.dataset.rentalApprovedBy || receiptField?.dataset.rentalReceipt;
+    if (!requestId) return;
+    const request = getRequests().find((item) => item.id === requestId);
+    if (!request) return;
+    const row = event.target.closest("tr");
+    const selectedApprover = row?.querySelector("[data-rental-approved-by]")?.value || "";
+    const administrator = getEmployeeRecords().find((employee) => employee.id === selectedApprover && employee.acceso === "Administrador");
+
+    if (approval?.checked && !administrator) {
+      approval.checked = false;
+      setAdminMessage("Seleccione primero el administrador que aprueba la solicitud.", "error");
+      return;
+    }
+    if (approval?.checked && !request.produccionInterna && !String(request.numeroRecibo || "").trim()) {
+      approval.checked = false;
+      setAdminMessage("Ingrese primero el número de recibo emitido por el Municipio de Guaynabo.", "error");
+      return;
+    }
+
+    if (receiptField) {
+      const nextReceipt = receiptField.value.trim();
+      try {
+        await callRentalApprovalControl("record_rental_municipal_receipt", {
+          p_request_key: request.id,
+          p_receipt_number: nextReceipt || null,
+          p_internal_production: Boolean(request.produccionInterna)
+        });
+      } catch (error) {
+        await callRentalApprovalControl("log_rental_blocked_event", {
+          p_request_key: request.id,
+          p_action: String(error.message || "").toLowerCase().includes("already assigned")
+            ? "rental.receipt.duplicate"
+            : "rental.control.failed"
+        }).catch(() => null);
+        renderHistory();
+        setAdminMessage(`No se pudo registrar el recibo: ${error.message}`, "error");
+        return;
+      }
+      request.numeroRecibo = nextReceipt;
+      request.audit = [...(request.audit || []), auditEntry(
+        request.estado,
+        request.numeroRecibo
+          ? `Recibo del Municipio de Guaynabo registrado: ${request.numeroRecibo}.`
+          : "Número de recibo municipal eliminado."
+      )];
+    } else if (approval) {
+      try {
+        await callRentalApprovalControl("set_rental_approval", {
+          p_request_key: request.id,
+          p_approved: Boolean(approval.checked),
+          p_internal_production: Boolean(request.produccionInterna)
+        });
+      } catch (error) {
+        await callRentalApprovalControl("log_rental_blocked_event", {
+          p_request_key: request.id,
+          p_action: String(error.message || "").toLowerCase().includes("receipt")
+            ? "rental.approval.blocked_missing_receipt"
+            : "rental.control.failed"
+        }).catch(() => null);
+        approval.checked = request.estado === "Aprobada";
+        setAdminMessage(`Supabase rechazó la aprobación: ${error.message}`, "error");
+        return;
+      }
+      request.estado = approval.checked ? "Aprobada" : "Pendiente";
+      request.aprobadoPorId = approval.checked ? administrator.id : "";
+      request.aprobadoPor = approval.checked ? employeeDisplayName(administrator) : "";
+      request.audit = [...(request.audit || []), auditEntry(
+        request.estado,
+        approval.checked ? `Aprobada por ${request.aprobadoPor}.` : "Aprobación retirada."
+      )];
+    } else {
+      request.aprobadoPorId = administrator?.id || "";
+      request.aprobadoPor = administrator ? employeeDisplayName(administrator) : "";
+    }
+
+    try {
+      await saveRequests([...getRequests()]);
+      if (request.estado === "Aprobada") await syncApprovedRequest(request);
+      renderHistory();
+      setAdminMessage(`Solicitud ${request.numeroSolicitud} actualizada.`, "success");
+    } catch (error) {
+      renderHistory();
+      setAdminMessage(`No se pudo actualizar la solicitud: ${error.message}`, "error");
+    }
   });
 
   configPanel?.addEventListener("change", async (event) => {
@@ -1236,7 +2032,7 @@ function bindRentalForm() {
     const space = spaces.find((item) => item.id === field.dataset.rentalSpaceId);
     if (!space) return;
     const key = field.dataset.rentalSpaceField;
-    if (key === "canon" || key === "capacity") {
+    if (key === "canon" || key === "deposit" || key === "capacity") {
       space[key] = Number(field.value || 0);
     } else if (key === "equipment") {
       space[key] = field.value.split(",").map((item) => item.trim()).filter(Boolean);
@@ -1248,25 +2044,40 @@ function bindRentalForm() {
       populateSpaces();
       renderSpaceDetail();
       renderCalculation();
-      setMessage("Configuración del espacio actualizada en Supabase.", "success");
+      setAdminMessage("Configuración del espacio actualizada en Supabase.", "success");
     } catch (error) {
-      setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
+      setAdminMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
     }
   });
 
   const loadRentalData = async () => {
+    if (isAuthorizedAdmin) {
+      try {
+        await syncEmployeeCacheFromSupabase();
+      } catch (error) {
+        setAdminMessage(`No se pudo cargar la lista de administradores: ${error.message}`, "error");
+      }
+    }
     try {
-      spaces = await fetchSystemCollection("renta_espacios", "spaces", defaultRentalSpaces);
+      spaces = normalizeRentalSpaces(await fetchSystemCollection("renta_espacios", "spaces_v2", defaultRentalSpaces));
       requests = await fetchSystemCollection("renta_espacios", "requests", []);
-      setMessage("Datos de renta cargados desde Supabase.", "success");
     } catch (error) {
       setMessage(`No se pudo cargar Renta desde Supabase: ${error.message}`, "error");
+      setAdminMessage(`No se pudo cargar Renta desde Supabase: ${error.message}`, "error");
     }
     populateSpaces();
     renderSpaceDetail();
     renderCalculation();
     renderHistory();
     renderConfig();
+
+    const requestedSpace = new URLSearchParams(window.location.search).get("espacio");
+    if (requestedSpace && spaceSelect && getSpaces().some((space) => space.id === requestedSpace)) {
+      spaceSelect.value = requestedSpace;
+      renderSpaceDetail();
+      renderCalculation();
+    }
+    updateRequestTitle();
   };
 
   loadRentalData();
@@ -2301,14 +3112,12 @@ function bindHumanResourcesModule() {
       horario: data.get("horario").trim(),
       educacion: data.get("educacion"),
       condicion: data.get("condicion").trim(),
-      usuario: data.get("usuario").trim(),
-      passwordTemporal: data.get("passwordTemporal").trim(),
       acceso: data.get("acceso"),
       estado: data.get("estado"),
       notificaciones: data.get("notificaciones").trim()
     };
 
-    if (!employee.nombre || !employee.apellidos || !employee.posicion || !employee.departamento || !employee.correo || !employee.usuario || !employee.passwordTemporal) {
+    if (!employee.nombre || !employee.apellidos || !employee.posicion || !employee.departamento || !employee.correo) {
       setMessage("Complete los campos obligatorios antes de crear el empleado.", "error");
       return;
     }
@@ -3443,6 +4252,671 @@ function bindEmployeeProfile() {
   });
 }
 
+const officialMembershipPlans = [
+  {
+    code: "pequenos-melomanos",
+    name: "Pequeños Melómanos",
+    audience: "Niños hasta 12 años",
+    price: 20,
+    siblingPrice: 15,
+    billingPeriod: "annual",
+    benefits: [
+      "Invitaciones a actividades especiales para niños.",
+      "Participación en talleres musicales interactivos.",
+      "Acceso a experiencias educativas diseñadas para jóvenes amantes de la música.",
+      "Certificado anual como Amigo del Museo."
+    ]
+  },
+  {
+    code: "comunidad-especial",
+    name: "Estudiantes, Maestros, Diversidad Funcional y Seniors (60+)",
+    audience: "Requiere identificación válida",
+    price: 25,
+    billingPeriod: "annual",
+    benefits: ["Entrada gratuita e ilimitada durante un año para un individuo."]
+  },
+  {
+    code: "individual",
+    name: "Membresía Individual",
+    audience: "Un adulto",
+    price: 50,
+    billingPeriod: "annual",
+    benefits: ["Entrada gratuita e ilimitada durante un año para un adulto."]
+  },
+  {
+    code: "cortesia-anual",
+    name: "Membresía de Cortesía",
+    audience: "Otorgada por la Administración por un año",
+    price: 0,
+    billingPeriod: "annual",
+    benefits: [
+      "Entrada gratuita e ilimitada durante un año para un individuo.",
+      "No requiere aportación económica.",
+      "Emisión sujeta a autorización administrativa."
+    ]
+  },
+  {
+    code: "familiar",
+    name: "Membresía Familiar",
+    audience: "Dos adultos y hasta tres niños menores de edad",
+    price: 100,
+    billingPeriod: "annual",
+    benefits: [
+      "Entrada gratuita e ilimitada para dos adultos y hasta tres niños menores de edad.",
+      "Acceso a actividades familiares especiales.",
+      "Participación en programas educativos para toda la familia."
+    ]
+  },
+  {
+    code: "amigo-musica",
+    name: "Amigo de la Música",
+    audience: "Familia y hasta cuatro invitados por visita",
+    price: 250,
+    billingPeriod: "annual",
+    benefits: [
+      "Entrada para una familia y hasta cuatro invitados por visita.",
+      "Publicación anual o catálogo digital del Museo.",
+      "Recorrido guiado exclusivo una vez al año.",
+      "Invitación a encuentros especiales con artistas, músicos, historiadores e investigadores."
+    ]
+  },
+  {
+    code: "colaborador-cultural",
+    name: "Colaborador Cultural",
+    audience: "Dos familias y hasta cuatro invitados por visita",
+    price: 500,
+    billingPeriod: "annual",
+    benefits: [
+      "Entrada para dos familias y hasta cuatro invitados por visita.",
+      "Cinco pases de cortesía para invitados.",
+      "Publicación anual del Museo.",
+      "Recorrido guiado privado anual.",
+      "Invitación a actividades especiales de apoyo institucional."
+    ]
+  },
+  {
+    code: "socio-ejecutivo",
+    name: "Socio Ejecutivo",
+    audience: "Tres familias",
+    price: 1000,
+    billingPeriod: "annual",
+    benefits: [
+      "Entrada para tres familias durante un año.",
+      "Diez pases de cortesía para invitados.",
+      "Publicaciones especiales y material educativo exclusivo.",
+      "Reconocimiento en el Informe Anual del Museo.",
+      "Recorrido privado anual con personal directivo.",
+      "Invitación a actividades VIP y eventos protocolares."
+    ]
+  },
+  {
+    code: "socio-fundador",
+    name: "Socio Fundador",
+    audience: "Disponible únicamente durante el período inaugural",
+    price: 1000,
+    billingPeriod: "one_time",
+    benefits: [
+      "Todos los beneficios de la Membresía Ejecutiva.",
+      "Reconocimiento permanente como Socio Fundador.",
+      "Inclusión del nombre en el Muro de Fundadores.",
+      "Certificado oficial numerado e insignia exclusiva.",
+      "Invitación especial a la ceremonia inaugural.",
+      "Acceso preferencial durante el primer año de operaciones.",
+      "Fotografía oficial, reconocimiento en el archivo histórico y reunión anual con la dirección."
+    ]
+  },
+  {
+    code: "fundador-distinguido",
+    name: "Fundador Distinguido",
+    audience: "Círculo de Fundadores",
+    price: 2500,
+    billingPeriod: "one_time",
+    benefits: [
+      "Todos los beneficios del Socio Fundador.",
+      "Reconocimiento especial destacado en el Muro de Fundadores.",
+      "Invitación para dos personas a todas las actividades inaugurales.",
+      "Reconocimiento en publicaciones oficiales relacionadas con la apertura."
+    ]
+  },
+  {
+    code: "fundador-patron",
+    name: "Fundador Patrón",
+    audience: "Círculo de Fundadores",
+    price: 5000,
+    billingPeriod: "one_time",
+    benefits: [
+      "Todos los beneficios del Fundador Distinguido.",
+      "Reconocimiento preferencial en el Muro de Fundadores.",
+      "Invitación VIP a eventos especiales y actividades protocolares.",
+      "Oportunidad de auspiciar un programa educativo o actividad cultural específica."
+    ]
+  },
+  {
+    code: "patrocinador",
+    name: "Patrocinador",
+    audience: "Empresa, fundación u organización",
+    price: 2500,
+    billingPeriod: "annual",
+    benefits: ["Veinticinco pases de cortesía.", "Tres Membresías Familiares."]
+  },
+  {
+    code: "corporativo",
+    name: "Corporativo",
+    audience: "Empresa, fundación u organización",
+    price: 5000,
+    billingPeriod: "annual",
+    benefits: ["Cincuenta pases de cortesía.", "Seis Membresías Familiares."]
+  },
+  {
+    code: "benefactor",
+    name: "Benefactor",
+    audience: "Empresa, fundación u organización",
+    price: 10000,
+    billingPeriod: "annual",
+    benefits: [
+      "Cien pases de cortesía.",
+      "Diez Membresías Familiares.",
+      "Reconocimiento especial en comunicados de prensa relacionados con la aportación."
+    ]
+  },
+  {
+    code: "mecenas-musical",
+    name: "Círculo de Mecenas Musicales",
+    audience: "Individuos, empresas y fundaciones",
+    price: 25000,
+    billingPeriod: "annual_from",
+    benefits: [
+      "Reconocimiento permanente dentro del Museo.",
+      "Acceso VIP a eventos especiales.",
+      "Encuentros privados con artistas, músicos e invitados especiales.",
+      "Oportunidades de auspicio de exhibiciones, galerías, programas educativos y proyectos de investigación.",
+      "Reconocimiento destacado en publicaciones institucionales y actividades oficiales."
+    ]
+  }
+];
+
+const generalMembershipBenefits = [
+  "Entrada gratuita e ilimitada al Museo durante un año.",
+  "Credencial oficial de Socio del Museo de la Música de Puerto Rico.",
+  "Boletín digital con noticias, actividades y eventos especiales.",
+  "Invitaciones a inauguraciones de exhibiciones y nuevas experiencias museográficas.",
+  "Acceso preferencial a conferencias, conversatorios, presentaciones musicales y actividades educativas.",
+  "Descuentos en talleres, cursos, programas educativos, tienda oficial y alquiler de espacios.",
+  "Invitación a la Fiesta Anual de Socios y Amigos del Museo.",
+  "Oportunidad de participar en actividades exclusivas para miembros."
+];
+
+function bindMembershipsModule() {
+  const module = document.querySelector("[data-memberships-module]");
+  if (!module) return;
+
+  const list = module.querySelector("[data-membership-list]");
+  const message = module.querySelector("[data-membership-message]");
+  const dialog = document.querySelector("[data-membership-dialog]");
+  const form = document.querySelector("[data-membership-form]");
+  const attendanceDialog = document.querySelector("[data-membership-attendance-dialog]");
+  const attendanceForm = document.querySelector("[data-membership-attendance-form]");
+  const planSelect = form?.querySelector("[data-membership-plan-select]");
+  const search = module.querySelector("[data-membership-search]");
+  let members = [];
+  let attendanceRecords = [];
+  let profile = null;
+
+  const money = (value) => Number(value || 0).toLocaleString("es-PR", {
+    style: "currency",
+    currency: "USD"
+  });
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text;
+    message.className = `form-message${type ? ` ${type}` : ""}`;
+  };
+  const periodLabel = (period) => ({
+    annual: "anuales",
+    one_time: "aportación única",
+    annual_from: "anuales, desde"
+  }[period] || "anuales");
+  const planByCode = (code) => officialMembershipPlans.find((plan) => plan.code === code);
+  const memberName = (member) => `${member.first_name || ""} ${member.last_name || ""}`.trim();
+  const normalizeInterests = (value) => Array.isArray(value)
+    ? value
+    : String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
+
+  const membershipHeaders = async () => ({
+    ...(await supabaseAuthHeaders()),
+    Prefer: "return=representation"
+  });
+
+  const requireAuthorizedProfile = async () => {
+    profile = await currentMuseumContext();
+    if (!["administrador", "ejecutivo"].includes(profile.role)) {
+      throw new Error("El módulo de Membresías está disponible únicamente para Administradores y Ejecutivos.");
+    }
+    return profile;
+  };
+
+  const fetchMembers = async () => {
+    await requireAuthorizedProfile();
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/museum_members?select=*&museum_id=eq.${encodeURIComponent(profile.museum_id)}&order=last_name.asc,first_name.asc`,
+      { headers: await membershipHeaders() }
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      if (String(data.message || "").includes("museum_members")) {
+        throw new Error("Falta instalar la base protegida de Membresías en Supabase.");
+      }
+      throw new Error(data.message || "No se pudieron cargar los socios.");
+    }
+    members = data;
+    const attendanceResponse = await fetch(
+      `${supabaseUrl}/rest/v1/membership_attendance?select=*&museum_id=eq.${encodeURIComponent(profile.museum_id)}&order=attended_at.desc`,
+      { headers: await membershipHeaders() }
+    );
+    const attendanceData = await attendanceResponse.json();
+    if (!attendanceResponse.ok) throw new Error(attendanceData.message || "No se pudo cargar la asistencia.");
+    attendanceRecords = attendanceData;
+  };
+
+  const saveAudit = async (memberId, action, details = {}) => {
+    const response = await fetch(`${supabaseUrl}/rest/v1/membership_audit_logs`, {
+      method: "POST",
+      headers: await membershipHeaders(),
+      body: JSON.stringify({
+        museum_id: profile.museum_id,
+        member_id: memberId,
+        action,
+        details,
+        performed_by: profile.id
+      })
+    });
+    if (!response.ok) throw new Error("El socio se guardó, pero no se pudo completar la auditoría.");
+  };
+
+  const statusClass = (status) => ({
+    Activo: "is-active",
+    Pendiente: "is-pending",
+    Vencido: "is-expired",
+    Inactivo: "is-inactive"
+  }[status] || "is-inactive");
+
+  const renderStats = () => {
+    const today = new Date();
+    const inThirtyDays = new Date(today);
+    inThirtyDays.setDate(inThirtyDays.getDate() + 30);
+    const active = members.filter((member) => member.status === "Activo").length;
+    const expiring = members.filter((member) => {
+      if (member.status !== "Activo" || !member.expiration_date) return false;
+      const expiration = new Date(`${member.expiration_date}T12:00:00`);
+      return expiration >= today && expiration <= inThirtyDays;
+    }).length;
+    const pending = members.filter((member) => member.status === "Pendiente" || member.status === "Vencido").length;
+    const revenue = members.reduce((sum, member) => sum + Number(member.amount_paid || 0), 0);
+    const values = { active, expiring, pending, revenue: money(revenue) };
+    Object.entries(values).forEach(([key, value]) => {
+      const target = module.querySelector(`[data-membership-stat="${key}"]`);
+      if (target) target.textContent = value;
+    });
+  };
+
+  const renderMembers = () => {
+    if (!list) return;
+    const query = String(search?.value || "").trim().toLowerCase();
+    const filtered = members.filter((member) => [
+      memberName(member),
+      member.email,
+      member.member_number,
+      planByCode(member.plan_code)?.name
+    ].some((value) => String(value || "").toLowerCase().includes(query)));
+    list.innerHTML = filtered.length ? filtered.map((member) => {
+      const plan = planByCode(member.plan_code);
+      const communication = member.email_consent || member.sms_consent
+        ? [member.email_consent ? "Correo" : "", member.sms_consent ? "SMS" : ""].filter(Boolean).join(" / ")
+        : "No autorizado";
+      return `
+        <tr>
+          <td>
+            <strong>${safeHtml(memberName(member))}</strong>
+            <small>${safeHtml(member.member_number || "")}<br>${safeHtml(member.email || "")}</small>
+          </td>
+          <td>${safeHtml(plan?.name || member.plan_code)}</td>
+          <td>
+            <small>Inicio: ${safeHtml(member.start_date || "-")}<br>Vence: ${safeHtml(member.expiration_date || "No aplica")}</small>
+          </td>
+          <td><span class="membership-status ${statusClass(member.status)}">${safeHtml(member.status)}</span></td>
+          <td>${safeHtml(communication)}</td>
+          <td>
+            <div class="membership-row-actions">
+              <button class="table-action" type="button" data-membership-edit="${member.id}">Editar</button>
+              <button class="table-action" type="button" data-membership-attendance="${member.id}">Asistencia</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("") : '<tr><td colspan="6">No se encontraron socios.</td></tr>';
+    renderStats();
+    renderInsights();
+  };
+
+  const renderPlans = () => {
+    const grid = module.querySelector('[data-membership-view="plans"]');
+    if (!grid) return;
+    grid.innerHTML = officialMembershipPlans.map((plan) => `
+      <article class="card membership-plan-card">
+        <p class="page-kicker">${safeHtml(plan.audience)}</p>
+        <h3>${safeHtml(plan.name)}</h3>
+        <p class="membership-price">
+          ${plan.billingPeriod === "annual_from" ? "Desde " : ""}${money(plan.price)}
+          <small>${periodLabel(plan.billingPeriod)}</small>
+        </p>
+        ${plan.siblingPrice ? `<p class="membership-special-price">${money(plan.siblingPrice)} por cada hermano adicional</p>` : ""}
+        <ul>
+          ${plan.benefits.map((benefit) => `<li>${safeHtml(benefit)}</li>`).join("")}
+        </ul>
+      </article>
+    `).join("") + `
+      <article class="card membership-plan-card membership-general-benefits">
+        <p class="page-kicker">Todos los socios</p>
+        <h3>Beneficios generales</h3>
+        <ul>${generalMembershipBenefits.map((benefit) => `<li>${safeHtml(benefit)}</li>`).join("")}</ul>
+      </article>
+    `;
+  };
+
+  const renderInsights = () => {
+    const target = module.querySelector("[data-membership-insights]");
+    if (!target) return;
+    const interestCounts = new Map();
+    members.filter((member) => member.analytics_consent).forEach((member) => {
+      normalizeInterests(member.interests).forEach((interest) => {
+        const key = interest.toLocaleLowerCase("es");
+        interestCounts.set(key, { label: interest, count: (interestCounts.get(key)?.count || 0) + 1 });
+      });
+    });
+    const interests = [...interestCounts.values()].sort((a, b) => b.count - a.count);
+    const emailCount = members.filter((member) => member.email_consent).length;
+    const smsCount = members.filter((member) => member.sms_consent).length;
+    const analyticsCount = members.filter((member) => member.analytics_consent).length;
+    const eligibleMemberIds = new Set(members.filter((member) => member.analytics_consent).map((member) => member.id));
+    const categoryCounts = new Map();
+    attendanceRecords.filter((record) => eligibleMemberIds.has(record.member_id)).forEach((record) => {
+      const category = record.event_category || "Otro";
+      categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
+    });
+    const attendanceCategories = [...categoryCounts.entries()].sort((a, b) => b[1] - a[1]);
+    target.innerHTML = `
+      <article>
+        <span>Autorizan correo</span>
+        <strong>${emailCount}</strong>
+      </article>
+      <article>
+        <span>Autorizan SMS</span>
+        <strong>${smsCount}</strong>
+      </article>
+      <article>
+        <span>Autorizan análisis</span>
+        <strong>${analyticsCount}</strong>
+      </article>
+      <article>
+        <span>Asistencias autorizadas</span>
+        <strong>${attendanceRecords.filter((record) => eligibleMemberIds.has(record.member_id)).length}</strong>
+      </article>
+      <article class="membership-interest-summary">
+        <span>Intereses principales</span>
+        <div>${interests.length
+          ? interests.slice(0, 12).map((item) => `<span>${safeHtml(item.label)} <strong>${item.count}</strong></span>`).join("")
+          : "<small>No hay intereses autorizados registrados.</small>"
+        }</div>
+      </article>
+      <article class="membership-interest-summary">
+        <span>Asistencia por tipo de actividad</span>
+        <div>${attendanceCategories.length
+          ? attendanceCategories.map(([label, count]) => `<span>${safeHtml(label)} <strong>${count}</strong></span>`).join("")
+          : "<small>No hay asistencias autorizadas registradas.</small>"
+        }</div>
+      </article>
+    `;
+  };
+
+  const defaultStartDate = () => new Date().toISOString().slice(0, 10);
+  const suggestedExpiration = (startDate, planCode) => {
+    const plan = planByCode(planCode);
+    if (!startDate || plan?.billingPeriod === "one_time") return "";
+    const date = new Date(`${startDate}T12:00:00`);
+    date.setFullYear(date.getFullYear() + 1);
+    return date.toISOString().slice(0, 10);
+  };
+  const generatedMemberNumber = () => {
+    const year = new Date().getFullYear();
+    const sequence = String(members.length + 1).padStart(4, "0");
+    return `MMPR-${year}-${sequence}`;
+  };
+
+  const openForm = (member = null) => {
+    if (!form || !dialog) return;
+    form.reset();
+    form.elements.id.value = member?.id || "";
+    form.elements.first_name.value = member?.first_name || "";
+    form.elements.last_name.value = member?.last_name || "";
+    form.elements.email.value = member?.email || "";
+    form.elements.phone.value = member?.phone || "";
+    form.elements.organization_name.value = member?.organization_name || "";
+    form.elements.plan_code.value = member?.plan_code || "individual";
+    form.elements.member_number.value = member?.member_number || generatedMemberNumber();
+    form.elements.start_date.value = member?.start_date || defaultStartDate();
+    form.elements.expiration_date.value = member?.expiration_date || suggestedExpiration(form.elements.start_date.value, form.elements.plan_code.value);
+    form.elements.status.value = member?.status || "Pendiente";
+    form.elements.amount_paid.value = member?.amount_paid ?? planByCode(form.elements.plan_code.value)?.price ?? 0;
+    form.elements.municipal_receipt_number.value = member?.municipal_receipt_number || "";
+    form.elements.interests.value = normalizeInterests(member?.interests).join(", ");
+    form.elements.notes.value = member?.notes || "";
+    form.elements.email_consent.checked = Boolean(member?.email_consent);
+    form.elements.sms_consent.checked = Boolean(member?.sms_consent);
+    form.elements.analytics_consent.checked = Boolean(member?.analytics_consent);
+    const title = form.querySelector("[data-membership-form-title]");
+    if (title) title.textContent = member ? "Editar socio" : "Nuevo socio";
+    dialog.showModal();
+  };
+
+  const exportMembers = () => {
+    const headers = ["Número", "Nombre", "Apellidos", "Correo", "Teléfono", "Membresía", "Estado", "Inicio", "Vencimiento", "Recibo Municipio de Guaynabo", "Autoriza correo", "Autoriza SMS", "Intereses"];
+    const quote = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const rows = members.filter((member) => member.email_consent || member.sms_consent).map((member) => [
+      member.member_number,
+      member.first_name,
+      member.last_name,
+      member.email,
+      member.phone,
+      planByCode(member.plan_code)?.name || member.plan_code,
+      member.status,
+      member.start_date,
+      member.expiration_date,
+      member.municipal_receipt_number,
+      member.email_consent ? "Sí" : "No",
+      member.sms_consent ? "Sí" : "No",
+      normalizeInterests(member.interests).join("; ")
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map(quote).join(",")).join("\r\n");
+    const blob = new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `socios-museo-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  planSelect.innerHTML = officialMembershipPlans.map((plan) =>
+    `<option value="${plan.code}">${safeHtml(plan.name)} - ${money(plan.price)}</option>`
+  ).join("");
+  renderPlans();
+
+  module.querySelectorAll("[data-membership-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      module.querySelectorAll("[data-membership-tab]").forEach((tab) => tab.classList.toggle("is-active", tab === button));
+      module.querySelectorAll("[data-membership-view]").forEach((view) => {
+        view.hidden = view.dataset.membershipView !== button.dataset.membershipTab;
+      });
+    });
+  });
+  module.querySelector("[data-membership-new]")?.addEventListener("click", () => openForm());
+  module.querySelector("[data-membership-export]")?.addEventListener("click", exportMembers);
+  document.querySelectorAll("[data-membership-close]").forEach((button) => {
+    button.addEventListener("click", () => dialog?.close());
+  });
+  search?.addEventListener("input", renderMembers);
+  list?.addEventListener("click", (event) => {
+    const editButton = event.target.closest("[data-membership-edit]");
+    if (editButton) {
+      openForm(members.find((member) => member.id === editButton.dataset.membershipEdit));
+      return;
+    }
+    const attendanceButton = event.target.closest("[data-membership-attendance]");
+    if (!attendanceButton || !attendanceForm || !attendanceDialog) return;
+    const member = members.find((item) => item.id === attendanceButton.dataset.membershipAttendance);
+    attendanceForm.reset();
+    attendanceForm.elements.member_id.value = member.id;
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    attendanceForm.elements.attended_at.value = now.toISOString().slice(0, 16);
+    const label = attendanceDialog.querySelector("[data-membership-attendance-member]");
+    if (label) label.textContent = memberName(member);
+    attendanceDialog.showModal();
+  });
+  document.querySelectorAll("[data-membership-attendance-close]").forEach((button) => {
+    button.addEventListener("click", () => attendanceDialog?.close());
+  });
+  form?.elements.plan_code.addEventListener("change", () => {
+    const plan = planByCode(form.elements.plan_code.value);
+    form.elements.amount_paid.value = plan?.price || 0;
+    form.elements.expiration_date.value = suggestedExpiration(form.elements.start_date.value, plan?.code);
+  });
+  form?.elements.start_date.addEventListener("change", () => {
+    form.elements.expiration_date.value = suggestedExpiration(form.elements.start_date.value, form.elements.plan_code.value);
+  });
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const id = String(data.get("id") || "");
+    const planCode = String(data.get("plan_code") || "");
+    const status = String(data.get("status") || "Pendiente");
+    const municipalReceiptNumber = String(data.get("municipal_receipt_number") || "").trim();
+    if (status === "Activo" && planCode !== "cortesia-anual" && !municipalReceiptNumber) {
+      setMessage("Para activar la membresía, ingrese el número de recibo emitido por el Municipio de Guaynabo.", "error");
+      form.elements.municipal_receipt_number.focus();
+      return;
+    }
+    const payload = {
+      museum_id: profile.museum_id,
+      member_number: String(data.get("member_number") || generatedMemberNumber()).trim(),
+      first_name: String(data.get("first_name") || "").trim(),
+      last_name: String(data.get("last_name") || "").trim(),
+      email: String(data.get("email") || "").trim() || null,
+      phone: String(data.get("phone") || "").trim() || null,
+      organization_name: String(data.get("organization_name") || "").trim() || null,
+      plan_code: planCode,
+      status,
+      start_date: String(data.get("start_date") || ""),
+      expiration_date: String(data.get("expiration_date") || "") || null,
+      amount_paid: Number(data.get("amount_paid") || 0),
+      municipal_receipt_number: municipalReceiptNumber || null,
+      interests: normalizeInterests(data.get("interests")),
+      notes: String(data.get("notes") || "").trim() || null,
+      email_consent: data.get("email_consent") === "on",
+      sms_consent: data.get("sms_consent") === "on",
+      analytics_consent: data.get("analytics_consent") === "on",
+      consent_updated_at: new Date().toISOString(),
+      updated_by: profile.id,
+      updated_at: new Date().toISOString()
+    };
+    if (!id) payload.created_by = profile.id;
+    try {
+      const response = await fetch(
+        `${supabaseUrl}/rest/v1/museum_members${id ? `?id=eq.${encodeURIComponent(id)}` : ""}`,
+        {
+          method: id ? "PATCH" : "POST",
+          headers: await membershipHeaders(),
+          body: JSON.stringify(payload)
+        }
+      );
+      const saved = await response.json();
+      if (!response.ok) throw new Error(saved.message || "No se pudo guardar el socio.");
+      const savedMember = saved[0];
+      await saveAudit(savedMember.id, id ? "member_updated" : "member_created", {
+        plan_code: savedMember.plan_code,
+        status: savedMember.status,
+        municipal_receipt_number: savedMember.municipal_receipt_number
+      });
+      dialog.close();
+      await fetchMembers();
+      renderMembers();
+      setMessage(id ? "Expediente actualizado en Supabase." : "Socio registrado en Supabase.", "success");
+    } catch (error) {
+      setMessage(error.message, "error");
+    }
+  });
+
+  attendanceForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(attendanceForm);
+    const memberId = String(data.get("member_id") || "");
+    const member = members.find((item) => item.id === memberId);
+    if (!member) return;
+    if (!member.analytics_consent) {
+      setMessage("El socio no ha autorizado el uso de su asistencia para análisis institucional.", "error");
+      return;
+    }
+    try {
+      const response = await fetch(`${supabaseUrl}/rest/v1/membership_attendance`, {
+        method: "POST",
+        headers: await membershipHeaders(),
+        body: JSON.stringify({
+          museum_id: profile.museum_id,
+          member_id: memberId,
+          event_name: String(data.get("event_name") || "").trim(),
+          event_category: String(data.get("event_category") || ""),
+          attended_at: new Date(String(data.get("attended_at") || "")).toISOString(),
+          recorded_by: profile.id
+        })
+      });
+      const saved = await response.json();
+      if (!response.ok) throw new Error(saved.message || "No se pudo registrar la asistencia.");
+      await saveAudit(memberId, "attendance_recorded", {
+        event_name: String(data.get("event_name") || "").trim(),
+        event_category: String(data.get("event_category") || "")
+      });
+      attendanceDialog.close();
+      await fetchMembers();
+      renderMembers();
+      setMessage("Asistencia registrada en Supabase.", "success");
+    } catch (error) {
+      setMessage(error.message, "error");
+    }
+  });
+
+  const initialize = async () => {
+    if (!getSupabaseSession()?.access_token) {
+      list.innerHTML = '<tr><td colspan="6">Entre por Mi cuenta para consultar Membresías.</td></tr>';
+      module.querySelector("[data-membership-new]").disabled = true;
+      module.querySelector("[data-membership-export]").disabled = true;
+      setMessage("Este módulo contiene información protegida y requiere una sesión administrativa.", "error");
+      return;
+    }
+    try {
+      await fetchMembers();
+      renderMembers();
+      setMessage("Información de socios cargada desde Supabase.", "success");
+    } catch (error) {
+      list.innerHTML = `<tr><td colspan="6">${safeHtml(error.message)}</td></tr>`;
+      module.querySelector("[data-membership-new]").disabled = true;
+      module.querySelector("[data-membership-export]").disabled = true;
+      setMessage(error.message, "error");
+    }
+  };
+
+  initialize();
+}
+
 async function initApp() {
   renderSidebar();
   renderHeader();
@@ -3464,14 +4938,14 @@ async function initApp() {
   bindNotificationMenu();
   bindLoginDemo();
   bindIdleLogout();
+  bindRentalCatalog();
+  bindRentalGeneralRules();
+  bindRentalSpacePage();
   bindRentalForm();
   bindLoanReceiptForm();
   bindInventoryModule();
   bindCalendarModules();
+  bindMembershipsModule();
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
-
-
-
-
