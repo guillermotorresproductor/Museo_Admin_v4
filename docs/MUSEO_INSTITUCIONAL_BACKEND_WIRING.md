@@ -34,6 +34,33 @@ supabase functions deploy institutional-data-bridge --project-ref lonpdmxdvbxuag
 
 5. Instituva: migración `0049_instituva_museo_service_bridge.sql` (`supabase db push` en Instituva_App).
 
+### Cuenta de prueba (puente)
+
+1. Mismo correo en **Instituva Auth** y **Museo staging Auth** (p. ej. cuenta temporal dedicada).
+2. Instituva — membresía activa en MAG + rol `organization_admin`:
+
+```powershell
+cd C:\DEV\Instituva_App
+.\scripts\bootstrap-mag-bridge-actor.ps1 -Email "tu-correo@ejemplo.com"
+```
+
+3. Museo staging — rol `administrador` (`rentals.manage`):
+
+```powershell
+cd C:\DEV\Museo_Admin_v4
+.\scripts\bootstrap-museo-bridge-admin.ps1 -Email "tu-correo@ejemplo.com"
+.\scripts\setup-institutional-bridge-secrets.ps1
+```
+
+4. Secrets + deploy (si cambiaste la función): ver pasos 3–4 en **Requisitos** arriba.
+
+### Enlaces locales (ERR_CONNECTION_REFUSED en 127.0.0.1)
+
+Vite usa **puerto 5173**. Si el navegador abre solo `http://127.0.0.1` (sin puerto), fallará.
+
+- Museo en local: añade una vez `?instituvaApp=http://localhost:5173` o borra en DevTools → Application → Session storage la clave `instituva-app-base`.
+- Invitaciones Supabase Auth: en **Authentication → URL configuration** (Instituva dev y Museo staging), **Site URL** = `http://localhost:5173` y **Redirect URLs** incluyen `http://localhost:5173/**` y `http://127.0.0.1:5173/**`.
+
 ## Qué enruta el puente
 
 - Renta: `record_rental_municipal_receipt`, `set_rental_approval`, `log_rental_blocked_event`

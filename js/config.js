@@ -42,23 +42,55 @@ function isInstitutionalDataBackendEnabled() {
   return sessionOn || envOn;
 }
 
-/** Instituva_App — misma app en PC y celular; un solo backend (instituva-development). */
+function normalizeInstituvaDevBaseUrl(raw) {
+  if (!raw) return raw;
+  let base = String(raw).trim().replace(/\/$/, "");
+  if (!/^https?:\/\//i.test(base)) base = `http://${base}`;
+  try {
+    const url = new URL(base);
+    const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    if (local && !url.port) url.port = "5173";
+    return url.origin;
+  } catch {
+    return base;
+  }
+}
+
+function storedInstituvaBaseLooksInvalid(storedBase) {
+  try {
+    const url = new URL(storedBase);
+    if (url.hostname !== window.location.hostname) return false;
+    if (url.port === "5173") return false;
+    if (/instituva_app/i.test(url.pathname)) return false;
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+/** Instituva_App — misma app en PC y celular; un mismo backend (instituva-development). */
 function resolveInstituvaAppBaseUrl() {
   const params = new URLSearchParams(window.location.search);
   const queryOverride = params.get("instituvaApp");
   if (queryOverride) {
-    const normalized = queryOverride.replace(/\/$/, "");
+    const normalized = normalizeInstituvaDevBaseUrl(queryOverride);
     sessionStorage.setItem("instituva-app-base", normalized);
     return normalized;
   }
   const stored = sessionStorage.getItem("instituva-app-base");
-  if (stored) return stored.replace(/\/$/, "");
+  if (stored) {
+    const normalized = normalizeInstituvaDevBaseUrl(stored);
+    if (!storedInstituvaBaseLooksInvalid(normalized)) return normalized;
+    sessionStorage.removeItem("instituva-app-base");
+  }
 
   const host = window.location.hostname;
   if (host === "app.instituva.com") return "https://app.instituva.com";
-  if (host === "localhost" || host === "127.0.0.1" || /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)) {
-    const lanHost = /^192\.168\./.test(host) ? host : "192.168.0.33";
-    return `http://${lanHost}:5173`;
+  if (host === "localhost" || host === "127.0.0.1") {
+    return `http://${host}:5173`;
+  }
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)) {
+    return `http://${host}:5173`;
   }
   return "https://guillermotorresproductor.github.io/Instituva_App";
 }

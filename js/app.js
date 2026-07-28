@@ -89,7 +89,7 @@ const moduleShortcutGroups = [
   {
     pages: ["administracion.html", "recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html"],
     links: [
-      { href: instituvaAppUrl("/administracion/direccion-ejecutiva"), label: "Dirección Ejecutiva", icon: "briefcase" },
+      { instituvaPath: "/administracion/direccion-ejecutiva", label: "Dirección Ejecutiva", icon: "briefcase" },
       { href: "recursos-humanos.html", label: "Recursos Humanos", icon: "users" },
       { href: "notificaciones.html", label: "Notificaciones", icon: "bell" },
       { href: "reportes.html", label: "Reportes", icon: "chart" },
@@ -965,10 +965,13 @@ function renderPageShortcuts() {
   return `
     <nav class="page-shortcuts" aria-label="Accesos rápidos de la página">
       ${links.map((link) => {
-        const isActive = link.href === currentPage;
+        const href = link.instituvaPath && typeof instituvaAppUrl === "function"
+          ? instituvaAppUrl(link.instituvaPath)
+          : link.href;
+        const isActive = href === currentPage || link.href === currentPage;
         const attributes = link.type === "back"
           ? 'href="#" data-history-back'
-          : `href="${link.href}"`;
+          : `href="${href}"`;
         return `
           <a class="page-shortcut${isActive ? " is-active" : ""}" ${attributes} aria-current="${isActive ? "page" : "false"}">
             ${iconSvg(link.icon)}
