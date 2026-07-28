@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Finanzas</title>
-  <link rel="stylesheet" href="css/main.css?v=encoding-papeleria-20260708">
+  <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
 </head>
 <body>
   <div class="app-shell">
@@ -16,24 +16,9 @@
         <section class="finance-gate card panel" data-finance-gate>
           <span class="module-icon theme-teal" data-icon="dollar"></span>
           <h3>Acceso a Finanzas</h3>
-          <p>Área restringida. Este módulo usa Supabase como fuente única de datos financieros.</p>
-          <form class="finance-login" data-finance-login>
-            <label class="field">
-              <span>Usuario</span>
-              <select name="usuario" required>
-                <option value="">Seleccione...</option>
-                <option>Guillermo Torres</option>
-                <option>Alberto Soto</option>
-                <option>Contable del Museo</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Contraseña</span>
-              <input type="password" name="password" required>
-            </label>
-            <button class="button submit-button" type="submit">Entrar</button>
-            <p class="form-message" data-finance-login-message></p>
-          </form>
+          <p>Área restringida. El acceso se valida con su sesión de Supabase y el permiso financiero asignado.</p>
+          <p class="form-message" data-finance-login-message></p>
+          <a class="button submit-button" href="login.html">Entrar a mi cuenta</a>
         </section>
 
         <section class="finance-module" data-finance-module hidden>
@@ -108,7 +93,9 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=encoding-papeleria-20260708"></script>
+  <script src="js/config.js"></script>
+  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
+  <script src="js/app.js?v=employee-sensitive-20260721"></script>
 </body>
 </html>
 

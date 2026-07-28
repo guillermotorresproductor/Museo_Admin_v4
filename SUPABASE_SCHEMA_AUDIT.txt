@@ -1,0 +1,136 @@
+# SUPABASE SCHEMA AUDIT
+
+## Estado de la auditoría
+
+Fecha: 2026-07-20
+
+Esta auditoría fue realizada directamente sobre el proyecto Supabase de producción mediante consultas SQL de solo lectura.
+
+Objetivo:
+
+- Verificar el estado real del esquema.
+- Comparar la implementación con la arquitectura documentada.
+- Detectar brechas antes de realizar nuevas migraciones.
+
+## 1. Tablas identificadas
+
+Se identificaron las siguientes tablas principales en el esquema `public`:
+
+- app_records
+- audit_logs
+- calendar_events
+- documents
+- employees
+- finance_records
+- inventory_items
+- maintenance_tasks
+- museums
+- profiles
+
+Todas las tablas principales tienen Row Level Security (RLS) habilitado.
+
+## 2. Modelo de identidad
+
+La arquitectura implementada en la base de datos sigue el siguiente modelo:
+
+auth.users
+    │
+    ▼
+profiles
+    │
+    ▼
+employees
+
+La tabla `profiles` actúa como el núcleo de la identidad de la aplicación.
+
+Columnas principales:
+
+- id (uuid)
+- museum_id (uuid)
+- full_name (text)
+- email (text)
+- role (text)
+- status (text)
+- created_at (timestamptz)
+- updated_at (timestamptz)
+
+Relaciones confirmadas:
+
+- employees.profile_id → profiles.id
+- profiles.museum_id → museums.id
+- Las tablas funcionales referencian museums mediante museum_id.
+- Las columnas created_by referencian profiles.id.
+
+## 3. Arquitectura multi-museo
+
+La aplicación implementa un modelo multi-tenant basado en museos.
+
+Todas las entidades operativas incluyen una referencia mediante `museum_id`.
+
+Las políticas RLS utilizan la función:
+
+- current_user_museum_id()
+
+para restringir el acceso a la información correspondiente al museo del usuario autenticado.
+
+Esto confirma que el aislamiento entre museos está implementado a nivel de base de datos.
+
+## 4. Row Level Security
+
+Row Level Security (RLS) está habilitado en las tablas principales.
+
+Se confirmaron políticas que utilizan:
+
+- auth.uid()
+- current_user_museum_id()
+- current_user_role()
+
+Estas políticas controlan:
+
+- acceso al perfil propio;
+- acceso a registros del mismo museo;
+- permisos según el rol del usuario;
+- operaciones de lectura, inserción, actualización y eliminación.
+
+La seguridad no está solo habilitada: existen políticas activas y funcionales.
+
+## 5. Funciones de autorización
+
+Se identificaron dos funciones principales en el esquema `public`:
+
+- current_user_museum_id()
+- current_user_role()
+
+Ambas están definidas como `SECURITY DEFINER` y son utilizadas por las políticas RLS.
+
+Su implementación consulta directamente la tabla `profiles` utilizando `auth.uid()`.
+
+Esto convierte a `profiles` en la fuente central de identidad y autorización de la aplicación.
+
+## 6. Triggers y automatización
+
+No se encontraron triggers propios de la aplicación.
+
+Los únicos triggers existentes pertenecen a los esquemas internos de Supabase (`storage` y `realtime`).
+
+Actualmente no existe automatización para:
+
+- crear automáticamente un registro en `profiles` al crear un usuario en `auth.users`;
+- actualizar automáticamente el campo `updated_at`;
+- sincronizar `auth.users` con `profiles`;
+- registrar auditoría mediante triggers.
+
+Esto indica que estas operaciones dependen de la lógica de la aplicación y no de la base de datos.
+
+## 7. Índices y rendimiento
+
+La base de datos cuenta con claves primarias e índices únicos en las tablas principales.
+
+Sin embargo, no se identificaron índices específicos para varias columnas utilizadas frecuentemente por las relaciones y las políticas RLS, entre ellas:
+
+- museum_id
+- created_by
+- employees.profile_id
+
+A medida que aumente el volumen de información, será recomendable evaluar la incorporación de índices adicionales para optimizar las consultas y el rendimiento de las políticas de seguridad.
+

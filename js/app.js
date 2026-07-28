@@ -1,4 +1,4 @@
-﻿const appPages = {
+const appPages = {
   "index.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
   "dashboard.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
   "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Música." },
@@ -248,19 +248,65 @@ const defaultEmployeeProfiles = {
   }
 };
 
-const supabaseUrl = "https://kfokfjngozgcwjpzxcsu.supabase.co";
-const supabasePublishableKey = "sb_publishable_wBGL3o2YcfbR_dvhT3mTnw_OXuHB0y3";
-const supabaseSessionKey = "museo-admin-supabase-session";
+const supabaseUrl = museoEnvironment.supabaseUrl;
+const supabasePublishableKey = museoEnvironment.supabasePublishableKey;
+const supabaseSessionKey = `museo-admin-supabase-session-${museoEnvironment.name}`;
 const supabaseSystemRecordsTable = "app_records";
 const supabaseRentalDocumentsBucket = "rental-documents";
 const currentUserKey = "museo-admin-current-user";
 const currentUserPhotoKey = "museo-admin-current-user-photo";
 const currentAccessLevelKey = "museo-admin-access-level";
+const SUPABASE_REFRESH_MARGIN_SECONDS = 60;
 let employeeRecords = Object.values(defaultEmployeeProfiles);
-const currentAccessLevel = () => localStorage.getItem(currentAccessLevelKey) || "Empleado";
-const canManageEmployees = () => ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
-const canDeleteEmployees = () => currentAccessLevel() === "Administrador";
+let currentPermissions = new Set();
+let currentPermissionsLoaded = false;
+const hasPermission = (permission) => currentPermissions.has(permission);
+const canManageEmployees = () => hasPermission("employees.create") || hasPermission("employees.update.basic");
+const hasAdministrativeWorkspaceAccess = () =>
+  hasPermission("system.configure") || (hasPermission("audit.read") && hasPermission("notifications.manage"));
+const postLoginDestination = () => {
+  if (hasAdministrativeWorkspaceAccess()) return "dashboard.html";
+  if (hasPermission("employees.read.all") && hasPermission("attendance.corrections.approve")) return "recursos-humanos.html";
+  return "employee-portal.html";
+};
 
+function enforceAuthenticatedPageAccess() {
+  if (!getSupabaseSession()?.access_token || !currentPermissionsLoaded) return false;
+  const page = getCurrentPage();
+  if (page === "login.html") return false;
+  if (hasAdministrativeWorkspaceAccess()) {
+    if (page === "employee-portal.html") {
+      window.location.replace("dashboard.html");
+      return true;
+    }
+    return false;
+  }
+  if (page === "employee-portal.html" && postLoginDestination() !== "employee-portal.html") {
+    window.location.replace(postLoginDestination());
+    return true;
+  }
+  const allowedPages = new Map([
+    ["employee-portal.html", () => true],
+    ["recursos-humanos.html", () => hasPermission("employees.read.all")],
+    ["finanzas.html", () => hasPermission("finance.read")],
+    ["calendario.html", () => hasPermission("calendar.manage") || hasPermission("schedules.read.team")],
+    ["renta-espacios.html", () => hasPermission("rentals.manage")],
+    ["inventario.html", () => hasPermission("inventory.manage")]
+  ]);
+  if (allowedPages.get(page)?.()) return false;
+  window.location.replace("employee-portal.html");
+  return true;
+}
+
+async function refreshCurrentPermissions() {
+  if (!getSupabaseSession()?.access_token) {
+    currentPermissions.clear();
+    currentPermissionsLoaded = false;
+    return;
+  }
+  currentPermissions = new Set(await fetchCurrentSupabasePermissions());
+  currentPermissionsLoaded = true;
+}
 function getSupabaseSession() {
   return JSON.parse(localStorage.getItem(supabaseSessionKey) || "null");
 }
@@ -275,6 +321,8 @@ function clearSupabaseSession() {
 
 function clearLoginState(redirect = true, reason = "") {
   clearSupabaseSession();
+  currentPermissions.clear();
+  currentPermissionsLoaded = false;
   localStorage.removeItem(currentUserKey);
   localStorage.removeItem(currentUserPhotoKey);
   localStorage.removeItem(currentAccessLevelKey);
@@ -318,7 +366,7 @@ async function refreshSupabaseSession() {
 async function supabaseAuthHeaders() {
   let session = getSupabaseSession();
   const expiresAt = Number(session?.expires_at || 0);
-  const expiresSoon = expiresAt && Date.now() / 1000 > expiresAt - 60;
+  const expiresSoon = expiresAt && Date.now() / 1000 > expiresAt - SUPABASE_REFRESH_MARGIN_SECONDS;
 
   if (!session?.access_token || expiresSoon) {
     session = await refreshSupabaseSession();
@@ -346,11 +394,7 @@ async function signInWithSupabase(email, password) {
 async function fetchSupabaseProfile() {
   const session = getSupabaseSession();
   if (!session?.user?.id) return null;
-  const response = await fetch(`${supabaseUrl}/rest/v1/profiles?select=*&id=eq.${encodeURIComponent(session.user.id)}&limit=1`, {
-    headers: await supabaseAuthHeaders()
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "No se pudo leer el perfil del usuario.");
+const data = await supabaseGet(`/rest/v1/profiles?select=*&id=eq.${encodeURIComponent(session.user.id)}&limit=1`);
   return data[0] || null;
 }
 
@@ -522,60 +566,6 @@ async function createRentalDocumentDownloadUrl(path, expiresIn = 300) {
     throw new Error(data.message || "No se pudo crear el enlace privado del documento.");
   }
   return `${supabaseUrl}/storage/v1${data.signedURL}`;
-}
-
-function employeeFromSupabase(row) {
-  return {
-    id: row.id,
-    avatar: employeeInitials({ nombre: row.first_name, apellidos: row.last_name }),
-    nombre: row.first_name || "",
-    apellidos: row.last_name || "",
-    nombreCompleto: `${row.first_name || ""} ${row.last_name || ""}`.trim(),
-    foto: row.photo_url || "",
-    posicion: row.position || "",
-    departamento: row.department || "",
-    correo: row.email || "",
-    telefono: row.phone || "",
-    direccion: row.address || "",
-    fechaContratacion: row.hire_date || "",
-    horario: row.work_schedule || "",
-    educacion: row.education_level || "",
-    condicion: row.medical_condition || "",
-    usuario: row.email || "",
-    acceso: row.access_level ? row.access_level.charAt(0).toUpperCase() + row.access_level.slice(1) : "Empleado",
-    estado: row.status === "inactivo" ? "Inactivo" : "Activo",
-    notificaciones: "",
-    source: "supabase"
-  };
-}
-
-function employeeToSupabasePayload(employee, museumId) {
-  return {
-    museum_id: museumId,
-    first_name: employee.nombre,
-    last_name: employee.apellidos,
-    photo_url: employee.foto || null,
-    position: employee.posicion,
-    department: employee.departamento,
-    email: employee.correo,
-    phone: employee.telefono || null,
-    address: employee.direccion || null,
-    hire_date: employee.fechaContratacion || null,
-    work_schedule: employee.horario || null,
-    education_level: employee.educacion || null,
-    medical_condition: employee.condicion || null,
-    access_level: (employee.acceso || "Empleado").toLowerCase(),
-    status: employee.estado === "Inactivo" ? "inactivo" : "activo"
-  };
-}
-
-async function fetchSupabaseEmployees() {
-  const response = await fetch(`${supabaseUrl}/rest/v1/employees?select=*&order=created_at.asc`, {
-    headers: await supabaseAuthHeaders()
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "No se pudo leer el Directorio de Empleados.");
-  return data.map(employeeFromSupabase);
 }
 
 function getEmployeeRecords() {
@@ -1195,8 +1185,40 @@ function bindNotificationMenu() {
 function bindLoginDemo() {
   const form = document.querySelector("[data-login-form]");
   if (!form) return;
+
+  const loginCard = document.querySelector("[data-login-card]");
   const message = document.querySelector("[data-login-message]");
+  const inviteCard = document.querySelector("[data-invite-acceptance]");
+  const inviteForm = document.querySelector("[data-invite-password-form]");
+  const inviteMessage = document.querySelector("[data-invite-password-message]");
+  const recoveryCard = document.querySelector("[data-recovery-card]");
+  const recoveryForm = document.querySelector("[data-recovery-form]");
+  const recoveryMessage = document.querySelector("[data-recovery-message]");
   const reason = new URLSearchParams(window.location.search).get("reason");
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const invitationAccessToken = hash.get("access_token");
+  const invitationType = hash.get("type");
+
+  if (["invite", "recovery"].includes(invitationType) && invitationAccessToken && inviteCard && inviteForm) {
+    const expiresIn = Number(hash.get("expires_in") || 3600);
+    saveSupabaseSession({
+      access_token: invitationAccessToken,
+      refresh_token: hash.get("refresh_token") || "",
+      expires_in: expiresIn,
+      expires_at: Math.floor(Date.now() / 1000) + expiresIn,
+      token_type: hash.get("token_type") || "bearer"
+    });
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    if (loginCard) loginCard.hidden = true;
+    inviteCard.hidden = false;
+  } else if (hash.get("error_description")) {
+    if (message) {
+      message.textContent = hash.get("error_description");
+      message.className = "login-help error";
+    }
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  }
+
   if (message && reason === "idle") {
     message.textContent = "La sesión se cerró automáticamente por inactividad.";
     message.className = "login-help";
@@ -1205,6 +1227,89 @@ function bindLoginDemo() {
     message.textContent = "Sesión cerrada correctamente.";
     message.className = "login-help";
   }
+
+  document.querySelector("[data-recovery-toggle]")?.addEventListener("click", () => {
+    recoveryForm.elements.email.value = form.elements.username.value || "";
+    loginCard.hidden = true;
+    recoveryCard.hidden = false;
+  });
+  document.querySelector("[data-recovery-cancel]")?.addEventListener("click", () => {
+    recoveryCard.hidden = true;
+    loginCard.hidden = false;
+  });
+  recoveryForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = recoveryForm.querySelector('button[type="submit"]');
+    button.disabled = true;
+    recoveryMessage.textContent = "Solicitando enlace seguro...";
+    recoveryMessage.className = "login-help";
+    try {
+      await requestSupabasePasswordRecovery(String(new FormData(recoveryForm).get("email") || "").trim());
+      recoveryMessage.textContent = "Si el correo está registrado, recibirá un enlace para crear una nueva contraseña.";
+      recoveryMessage.className = "login-help success";
+    } catch (error) {
+      recoveryMessage.textContent = error.message || "No se pudo solicitar el enlace.";
+      recoveryMessage.className = "login-help error";
+    } finally { button.disabled = false; }
+  });
+
+  inviteForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const formData = new FormData(inviteForm);
+    const password = String(formData.get("password") || "");
+    const confirmation = String(formData.get("passwordConfirmation") || "");
+    const strongPassword = password.length >= 12 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
+
+    if (!strongPassword) {
+      if (inviteMessage) {
+        inviteMessage.textContent = "La contraseña debe tener 12 caracteres o más, con mayúscula, minúscula, número y símbolo.";
+        inviteMessage.className = "login-help error";
+      }
+      return;
+    }
+    if (password !== confirmation) {
+      if (inviteMessage) {
+        inviteMessage.textContent = "Las contraseñas no coinciden.";
+        inviteMessage.className = "login-help error";
+      }
+      return;
+    }
+
+    const submitButton = inviteForm.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+    if (inviteMessage) {
+      inviteMessage.textContent = "Activando la cuenta...";
+      inviteMessage.className = "login-help";
+    }
+
+    try {
+      const session = getSupabaseSession();
+      if (!session?.access_token) throw new Error("El enlace de invitación no es válido o expiró.");
+      const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        method: "PUT",
+        headers: {
+          ...supabaseHeaders(),
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ password })
+      });
+      const user = await response.json();
+      if (!response.ok) throw new Error(user.msg || user.message || "No se pudo crear la contraseña.");
+
+      saveSupabaseSession({ ...session, user });
+      localStorage.setItem(currentUserKey, user.user_metadata?.full_name || user.email || "Empleado");
+      localStorage.setItem(currentAccessLevelKey, "Empleado");
+      localStorage.removeItem(currentUserPhotoKey);
+      await refreshCurrentPermissions();
+      window.location.replace(postLoginDestination());
+    } catch (error) {
+      if (inviteMessage) {
+        inviteMessage.textContent = error.message || "No se pudo activar la cuenta.";
+        inviteMessage.className = "login-help error";
+      }
+      if (submitButton) submitButton.disabled = false;
+    }
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1223,7 +1328,8 @@ function bindLoginDemo() {
         localStorage.setItem(currentUserKey, profile?.full_name || session.user.email || username);
         localStorage.setItem(currentAccessLevelKey, profile?.role === "administrador" ? "Administrador" : profile?.role === "ejecutivo" ? "Ejecutivo" : "Empleado");
         localStorage.removeItem(currentUserPhotoKey);
-        window.location.href = "dashboard.html";
+        await refreshCurrentPermissions();
+        window.location.href = postLoginDestination();
         return;
       } catch (error) {
         clearLoginState(false);
@@ -1241,7 +1347,6 @@ function bindLoginDemo() {
     }
   });
 }
-
 function bindIdleLogout() {
   const timeoutMs = 8 * 60 * 1000;
   let timer = null;
@@ -1421,7 +1526,9 @@ function bindRentalForm() {
   const cancellation = document.querySelector("[data-rental-cancellation]");
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   const currentUser = () => localStorage.getItem(currentUserKey) || "Administrador";
-  const canAdjust = () => Boolean(getSupabaseSession()?.access_token) && ["Administrador", "Ejecutivo"].includes(currentAccessLevel());
+  const canAdjust = () => (typeof hasPermission === "function"
+    ? hasPermission("rentals.manage")
+    : (Boolean(getSupabaseSession()?.access_token) && ["Administrador", "Ejecutivo"].includes(currentAccessLevel())));
   const isAuthorizedAdmin = canAdjust();
   const canCreateInternalProduction = () => Boolean(getSupabaseSession()?.access_token) && currentAccessLevel() === "Administrador";
   const internalProductionControl = document.querySelector("[data-rental-internal-control]");
@@ -2239,7 +2346,7 @@ function bindInventoryModule() {
   let sortKey = "fecha";
   let sortDirection = "desc";
 
-  const canEditInventory = () => canManageEmployees();
+  const canEditInventory = () => hasPermission("inventory.manage");
   const saveRecords = async () => saveSystemCollection("inventario", "records", records);
   const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({
@@ -2431,34 +2538,6 @@ function bindInventoryModule() {
       form.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
-    if (deleteButton) {
-      if (!canEditInventory()) return;
-      const record = records.find((item) => item.id === deleteButton.dataset.inventoryDelete);
-      if (!record) return;
-      if (!confirm(`¿Eliminar el registro "${record.nombre}"?`)) return;
-      const nextRecords = records.filter((item) => item.id !== record.id);
-      const previousRecords = records;
-      try {
-        records = nextRecords;
-        await saveRecords();
-        renderRecords();
-        setMessage("Registro eliminado de Supabase.", "success");
-      } catch (error) {
-        records = previousRecords;
-        setMessage(`No se pudo eliminar en Supabase: ${error.message}`, "error");
-      }
-    }
-
-    if (sortButton) {
-      const nextSort = sortButton.dataset.inventorySort;
-      if (sortKey === nextSort) {
-        sortDirection = sortDirection === "asc" ? "desc" : "asc";
-      } else {
-        sortKey = nextSort;
-        sortDirection = "asc";
-      }
-      renderRecords();
-    }
   });
 
   if (cancelButton) {
@@ -2527,8 +2606,7 @@ function bindCalendarModules() {
   let records = [];
 
   const saveRecords = async () => saveSystemCollection(moduleKey, "records", records);
-  const currentAccessLevel = localStorage.getItem(currentAccessLevelKey) || "Empleado";
-  const canEdit = () => ["Ejecutivo", "Administrador"].includes(currentAccessLevel);
+  const canEdit = () => hasPermission("calendar.manage");
   const createId = () => {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
     return `calendar-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -2755,23 +2833,6 @@ function bindCalendarModules() {
       form.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
-    if (deleteButton) {
-      if (!canEdit()) return;
-      const record = records.find((item) => item.id === deleteButton.dataset.calendarDelete);
-      if (!record) return;
-      if (!confirm("¿Eliminar este registro del calendario?")) return;
-      const nextRecords = records.filter((item) => item.id !== record.id);
-      const previousRecords = records;
-      try {
-        records = nextRecords;
-        await saveRecords();
-        renderCalendar();
-        setMessage("Registro eliminado de Supabase.", "success");
-      } catch (error) {
-        records = previousRecords;
-        setMessage(`No se pudo eliminar en Supabase: ${error.message}`, "error");
-      }
-    }
   });
 
   panel.querySelector("[data-calendar-prev]")?.addEventListener("click", () => {
@@ -2950,20 +3011,216 @@ function bindMaterialsRequestModule() {
   loadMaterialRequests();
 }
 
+function bindAttendanceScheduleAdmin(module, employeeMap) {
+  const region = module.querySelector("[data-schedule-admin]");
+  if (!region || (!hasPermission("time.read.all") && !hasPermission("schedules.manage"))) return;
+  region.hidden = false;
+  const form = region.querySelector("[data-schedule-rule-form]");
+  const exceptionForm = region.querySelector("[data-schedule-exception-form]");
+  const list = region.querySelector("[data-schedule-rule-list]");
+  const upcomingList = region.querySelector("[data-schedule-upcoming-list]");
+  const message = region.querySelector("[data-schedule-message]");
+  const canManage = hasPermission("schedules.manage");
+  form.hidden = !canManage; exceptionForm.hidden = !canManage;
+  const employeeOptions = '<option value="">Seleccione un empleado</option>' + [...employeeMap.values()].map((employee) => `<option value="${safeHtml(employee.id)}">${safeHtml(employeeDisplayName(employee))}</option>`).join("");
+  form.elements.employeeId.innerHTML = employeeOptions; exceptionForm.elements.employeeId.innerHTML = employeeOptions;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" }).format(new Date());
+  form.elements.effectiveFrom.value = today; exceptionForm.elements.exceptionDate.value = today;
+  const dayNames = { 1: "Lun", 2: "Mar", 3: "Mie", 4: "Jue", 5: "Vie", 6: "Sab", 7: "Dom" };
+  let activeRules = [];
+  const showMessage = (text, type = "") => { message.textContent = text; message.className = `form-message ${type}`.trim(); };
+  const resetEdit = () => { form.reset(); form.elements.effectiveFrom.value=today; form.elements.startsLocal.value="08:00"; form.elements.endsLocal.value="16:00"; form.elements.lunchMinutes.value="60"; form.elements.supersedesRuleId.value=""; region.querySelector("[data-schedule-submit]").textContent="Crear regla recurrente"; region.querySelector("[data-schedule-cancel-edit]").hidden=true; };
+  const refreshRuleOptions = () => { const employeeId=exceptionForm.elements.employeeId.value; exceptionForm.elements.ruleId.innerHTML='<option value="">Seleccione una regla</option>'+activeRules.filter(r=>!employeeId||r.employee_id===employeeId).map(r=>`<option value="${safeHtml(r.id)}">${safeHtml((r.weekdays||[]).map(d=>dayNames[d]).join(", "))} · ${safeHtml(String(r.starts_local).slice(0,5))}-${safeHtml(String(r.ends_local).slice(0,5))}</option>`).join(""); };
+  const load = async () => {
+    try {
+      const [rules, shifts] = await Promise.all([fetchSupabaseScheduleRules(), fetchSupabaseUpcomingShifts(30)]); activeRules=rules; refreshRuleOptions();
+      list.innerHTML = rules.length ? rules.map((rule) => { const employee=employeeMap.get(rule.employee_id); const days=(rule.weekdays||[]).map(d=>dayNames[d]).join(", "); const until=rule.effective_until?` hasta ${rule.effective_until}`:" sin fecha final"; return `<article class="schedule-rule-item" data-rule-id="${safeHtml(rule.id)}"><div><strong>${safeHtml(employee?employeeDisplayName(employee):"Empleado")}</strong><span>${safeHtml(days)} · ${safeHtml(String(rule.starts_local).slice(0,5))}-${safeHtml(String(rule.ends_local).slice(0,5))}</span><small>Desde ${safeHtml(rule.effective_from)}${safeHtml(until)} · ${safeHtml(rule.shift_type)} · v${Number(rule.version_no||1)}</small></div>${canManage?`<div class="schedule-rule-actions"><button class="button secondary" type="button" data-edit-rule="${safeHtml(rule.id)}">Editar</button><button class="button secondary" type="button" data-deactivate-rule="${safeHtml(rule.id)}">Desactivar</button></div>`:'<span class="attendance-status is-complete">Activa</span>'}</article>`; }).join(""):'<p>No hay reglas recurrentes configuradas.</p>';
+      upcomingList.innerHTML=shifts.length?shifts.map(shift=>{const employee=employeeMap.get(shift.employee_id);return `<article class="schedule-upcoming-item"><strong>${safeHtml(employee?employeeDisplayName(employee):"Empleado")}</strong><span>${formatPortalDate(shift.starts_at,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})} - ${formatPortalDate(shift.ends_at,{hour:"numeric",minute:"2-digit"})}</span><small>${safeHtml(shift.shift_type)}</small></article>`;}).join(""):'<p>No hay turnos futuros.</p>';
+    } catch(error){showMessage(providerNeutralMessage(error,"No se pudo cargar la programacion."),"error");}
+  };
+  exceptionForm.elements.employeeId.addEventListener("change",refreshRuleOptions);
+  exceptionForm.elements.exceptionType.addEventListener("change",()=>{const needsTime=exceptionForm.elements.exceptionType.value!=="cancelled";exceptionForm.elements.startsLocal.required=needsTime;exceptionForm.elements.endsLocal.required=needsTime;});
+  region.querySelector("[data-schedule-cancel-edit]").addEventListener("click",resetEdit);
+  list.addEventListener("click",async(event)=>{const edit=event.target.closest("[data-edit-rule]");const deactivate=event.target.closest("[data-deactivate-rule]");if(edit){const rule=activeRules.find(r=>r.id===edit.dataset.editRule);if(!rule)return;form.elements.employeeId.value=rule.employee_id;form.elements.employeeId.disabled=true;form.elements.startsLocal.value=String(rule.starts_local).slice(0,5);form.elements.endsLocal.value=String(rule.ends_local).slice(0,5);form.elements.lunchMinutes.value=rule.expected_lunch_minutes??"";form.elements.effectiveFrom.value=rule.effective_from;form.elements.effectiveUntil.value=rule.effective_until||"";form.elements.shiftType.value=rule.shift_type;form.elements.supersedesRuleId.value=rule.id;form.querySelectorAll('[name="weekday"]').forEach(box=>box.checked=(rule.weekdays||[]).includes(Number(box.value)));region.querySelector("[data-schedule-submit]").textContent="Guardar nueva version";region.querySelector("[data-schedule-cancel-edit]").hidden=false;form.scrollIntoView({behavior:"smooth",block:"center"});}if(deactivate){const reason=window.prompt("Motivo para desactivar esta regla:");if(!reason)return;try{await deactivateSupabaseScheduleRule(deactivate.dataset.deactivateRule,reason);showMessage("Regla desactivada. Los turnos historicos se conservaron.","success");await load();}catch(error){showMessage(error.message||"No se pudo desactivar.","error");}}});
+  form.addEventListener("submit",async(event)=>{event.preventDefault();const data=new FormData(form);const weekdays=data.getAll("weekday").map(Number);if(!weekdays.length){showMessage("Seleccione al menos un dia.","error");return;}const button=region.querySelector("[data-schedule-submit]");button.disabled=true;try{const employeeId=form.elements.employeeId.value;const result=await createSupabaseScheduleRule({employee_id:employeeId,weekdays,starts_local:data.get("startsLocal"),ends_local:data.get("endsLocal"),expected_lunch_minutes:data.get("lunchMinutes"),effective_from:data.get("effectiveFrom"),effective_until:data.get("effectiveUntil"),shift_type:data.get("shiftType"),timezone:"America/Puerto_Rico",supersedes_rule_id:data.get("supersedesRuleId")});showMessage(`Regla guardada. ${Number(result.generated_shifts||0)} turnos nuevos.`,"success");form.elements.employeeId.disabled=false;resetEdit();await load();}catch(error){showMessage(error.message||"No se pudo guardar la regla.","error");}finally{button.disabled=false;}});
+  exceptionForm.addEventListener("submit",async(event)=>{event.preventDefault();const data=new FormData(exceptionForm);const button=exceptionForm.querySelector('button[type="submit"]');button.disabled=true;try{await createSupabaseScheduleException({employee_id:data.get("employeeId"),rule_id:data.get("ruleId"),exception_date:data.get("exceptionDate"),exception_type:data.get("exceptionType"),starts_local:data.get("startsLocal"),ends_local:data.get("endsLocal"),shift_type:"regular",reason:data.get("reason")});showMessage("Excepcion guardada sin eliminar historial.","success");exceptionForm.reset();exceptionForm.elements.exceptionDate.value=today;await load();}catch(error){showMessage(error.message||"No se pudo guardar la excepcion.","error");}finally{button.disabled=false;}});
+  load();
+}
+
+function providerNeutralMessage(error, fallback) {
+  return String(error?.message || fallback || "No se pudo completar la operación.")
+    .replace(/Supabase Authentication/gi, "el servicio de identidad")
+    .replace(/Supabase/gi, "el servicio");
+}
+
+function bindAttendanceCorrectionReview(module, employeeMap) {
+  const region = module.querySelector("[data-attendance-corrections]");
+  if (!region || !hasPermission("attendance.corrections.approve")) return;
+  region.hidden = false;
+  const list = region.querySelector("[data-attendance-correction-list]");
+  const message = region.querySelector("[data-attendance-correction-message]");
+  const refreshButton = region.querySelector("[data-corrections-refresh]");
+  const labels = { clock_in: "Entrada", lunch_out: "Salida a almuerzo", lunch_in: "Regreso de almuerzo", clock_out: "Salida final" };
+  const setMessage = (text, type = "") => { message.textContent = text; message.className = `form-message ${type}`.trim(); };
+  const load = async () => {
+    refreshButton.disabled = true;
+    try {
+      const requests = await fetchSupabasePendingCorrections();
+      list.innerHTML = requests.length ? requests.map((request) => {
+        const employee = employeeMap.get(request.employee_id);
+        return `<article class="attendance-correction-item" data-correction-id="${safeHtml(request.id)}"><div><strong>${safeHtml(employee ? employeeDisplayName(employee) : "Empleado")}</strong><span>${safeHtml(labels[request.requested_event_type] || request.requested_event_type)} · ${formatPortalDate(request.requested_occurred_at, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span><small>${safeHtml(request.reason)}</small><small>Solicitada ${formatPortalDate(request.requested_at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></div><div class="attendance-correction-actions"><button class="button" type="button" data-correction-decision="approved">Aprobar</button><button class="button secondary" type="button" data-correction-decision="rejected">Rechazar</button></div></article>`;
+      }).join("") : "<p>No hay solicitudes pendientes.</p>";
+      setMessage(requests.length ? `${requests.length} solicitud${requests.length === 1 ? "" : "es"} pendiente${requests.length === 1 ? "" : "s"}.` : "Bandeja al dia.", "success");
+    } catch (error) { setMessage(providerNeutralMessage(error, "No se pudieron cargar las solicitudes."), "error"); }
+    finally { refreshButton.disabled = false; }
+  };
+  list.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-correction-decision]");
+    if (!button) return;
+    const requestId = button.closest("[data-correction-id]")?.dataset.correctionId;
+    const decision = button.dataset.correctionDecision;
+    const reason = window.prompt(decision === "approved" ? "Motivo de aprobacion:" : "Motivo del rechazo:");
+    if (!requestId || !reason) return;
+    button.disabled = true;
+    try {
+      await decideSupabaseAttendanceCorrection(requestId, decision, reason);
+      setMessage(decision === "approved" ? "Correccion aprobada y registrada sin alterar el original." : "Solicitud rechazada y conservada en el historial.", "success");
+      await load();
+    } catch (error) { setMessage(providerNeutralMessage(error, "No se pudo registrar la decision."), "error"); }
+    finally { button.disabled = false; }
+  });
+  refreshButton.addEventListener("click", load);
+  load();
+}
+
+function bindHrAttendanceView() {
+  const module = document.querySelector("[data-attendance-module]");
+  if (!module || !hasPermission("time.read.all")) return;
+  module.hidden = true;
+  const directorySection = document.querySelector("[data-employee-directory-section]");
+  const directory = document.querySelector("[data-employee-directory]");
+  const createButton = document.querySelector("[data-employee-create]");
+  const closeButton = module.querySelector("[data-attendance-close]");
+  const form = module.querySelector("[data-attendance-filters]");
+  const employeeSelect = module.querySelector("[data-attendance-employee]");
+  const summary = module.querySelector("[data-attendance-summary]");
+  const body = module.querySelector("[data-attendance-body]");
+  const message = module.querySelector("[data-attendance-message]");
+  const refreshButton = module.querySelector("[data-attendance-refresh]");
+  const employeeMap = new Map(getEmployeeRecords().map((employee) => [employee.id, employee]));
+  bindAttendanceScheduleAdmin(module, employeeMap);
+  bindAttendanceCorrectionReview(module, employeeMap);
+  const today = new Date();
+  const localDate = (date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" }).format(date);
+  form.elements.to.value = localDate(today);
+  form.elements.from.value = localDate(new Date(today.getFullYear(), today.getMonth(), 1));
+  employeeSelect.innerHTML = '<option value="">Todos los empleados</option>' + getEmployeeRecords().map((employee) => `<option value="${safeHtml(employee.id)}">${safeHtml(employeeDisplayName(employee))}</option>`).join("");
+
+  const formatTime = (value) => value ? formatPortalDate(value, { hour: "numeric", minute: "2-digit" }) : "Pendiente";
+  const formatDate = (value) => formatPortalDate(value, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+  const durationHours = (entry) => entry.clock_out ? Math.max(0, (new Date(entry.clock_out) - new Date(entry.clock_in)) / 3600000) : 0;
+  const setMessage = (text, type = "") => { message.textContent = text; message.className = `form-message ${type}`.trim(); };
+
+  const render = (entries) => {
+    const completed = entries.filter((entry) => entry.clock_out);
+    const open = entries.length - completed.length;
+    const totalHours = completed.reduce((total, entry) => total + durationHours(entry), 0);
+    const employees = new Set(entries.map((entry) => entry.employee_id)).size;
+    summary.innerHTML = [
+      ["Registros", entries.length],
+      ["Empleados", employees],
+      ["Horas completadas", totalHours.toLocaleString("es-PR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+      ["Ponches abiertos", open]
+    ].map(([label, value]) => `<article><span>${label}</span><strong>${value}</strong></article>`).join("");
+    if (!entries.length) {
+      body.innerHTML = '<tr><td colspan="6">No hay registros para los filtros seleccionados.</td></tr>';
+      return;
+    }
+    body.innerHTML = entries.map((entry) => {
+      const employee = employeeMap.get(entry.employee_id);
+      const name = employee ? employeeDisplayName(employee) : "Empleado no disponible";
+      const duration = entry.clock_out ? `${durationHours(entry).toLocaleString("es-PR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h` : "En curso";
+      return `<tr><td><strong>${safeHtml(name)}</strong></td><td>${formatDate(entry.clock_in)}</td><td>${formatTime(entry.clock_in)}</td><td>${formatTime(entry.clock_out)}</td><td>${duration}</td><td><span class="attendance-status ${entry.clock_out ? "is-complete" : "is-open"}">${entry.clock_out ? "Completado" : "Activo"}</span></td></tr>`;
+    }).join("");
+  };
+
+  const load = async () => {
+    const data = new FormData(form);
+    const from = String(data.get("from") || "");
+    const to = String(data.get("to") || "");
+    if (from && to && from > to) { setMessage("La fecha inicial no puede ser posterior a la fecha final.", "error"); return; }
+    setMessage("CONSULTANDO ASISTENCIA...");
+    refreshButton.disabled = true;
+    try {
+      const entries = await fetchSupabaseAttendance({ from, to, employeeId: String(data.get("employeeId") || "") });
+      render(entries);
+      setMessage("ASISTENCIA ACTUALIZADA.", "success");
+    } catch (error) {
+      body.innerHTML = '<tr><td colspan="6">No se pudo cargar la asistencia.</td></tr>';
+      setMessage(providerNeutralMessage(error, "No se pudo consultar la asistencia."), "error");
+    } finally { refreshButton.disabled = false; }
+  };
+  form.addEventListener("submit", (event) => { event.preventDefault(); load(); });
+  refreshButton.addEventListener("click", load);
+  directory?.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-open-attendance]");
+    if (!trigger) return;
+    const employeeId = trigger.dataset.openAttendance;
+    directorySection.hidden = true;
+    if (createButton) createButton.hidden = true;
+    module.hidden = false;
+    employeeSelect.value = employeeId;
+    module.querySelectorAll('[name="employeeId"]').forEach((select) => { if ([...select.options].some((option) => option.value === employeeId)) select.value = employeeId; });
+    load();
+    module.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  closeButton?.addEventListener("click", () => {
+    module.hidden = true;
+    directorySection.hidden = false;
+    if (createButton) createButton.hidden = false;
+    directorySection.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
 function bindHumanResourcesModule() {
   const module = document.querySelector("[data-hr-module]");
   if (!module) return;
 
   const directory = module.querySelector("[data-employee-directory]");
   const form = module.querySelector("[data-employee-form]");
+  const createButton = module.querySelector("[data-employee-create]");
   const submitButton = module.querySelector("[data-employee-submit]");
   const cancelButton = module.querySelector("[data-employee-cancel]");
+  const closeButton = module.querySelector("[data-employee-close]");
   const message = module.querySelector("[data-employee-message]");
   const photoInput = module.querySelector("[data-employee-photo-picker]");
   const photoTrigger = module.querySelector("[data-employee-photo-trigger]");
   const photoStatus = module.querySelector("[data-employee-photo-status]");
   let selectedPhoto = "";
   let supabaseProfile = null;
+  const canReadSensitiveEmployeeData = () => hasPermission("compensation.read") && hasPermission("emergency_contact.read");
+  const canManageSensitiveEmployeeData = () => hasPermission("compensation.manage") && hasPermission("emergency_contact.manage");
+  module.querySelectorAll("[data-compensation-section], [data-emergency-section]").forEach((section) => { section.hidden = !canReadSensitiveEmployeeData(); });
+
+  const updateMonthlyEquivalent = () => {
+    const rate = Number(form.elements.hourlyRate?.value || 0), hours = Number(form.elements.standardHoursWeek?.value || 0), salary = Number(form.elements.salaryAmount?.value || 0), period = form.elements.salaryPeriod?.value;
+    const factors = { weekly: 52 / 12, biweekly: 26 / 12, semimonthly: 2, monthly: 1, annual: 1 / 12 };
+    const value = form.elements.compensationType?.value === "hourly" ? rate * hours * 52 / 12 : salary * (factors[period] || 0);
+    if (form.elements.monthlyEquivalent) form.elements.monthlyEquivalent.value = value ? value.toLocaleString("es-PR", { style: "currency", currency: "USD" }) : "";
+  };
+  ["compensationType","hourlyRate","standardHoursWeek","salaryAmount","salaryPeriod"].forEach((name) => form.elements[name]?.addEventListener("input", updateMonthlyEquivalent));
+
+  const sensitiveEmployeePayload = (data) => ({
+    compensation: { compensation_type:data.get("compensationType"),hourly_rate:data.get("hourlyRate"),salary_amount:data.get("salaryAmount"),salary_period:data.get("salaryPeriod"),pay_frequency:data.get("payFrequency"),standard_hours_week:data.get("standardHoursWeek"),overtime_eligible:data.get("overtimeEligible"),bonus_type:data.get("bonusType"),bonus_amount:data.get("bonusAmount"),bonus_percent:data.get("bonusPercent"),other_description:data.get("compensationOther"),effective_from:data.get("compensationEffectiveFrom") },
+    emergencyContact: { full_name:data.get("emergencyName"),relationship:data.get("emergencyRelationship"),primary_phone:data.get("emergencyPrimaryPhone"),alternate_phone:data.get("emergencyAlternatePhone"),email:data.get("emergencyEmail"),notes:data.get("emergencyNotes") }
+  });
+
+  const loadSensitiveEmployeeData = async (employeeId) => {
+    if (!canReadSensitiveEmployeeData() || !employeeId) return;
+    const { compensation:c, emergencyContact:e } = await fetchSupabaseEmployeeSensitiveDetails(employeeId);
+    const values={compensationType:c?.compensation_type||"unconfigured",hourlyRate:c?.hourly_rate??"",salaryAmount:c?.salary_amount??"",salaryPeriod:c?.salary_period||"",payFrequency:c?.pay_frequency||"",standardHoursWeek:c?.standard_hours_week??"",overtimeEligible:String(c?.overtime_eligible??true),bonusType:c?.bonus_type||"none",bonusAmount:c?.bonus_amount??"",bonusPercent:c?.bonus_percent??"",compensationOther:c?.other_description||"",compensationEffectiveFrom:c?.effective_from||"",emergencyName:e?.full_name||"",emergencyRelationship:e?.relationship||"",emergencyPrimaryPhone:e?.primary_phone||"",emergencyAlternatePhone:e?.alternate_phone||"",emergencyEmail:e?.email||"",emergencyNotes:e?.notes||""};
+    Object.entries(values).forEach(([name,value])=>{if(form.elements[name])form.elements[name].value=value;}); updateMonthlyEquivalent();
+  };
 
   const setMessage = (text, type = "") => {
     if (!message) return;
@@ -2982,18 +3239,15 @@ function bindHumanResourcesModule() {
     const records = getEmployeeRecords();
     directory.innerHTML = records.map((employee) => {
       const isInactive = employee.estado === "Inactivo";
-      const deleteButton = canDeleteEmployees()
-        ? `<button type="button" data-employee-delete="${employee.id}">Eliminar</button>`
-        : "";
       const profileLink = canManageEmployees()
         ? `<a href="perfil-empleado.html?empleado=${encodeURIComponent(employee.id)}">Ver Perfil</a>`
         : "";
+      const attendanceAction = hasPermission("time.read.all") ? `<button type="button" data-open-attendance="${employee.id}">Registro de asistencia</button>` : "";
       const adminActions = canManageEmployees()
         ? `
           <button type="button" data-employee-edit="${employee.id}">Editar</button>
-          <button type="button" data-employee-reset="${employee.id}">Restablecer contraseña</button>
+          <button type="button" data-employee-reset="${employee.id}" hidden aria-hidden="true">Restablecer contraseña</button>
           <button type="button" data-employee-toggle="${employee.id}">${isInactive ? "Activar" : "Desactivar"}</button>
-          ${deleteButton}
         `
         : "";
 
@@ -3006,6 +3260,7 @@ function bindHumanResourcesModule() {
           </span>
           <span class="employee-actions">
             ${profileLink}
+            ${attendanceAction}
             ${adminActions}
           </span>
         </article>
@@ -3016,23 +3271,23 @@ function bindHumanResourcesModule() {
   const syncDirectoryFromSupabase = async () => {
     const session = getSupabaseSession();
     if (!session?.access_token) {
-      setMessage("Directorio en modo local. Entre a su cuenta para sincronizar con Supabase.");
+      setMessage("DIRECTORIO EN MODO LOCAL. ENTRE A SU CUENTA PARA SINCRONIZAR.");
       return;
     }
 
     try {
-      setMessage("Sincronizando Directorio de Empleados con Supabase...");
+      setMessage("SINCRONIZANDO DIRECTORIO DE EMPLEADOS...");
       supabaseProfile = await fetchSupabaseProfile();
       const records = await fetchSupabaseEmployees();
       if (records.length) {
         saveEmployeeRecords(records);
         renderDirectory();
-        setMessage("Directorio sincronizado con Supabase.", "success");
+        setMessage("DIRECTORIO SINCRONIZADO.", "success");
       } else {
-        setMessage("Supabase está conectado, pero todavía no hay empleados registrados.", "success");
+        setMessage("DIRECTORIO CONECTADO. AUN NO HAY EMPLEADOS REGISTRADOS.", "success");
       }
     } catch (error) {
-      setMessage("No se pudo sincronizar con Supabase. Se muestra el directorio local.", "error");
+      setMessage("NO SE PUDO SINCRONIZAR. SE MUESTRA EL DIRECTORIO LOCAL.", "error");
     }
   };
 
@@ -3044,9 +3299,28 @@ function bindHumanResourcesModule() {
     if (photoStatus) photoStatus.textContent = "Ninguna fotografía seleccionada.";
     if (submitButton) submitButton.textContent = "Crear Empleado";
     if (cancelButton) cancelButton.hidden = true;
+    updateMonthlyEquivalent();
   };
 
-  const loadForm = (employee) => {
+  const showForm = () => {
+    form.hidden = false;
+    if (createButton) {
+      createButton.hidden = true;
+      createButton.setAttribute("aria-expanded", "true");
+    }
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const hideForm = () => {
+    form.hidden = true;
+    if (createButton) {
+      createButton.hidden = !canManageEmployees();
+      createButton.setAttribute("aria-expanded", "false");
+    }
+  };
+
+  const loadForm = async (employee) => {
+    showForm();
     Object.entries(employee).forEach(([key, value]) => {
       const field = form.elements[key];
       if (field && key !== "foto") field.value = value || "";
@@ -3056,12 +3330,18 @@ function bindHumanResourcesModule() {
     if (photoStatus) photoStatus.textContent = selectedPhoto ? "Fotografía existente cargada." : "Ninguna fotografía seleccionada.";
     if (submitButton) submitButton.textContent = "Actualizar Empleado";
     if (cancelButton) cancelButton.hidden = false;
+    await loadSensitiveEmployeeData(employee.id).catch(() => setMessage("No se pudieron cargar los datos sensibles del empleado.", "error"));
     form.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  if (!canManageEmployees()) {
-    form.hidden = true;
-  }
+  form.hidden = true;
+  if (createButton) createButton.hidden = !canManageEmployees();
+
+  createButton?.addEventListener("click", () => {
+    resetForm();
+    setMessage("");
+    showForm();
+  });
 
   photoTrigger?.addEventListener("click", () => {
     photoInput?.click();
@@ -3132,52 +3412,41 @@ function bindHumanResourcesModule() {
       try {
         if (!supabaseProfile) supabaseProfile = await fetchSupabaseProfile();
         if (!supabaseProfile?.museum_id) throw new Error("No se encontró el museo asociado al perfil.");
-        const payload = employeeToSupabasePayload(employee, supabaseProfile.museum_id);
-        const isSupabaseId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-        const url = isSupabaseId
-          ? `${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(id)}`
-          : `${supabaseUrl}/rest/v1/employees`;
-        const response = await fetch(url, {
-          method: isSupabaseId ? "PATCH" : "POST",
-          headers: {
-            ...(await supabaseAuthHeaders()),
-            Prefer: "return=representation"
-          },
-          body: JSON.stringify(payload)
-        });
-        const saved = await response.json();
-        if (!response.ok) throw new Error(saved.message || "No se pudo guardar el empleado en Supabase.");
+        const savedEmployee = await saveSupabaseEmployee(employee, supabaseProfile.museum_id, id);
+        const savedEmployeeId = savedEmployee[0]?.id || id;
+        if (canManageSensitiveEmployeeData()) { const sensitive = sensitiveEmployeePayload(data); await saveSupabaseEmployeeSensitiveDetails(savedEmployeeId, sensitive.compensation, sensitive.emergencyContact); }
+
         const syncedRecords = await fetchSupabaseEmployees();
         saveEmployeeRecords(syncedRecords);
         renderDirectory();
         resetForm();
-        setMessage(existing ? "Empleado actualizado en Supabase." : "Empleado creado en Supabase y agregado al directorio.", "success");
+        hideForm();
+        setMessage(existing ? "EMPLEADO ACTUALIZADO." : "EMPLEADO CREADO Y AGREGADO AL DIRECTORIO.", "success");
         return;
       } catch (error) {
-        setMessage(`No se pudo guardar en Supabase: ${error.message}. No se guardó una copia local para evitar datos distintos entre computadoras.`, "error");
+        setMessage(`${providerNeutralMessage(error, "No se pudo guardar el empleado.")} No se guardó una copia local para evitar datos distintos entre computadoras.`, "error");
         return;
       }
     }
 
-    setMessage("Entre a Supabase antes de crear o editar empleados. No se guardó una copia local.", "error");
+    setMessage("ENTRE A SU CUENTA ANTES DE CREAR O EDITAR EMPLEADOS. NO SE GUARDO UNA COPIA LOCAL.", "error");
   });
 
   directory.addEventListener("click", async (event) => {
     const editButton = event.target.closest("[data-employee-edit]");
     const resetButton = event.target.closest("[data-employee-reset]");
     const toggleButton = event.target.closest("[data-employee-toggle]");
-    const deleteButton = event.target.closest("[data-employee-delete]");
     const records = getEmployeeRecords();
 
     if (editButton) {
       const employee = records.find((item) => item.id === editButton.dataset.employeeEdit);
-      if (employee) loadForm(employee);
+      if (employee) await loadForm(employee);
     }
 
     if (resetButton) {
       const employee = records.find((item) => item.id === resetButton.dataset.employeeReset);
       if (!employee) return;
-      setMessage("El restablecimiento real de contraseña debe hacerse desde Supabase Authentication o desde un backend seguro.", "error");
+      setMessage("EL RESTABLECIMIENTO DE CONTRASEÑA DEBE HACERSE DESDE EL SERVICIO SEGURO DE IDENTIDAD.", "error");
     }
 
     if (toggleButton) {
@@ -3186,21 +3455,14 @@ function bindHumanResourcesModule() {
       const estado = employee.estado === "Inactivo" ? "Activo" : "Inactivo";
       const session = getSupabaseSession();
       if (!session?.access_token || employee.source !== "supabase") {
-        setMessage("Entre a Supabase antes de activar o desactivar empleados.", "error");
+        setMessage("ENTRE A SU CUENTA ANTES DE ACTIVAR O DESACTIVAR EMPLEADOS.", "error");
         return;
       }
       try {
-        const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employee.id)}`, {
-          method: "PATCH",
-          headers: await supabaseAuthHeaders(),
-          body: JSON.stringify({ status: estado === "Inactivo" ? "inactivo" : "activo" })
-        });
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.message || "No se pudo actualizar el estado en Supabase.");
-        }
+        await updateSupabaseEmployeeStatus(employee.id, estado);
+
       } catch (error) {
-        setMessage(`No se pudo actualizar Supabase: ${error.message}`, "error");
+        setMessage(providerNeutralMessage(error, "No se pudo actualizar el empleado."), "error");
         return;
       }
       saveEmployeeRecords(records.map((item) => item.id === employee.id ? { ...item, estado } : item));
@@ -3208,41 +3470,23 @@ function bindHumanResourcesModule() {
       setMessage(`Empleado ${estado.toLowerCase()} correctamente.`, "success");
     }
 
-    if (deleteButton) {
-      if (!canDeleteEmployees()) return;
-      const employee = records.find((item) => item.id === deleteButton.dataset.employeeDelete);
-      if (!employee || !confirm(`¿Eliminar a ${employeeDisplayName(employee)} del directorio?`)) return;
-      const session = getSupabaseSession();
-      if (!session?.access_token || employee.source !== "supabase") {
-        setMessage("Entre a Supabase antes de eliminar empleados.", "error");
-        return;
-      }
-      try {
-        const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(employee.id)}`, {
-          method: "DELETE",
-          headers: await supabaseAuthHeaders()
-        });
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.message || "No se pudo eliminar el empleado en Supabase.");
-        }
-      } catch (error) {
-        setMessage(`No se pudo eliminar en Supabase: ${error.message}`, "error");
-        return;
-      }
-      saveEmployeeRecords(records.filter((item) => item.id !== employee.id));
-      renderDirectory();
-      setMessage("Empleado eliminado del directorio.", "success");
-    }
   });
 
   cancelButton?.addEventListener("click", () => {
     resetForm();
+    hideForm();
+    setMessage("");
+  });
+
+  closeButton?.addEventListener("click", () => {
+    resetForm();
+    hideForm();
     setMessage("");
   });
 
   renderDirectory();
   syncDirectoryFromSupabase();
+  bindHrAttendanceView();
 }
 
 function populateSystemDataSelects() {
@@ -3272,7 +3516,7 @@ function bindNotificationsModule() {
 
   const list = module.querySelector("[data-notifications-list]");
   const message = module.querySelector("[data-notifications-message]");
-  const canEdit = canManageEmployees();
+  const canEdit = hasPermission("notifications.manage");
   let preferences = {};
   const notificationTypes = [
     { key: "temperatura", label: "Temp./Humedad", source: "Sensores ambientales" },
@@ -3305,9 +3549,13 @@ function bindNotificationsModule() {
     </label>
   `;
 
+  const validNotificationRecipients = () => getEmployeeRecords().filter((employee) =>
+    employee.source === "supabase" && employee.estado !== "Inactivo"
+  );
+
   const render = () => {
-    const employees = getEmployeeRecords();
-    list.innerHTML = employees.map((employee) => {
+    const employees = validNotificationRecipients();
+    list.innerHTML = employees.length ? employees.map((employee) => {
       const prefs = employeePreferences(preferences, employee.id);
       return `
         <tr>
@@ -3319,7 +3567,7 @@ function bindNotificationsModule() {
           ${notificationTypes.map((type) => `<td>${renderToggle(employee, type, Boolean(prefs[type.key]))}</td>`).join("")}
         </tr>
       `;
-    }).join("");
+    }).join("") : `<tr><td colspan="7">No hay empleados activos de Supabase disponibles para configurar.</td></tr>`;
 
     setMessage(canEdit
       ? "Preferencias cargadas desde Supabase y listas para futuras integraciones."
@@ -3333,6 +3581,13 @@ function bindNotificationsModule() {
 
     const employeeId = toggle.dataset.employeeId;
     const type = toggle.dataset.notificationType;
+    const employee = validNotificationRecipients().find((record) => record.id === employeeId);
+    const notificationType = notificationTypes.find((record) => record.key === type);
+    if (!employee || !notificationType) {
+      toggle.checked = Boolean(employeePreferences(preferences, employeeId)[type]);
+      setMessage("Solo se pueden guardar preferencias para empleados activos sincronizados desde Supabase.", "error");
+      return;
+    }
     preferences[employeeId] = employeePreferences(preferences, employeeId);
     preferences[employeeId][type] = toggle.checked;
     try {
@@ -3383,11 +3638,7 @@ function bindFinanceModule() {
   if (summary) summary.innerHTML = "";
   if (panel) panel.innerHTML = "";
 
-  const allowedUsers = {
-    "Guillermo Torres": "museo2026",
-    "Alberto Soto": "museo2026",
-    "Contable del Museo": "museo2026"
-  };
+
   let activeTab = "resumen";
   let currentUser = "";
   let currentProfile = null;
@@ -4048,23 +4299,7 @@ function bindFinanceModule() {
     URL.revokeObjectURL(link.href);
   };
 
-  loginForm?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const data = new FormData(loginForm);
-    const user = data.get("usuario");
-    const password = data.get("password");
-    if (allowedUsers[user] !== password) {
-      loginMessage.textContent = "Credenciales inválidas.";
-      loginMessage.className = "form-message error";
-      return;
-    }
-    currentUser = user;
-    if (!getSupabaseSession()?.access_token) {
-      showFinanceGateError("Finanzas requiere una sesión activa de Supabase. Entre primero por Mi cuenta.");
-      return;
-    }
-    openModule();
-  });
+
 
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -4105,7 +4340,11 @@ function bindFinanceModule() {
     button.addEventListener("click", () => exportQuickBooks(button.dataset.qbExport));
   });
 
-  if (getSupabaseSession()?.access_token && canManageEmployees()) {
+  if (!getSupabaseSession()?.access_token) {
+    showFinanceGateError("Finanzas requiere una sesión activa de Supabase. Entre primero por Mi cuenta.");
+  } else if (!hasPermission("finance.read")) {
+    showFinanceGateError("Su cuenta no tiene el permiso finance.read para abrir Finanzas.");
+  } else {
     openModule();
   }
 }
@@ -4140,6 +4379,7 @@ function bindEmployeeProfile() {
   const photoRemove = document.querySelector("[data-employee-photo-remove]");
   const photoMessage = document.querySelector("[data-employee-photo-message]");
   const saveButton = document.querySelector("[data-profile-save]");
+  const inviteButton = document.querySelector("[data-profile-invite]");
   const profileMessage = document.querySelector("[data-profile-message]");
 
   const setProfileMessage = (text, type = "") => {
@@ -4148,9 +4388,18 @@ function bindEmployeeProfile() {
     profileMessage.className = `form-message ${type}`.trim();
   };
 
+  const updateInviteButton = () => {
+    if (!inviteButton) return;
+    const canInvite = hasPermission("users.invite") && profile.source === "supabase";
+    inviteButton.hidden = !canInvite;
+    inviteButton.disabled = Boolean(profile.authUserId);
+    inviteButton.textContent = profile.authUserId ? "Acceso vinculado" : "Enviar invitación";
+  };
+
   if (avatar) avatar.textContent = profile.avatar || employeeInitials(profile);
   if (name) name.textContent = employeeDisplayName(profile);
   if (position) position.textContent = profile.posicion;
+  updateInviteButton();
 
   document.querySelectorAll("[data-profile-field]").forEach((field) => {
     const value = profile[field.dataset.profileField] || "";
@@ -4207,6 +4456,23 @@ function bindEmployeeProfile() {
     });
   }
 
+  inviteButton?.addEventListener("click", async () => {
+    if (profile.authUserId) return;
+    if (!window.confirm(`Se enviará una invitación al correo del expediente de ${employeeDisplayName(profile)}. ¿Desea continuar?`)) return;
+
+    inviteButton.disabled = true;
+    setProfileMessage("Enviando invitación segura...", "success");
+    try {
+      const result = await inviteSupabaseEmployee(profile.id);
+      profile = { ...profile, authUserId: result.user_id };
+      updateInviteButton();
+      setProfileMessage("Invitación enviada e identidad vinculada correctamente.", "success");
+    } catch (error) {
+      updateInviteButton();
+      setProfileMessage(`No se pudo enviar la invitación: ${error.message}`, "error");
+    }
+  });
+
   saveButton?.addEventListener("click", async () => {
     const updatedProfile = { ...profile, foto: pendingPhoto };
     document.querySelectorAll("[data-profile-field]").forEach((field) => {
@@ -4219,16 +4485,8 @@ function bindEmployeeProfile() {
     if (session?.access_token && profile.source === "supabase") {
       try {
         const supabaseProfile = await fetchSupabaseProfile();
-        const payload = employeeToSupabasePayload(updatedProfile, supabaseProfile.museum_id);
-        const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(profile.id)}`, {
-          method: "PATCH",
-          headers: await supabaseAuthHeaders(),
-          body: JSON.stringify(payload)
-        });
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.message || "No se pudo actualizar Supabase.");
-        }
+        await updateSupabaseEmployee(profile.id, updatedProfile, supabaseProfile.museum_id);
+
         const records = getEmployeeRecords();
         saveEmployeeRecords(records.map((employee) => employee.id === profile.id ? updatedProfile : employee));
         profile = updatedProfile;
@@ -4917,12 +5175,180 @@ function bindMembershipsModule() {
   initialize();
 }
 
+function formatPortalDate(value, options) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("es-PR", { timeZone: "America/Puerto_Rico", ...options }).format(new Date(value));
+}
+
+function renderPortalTimeEntries(entries) {
+  const list = document.querySelector("[data-portal-time-list]");
+  if (!list) return;
+  if (!entries.length) {
+    list.innerHTML = '<p class="portal-empty">Todavía no hay ponches registrados.</p>';
+    return;
+  }
+  list.innerHTML = entries.map((entry) => `
+    <article class="portal-entry">
+      <div><strong>${formatPortalDate(entry.clock_in, { weekday: "short", month: "short", day: "numeric" })}</strong><span>${formatPortalDate(entry.clock_in, { hour: "numeric", minute: "2-digit" })} – ${entry.clock_out ? formatPortalDate(entry.clock_out, { hour: "numeric", minute: "2-digit" }) : "En curso"}</span></div>
+      <span class="portal-entry-status ${entry.clock_out ? "" : "is-open"}">${entry.clock_out ? "Completado" : "Activo"}</span>
+    </article>`).join("");
+}
+
+function renderPortalNotifications(notifications) {
+  const list = document.querySelector("[data-portal-notifications]");
+  if (!list) return;
+  if (!notifications.length) {
+    list.innerHTML = '<p class="portal-empty">No tienes notificaciones nuevas.</p>';
+    return;
+  }
+  list.innerHTML = notifications.map((item) => `<article class="portal-notification"><strong>${escapeHtml(item.title || "Aviso")}</strong><p>${escapeHtml(item.message || "")}</p><small>${formatPortalDate(item.created_at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></article>`).join("");
+}
+
+function renderPortalTools() {
+  const tools = [
+    { permission: "employees.read.all", href: "recursos-humanos.html", icon: "users", label: "Equipo" },
+    { permission: "finance.read", href: "finanzas.html", icon: "dollar", label: "Finanzas" },
+    { permission: "schedules.read.team", href: "calendario.html", icon: "calendar", label: "Calendario del equipo" },
+    { permission: "calendar.manage", href: "calendario.html", icon: "calendar", label: "Eventos" },
+    { permission: "rentals.manage", href: "renta-espacios.html", icon: "building", label: "Renta de espacios" },
+    { permission: "inventory.manage", href: "inventario.html", icon: "briefcase", label: "Inventario" }
+  ];
+  const available = tools.filter((tool, index, all) => hasPermission(tool.permission) && all.findIndex((candidate) => candidate.href === tool.href) === index);
+  const region = document.querySelector("[data-portal-tools]");
+  if (!region) return;
+  if (!available.length) { region.closest(".portal-section").hidden = true; return; }
+  region.innerHTML = available.map((tool) => `<a class="portal-tool" href="${tool.href}"><span class="portal-tool-icon">${iconSvg(tool.icon)}</span><span>${tool.label}</span></a>`).join("");
+}
+
+function bindPortalAttendanceCorrections() {
+  const region = document.querySelector("[data-portal-corrections]");
+  if (!region) return Promise.resolve();
+  if (!hasPermission("attendance.corrections.request")) { region.hidden = true; return Promise.resolve(); }
+  const form = region.querySelector("[data-correction-form]");
+  const toggle = region.querySelector("[data-correction-toggle]");
+  const cancel = region.querySelector("[data-correction-cancel]");
+  const list = region.querySelector("[data-correction-list]");
+  const message = region.querySelector("[data-correction-message]");
+  const shiftSelect = form.elements.shiftId;
+  const labels = { clock_in: "Entrada", lunch_out: "Salida a almuerzo", lunch_in: "Regreso de almuerzo", clock_out: "Salida final" };
+  let events = [];
+  const setMessage = (text, type = "") => { message.textContent = text; message.className = `portal-message ${type}`.trim(); };
+  const renderRequests = (requests) => {
+    const statusLabels = { pending: "Pendiente", approved: "Aprobada", rejected: "Rechazada", partially_approved: "Aprobada parcialmente", cancelled_by_requester: "Cancelada" };
+    list.innerHTML = requests.length ? requests.map((request) => `<article class="portal-correction-item"><strong>${safeHtml(labels[request.requested_event_type] || request.requested_event_type)}</strong><span>${formatPortalDate(request.requested_occurred_at, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span><small>${safeHtml(request.reason)}</small><span class="portal-entry-status ${request.status === "pending" ? "is-open" : ""}">${safeHtml(statusLabels[request.status] || request.status)}</span>${request.decision_reason ? `<small>Decision: ${safeHtml(request.decision_reason)}</small>` : ""}</article>`).join("") : '<p class="portal-empty">No has solicitado correcciones.</p>';
+  };
+  const load = async () => {
+    const [shifts, attendanceEvents, requests] = await Promise.all([fetchOwnSupabaseCorrectionShifts(45), fetchOwnSupabaseAttendanceEvents(100), fetchOwnSupabaseCorrectionRequests()]);
+    events = attendanceEvents;
+    shiftSelect.innerHTML = '<option value="">Seleccione un turno</option>' + shifts.map((shift) => `<option value="${safeHtml(shift.id)}">${formatPortalDate(shift.starts_at, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} - ${formatPortalDate(shift.ends_at, { hour: "numeric", minute: "2-digit" })}</option>`).join("");
+    renderRequests(requests);
+  };
+  toggle.addEventListener("click", () => { form.hidden = false; toggle.hidden = true; });
+  cancel.addEventListener("click", () => { form.hidden = true; toggle.hidden = false; form.reset(); setMessage("El registro original no sera modificado."); });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const shiftId = String(data.get("shiftId") || "");
+    const eventType = String(data.get("eventType") || "");
+    const original = events.find((item) => item.shift_id === shiftId && item.event_type === eventType && !item.correction_request_id);
+    const submit = form.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    try {
+      await requestSupabaseAttendanceCorrection({ shift_id: shiftId, original_event_id: original?.id || null, event_type: eventType, proposed_occurred_at: new Date(String(data.get("proposedAt"))).toISOString(), reason: String(data.get("reason") || "") });
+      form.reset(); form.hidden = true; toggle.hidden = false;
+      setMessage("Solicitud enviada al supervisor. El registro original no fue modificado.", "success");
+      await load();
+    } catch (error) { setMessage(error.message || "No se pudo enviar la solicitud.", "error"); }
+    finally { submit.disabled = false; }
+  });
+  return load().catch((error) => { setMessage(error.message || "No se pudieron cargar las correcciones.", "error"); });
+}
+
+async function bindEmployeePortal() {
+  if (!document.querySelector("[data-employee-portal]")) return;
+  const session = getSupabaseSession();
+  if (!session?.access_token) { window.location.replace(`login.html?environment=${encodeURIComponent(museoEnvironment.name)}`); return; }
+  const profile = await fetchSupabaseProfile();
+  const employee = getEmployeeRecords().find((record) => record.authUserId === session.user?.id);
+  document.querySelector("[data-portal-name]").textContent = employee ? employeeDisplayName(employee) : (profile?.full_name || session.user?.email || "Usuario");
+  document.querySelector("[data-portal-role]").textContent = employee?.posicion || (hasPermission("attendance.corrections.approve") ? "Recursos Humanos" : "Usuario autorizado");
+  document.querySelector("[data-portal-schedule]").textContent = employee?.horario || "Sin jornada de empleado vinculada";
+  if (!employee) {
+    document.querySelector(".portal-clock-card")?.setAttribute("hidden", "");
+    document.querySelector("[data-portal-time-list]")?.closest(".portal-section")?.setAttribute("hidden", "");
+    document.querySelector("[data-portal-corrections]")?.setAttribute("hidden", "");
+  }
+  document.querySelector("[data-portal-date]").textContent = formatPortalDate(new Date(), { weekday: "long", month: "long", day: "numeric" });
+  const button = document.querySelector("[data-portal-clock-button]");
+  const status = document.querySelector("[data-portal-clock-status]");
+  const message = document.querySelector("[data-portal-message]");
+  const actionLabels = {
+    clock_in: "Registrar entrada",
+    lunch_out: "Salida a almuerzo",
+    lunch_in: "Regreso de almuerzo",
+    clock_out: "Registrar salida"
+  };
+  const nextAction = (events) => {
+    const latest = events[0]?.event_type;
+    return latest === "clock_in" ? "lunch_out" : latest === "lunch_out" ? "lunch_in" : latest === "lunch_in" ? "clock_out" : "clock_in";
+  };
+  const requestPresence = () => new Promise((resolve, reject) => {
+    if (!navigator.geolocation) { reject(new Error("Este dispositivo no permite validar la ubicacion.")); return; }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => resolve({ method: "geolocation", latitude: coords.latitude, longitude: coords.longitude, accuracy_meters: coords.accuracy }),
+      () => reject(new Error("Debe permitir la ubicacion para confirmar que esta en el Museo.")),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+    );
+  });
+  const refresh = async () => {
+    const [entries, events] = await Promise.all([fetchOwnSupabaseTimeEntries(7), fetchOwnSupabaseAttendanceEvents(28)]);
+    renderPortalTimeEntries(entries);
+    const action = nextAction(events);
+    button.dataset.action = action;
+    button.textContent = actionLabels[action];
+    button.classList.toggle("is-clocked-in", action !== "clock_in");
+    const latest = events[0];
+    status.textContent = latest && action !== "clock_in" ? `Ultimo registro: ${formatPortalDate(latest.occurred_at, { hour: "numeric", minute: "2-digit" })}` : "Fuera de turno";
+  };
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    message.textContent = "Validando presencia fisica...";
+    try {
+      const presence = await requestPresence();
+      await clockSupabaseEmployeeTime(button.dataset.action, presence);
+      await refresh();
+      message.textContent = "Ponche registrado correctamente.";
+      message.className = "portal-message success";
+    } catch (error) {
+      message.textContent = error.message || "No se pudo registrar el ponche.";
+      message.className = "portal-message error";
+    } finally { button.disabled = false; }
+  });
+  document.querySelector("[data-portal-logout]")?.addEventListener("click", () => clearLoginState(true, "logout"));
+  renderPortalTools();
+  await Promise.all([refresh(), fetchOwnSupabaseNotifications(5).then(renderPortalNotifications), bindPortalAttendanceCorrections()]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
+}
+function redirectAuthCallbackToLogin() {
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const callbackType = hash.get("type");
+  const hasAccessToken = Boolean(hash.get("access_token"));
+  const isPasswordCallback = ["invite", "recovery"].includes(callbackType) && hasAccessToken;
+  if (!isPasswordCallback || window.location.pathname.endsWith("login.html")) return false;
+
+  const environment = encodeURIComponent(museoEnvironment.name);
+  window.location.replace(`login.html?environment=${environment}${window.location.hash}`);
+  return true;
+}
+
 async function initApp() {
+  if (redirectAuthCallbackToLogin()) return;
   renderSidebar();
   renderHeader();
   renderFooter();
   renderInlineIcons();
   bindHeaderActions();
+  await refreshCurrentPermissions().catch(() => currentPermissions.clear());
+  if (enforceAuthenticatedPageAccess()) return;
   await syncEmployeeCacheFromSupabase().catch(() => null);
   updateCurrentUserFromEmployeeCache();
   renderHeader();
@@ -4946,6 +5372,7 @@ async function initApp() {
   bindInventoryModule();
   bindCalendarModules();
   bindMembershipsModule();
+  await bindEmployeePortal();
 }
 
 document.addEventListener("DOMContentLoaded", initApp);

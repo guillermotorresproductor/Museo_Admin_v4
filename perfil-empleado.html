@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Perfil de Empleado</title>
-  <link rel="stylesheet" href="css/main.css?v=encoding-papeleria-20260708">
+  <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
 </head>
 <body>
   <div class="app-shell">
@@ -28,6 +28,7 @@
               <p data-profile-position>Administrador</p>
               <p class="profile-photo-note" data-employee-photo-message>La foto servirá como identificación visual del récord del empleado.</p>
             </div>
+            <a class="button secondary employee-form-close profile-close-button" href="recursos-humanos.html" aria-label="Cerrar perfil de empleado">Cerrar</a>
           </div>
 
           <div class="profile-grid section-stack">
@@ -71,7 +72,7 @@
             </label>
 
             <label class="field">
-              <span>Puesto</span>
+              <span>Cargo</span>
               <input type="text" data-profile-field="posicion">
             </label>
 
@@ -87,7 +88,7 @@
 
             <label class="field">
               <span>Horario asignado de trabajo</span>
-              <input type="text" data-profile-field="horario">
+              <input type="text" data-profile-field="horario" placeholder="Ej. Lunes a viernes, 8:00 AM - 4:00 PM">
             </label>
 
             <label class="field">
@@ -119,6 +120,7 @@
           </div>
           <div class="inventory-actions">
             <button class="button submit-button" type="button" data-profile-save>Guardar cambios</button>
+            <button class="button" type="button" data-profile-invite hidden>Enviar invitación</button>
             <a class="button secondary" href="recursos-humanos.html">Volver al directorio</a>
           </div>
           <p class="form-message" data-profile-message></p>
@@ -127,7 +129,9 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/app.js?v=encoding-papeleria-20260708"></script>
+  <script src="js/config.js"></script>
+  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
+  <script src="js/app.js?v=employee-sensitive-20260721"></script>
 </body>
 </html>
 
