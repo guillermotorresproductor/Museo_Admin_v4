@@ -1,3 +1,4 @@
 .env
 .env.*
 !.env.example
+assets/brand/guias-marca-mmpr.pdf
