@@ -89,7 +89,7 @@ const moduleShortcutGroups = [
   {
     pages: ["administracion.html", "recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html"],
     links: [
-      { href: "https://guillermotorresproductor.github.io/Instituva_App/administracion/direccion-ejecutiva", label: "Dirección Ejecutiva", icon: "briefcase" },
+      { href: instituvaAppUrl("/administracion/direccion-ejecutiva"), label: "Dirección Ejecutiva", icon: "briefcase" },
       { href: "recursos-humanos.html", label: "Recursos Humanos", icon: "users" },
       { href: "notificaciones.html", label: "Notificaciones", icon: "bell" },
       { href: "reportes.html", label: "Reportes", icon: "chart" },
@@ -1498,7 +1498,23 @@ function bindRentalSpacePage() {
   });
 }
 
+async function callInstitutionalDataBridge(body) {
+  const response = await fetch(`${supabaseUrl}/functions/v1/institutional-data-bridge`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify(body)
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(result?.message || result?.error || "El puente Instituva rechazó la operación.");
+  }
+  return result;
+}
+
 async function callRentalApprovalControl(functionName, payload) {
+  if (typeof isInstitutionalDataBackendEnabled === "function" && isInstitutionalDataBackendEnabled()) {
+    return callInstitutionalDataBridge({ kind: "rpc", name: functionName, payload });
+  }
   const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${functionName}`, {
     method: "POST",
     headers: await supabaseAuthHeaders(),
@@ -4755,6 +4771,12 @@ function bindMembershipsModule() {
 
   const fetchMembers = async () => {
     await requireAuthorizedProfile();
+    if (typeof isInstitutionalDataBackendEnabled === "function" && isInstitutionalDataBackendEnabled()) {
+      const snapshot = await callInstitutionalDataBridge({ kind: "membership_list" });
+      members = Array.isArray(snapshot?.members) ? snapshot.members : [];
+      attendanceRecords = Array.isArray(snapshot?.attendance) ? snapshot.attendance : [];
+      return;
+    }
     const response = await fetch(
       `${supabaseUrl}/rest/v1/museum_members?select=*&museum_id=eq.${encodeURIComponent(profile.museum_id)}&order=last_name.asc,first_name.asc`,
       { headers: await membershipHeaders() }
@@ -5089,6 +5111,25 @@ function bindMembershipsModule() {
     };
     if (!id) payload.created_by = profile.id;
     try {
+      if (typeof isInstitutionalDataBackendEnabled === "function" && isInstitutionalDataBackendEnabled()) {
+        const bridgePayload = { ...payload };
+        delete bridgePayload.museum_id;
+        if (id) bridgePayload.id = id;
+        const savedMember = await callInstitutionalDataBridge({
+          kind: "membership_upsert",
+          payload: bridgePayload
+        }).then((rows) => (Array.isArray(rows) ? rows[0] : rows));
+        await saveAudit(savedMember.id, id ? "member_updated" : "member_created", {
+          plan_code: savedMember.plan_code,
+          status: savedMember.status,
+          municipal_receipt_number: savedMember.municipal_receipt_number
+        });
+        dialog.close();
+        await fetchMembers();
+        renderMembers();
+        setMessage(id ? "Expediente actualizado en Instituva." : "Socio registrado en Instituva.", "success");
+        return;
+      }
       const response = await fetch(
         `${supabaseUrl}/rest/v1/museum_members${id ? `?id=eq.${encodeURIComponent(id)}` : ""}`,
         {
@@ -5340,8 +5381,17 @@ function redirectAuthCallbackToLogin() {
   return true;
 }
 
+function bindInstituvaAppLinks() {
+  if (typeof instituvaAppUrl !== "function") return;
+  document.querySelectorAll("[data-instituva-app-path]").forEach((element) => {
+    const path = element.getAttribute("data-instituva-app-path");
+    if (path) element.setAttribute("href", instituvaAppUrl(path));
+  });
+}
+
 async function initApp() {
   if (redirectAuthCallbackToLogin()) return;
+  bindInstituvaAppLinks();
   renderSidebar();
   renderHeader();
   renderFooter();
