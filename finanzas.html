@@ -16,9 +16,20 @@
         <section class="finance-gate card panel" data-finance-gate>
           <span class="module-icon theme-teal" data-icon="dollar"></span>
           <h3>Acceso a Finanzas</h3>
-          <p>Área restringida. El acceso se valida con su sesión de Supabase y el permiso financiero asignado.</p>
+          <p>Área restringida. Debe confirmar correo y contraseña al entrar, al volver a la pestaña o tras 5 minutos sin actividad.</p>
           <p class="form-message" data-finance-login-message></p>
-          <a class="button submit-button" href="login.html">Entrar a mi cuenta</a>
+          <form class="form-grid finance-login" data-finance-login hidden>
+            <div class="field">
+              <label for="finance-email">Correo electrónico</label>
+              <input id="finance-email" name="email" type="email" autocomplete="username" required>
+            </div>
+            <div class="field">
+              <label for="finance-password">Contraseña</label>
+              <input id="finance-password" name="password" type="password" autocomplete="current-password" required>
+            </div>
+            <button class="button submit-button" type="submit">Confirmar acceso</button>
+          </form>
+          <a class="button submit-button" data-finance-login-fallback href="login.html">Entrar a mi cuenta</a>
         </section>
 
         <section class="finance-module" data-finance-module hidden>

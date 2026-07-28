@@ -68,6 +68,10 @@ function storedInstituvaBaseLooksInvalid(storedBase) {
   }
 }
 
+function isLocalMuseoHost(host = window.location.hostname) {
+  return host === "localhost" || host === "127.0.0.1" || /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+
 /** Instituva_App — misma app en PC y celular; un mismo backend (instituva-development). */
 function resolveInstituvaAppBaseUrl() {
   const params = new URLSearchParams(window.location.search);
@@ -77,6 +81,16 @@ function resolveInstituvaAppBaseUrl() {
     sessionStorage.setItem("instituva-app-base", normalized);
     return normalized;
   }
+
+  const host = window.location.hostname;
+  if (isLocalMuseoHost(host)) {
+    sessionStorage.removeItem("instituva-app-base");
+    if (host === "localhost" || host === "127.0.0.1") {
+      return "http://localhost:5173";
+    }
+    return `http://${host}:5173`;
+  }
+
   const stored = sessionStorage.getItem("instituva-app-base");
   if (stored) {
     const normalized = normalizeInstituvaDevBaseUrl(stored);
@@ -84,14 +98,7 @@ function resolveInstituvaAppBaseUrl() {
     sessionStorage.removeItem("instituva-app-base");
   }
 
-  const host = window.location.hostname;
   if (host === "app.instituva.com") return "https://app.instituva.com";
-  if (host === "localhost" || host === "127.0.0.1") {
-    return `http://${host}:5173`;
-  }
-  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)) {
-    return `http://${host}:5173`;
-  }
   return "https://guillermotorresproductor.github.io/Instituva_App";
 }
 

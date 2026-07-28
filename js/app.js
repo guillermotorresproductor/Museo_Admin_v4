@@ -18,6 +18,7 @@ const appPages = {
   "notificaciones.html": { title: "Notificaciones", subtitle: "Alertas internas del sistema administrativo." },
   "reportes.html": { title: "Reportes", subtitle: "Módulo pendiente para programación." },
   "finanzas.html": { title: "Finanzas", subtitle: "Acceso restringido pendiente para firewall." },
+  "direccion-ejecutiva.html": { title: "Dirección Ejecutiva", subtitle: "Aprobaciones, seguimientos y supervisión operacional (INSTITUVA)." },
   "reglamento.html": { title: "Reglamento del Museo", subtitle: "Normas oficiales, impresión y descarga." },
   "documentos.html": { title: "Formularios y Papelería", subtitle: "Stationary, reglamento, solicitud de empleo y formularios oficiales." },
   "deposito-artes.html": { title: "Depósito de Artes", subtitle: "Logos oficiales, artes y guías de marca del Museo." },
@@ -59,7 +60,7 @@ const navigationGroups = [
       { href: "ujieres.html", label: "Ujieres", icon: "users" },
       { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"] },
       { href: "documentos.html", label: "Formularios y Papelería", icon: "file", activePages: ["deposito-artes.html", "empleados.html", "recibo-prestamo.html", "reglamento.html"] },
-      { href: "administracion.html", label: "Administración", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html"] },
+      { href: "administracion.html", label: "Administración", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html", "direccion-ejecutiva.html"] },
       { href: "boletin.html", label: "Boletín Board", icon: "megaphone" },
       { href: "inventario.html", label: "Inventario de Equipos y Obras de Arte", icon: "briefcase" },
       { href: "login.html", label: "Mi cuenta", icon: "logout" }
@@ -87,9 +88,9 @@ const moduleShortcutGroups = [
     ]
   },
   {
-    pages: ["administracion.html", "recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html"],
+    pages: ["administracion.html", "recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html", "direccion-ejecutiva.html"],
     links: [
-      { instituvaPath: "/administracion/direccion-ejecutiva", label: "Dirección Ejecutiva", icon: "briefcase" },
+      { href: "direccion-ejecutiva.html", label: "Dirección Ejecutiva", icon: "briefcase" },
       { href: "recursos-humanos.html", label: "Recursos Humanos", icon: "users" },
       { href: "notificaciones.html", label: "Notificaciones", icon: "bell" },
       { href: "reportes.html", label: "Reportes", icon: "chart" },
@@ -289,6 +290,7 @@ function enforceAuthenticatedPageAccess() {
     ["employee-portal.html", () => true],
     ["recursos-humanos.html", () => hasPermission("employees.read.all")],
     ["finanzas.html", () => hasPermission("finance.read")],
+    ["direccion-ejecutiva.html", () => hasPermission("executive.case.read")],
     ["calendario.html", () => hasPermission("calendar.manage") || hasPermission("schedules.read.team")],
     ["renta-espacios.html", () => hasPermission("rentals.manage")],
     ["inventario.html", () => hasPermission("inventory.manage")]
@@ -389,6 +391,154 @@ async function signInWithSupabase(email, password) {
   if (!response.ok) throw new Error(data.error_description || data.msg || "No se pudo entrar a Supabase.");
   saveSupabaseSession(data);
   return data;
+}
+
+const SENSITIVE_MODULE_IDLE_MS = 5 * 60 * 1000;
+
+function sensitiveModuleStorageKey(moduleId) {
+  return `museo-sensitive-unlock-${museoEnvironment.name}-${moduleId}`;
+}
+
+function readSensitiveModuleUnlock(moduleId) {
+  try {
+    const raw = sessionStorage.getItem(sensitiveModuleStorageKey(moduleId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.unlockedAt || Date.now() - Number(parsed.unlockedAt) > SENSITIVE_MODULE_IDLE_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeSensitiveModuleUnlock(moduleId) {
+  sessionStorage.setItem(
+    sensitiveModuleStorageKey(moduleId),
+    JSON.stringify({ unlockedAt: Date.now(), userId: getSupabaseSession()?.user?.id || null })
+  );
+}
+
+function clearSensitiveModuleUnlock(moduleId) {
+  sessionStorage.removeItem(sensitiveModuleStorageKey(moduleId));
+}
+
+function isSensitiveModuleUnlocked(moduleId) {
+  const unlock = readSensitiveModuleUnlock(moduleId);
+  const session = getSupabaseSession();
+  if (!unlock || !session?.access_token) return false;
+  if (unlock.userId && session.user?.id && unlock.userId !== session.user.id) return false;
+  return true;
+}
+
+function bindSensitiveModuleGate({
+  moduleId,
+  permission,
+  gate,
+  content,
+  loginForm,
+  loginMessage,
+  loginFallbackLink,
+  onUnlock
+}) {
+  if (!gate || !content) return { init() {} };
+
+  let idleTimer = null;
+
+  const lockModule = () => {
+    clearSensitiveModuleUnlock(moduleId);
+    if (idleTimer) window.clearTimeout(idleTimer);
+    idleTimer = null;
+    gate.hidden = false;
+    gate.style.display = "";
+    content.hidden = true;
+    content.style.display = "none";
+  };
+
+  const showGate = (message, { showForm = true, error = false } = {}) => {
+    lockModule();
+    if (loginForm) loginForm.hidden = !showForm;
+    if (loginFallbackLink) loginFallbackLink.hidden = Boolean(showForm);
+    if (loginMessage) {
+      loginMessage.textContent = message || "";
+      loginMessage.className = error ? "form-message error" : "form-message";
+    }
+  };
+
+  const scheduleIdleLock = () => {
+    if (idleTimer) window.clearTimeout(idleTimer);
+    idleTimer = window.setTimeout(() => {
+      showGate("Por seguridad de oficina, confirme de nuevo su correo y contraseña (5 minutos sin actividad).", { showForm: true });
+    }, SENSITIVE_MODULE_IDLE_MS);
+  };
+
+  const revealContent = async () => {
+    gate.hidden = true;
+    gate.style.display = "none";
+    content.hidden = false;
+    content.style.display = "";
+    writeSensitiveModuleUnlock(moduleId);
+    scheduleIdleLock();
+    if (onUnlock) await onUnlock();
+  };
+
+  const bumpActivity = () => {
+    if (content.hidden) return;
+    writeSensitiveModuleUnlock(moduleId);
+    scheduleIdleLock();
+  };
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && !content.hidden) {
+      showGate("Por seguridad de oficina, confirme de nuevo su correo y contraseña al volver a esta pestaña.", { showForm: true });
+    }
+  });
+
+  ["click", "keydown", "mousemove", "scroll", "touchstart"].forEach((eventName) => {
+    content.addEventListener(eventName, bumpActivity, { passive: true });
+  });
+
+  loginForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const formData = new FormData(loginForm);
+    const email = String(formData.get("email") || "").trim();
+    const password = String(formData.get("password") || "");
+    if (loginMessage) {
+      loginMessage.textContent = "Verificando acceso...";
+      loginMessage.className = "form-message";
+    }
+    try {
+      await signInWithSupabase(email, password);
+      await refreshCurrentPermissions();
+      if (!hasPermission(permission)) {
+        throw new Error(`Su cuenta no tiene el permiso ${permission} para este módulo.`);
+      }
+      await revealContent();
+    } catch (error) {
+      showGate(error.message || "No se pudo verificar el acceso.", { showForm: true, error: true });
+    }
+  });
+
+  const init = () => {
+    lockModule();
+    if (!getSupabaseSession()?.access_token) {
+      showGate("Entre primero por Mi cuenta. Luego confirme su correo y contraseña aquí.", { showForm: false });
+      return;
+    }
+    if (!hasPermission(permission)) {
+      showGate(`Su cuenta no tiene el permiso ${permission} para abrir este módulo.`, { showForm: false, error: true });
+      return;
+    }
+    if (isSensitiveModuleUnlocked(moduleId)) {
+      void revealContent();
+      return;
+    }
+    const emailField = loginForm?.querySelector('[name="email"]');
+    const sessionEmail = getSupabaseSession()?.user?.email;
+    if (emailField && sessionEmail) emailField.value = sessionEmail;
+    showGate("Por seguridad de oficina, confirme su correo y contraseña para abrir este módulo.", { showForm: true });
+  };
+
+  return { init, showGate };
 }
 
 async function fetchSupabaseProfile() {
@@ -4131,10 +4281,6 @@ function bindFinanceModule() {
   };
 
   const openModule = async () => {
-    gate.hidden = false;
-    gate.style.display = "";
-    module.hidden = true;
-    module.style.display = "none";
     if (loginMessage) {
       loginMessage.textContent = "Conectando Finanzas con Supabase...";
       loginMessage.className = "form-message";
@@ -4142,13 +4288,9 @@ function bindFinanceModule() {
 
     try {
       await syncFinanceFromSupabase();
-      gate.hidden = true;
-      gate.style.display = "none";
-      module.hidden = false;
-      module.style.display = "";
       renderPanel();
     } catch (error) {
-      showFinanceGateError(`No se pudo abrir Finanzas desde Supabase: ${error.message || "revise su sesión o conexión"}.`);
+      throw new Error(error.message || "No se pudo abrir Finanzas desde Supabase.");
     }
   };
 
@@ -4364,8 +4506,50 @@ function bindFinanceModule() {
   } else if (!hasPermission("finance.read")) {
     showFinanceGateError("Su cuenta no tiene el permiso finance.read para abrir Finanzas.");
   } else {
-    openModule();
+    const sensitiveGate = bindSensitiveModuleGate({
+      moduleId: "finance",
+      permission: "finance.read",
+      gate,
+      content: module,
+      loginForm,
+      loginMessage,
+      loginFallbackLink: document.querySelector("[data-finance-login-fallback]"),
+      async onUnlock() {
+        try {
+          await openModule();
+        } catch (error) {
+          clearSensitiveModuleUnlock("finance");
+          sensitiveGate.showGate(`No se pudo abrir Finanzas: ${error.message || "revise su sesión o conexión"}.`, { showForm: true, error: true });
+        }
+      }
+    });
+    sensitiveGate.init();
   }
+}
+
+function bindExecutiveDirectionModule() {
+  const gate = document.querySelector("[data-executive-gate]");
+  const launch = document.querySelector("[data-executive-launch]");
+  const loginForm = document.querySelector("[data-executive-login]");
+  const loginMessage = document.querySelector("[data-executive-gate-message]");
+  const launchLink = document.querySelector("[data-executive-instituva-launch]");
+  if (!gate || !launch) return;
+
+  bindSensitiveModuleGate({
+    moduleId: "executive_direction",
+    permission: "executive.case.read",
+    gate,
+    content: launch,
+    loginForm,
+    loginMessage,
+    loginFallbackLink: document.querySelector("[data-executive-login-fallback]"),
+    async onUnlock() {
+      if (launchLink && typeof instituvaAppUrl === "function") {
+        launchLink.setAttribute("href", instituvaAppUrl("/administracion/direccion-ejecutiva"));
+        launchLink.setAttribute("rel", "noopener noreferrer");
+      }
+    }
+  }).init();
 }
 
 function bindEmployeeProfile() {
@@ -5388,7 +5572,20 @@ function bindInstituvaAppLinks() {
   if (typeof instituvaAppUrl !== "function") return;
   document.querySelectorAll("[data-instituva-app-path]").forEach((element) => {
     const path = element.getAttribute("data-instituva-app-path");
-    if (path) element.setAttribute("href", instituvaAppUrl(path));
+    if (!path) return;
+    const url = instituvaAppUrl(path);
+    element.setAttribute("href", url);
+    element.setAttribute("rel", "noopener noreferrer");
+    element.addEventListener("click", (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      const href = element.getAttribute("href");
+      if (!href || href === "#") {
+        event.preventDefault();
+        window.location.assign(url);
+      }
+    });
   });
 }
 
@@ -5412,6 +5609,7 @@ async function initApp() {
   bindHumanResourcesModule();
   bindNotificationsModule();
   bindFinanceModule();
+  bindExecutiveDirectionModule();
   bindEmployeeProfile();
   bindSidebarToggle();
   bindNotificationMenu();

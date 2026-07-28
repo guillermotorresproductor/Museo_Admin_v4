@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Museo Admin v4.0 | Dirección Ejecutiva</title>
+  <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" data-sidebar></aside>
+    <div class="sidebar-backdrop" data-sidebar-backdrop></div>
+    <div class="main-area">
+      <header class="site-header" data-header></header>
+      <main class="page-content">
+        <section class="finance-gate card panel" data-executive-gate>
+          <span class="module-icon theme-gold" data-icon="briefcase"></span>
+          <h3>Acceso a Dirección Ejecutiva</h3>
+          <p>Área restringida. Debe confirmar correo y contraseña al entrar, al volver a la pestaña o tras 5 minutos sin actividad.</p>
+          <p class="form-message" data-executive-gate-message></p>
+          <form class="form-grid finance-login" data-executive-login hidden>
+            <div class="field">
+              <label for="executive-email">Correo electrónico</label>
+              <input id="executive-email" name="email" type="email" autocomplete="username" required>
+            </div>
+            <div class="field">
+              <label for="executive-password">Contraseña</label>
+              <input id="executive-password" name="password" type="password" autocomplete="current-password" required>
+            </div>
+            <button class="button submit-button" type="submit">Confirmar acceso</button>
+          </form>
+          <a class="button submit-button" data-executive-login-fallback href="login.html">Entrar a mi cuenta</a>
+        </section>
+
+        <section class="card panel" data-executive-launch hidden>
+          <p class="page-kicker">Administración</p>
+          <h2>Dirección Ejecutiva</h2>
+          <p>Módulo exclusivo para Aprobaciones, Seguimientos y Supervisión Operacional. La bandeja se abre en INSTITUVA con la misma cuenta autorizada.</p>
+          <a class="button submit-button" href="#" data-executive-instituva-launch>Ir al módulo</a>
+        </section>
+      </main>
+      <footer class="site-footer" data-footer></footer>
+    </div>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
+  <script src="js/app.js?v=employee-sensitive-20260721"></script>
+</body>
+</html>
