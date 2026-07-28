@@ -10,7 +10,7 @@
   "solicitud-materiales.html": { title: "Solicitud de Materiales", subtitle: "Registro de solicitudes de mantenimiento." },
   "ruta-digital.html": { title: "Ruta Digital de Mantenimiento", subtitle: "Control de recorrido por áreas." },
   "renta-espacios.html": { title: "Renta de Espacios", subtitle: "Solicitud de áreas y tarifas oficiales." },
-  "administracion.html": { title: "Administración", subtitle: "Recursos humanos, notificaciones, reportes y finanzas." },
+  "administracion.html": { title: "Administración", subtitle: "Dirección ejecutiva, recursos humanos, notificaciones, reportes y finanzas." },
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
   "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
   "notificaciones.html": { title: "Notificaciones", subtitle: "Alertas internas del sistema administrativo." },
@@ -86,6 +86,7 @@ const moduleShortcutGroups = [
   {
     pages: ["administracion.html", "recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html"],
     links: [
+      { href: "https://guillermotorresproductor.github.io/Instituva_App/administracion/direccion-ejecutiva", label: "Dirección Ejecutiva", icon: "briefcase" },
       { href: "recursos-humanos.html", label: "Recursos Humanos", icon: "users" },
       { href: "notificaciones.html", label: "Notificaciones", icon: "bell" },
       { href: "reportes.html", label: "Reportes", icon: "chart" },
