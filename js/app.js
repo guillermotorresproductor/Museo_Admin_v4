@@ -5975,6 +5975,13 @@ function bindInstituvaAppLinks() {
 function ensureActiveEnvironmentInAddressBar() {
   if (typeof museoEnvironment === "undefined" || typeof museoPageUrl !== "function") return;
   const url = new URL(window.location.href);
+  if (typeof isHostnameLockedDemoMuseoHost === "function" && isHostnameLockedDemoMuseoHost()) {
+    if (!url.searchParams.has("environment")) return;
+    url.searchParams.delete("environment");
+    const query = url.searchParams.toString();
+    window.history.replaceState({}, document.title, `${url.pathname}${query ? `?${query}` : ""}${url.hash}`);
+    return;
+  }
   if (url.searchParams.get("environment") === museoEnvironment.name) return;
   url.searchParams.set("environment", museoEnvironment.name);
   window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
@@ -5982,6 +5989,7 @@ function ensureActiveEnvironmentInAddressBar() {
 
 function preserveActiveEnvironmentOnInternalLinks(root = document) {
   if (typeof museoEnvironment === "undefined" || typeof museoPageUrl !== "function") return;
+  if (typeof isHostnameLockedDemoMuseoHost === "function" && isHostnameLockedDemoMuseoHost()) return;
   root.querySelectorAll("a[href]").forEach((anchor) => {
     const raw = anchor.getAttribute("href");
     if (!raw || raw.startsWith("#") || raw.startsWith("mailto:") || raw.startsWith("tel:") || raw.startsWith("javascript:")) {

@@ -24,8 +24,14 @@ const museoEnvironments = Object.freeze({
 const MUSEO_ENV_SESSION_KEY = "museo-admin-environment";
 /** Survives tab close for non-production test sessions; cleared only by explicit production. */
 const MUSEO_ENV_STICKY_KEY = "museo-admin-environment-sticky";
+const DEMO_MUSEO_HOSTNAME = "demo.instituva.com";
+const DEMO_INSTITUVA_APP_ORIGIN = "https://demo-app.instituva.com";
 
 const requestedMuseoEnvironment = new URLSearchParams(window.location.search).get("environment");
+
+function isHostnameLockedDemoMuseoHost(host = window.location.hostname) {
+  return String(host || "").toLowerCase() === DEMO_MUSEO_HOSTNAME;
+}
 
 function clearMuseoEnvironmentSticky() {
   sessionStorage.removeItem(MUSEO_ENV_SESSION_KEY);
@@ -37,6 +43,7 @@ function clearMuseoEnvironmentSticky() {
 }
 
 function rememberMuseoEnvironment(name) {
+  if (isHostnameLockedDemoMuseoHost()) return;
   if (!museoEnvironments[name]) return;
   sessionStorage.setItem(MUSEO_ENV_SESSION_KEY, name);
   try {
@@ -51,6 +58,11 @@ function rememberMuseoEnvironment(name) {
 }
 
 function resolveMuseoEnvironmentName() {
+  // Host-locked demo: always Museo staging. Query/session/sticky cannot switch to production.
+  if (isHostnameLockedDemoMuseoHost()) {
+    return "staging";
+  }
+
   if (requestedMuseoEnvironment === "production") {
     clearMuseoEnvironmentSticky();
     return "production";
@@ -129,6 +141,11 @@ function isLocalMuseoHost(host = window.location.hostname) {
 
 /** Instituva_App — misma app en PC y celular; un mismo backend (instituva-development). */
 function resolveInstituvaAppBaseUrl() {
+  const host = window.location.hostname;
+  if (isHostnameLockedDemoMuseoHost(host)) {
+    return DEMO_INSTITUVA_APP_ORIGIN;
+  }
+
   const params = new URLSearchParams(window.location.search);
   const queryOverride = params.get("instituvaApp");
   if (queryOverride) {
@@ -137,7 +154,6 @@ function resolveInstituvaAppBaseUrl() {
     return normalized;
   }
 
-  const host = window.location.hostname;
   if (isLocalMuseoHost(host)) {
     sessionStorage.removeItem("instituva-app-base");
     if (host === "localhost" || host === "127.0.0.1") {
@@ -165,8 +181,9 @@ function instituvaAppUrl(path = "/") {
 }
 
 /**
- * Build an internal Museo page URL that always carries the active environment.
- * Prevents silent fallback to production on bare .html navigations.
+ * Build an internal Museo page URL.
+ * On demo.instituva.com, omit the technical ?environment= query.
+ * Elsewhere, always carry the active environment to prevent silent production fallback.
  */
 function museoPageUrl(page, extraParams = {}) {
   const raw = String(page || "dashboard.html");
@@ -182,7 +199,11 @@ function museoPageUrl(page, extraParams = {}) {
     if (value == null || value === "") params.delete(key);
     else params.set(key, String(value));
   });
-  params.set("environment", museoEnvironment.name);
+  if (isHostnameLockedDemoMuseoHost()) {
+    params.delete("environment");
+  } else {
+    params.set("environment", museoEnvironment.name);
+  }
   const file = url.pathname.split("/").pop() || raw.split("?")[0];
   const query = params.toString();
   return query ? `${file}?${query}` : file;

@@ -164,6 +164,9 @@ async function clockSupabaseEmployeeTime(action, presence = {}) {
 }
 
 function passwordRecoveryRedirectUrl() {
+  if (typeof isHostnameLockedDemoMuseoHost === "function" && isHostnameLockedDemoMuseoHost()) {
+    return `${window.location.origin}/login.html`;
+  }
   const params = new URLSearchParams();
   params.set("environment", museoEnvironment.name);
   return `${window.location.origin}/login.html?${params.toString()}`;
