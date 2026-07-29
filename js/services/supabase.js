@@ -163,8 +163,14 @@ async function clockSupabaseEmployeeTime(action, presence = {}) {
   return data;
 }
 
+function passwordRecoveryRedirectUrl() {
+  const params = new URLSearchParams();
+  params.set("environment", museoEnvironment.name);
+  return `${window.location.origin}/login.html?${params.toString()}`;
+}
+
 async function requestSupabasePasswordRecovery(email) {
-  const redirectTo = `${window.location.origin}${window.location.pathname}?environment=${encodeURIComponent(museoEnvironment.name)}`;
+  const redirectTo = passwordRecoveryRedirectUrl();
   const response = await fetch(`${supabaseUrl}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`, {
     method: "POST",
     headers: supabaseHeaders(),
@@ -174,6 +180,19 @@ async function requestSupabasePasswordRecovery(email) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.error_description || data.msg || "No se pudo solicitar la recuperación.");
   }
+}
+
+async function verifySupabaseEmailToken({ token_hash, type }) {
+  const response = await fetch(`${supabaseUrl}/auth/v1/verify`, {
+    method: "POST",
+    headers: supabaseHeaders(),
+    body: JSON.stringify({ token_hash, type })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error_description || data.msg || data.message || "El enlace de recuperación no es válido o expiró.");
+  }
+  return data;
 }
 
 async function fetchOwnSupabaseCorrectionShifts(days = 45) {

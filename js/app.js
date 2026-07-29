@@ -257,7 +257,9 @@ const supabaseRentalDocumentsBucket = "rental-documents";
 const currentUserKey = "museo-admin-current-user";
 const currentUserPhotoKey = "museo-admin-current-user-photo";
 const currentAccessLevelKey = "museo-admin-access-level";
+const currentAccessLevel = () => localStorage.getItem(currentAccessLevelKey) || "Empleado";
 const SUPABASE_REFRESH_MARGIN_SECONDS = 60;
+const SESSION_IDLE_MS = 5 * 60 * 1000;
 let employeeRecords = Object.values(defaultEmployeeProfiles);
 let currentPermissions = new Set();
 let currentPermissionsLoaded = false;
@@ -265,34 +267,121 @@ const hasPermission = (permission) => currentPermissions.has(permission);
 const canManageEmployees = () => hasPermission("employees.create") || hasPermission("employees.update.basic");
 const hasAdministrativeWorkspaceAccess = () =>
   hasPermission("system.configure") || (hasPermission("audit.read") && hasPermission("notifications.manage"));
+const canAccessAdministrationHub = () => hasAdministrativeWorkspaceAccess();
 const postLoginDestination = () => {
   if (hasAdministrativeWorkspaceAccess()) return "dashboard.html";
   if (hasPermission("employees.read.all") && hasPermission("attendance.corrections.approve")) return "recursos-humanos.html";
   return "employee-portal.html";
 };
 
+const EXECUTIVE_MODULE_ACCESS = {
+  "administracion.html": () => canAccessAdministrationHub(),
+  "renta-espacios.html": () => hasPermission("rentals.manage"),
+  "renta-espacio.html": () => hasPermission("rentals.manage"),
+  // Compatibilidad: si aún no existe memberships.manage en el entorno, usar acceso ejecutivo.
+  "membresias.html": () => hasPermission("memberships.manage") || hasAdministrativeWorkspaceAccess()
+};
+
+const SENSITIVE_MODULE_ACCESS = {
+  "finanzas.html": () => hasPermission("finance.read"),
+  "direccion-ejecutiva.html": () => hasPermission("executive.case.read"),
+  // Compatibilidad: Reportes usa reports.read o, si no está desplegado, autoridad de administrador.
+  "reportes.html": () => hasPermission("reports.read") || hasPermission("system.configure")
+};
+
+function loginUrlWithReturn(page) {
+  const params = new URLSearchParams();
+  params.set("environment", museoEnvironment.name);
+  if (page) params.set("next", page);
+  return `login.html?${params.toString()}`;
+}
+
+function resolvePostLoginDestination() {
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (next && !next.includes("..") && !next.includes("://")) {
+    return next.endsWith(".html") ? next : `${next}.html`;
+  }
+  return postLoginDestination();
+}
+
+function showProtectedAccessDenied(message) {
+  const main = document.querySelector(".page-content");
+  if (!main) return;
+  main.innerHTML = `
+    <section class="card panel">
+      <span class="module-icon theme-red" data-icon="shield"></span>
+      <h3>Acceso denegado</h3>
+      <p>${safeHtml(message || "No tiene autorización para abrir este módulo.")}</p>
+      <a class="button secondary" href="dashboard.html">Volver al dashboard</a>
+    </section>
+  `;
+  if (typeof renderInlineIcons === "function") renderInlineIcons();
+}
+
+async function recordSecurityAuditEvent(action, moduleId, result, details = {}) {
+  if (!getSupabaseSession()?.access_token || typeof supabasePost !== "function") return null;
+  try {
+    return await supabasePost("/rest/v1/rpc/record_security_audit_event", {
+      p_action: action,
+      p_module: moduleId,
+      p_result: result,
+      p_details: details && typeof details === "object" ? details : {}
+    });
+  } catch {
+    return null;
+  }
+}
+
 function enforceAuthenticatedPageAccess() {
-  if (!getSupabaseSession()?.access_token || !currentPermissionsLoaded) return false;
   const page = getCurrentPage();
-  if (page === "login.html") return false;
-  if (hasAdministrativeWorkspaceAccess()) {
-    if (page === "employee-portal.html") {
+  if (page === "login.html" || page === "dashboard.html" || page === "index.html") return false;
+
+  const session = getSupabaseSession()?.access_token;
+  const executiveChecker = EXECUTIVE_MODULE_ACCESS[page];
+  const sensitiveChecker = SENSITIVE_MODULE_ACCESS[page];
+  const protectedChecker = executiveChecker || sensitiveChecker;
+
+  if (page === "employee-portal.html") {
+    if (!session) {
+      window.location.replace(loginUrlWithReturn(page));
+      return true;
+    }
+    if (!currentPermissionsLoaded) return false;
+    if (hasAdministrativeWorkspaceAccess()) {
       window.location.replace("dashboard.html");
+      return true;
+    }
+    if (postLoginDestination() !== "employee-portal.html") {
+      window.location.replace(postLoginDestination());
       return true;
     }
     return false;
   }
-  if (page === "employee-portal.html" && postLoginDestination() !== "employee-portal.html") {
-    window.location.replace(postLoginDestination());
-    return true;
+
+  if (protectedChecker) {
+    if (!session) {
+      window.location.replace(loginUrlWithReturn(page));
+      return true;
+    }
+    if (!currentPermissionsLoaded) return false;
+    if (!protectedChecker()) {
+      const moduleId = page.replace(/\.html$/, "");
+      void recordSecurityAuditEvent("MODULE_ACCESS_DENIED", moduleId, "denied", {
+        reason: "missing_permission"
+      });
+      showProtectedAccessDenied("No tiene autorización para abrir este módulo.");
+      return true;
+    }
+    return false;
   }
+
+  if (!session || !currentPermissionsLoaded) return false;
+
+  if (hasAdministrativeWorkspaceAccess()) return false;
+
   const allowedPages = new Map([
-    ["employee-portal.html", () => true],
     ["recursos-humanos.html", () => hasPermission("employees.read.all")],
-    ["finanzas.html", () => hasPermission("finance.read")],
-    ["direccion-ejecutiva.html", () => hasPermission("executive.case.read")],
     ["calendario.html", () => hasPermission("calendar.manage") || hasPermission("schedules.read.team")],
-    ["renta-espacios.html", () => hasPermission("rentals.manage")],
     ["inventario.html", () => hasPermission("inventory.manage")]
   ]);
   if (allowedPages.get(page)?.()) return false;
@@ -322,15 +411,19 @@ function clearSupabaseSession() {
 }
 
 function clearLoginState(redirect = true, reason = "") {
+  clearAllSensitiveModuleUnlocks();
+  clearPasswordSetupPending();
   clearSupabaseSession();
   currentPermissions.clear();
   currentPermissionsLoaded = false;
   localStorage.removeItem(currentUserKey);
   localStorage.removeItem(currentUserPhotoKey);
   localStorage.removeItem(currentAccessLevelKey);
-  if (redirect && !window.location.pathname.endsWith("login.html")) {
-    const suffix = reason ? `?reason=${encodeURIComponent(reason)}` : "";
-    window.location.href = `login.html${suffix}`;
+  if (redirect && !isLoginPage()) {
+    const params = new URLSearchParams();
+    params.set("environment", museoEnvironment.name);
+    if (reason) params.set("reason", reason);
+    window.location.href = `login.html?${params.toString()}`;
   }
 }
 
@@ -393,37 +486,41 @@ async function signInWithSupabase(email, password) {
   return data;
 }
 
-const SENSITIVE_MODULE_IDLE_MS = 5 * 60 * 1000;
+const sensitiveUnlockMemory = new Map();
 
 function sensitiveModuleStorageKey(moduleId) {
   return `museo-sensitive-unlock-${museoEnvironment.name}-${moduleId}`;
 }
 
-function readSensitiveModuleUnlock(moduleId) {
-  try {
-    const raw = sessionStorage.getItem(sensitiveModuleStorageKey(moduleId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.unlockedAt || Date.now() - Number(parsed.unlockedAt) > SENSITIVE_MODULE_IDLE_MS) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
 function writeSensitiveModuleUnlock(moduleId) {
-  sessionStorage.setItem(
-    sensitiveModuleStorageKey(moduleId),
-    JSON.stringify({ unlockedAt: Date.now(), userId: getSupabaseSession()?.user?.id || null })
-  );
+  sensitiveUnlockMemory.set(moduleId, {
+    unlockedAt: Date.now(),
+    userId: getSupabaseSession()?.user?.id || null
+  });
 }
 
 function clearSensitiveModuleUnlock(moduleId) {
-  sessionStorage.removeItem(sensitiveModuleStorageKey(moduleId));
+  sensitiveUnlockMemory.delete(moduleId);
+  try {
+    sessionStorage.removeItem(sensitiveModuleStorageKey(moduleId));
+  } catch {
+    /* ignore storage failures */
+  }
+}
+
+function clearAllSensitiveModuleUnlocks() {
+  sensitiveUnlockMemory.clear();
+  try {
+    Object.keys(sessionStorage)
+      .filter((key) => key.startsWith(`museo-sensitive-unlock-${museoEnvironment.name}-`))
+      .forEach((key) => sessionStorage.removeItem(key));
+  } catch {
+    /* ignore storage failures */
+  }
 }
 
 function isSensitiveModuleUnlocked(moduleId) {
-  const unlock = readSensitiveModuleUnlock(moduleId);
+  const unlock = sensitiveUnlockMemory.get(moduleId);
   const session = getSupabaseSession();
   if (!unlock || !session?.access_token) return false;
   if (unlock.userId && session.user?.id && unlock.userId !== session.user.id) return false;
@@ -442,16 +539,21 @@ function bindSensitiveModuleGate({
 }) {
   if (!gate || !content) return { init() {} };
 
-  let idleTimer = null;
+  let reinforcedOpen = false;
 
-  const lockModule = () => {
+  const lockModule = ({ auditLoss = false } = {}) => {
+    const wasOpen = reinforcedOpen || isSensitiveModuleUnlocked(moduleId);
     clearSensitiveModuleUnlock(moduleId);
-    if (idleTimer) window.clearTimeout(idleTimer);
-    idleTimer = null;
+    reinforcedOpen = false;
     gate.hidden = false;
     gate.style.display = "";
     content.hidden = true;
     content.style.display = "none";
+    if (auditLoss && wasOpen) {
+      void recordSecurityAuditEvent("SENSITIVE_AUTH_LOST", moduleId, "revoked", {
+        reason: "tab_or_navigation"
+      });
+    }
   };
 
   const showGate = (message, { showForm = true, error = false } = {}) => {
@@ -464,37 +566,30 @@ function bindSensitiveModuleGate({
     }
   };
 
-  const scheduleIdleLock = () => {
-    if (idleTimer) window.clearTimeout(idleTimer);
-    idleTimer = window.setTimeout(() => {
-      showGate("Por seguridad de oficina, confirme de nuevo su correo y contraseña (5 minutos sin actividad).", { showForm: true });
-    }, SENSITIVE_MODULE_IDLE_MS);
-  };
-
   const revealContent = async () => {
     gate.hidden = true;
     gate.style.display = "none";
     content.hidden = false;
     content.style.display = "";
     writeSensitiveModuleUnlock(moduleId);
-    scheduleIdleLock();
+    reinforcedOpen = true;
     if (onUnlock) await onUnlock();
   };
 
-  const bumpActivity = () => {
-    if (content.hidden) return;
-    writeSensitiveModuleUnlock(moduleId);
-    scheduleIdleLock();
-  };
-
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && !content.hidden) {
-      showGate("Por seguridad de oficina, confirme de nuevo su correo y contraseña al volver a esta pestaña.", { showForm: true });
+    if (document.hidden && reinforcedOpen) {
+      showGate("", { showForm: true });
+      void recordSecurityAuditEvent("SENSITIVE_AUTH_LOST", moduleId, "revoked", {
+        reason: "visibilitychange"
+      });
     }
   });
 
-  ["click", "keydown", "mousemove", "scroll", "touchstart"].forEach((eventName) => {
-    content.addEventListener(eventName, bumpActivity, { passive: true });
+  window.addEventListener("pagehide", () => {
+    if (reinforcedOpen) {
+      clearSensitiveModuleUnlock(moduleId);
+      reinforcedOpen = false;
+    }
   });
 
   loginForm?.addEventListener("submit", async (event) => {
@@ -502,40 +597,65 @@ function bindSensitiveModuleGate({
     const formData = new FormData(loginForm);
     const email = String(formData.get("email") || "").trim();
     const password = String(formData.get("password") || "");
+    const activeEmail = String(getSupabaseSession()?.user?.email || "").trim().toLowerCase();
     if (loginMessage) {
       loginMessage.textContent = "Verificando acceso...";
       loginMessage.className = "form-message";
     }
     try {
+      if (activeEmail && email.toLowerCase() !== activeEmail) {
+        throw new Error("Debe confirmar el correo de la sesión activa.");
+      }
       await signInWithSupabase(email, password);
       await refreshCurrentPermissions();
       if (!hasPermission(permission)) {
-        throw new Error(`Su cuenta no tiene el permiso ${permission} para este módulo.`);
+        void recordSecurityAuditEvent("SENSITIVE_REAUTH_DENIED", moduleId, "denied", {
+          reason: "missing_permission",
+          permission
+        });
+        throw new Error("Su cuenta no tiene el permiso necesario para este módulo.");
       }
+      void recordSecurityAuditEvent("SENSITIVE_REAUTH_SUCCESS", moduleId, "allowed", { permission });
+      void recordSecurityAuditEvent("SENSITIVE_MODULE_ENTER", moduleId, "allowed", { permission });
       await revealContent();
     } catch (error) {
+      const deniedByPermission = String(error.message || "").includes("permiso necesario");
+      if (!deniedByPermission) {
+        void recordSecurityAuditEvent("SENSITIVE_REAUTH_FAILED", moduleId, "denied", {
+          reason: "invalid_credentials"
+        });
+      }
       showGate(error.message || "No se pudo verificar el acceso.", { showForm: true, error: true });
     }
   });
 
   const init = () => {
+    clearSensitiveModuleUnlock(moduleId);
     lockModule();
     if (!getSupabaseSession()?.access_token) {
-      showGate("Entre primero por Mi cuenta. Luego confirme su correo y contraseña aquí.", { showForm: false });
+      showGate("Entre primero por Mi cuenta.", { showForm: false });
+      if (loginFallbackLink) {
+        loginFallbackLink.hidden = false;
+        loginFallbackLink.href = loginUrlWithReturn(getCurrentPage());
+      }
       return;
     }
     if (!hasPermission(permission)) {
-      showGate(`Su cuenta no tiene el permiso ${permission} para abrir este módulo.`, { showForm: false, error: true });
-      return;
-    }
-    if (isSensitiveModuleUnlocked(moduleId)) {
-      void revealContent();
+      void recordSecurityAuditEvent("MODULE_ACCESS_DENIED", moduleId, "denied", {
+        reason: "missing_permission",
+        permission
+      });
+      showGate("Su cuenta no tiene el permiso necesario para abrir este módulo.", { showForm: false, error: true });
+      if (loginFallbackLink) {
+        loginFallbackLink.hidden = false;
+        loginFallbackLink.href = loginUrlWithReturn(getCurrentPage());
+      }
       return;
     }
     const emailField = loginForm?.querySelector('[name="email"]');
     const sessionEmail = getSupabaseSession()?.user?.email;
     if (emailField && sessionEmail) emailField.value = sessionEmail;
-    showGate("Por seguridad de oficina, confirme su correo y contraseña para abrir este módulo.", { showForm: true });
+    showGate("", { showForm: true });
   };
 
   return { init, showGate };
@@ -1077,7 +1197,58 @@ function iconSvg(name) {
 }
 
 function getCurrentPage() {
-  return window.location.pathname.split("/").pop() || "index.html";
+  const segment = window.location.pathname.split("/").pop() || "index.html";
+  const barePageNames = {
+    login: "login.html",
+    finanzas: "finanzas.html",
+    "direccion-ejecutiva": "direccion-ejecutiva.html",
+    reportes: "reportes.html",
+    administracion: "administracion.html",
+    membresias: "membresias.html",
+    "renta-espacios": "renta-espacios.html",
+    "renta-espacio": "renta-espacio.html"
+  };
+  return barePageNames[segment] || segment;
+}
+
+function isLoginPage() {
+  return getCurrentPage() === "login.html";
+}
+
+const passwordSetupPendingKey = `museo-password-setup-pending-${museoEnvironment.name}`;
+
+function getAuthCallbackParams() {
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const query = new URLSearchParams(window.location.search);
+  const read = (key) => hash.get(key) || query.get(key);
+  return {
+    access_token: read("access_token"),
+    refresh_token: read("refresh_token"),
+    type: read("type"),
+    token_hash: read("token_hash"),
+    code: read("code"),
+    error_description: read("error_description"),
+    expires_in: read("expires_in"),
+    token_type: read("token_type")
+  };
+}
+
+function isPasswordSetupCallback(params = getAuthCallbackParams()) {
+  if (params.error_description) return true;
+  if (!["invite", "recovery"].includes(params.type || "")) return false;
+  return Boolean(params.access_token || params.token_hash || params.code);
+}
+
+function markPasswordSetupPending() {
+  sessionStorage.setItem(passwordSetupPendingKey, "1");
+}
+
+function clearPasswordSetupPending() {
+  sessionStorage.removeItem(passwordSetupPendingKey);
+}
+
+function isPasswordSetupPending() {
+  return sessionStorage.getItem(passwordSetupPendingKey) === "1";
 }
 
 function resolvePageMeta() {
@@ -1348,28 +1519,95 @@ function bindLoginDemo() {
   const recoveryForm = document.querySelector("[data-recovery-form]");
   const recoveryMessage = document.querySelector("[data-recovery-message]");
   const reason = new URLSearchParams(window.location.search).get("reason");
-  const hash = new URLSearchParams(window.location.hash.slice(1));
-  const invitationAccessToken = hash.get("access_token");
-  const invitationType = hash.get("type");
+  const callback = getAuthCallbackParams();
 
-  if (["invite", "recovery"].includes(invitationType) && invitationAccessToken && inviteCard && inviteForm) {
-    const expiresIn = Number(hash.get("expires_in") || 3600);
+  const showPasswordSetup = () => {
+    if (loginCard) loginCard.hidden = true;
+    if (recoveryCard) recoveryCard.hidden = true;
+    if (inviteCard) inviteCard.hidden = false;
+    markPasswordSetupPending();
+  };
+
+  const cleanCallbackUrl = () => {
+    const clean = new URL(window.location.href);
+    ["access_token", "refresh_token", "token_hash", "code", "type", "expires_in", "token_type", "error_description", "error", "error_code"].forEach((key) => {
+      clean.searchParams.delete(key);
+    });
+    window.history.replaceState(null, "", `${clean.pathname}${clean.search}`);
+  };
+
+  const applyRecoverySession = (sessionLike) => {
+    const accessToken = sessionLike?.access_token || sessionLike?.accessToken;
+    if (!accessToken) throw new Error("El enlace de recuperación no devolvió una sesión válida.");
+    const expiresIn = Number(sessionLike.expires_in || callback.expires_in || 3600);
     saveSupabaseSession({
-      access_token: invitationAccessToken,
-      refresh_token: hash.get("refresh_token") || "",
+      access_token: accessToken,
+      refresh_token: sessionLike.refresh_token || callback.refresh_token || "",
       expires_in: expiresIn,
       expires_at: Math.floor(Date.now() / 1000) + expiresIn,
-      token_type: hash.get("token_type") || "bearer"
+      token_type: sessionLike.token_type || callback.token_type || "bearer",
+      user: sessionLike.user || null
     });
-    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
-    if (loginCard) loginCard.hidden = true;
-    inviteCard.hidden = false;
-  } else if (hash.get("error_description")) {
+    showPasswordSetup();
+    cleanCallbackUrl();
+  };
+
+  if (callback.error_description) {
     if (message) {
-      message.textContent = hash.get("error_description");
+      message.textContent = callback.error_description;
       message.className = "login-help error";
     }
-    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    clearPasswordSetupPending();
+    cleanCallbackUrl();
+  } else if (["invite", "recovery"].includes(callback.type || "") && callback.access_token && inviteCard && inviteForm) {
+    try {
+      applyRecoverySession({
+        access_token: callback.access_token,
+        refresh_token: callback.refresh_token,
+        expires_in: callback.expires_in,
+        token_type: callback.token_type
+      });
+    } catch (error) {
+      if (message) {
+        message.textContent = error.message || "No se pudo abrir el enlace de recuperación.";
+        message.className = "login-help error";
+      }
+    }
+  } else if (["invite", "recovery"].includes(callback.type || "") && callback.token_hash && inviteCard && inviteForm) {
+    if (inviteMessage) {
+      inviteMessage.textContent = "Validando enlace seguro...";
+      inviteMessage.className = "login-help";
+    }
+    showPasswordSetup();
+    verifySupabaseEmailToken({ token_hash: callback.token_hash, type: callback.type })
+      .then((data) => {
+        applyRecoverySession(data);
+        if (inviteMessage) {
+          inviteMessage.textContent = "Enlace validado. Establezca su nueva contraseña.";
+          inviteMessage.className = "login-help success";
+        }
+      })
+      .catch((error) => {
+        clearPasswordSetupPending();
+        if (loginCard) loginCard.hidden = false;
+        if (inviteCard) inviteCard.hidden = true;
+        if (message) {
+          message.textContent = error.message || "El enlace de recuperación no es válido o expiró.";
+          message.className = "login-help error";
+        }
+        cleanCallbackUrl();
+      });
+  } else if (isPasswordSetupPending() && getSupabaseSession()?.access_token && inviteCard) {
+    showPasswordSetup();
+  } else if (isPasswordSetupPending() && !getSupabaseSession()?.access_token) {
+    // Enlace consumido/expirado o sesión temporal perdida: no dejar al usuario atrapado.
+    clearPasswordSetupPending();
+    if (inviteCard) inviteCard.hidden = true;
+    if (loginCard) loginCard.hidden = false;
+    if (message) {
+      message.textContent = "El enlace de recuperación expiró o ya no es válido. Solicite uno nuevo o entre con su contraseña.";
+      message.className = "login-help error";
+    }
   }
 
   if (message && reason === "idle") {
@@ -1381,6 +1619,25 @@ function bindLoginDemo() {
     message.className = "login-help";
   }
 
+  const returnToLoginAccess = () => {
+    clearPasswordSetupPending();
+    clearSupabaseSession();
+    currentPermissions.clear();
+    currentPermissionsLoaded = false;
+    if (inviteCard) inviteCard.hidden = true;
+    if (recoveryCard) recoveryCard.hidden = true;
+    if (loginCard) loginCard.hidden = false;
+    if (inviteForm) inviteForm.reset();
+    if (inviteMessage) {
+      inviteMessage.textContent = "El enlace seguro será validado antes de guardar la contraseña.";
+      inviteMessage.className = "login-help";
+    }
+    if (message) {
+      message.textContent = "Acceso preparado para usuarios del Museo.";
+      message.className = "login-help";
+    }
+  };
+
   document.querySelector("[data-recovery-toggle]")?.addEventListener("click", () => {
     recoveryForm.elements.email.value = form.elements.username.value || "";
     loginCard.hidden = true;
@@ -1389,6 +1646,9 @@ function bindLoginDemo() {
   document.querySelector("[data-recovery-cancel]")?.addEventListener("click", () => {
     recoveryCard.hidden = true;
     loginCard.hidden = false;
+  });
+  document.querySelector("[data-password-setup-cancel]")?.addEventListener("click", () => {
+    returnToLoginAccess();
   });
   recoveryForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1401,7 +1661,11 @@ function bindLoginDemo() {
       recoveryMessage.textContent = "Si el correo está registrado, recibirá un enlace para crear una nueva contraseña.";
       recoveryMessage.className = "login-help success";
     } catch (error) {
-      recoveryMessage.textContent = error.message || "No se pudo solicitar el enlace.";
+      const raw = String(error.message || "");
+      const rateLimited = /rate limit|over_email_send_rate_limit/i.test(raw);
+      recoveryMessage.textContent = rateLimited
+        ? "Se enviaron demasiados correos en poco tiempo. Espere unos minutos o use el último enlace recibido. También puede volver al acceso e entrar con su contraseña actual."
+        : (raw || "No se pudo solicitar el enlace.");
       recoveryMessage.className = "login-help error";
     } finally { button.disabled = false; }
   });
@@ -1437,7 +1701,7 @@ function bindLoginDemo() {
 
     try {
       const session = getSupabaseSession();
-      if (!session?.access_token) throw new Error("El enlace de invitación no es válido o expiró.");
+      if (!session?.access_token) throw new Error("El enlace de recuperación no es válido o expiró. Solicite uno nuevo.");
       const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
         method: "PUT",
         headers: {
@@ -1446,15 +1710,22 @@ function bindLoginDemo() {
         },
         body: JSON.stringify({ password })
       });
-      const user = await response.json();
-      if (!response.ok) throw new Error(user.msg || user.message || "No se pudo crear la contraseña.");
+      const user = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(user.error_description || user.msg || user.message || user.error || "No se pudo guardar la contraseña.");
+      }
 
       saveSupabaseSession({ ...session, user });
       localStorage.setItem(currentUserKey, user.user_metadata?.full_name || user.email || "Empleado");
-      localStorage.setItem(currentAccessLevelKey, "Empleado");
+      const profile = await fetchSupabaseProfile().catch(() => null);
+      localStorage.setItem(
+        currentAccessLevelKey,
+        profile?.role === "administrador" ? "Administrador" : profile?.role === "ejecutivo" ? "Ejecutivo" : "Empleado"
+      );
       localStorage.removeItem(currentUserPhotoKey);
+      clearPasswordSetupPending();
       await refreshCurrentPermissions();
-      window.location.replace(postLoginDestination());
+      window.location.replace(resolvePostLoginDestination());
     } catch (error) {
       if (inviteMessage) {
         inviteMessage.textContent = error.message || "No se pudo activar la cuenta.";
@@ -1482,7 +1753,7 @@ function bindLoginDemo() {
         localStorage.setItem(currentAccessLevelKey, profile?.role === "administrador" ? "Administrador" : profile?.role === "ejecutivo" ? "Ejecutivo" : "Empleado");
         localStorage.removeItem(currentUserPhotoKey);
         await refreshCurrentPermissions();
-        window.location.href = postLoginDestination();
+        window.location.href = resolvePostLoginDestination();
         return;
       } catch (error) {
         clearLoginState(false);
@@ -1501,16 +1772,19 @@ function bindLoginDemo() {
   });
 }
 function bindIdleLogout() {
-  const timeoutMs = 8 * 60 * 1000;
   let timer = null;
   const hasSession = () => Boolean(getSupabaseSession()?.access_token);
 
   const schedule = () => {
     if (timer) window.clearTimeout(timer);
     if (!hasSession()) return;
-    timer = window.setTimeout(() => {
+    timer = window.setTimeout(async () => {
+      clearAllSensitiveModuleUnlocks();
+      await recordSecurityAuditEvent("SESSION_IDLE_LOGOUT", "session", "closed", {
+        idle_ms: SESSION_IDLE_MS
+      });
       clearLoginState(true, "idle");
-    }, timeoutMs);
+    }, SESSION_IDLE_MS);
   };
 
   ["click", "keydown", "mousemove", "scroll", "touchstart"].forEach((eventName) => {
@@ -3794,6 +4068,7 @@ function bindFinanceModule() {
 
   const loginForm = document.querySelector("[data-finance-login]");
   const loginMessage = document.querySelector("[data-finance-login-message]");
+  const loginFallback = document.querySelector("[data-finance-login-fallback]");
   const summary = document.querySelector("[data-finance-summary]");
   const panel = document.querySelector("[data-finance-panel]");
   const syncStatuses = document.querySelectorAll("[data-finance-sync-status]");
@@ -4046,7 +4321,7 @@ function bindFinanceModule() {
       throw new Error("No hay sesión activa de Supabase.");
     }
     currentProfile = await fetchSupabaseProfile();
-    if (!currentProfile?.museum_id || !["administrador", "ejecutivo"].includes(currentProfile.role)) {
+    if (!currentProfile?.museum_id || !hasPermission("finance.read")) {
       setSyncStatus("error", "Acceso no autorizado", "Su usuario no tiene permisos financieros.");
       throw new Error("Su cuenta no tiene permiso para administrar Finanzas.");
     }
@@ -4278,20 +4553,15 @@ function bindFinanceModule() {
       loginMessage.textContent = text;
       loginMessage.className = "form-message error";
     }
+    if (loginFallback) {
+      loginFallback.hidden = false;
+      loginFallback.href = loginUrlWithReturn("finanzas.html");
+    }
   };
 
-  const openModule = async () => {
-    if (loginMessage) {
-      loginMessage.textContent = "Conectando Finanzas con Supabase...";
-      loginMessage.className = "form-message";
-    }
-
-    try {
-      await syncFinanceFromSupabase();
-      renderPanel();
-    } catch (error) {
-      throw new Error(error.message || "No se pudo abrir Finanzas desde Supabase.");
-    }
+  const loadFinancePanel = async () => {
+    await syncFinanceFromSupabase();
+    renderPanel();
   };
 
   const quickBooksHeaders = [
@@ -4502,9 +4772,9 @@ function bindFinanceModule() {
   });
 
   if (!getSupabaseSession()?.access_token) {
-    showFinanceGateError("Finanzas requiere una sesión activa de Supabase. Entre primero por Mi cuenta.");
+    showFinanceGateError("Finanzas requiere una sesión activa. Entre por Mi cuenta para continuar.");
   } else if (!hasPermission("finance.read")) {
-    showFinanceGateError("Su cuenta no tiene el permiso finance.read para abrir Finanzas.");
+    showFinanceGateError("Su cuenta no tiene el permiso necesario para abrir Finanzas.");
   } else {
     const sensitiveGate = bindSensitiveModuleGate({
       moduleId: "finance",
@@ -4513,13 +4783,16 @@ function bindFinanceModule() {
       content: module,
       loginForm,
       loginMessage,
-      loginFallbackLink: document.querySelector("[data-finance-login-fallback]"),
+      loginFallbackLink: loginFallback,
       async onUnlock() {
         try {
-          await openModule();
+          await loadFinancePanel();
         } catch (error) {
           clearSensitiveModuleUnlock("finance");
-          sensitiveGate.showGate(`No se pudo abrir Finanzas: ${error.message || "revise su sesión o conexión"}.`, { showForm: true, error: true });
+          sensitiveGate.showGate(
+            `No se pudo abrir Finanzas: ${error.message || "revise su sesión o conexión"}.`,
+            { showForm: true, error: true }
+          );
         }
       }
     });
@@ -4533,6 +4806,7 @@ function bindExecutiveDirectionModule() {
   const loginForm = document.querySelector("[data-executive-login]");
   const loginMessage = document.querySelector("[data-executive-gate-message]");
   const launchLink = document.querySelector("[data-executive-instituva-launch]");
+  const loginFallback = document.querySelector("[data-executive-login-fallback]");
   if (!gate || !launch) return;
 
   bindSensitiveModuleGate({
@@ -4542,13 +4816,33 @@ function bindExecutiveDirectionModule() {
     content: launch,
     loginForm,
     loginMessage,
-    loginFallbackLink: document.querySelector("[data-executive-login-fallback]"),
+    loginFallbackLink: loginFallback,
     async onUnlock() {
       if (launchLink && typeof instituvaAppUrl === "function") {
         launchLink.setAttribute("href", instituvaAppUrl("/administracion/direccion-ejecutiva"));
         launchLink.setAttribute("rel", "noopener noreferrer");
       }
     }
+  }).init();
+}
+
+function bindReportsModule() {
+  const gate = document.querySelector("[data-reports-gate]");
+  const module = document.querySelector("[data-reports-module]");
+  const loginForm = document.querySelector("[data-reports-login]");
+  const loginMessage = document.querySelector("[data-reports-login-message]");
+  const loginFallback = document.querySelector("[data-reports-login-fallback]");
+  if (!gate || !module) return;
+
+  const reportsPermission = hasPermission("reports.read") ? "reports.read" : "system.configure";
+  bindSensitiveModuleGate({
+    moduleId: "reports",
+    permission: reportsPermission,
+    gate,
+    content: module,
+    loginForm,
+    loginMessage,
+    loginFallbackLink: loginFallback
   }).init();
 }
 
@@ -4949,9 +5243,12 @@ function bindMembershipsModule() {
   });
 
   const requireAuthorizedProfile = async () => {
+    if (!hasPermission("memberships.manage") && !hasAdministrativeWorkspaceAccess()) {
+      throw new Error("Su cuenta no tiene autorización para Membresías.");
+    }
     profile = await currentMuseumContext();
-    if (!["administrador", "ejecutivo"].includes(profile.role)) {
-      throw new Error("El módulo de Membresías está disponible únicamente para Administradores y Ejecutivos.");
+    if (!profile?.museum_id || String(profile.status || "active") !== "active") {
+      throw new Error("Su relación institucional no está activa para este museo.");
     }
     return profile;
   };
@@ -5556,15 +5853,33 @@ async function bindEmployeePortal() {
   renderPortalTools();
   await Promise.all([refresh(), fetchOwnSupabaseNotifications(5).then(renderPortalNotifications), bindPortalAttendanceCorrections()]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
 }
-function redirectAuthCallbackToLogin() {
-  const hash = new URLSearchParams(window.location.hash.slice(1));
-  const callbackType = hash.get("type");
-  const hasAccessToken = Boolean(hash.get("access_token"));
-  const isPasswordCallback = ["invite", "recovery"].includes(callbackType) && hasAccessToken;
-  if (!isPasswordCallback || window.location.pathname.endsWith("login.html")) return false;
+function ensureEnvironmentOnLocalAuthCallback() {
+  const params = getAuthCallbackParams();
+  if (!isPasswordSetupCallback(params)) return false;
+  const url = new URL(window.location.href);
+  if (url.searchParams.get("environment")) return false;
+  if (typeof isLocalMuseoHost === "function" && !isLocalMuseoHost()) return false;
+  // En local, los enlaces de recovery suelen caer sin ?environment=; staging es el flujo de prueba.
+  url.searchParams.set("environment", "staging");
+  window.location.replace(`${url.pathname}${url.search}${url.hash}`);
+  return true;
+}
 
-  const environment = encodeURIComponent(museoEnvironment.name);
-  window.location.replace(`login.html?environment=${environment}${window.location.hash}`);
+function redirectAuthCallbackToLogin() {
+  const params = getAuthCallbackParams();
+  if (!isPasswordSetupCallback(params)) return false;
+  if (isLoginPage()) return false;
+
+  const next = new URL(passwordRecoveryRedirectUrl(), window.location.origin);
+  ["type", "access_token", "refresh_token", "token_hash", "code", "expires_in", "token_type", "error_description"].forEach((key) => {
+    if (params[key]) next.searchParams.set(key, params[key]);
+  });
+  // Preserve hash tokens when present (Supabase implicit recovery).
+  if (window.location.hash && window.location.hash.includes("access_token")) {
+    next.hash = window.location.hash;
+  }
+  markPasswordSetupPending();
+  window.location.replace(`${next.pathname}${next.search}${next.hash}`);
   return true;
 }
 
@@ -5590,14 +5905,28 @@ function bindInstituvaAppLinks() {
 }
 
 async function initApp() {
+  if (ensureEnvironmentOnLocalAuthCallback()) return;
   if (redirectAuthCallbackToLogin()) return;
+  // Recovery/invite must stay on login until the password is saved.
+  if (!isLoginPage() && isPasswordSetupPending()) {
+    window.location.replace(passwordRecoveryRedirectUrl());
+    return;
+  }
   bindInstituvaAppLinks();
   renderSidebar();
   renderHeader();
   renderFooter();
   renderInlineIcons();
   bindHeaderActions();
-  await refreshCurrentPermissions().catch(() => currentPermissions.clear());
+  if (isLoginPage()) {
+    bindLoginDemo();
+    bindSidebarToggle();
+    return;
+  }
+  await refreshCurrentPermissions().catch(() => {
+    currentPermissions.clear();
+    currentPermissionsLoaded = Boolean(getSupabaseSession()?.access_token);
+  });
   if (enforceAuthenticatedPageAccess()) return;
   await syncEmployeeCacheFromSupabase().catch(() => null);
   updateCurrentUserFromEmployeeCache();
@@ -5610,10 +5939,10 @@ async function initApp() {
   bindNotificationsModule();
   bindFinanceModule();
   bindExecutiveDirectionModule();
+  bindReportsModule();
   bindEmployeeProfile();
   bindSidebarToggle();
   bindNotificationMenu();
-  bindLoginDemo();
   bindIdleLogout();
   bindRentalCatalog();
   bindRentalGeneralRules();

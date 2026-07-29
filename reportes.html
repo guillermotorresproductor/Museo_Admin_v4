@@ -13,7 +13,25 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="card panel placeholder-panel">
+        <section class="finance-gate card panel" data-reports-gate>
+          <span class="module-icon theme-blue" data-icon="chart"></span>
+          <h3>Acceso a Reportes</h3>
+          <p class="form-message" data-reports-login-message></p>
+          <form class="form-grid finance-login" data-reports-login hidden>
+            <div class="field">
+              <label for="reports-email">Correo electrónico</label>
+              <input id="reports-email" name="email" type="email" autocomplete="username" required>
+            </div>
+            <div class="field">
+              <label for="reports-password">Contraseña</label>
+              <input id="reports-password" name="password" type="password" autocomplete="current-password" required>
+            </div>
+            <button class="button submit-button" type="submit">Confirmar acceso</button>
+          </form>
+          <a class="button submit-button" data-reports-login-fallback href="login.html">Entrar a mi cuenta</a>
+        </section>
+
+        <section class="card panel placeholder-panel" data-reports-module hidden>
           <span class="module-icon theme-blue" data-icon="chart"></span>
           <h3>Reportes</h3>
           <p>Este módulo queda reservado para programación próxima.</p>
@@ -23,17 +41,7 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=employee-sensitive-20260721"></script>
+  <script src="js/services/supabase.js?v=access-policy-20260728"></script>
+  <script src="js/app.js?v=access-policy-20260728"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-

@@ -22,8 +22,17 @@ const museoEnvironments = Object.freeze({
 });
 
 const requestedMuseoEnvironment = new URLSearchParams(window.location.search).get("environment");
-if (requestedMuseoEnvironment && museoEnvironments[requestedMuseoEnvironment]) {
+const currentPathPage = (window.location.pathname.split("/").pop() || "").toLowerCase();
+const isLoginEntryPage = currentPathPage === "login.html" || currentPathPage === "login";
+
+if (requestedMuseoEnvironment === "production") {
+  // Forzar el entorno real del cliente.
+  sessionStorage.removeItem("museo-admin-environment");
+} else if (requestedMuseoEnvironment && museoEnvironments[requestedMuseoEnvironment]) {
   sessionStorage.setItem("museo-admin-environment", requestedMuseoEnvironment);
+} else if (isLoginEntryPage && !requestedMuseoEnvironment) {
+  // Login sin parámetro = siempre producción. Evita quedar atrapado en staging.
+  sessionStorage.removeItem("museo-admin-environment");
 }
 
 const museoEnvironmentName = sessionStorage.getItem("museo-admin-environment") || "production";
