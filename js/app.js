@@ -4410,57 +4410,31 @@ function bindFinanceModule() {
     const existing = await existingResponse.json();
     if (!existingResponse.ok) throw new Error(existing.message || "No se pudo localizar el registro financiero.");
 
-    const payload = buildFinanceRecordPayload(row, monthIndex, nextValue, currentProfile.museum_id);
     const recordId = existing[0]?.id;
-    const saveResponse = await fetch(recordId
-      ? `${supabaseUrl}/rest/v1/finance_records?id=eq.${encodeURIComponent(recordId)}`
-      : `${supabaseUrl}/rest/v1/finance_records`, {
-      method: recordId ? "PATCH" : "POST",
-      headers: {
-        ...(await supabaseAuthHeaders()),
-        Prefer: "return=representation"
-      },
-      body: JSON.stringify(payload)
-    });
-    const saved = await saveResponse.json();
-    if (!saveResponse.ok) throw new Error(saved.message || "No se pudo guardar el cambio financiero.");
-
-    const savedRecordId = saved[0]?.id || recordId || null;
-    try {
-      if (typeof supabasePost !== "function") {
-        throw new Error("No se pudo registrar la auditoría de seguridad.");
-      }
-      await supabasePost("/rest/v1/rpc/record_security_audit_event", {
-        p_action: "update_finance_record",
-        p_module: "finance",
-        p_result: "success",
-        p_details: {
-          record_id: savedRecordId,
-          record_type: row.type,
-          category: row.category,
-          concept: row.concept,
-          month: financeMonths[monthIndex],
-          year: financeYear,
-          old_amount: Number(previousValue || 0),
-          new_amount: Number(nextValue || 0)
-        }
-      });
-      setSyncStatus("connected", "Guardado en Supabase", `Última confirmación: ${syncTime()} · ${currentUser}`);
-    } catch (auditError) {
-      setSyncStatus(
-        "connected",
-        "Guardado con advertencia",
-        `Cambio financiero confirmado, pero la auditoría no se registró · ${syncTime()} · ${currentUser}`
-      );
-      const panelNode = document.querySelector("[data-finance-panel]");
-      if (panelNode) {
-        panelNode.insertAdjacentHTML(
-          "afterbegin",
-          `<p class="form-message error" role="status">El valor se guardó en Supabase, pero no se pudo registrar la auditoría: ${safeHtml(auditError.message || "revise su sesión o conexión")}.</p>`
-        );
-      }
+    if (!recordId) {
+      throw new Error("No existe el registro financiero. Recargue Finanzas para regenerar la plantilla.");
     }
 
+    if (typeof supabasePost !== "function") {
+      throw new Error("No se pudo guardar el cambio financiero.");
+    }
+
+    const result = await supabasePost("/rest/v1/rpc/update_finance_record_amount", {
+      p_record_id: recordId,
+      p_new_amount: Number(nextValue || 0)
+    });
+    const saved = Array.isArray(result) ? result[0] : result;
+    if (
+      !saved?.record_id ||
+      saved.amount === undefined ||
+      saved.amount === null ||
+      !saved.updated_at ||
+      !saved.audit_id
+    ) {
+      throw new Error("Supabase no confirmó el guardado financiero.");
+    }
+
+    setSyncStatus("connected", "Guardado en Supabase", `Última confirmación: ${syncTime()} · ${currentUser}`);
     return true;
   };
 
