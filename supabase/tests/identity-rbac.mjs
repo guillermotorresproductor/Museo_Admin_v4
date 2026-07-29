@@ -49,7 +49,9 @@ try {
   assert(await permission(financeToken,"compensation.read")===false,"Finance received compensation access");
   assert(await permission(financeToken,"employees.medical.read")===false,"Finance received medical access");
   assert(await permission(adminToken,"roles.assign")===true,"Admin role assignment missing");
-  assert(await permission(adminToken,"finance.read")===false,"Admin inherited finance access");
+  assert(await permission(adminToken,"finance.read")===true,"Admin finance.read missing");
+  assert(await permission(adminToken,"finance.write")===true,"Admin finance.write missing");
+  assert(await permission(adminToken,"finance.export")===false,"Admin finance.export must remain false");
   assert(await permission(adminToken,"employees.medical.read")===false,"Admin inherited medical access");
   const own=await api("/rest/v1/employees?select=id",{headers:{apikey:anon,Authorization:`Bearer ${employeeToken}`}}); assert(own.response.ok&&own.data.length===1,"Employee isolation failed");
   const forbiddenInsert=await api("/rest/v1/employees",{method:"POST",headers:{apikey:anon,Authorization:`Bearer ${employeeToken}`,"Content-Type":"application/json"},body:{museum_id:(await profile(employee.id)).museum_id,first_name:"No",last_name:"Permission",position:"QA",department:"QA",email:"blocked@example.invalid"}}); assert(forbiddenInsert.response.status===403,"Employee insert was not blocked");
@@ -76,7 +78,7 @@ try {
   const statusEdge=await invoke("set-employee-status",adminToken,{employee_id:createdEmployees[0],status:"inactivo"}); assert(statusEdge.response.ok&&statusEdge.data.employee.status==="inactivo","Authorized employee deactivation failed");
   await api(`/rest/v1/employees?id=eq.${createdEmployees[0]}`,{method:"DELETE",headers:{apikey:anon,Authorization:`Bearer ${adminToken}`}});
   const stillPresent=await api(`/rest/v1/employees?select=id&id=eq.${createdEmployees[0]}`,{headers:serviceHeaders}); assert(stillPresent.response.ok&&stillPresent.data.length===1,"Physical employee delete was not blocked");
-  console.log(JSON.stringify({passed:true,checks:31}));
+  console.log(JSON.stringify({passed:true,checks:33}));
 } catch (error) { failure=error; }
 finally {
   for (const id of createdEmployees) await api(`/rest/v1/employee_compensation?employee_id=eq.${id}`,{method:"DELETE",headers:serviceHeaders});
