@@ -30,19 +30,14 @@
           </form>
           <a class="button submit-button" data-executive-login-fallback href="login.html">Entrar a mi cuenta</a>
         </section>
-
-        <section class="card panel" data-executive-launch hidden>
-          <p class="page-kicker">Administración</p>
-          <h2>Dirección Ejecutiva</h2>
-          <p>Bandeja central de revisión y decisiones administrativas. La bandeja se abre en INSTITUVA con la misma cuenta autorizada.</p>
-          <a class="button submit-button" href="#" data-executive-instituva-launch>Ir al módulo</a>
-        </section>
+        <!-- Contenedor técnico oculto para el gate; tras validar se redirige a Instituva sin pantalla intermedia. -->
+        <section data-executive-launch hidden aria-hidden="true"></section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
   <script src="js/config.js"></script>
   <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=access-policy-20260728"></script>
+  <script src="js/app.js?v=admin-direct-entry-20260728"></script>
 </body>
 </html>

@@ -263,11 +263,16 @@ const SESSION_IDLE_MS = 5 * 60 * 1000;
 let employeeRecords = Object.values(defaultEmployeeProfiles);
 let currentPermissions = new Set();
 let currentPermissionsLoaded = false;
+let currentProfileRole = null;
+let currentProfileActive = false;
+let currentProfileMuseumId = null;
 const hasPermission = (permission) => currentPermissions.has(permission);
 const canManageEmployees = () => hasPermission("employees.create") || hasPermission("employees.update.basic");
 const hasAdministrativeWorkspaceAccess = () =>
   hasPermission("system.configure") || (hasPermission("audit.read") && hasPermission("notifications.manage"));
 const canAccessAdministrationHub = () => hasAdministrativeWorkspaceAccess();
+const isActiveAdministrator = () =>
+  currentProfileRole === "administrador" && currentProfileActive && Boolean(currentProfileMuseumId);
 const postLoginDestination = () => {
   if (hasAdministrativeWorkspaceAccess()) return "dashboard.html";
   if (hasPermission("employees.read.all") && hasPermission("attendance.corrections.approve")) return "recursos-humanos.html";
@@ -283,25 +288,22 @@ const EXECUTIVE_MODULE_ACCESS = {
 };
 
 const SENSITIVE_MODULE_ACCESS = {
-  "finanzas.html": () => hasPermission("finance.read"),
-  "direccion-ejecutiva.html": () => hasPermission("executive.case.read"),
-  // Compatibilidad: Reportes usa reports.read o, si no está desplegado, autoridad de administrador.
-  "reportes.html": () => hasPermission("reports.read") || hasPermission("system.configure")
+  "finanzas.html": () => isActiveAdministrator() && hasPermission("finance.read"),
+  "direccion-ejecutiva.html": () => isActiveAdministrator() && hasPermission("executive.case.read"),
+  "reportes.html": () => isActiveAdministrator() && hasPermission("reports.read")
 };
 
 function loginUrlWithReturn(page) {
-  const params = new URLSearchParams();
-  params.set("environment", museoEnvironment.name);
-  if (page) params.set("next", page);
-  return `login.html?${params.toString()}`;
+  return museoPageUrl("login.html", page ? { next: page } : {});
 }
 
 function resolvePostLoginDestination() {
   const next = new URLSearchParams(window.location.search).get("next");
   if (next && !next.includes("..") && !next.includes("://")) {
-    return next.endsWith(".html") ? next : `${next}.html`;
+    const page = next.endsWith(".html") ? next : `${next}.html`;
+    return museoPageUrl(page);
   }
-  return postLoginDestination();
+  return museoPageUrl(postLoginDestination());
 }
 
 function showProtectedAccessDenied(message) {
@@ -312,7 +314,7 @@ function showProtectedAccessDenied(message) {
       <span class="module-icon theme-red" data-icon="shield"></span>
       <h3>Acceso denegado</h3>
       <p>${safeHtml(message || "No tiene autorización para abrir este módulo.")}</p>
-      <a class="button secondary" href="dashboard.html">Volver al dashboard</a>
+      <a class="button secondary" href="${museoPageUrl("dashboard.html")}">Volver al dashboard</a>
     </section>
   `;
   if (typeof renderInlineIcons === "function") renderInlineIcons();
@@ -348,11 +350,11 @@ function enforceAuthenticatedPageAccess() {
     }
     if (!currentPermissionsLoaded) return false;
     if (hasAdministrativeWorkspaceAccess()) {
-      window.location.replace("dashboard.html");
+      window.location.replace(museoPageUrl("dashboard.html"));
       return true;
     }
     if (postLoginDestination() !== "employee-portal.html") {
-      window.location.replace(postLoginDestination());
+      window.location.replace(museoPageUrl(postLoginDestination()));
       return true;
     }
     return false;
@@ -385,7 +387,7 @@ function enforceAuthenticatedPageAccess() {
     ["inventario.html", () => hasPermission("inventory.manage")]
   ]);
   if (allowedPages.get(page)?.()) return false;
-  window.location.replace("employee-portal.html");
+  window.location.replace(museoPageUrl("employee-portal.html"));
   return true;
 }
 
@@ -393,9 +395,16 @@ async function refreshCurrentPermissions() {
   if (!getSupabaseSession()?.access_token) {
     currentPermissions.clear();
     currentPermissionsLoaded = false;
+    currentProfileRole = null;
+    currentProfileActive = false;
+    currentProfileMuseumId = null;
     return;
   }
   currentPermissions = new Set(await fetchCurrentSupabasePermissions());
+  const profile = await fetchSupabaseProfile().catch(() => null);
+  currentProfileRole = profile?.role || null;
+  currentProfileActive = !profile?.status || profile.status === "active";
+  currentProfileMuseumId = profile?.museum_id || null;
   currentPermissionsLoaded = true;
 }
 function getSupabaseSession() {
@@ -416,14 +425,16 @@ function clearLoginState(redirect = true, reason = "") {
   clearSupabaseSession();
   currentPermissions.clear();
   currentPermissionsLoaded = false;
+  currentProfileRole = null;
+  currentProfileActive = false;
+  currentProfileMuseumId = null;
   localStorage.removeItem(currentUserKey);
   localStorage.removeItem(currentUserPhotoKey);
   localStorage.removeItem(currentAccessLevelKey);
   if (redirect && !isLoginPage()) {
-    const params = new URLSearchParams();
-    params.set("environment", museoEnvironment.name);
-    if (reason) params.set("reason", reason);
-    window.location.href = `login.html?${params.toString()}`;
+    const params = { };
+    if (reason) params.reason = reason;
+    window.location.href = museoPageUrl("login.html", params);
   }
 }
 
@@ -567,13 +578,25 @@ function bindSensitiveModuleGate({
   };
 
   const revealContent = async () => {
+    writeSensitiveModuleUnlock(moduleId);
+    reinforcedOpen = true;
+    try {
+      if (onUnlock) {
+        const unlockResult = await onUnlock();
+        // Redirect inmediato (p. ej. Dirección Ejecutiva → Instituva): sin pantalla intermedia.
+        if (unlockResult === "redirecting" || unlockResult?.redirecting) {
+          return;
+        }
+      }
+    } catch (error) {
+      reinforcedOpen = false;
+      clearSensitiveModuleUnlock(moduleId);
+      throw error;
+    }
     gate.hidden = true;
     gate.style.display = "none";
     content.hidden = false;
     content.style.display = "";
-    writeSensitiveModuleUnlock(moduleId);
-    reinforcedOpen = true;
-    if (onUnlock) await onUnlock();
   };
 
   document.addEventListener("visibilitychange", () => {
@@ -592,6 +615,21 @@ function bindSensitiveModuleGate({
     }
   });
 
+  const assertSensitiveAccess = async () => {
+    await refreshCurrentPermissions();
+    const profile = await fetchSupabaseProfile();
+    if (!profile?.museum_id || (profile.status && profile.status !== "active")) {
+      throw new Error("No tiene una relación activa con el museo para este módulo.");
+    }
+    if (profile.role !== "administrador") {
+      throw new Error("Solo un Administrador autorizado puede abrir este módulo.");
+    }
+    if (!hasPermission(permission)) {
+      throw new Error("Su cuenta no tiene el permiso necesario para este módulo.");
+    }
+    return profile;
+  };
+
   loginForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(loginForm);
@@ -607,20 +645,18 @@ function bindSensitiveModuleGate({
         throw new Error("Debe confirmar el correo de la sesión activa.");
       }
       await signInWithSupabase(email, password);
-      await refreshCurrentPermissions();
-      if (!hasPermission(permission)) {
-        void recordSecurityAuditEvent("SENSITIVE_REAUTH_DENIED", moduleId, "denied", {
-          reason: "missing_permission",
-          permission
-        });
-        throw new Error("Su cuenta no tiene el permiso necesario para este módulo.");
-      }
+      await assertSensitiveAccess();
       void recordSecurityAuditEvent("SENSITIVE_REAUTH_SUCCESS", moduleId, "allowed", { permission });
       void recordSecurityAuditEvent("SENSITIVE_MODULE_ENTER", moduleId, "allowed", { permission });
       await revealContent();
     } catch (error) {
-      const deniedByPermission = String(error.message || "").includes("permiso necesario");
-      if (!deniedByPermission) {
+      const deniedByAuthz = /permiso necesario|Administrador autorizado|relación activa/i.test(String(error.message || ""));
+      if (deniedByAuthz) {
+        void recordSecurityAuditEvent("SENSITIVE_REAUTH_DENIED", moduleId, "denied", {
+          reason: "missing_role_or_permission",
+          permission
+        });
+      } else {
         void recordSecurityAuditEvent("SENSITIVE_REAUTH_FAILED", moduleId, "denied", {
           reason: "invalid_credentials"
         });
@@ -640,12 +676,12 @@ function bindSensitiveModuleGate({
       }
       return;
     }
-    if (!hasPermission(permission)) {
+    if (!isActiveAdministrator() || !hasPermission(permission)) {
       void recordSecurityAuditEvent("MODULE_ACCESS_DENIED", moduleId, "denied", {
-        reason: "missing_permission",
+        reason: "missing_admin_or_permission",
         permission
       });
-      showGate("Su cuenta no tiene el permiso necesario para abrir este módulo.", { showForm: false, error: true });
+      showGate("Acceso denegado.", { showForm: false, error: true });
       if (loginFallbackLink) {
         loginFallbackLink.hidden = false;
         loginFallbackLink.href = loginUrlWithReturn(getCurrentPage());
@@ -1276,7 +1312,7 @@ function renderPageShortcuts() {
     ? []
     : [
         { type: "back", label: "Atrás", icon: "arrowLeft" },
-        { href: "dashboard.html", label: "Home", icon: "dashboard" }
+        { href: museoPageUrl("dashboard.html"), label: "Home", icon: "dashboard" }
       ];
   const groupLinks = group?.links || [];
   const links = [...utilityLinks, ...groupLinks];
@@ -1288,8 +1324,8 @@ function renderPageShortcuts() {
       ${links.map((link) => {
         const href = link.instituvaPath && typeof instituvaAppUrl === "function"
           ? instituvaAppUrl(link.instituvaPath)
-          : link.href;
-        const isActive = href === currentPage || link.href === currentPage;
+          : (link.href && link.type !== "back" ? museoPageUrl(link.href) : link.href);
+        const isActive = href === currentPage || link.href === currentPage || (link.href && museoPageUrl(link.href).startsWith(currentPage));
         const attributes = link.type === "back"
           ? 'href="#" data-history-back'
           : `href="${href}"`;
@@ -1314,7 +1350,7 @@ function renderSidebar() {
       const isActive = item.href === currentPage || (item.activePages || []).includes(currentPage) || (currentPage === "index.html" && item.href === "dashboard.html");
       return `
         <li>
-          <a class="nav-link${isActive ? " is-active" : ""}" href="${item.href}" aria-current="${isActive ? "page" : "false"}">
+          <a class="nav-link${isActive ? " is-active" : ""}" href="${museoPageUrl(item.href)}" aria-current="${isActive ? "page" : "false"}">
             <span class="nav-icon">${iconSvg(item.icon)}</span>
             <span>${item.label}</span>
           </a>
@@ -1331,7 +1367,7 @@ function renderSidebar() {
   }).join("");
 
   sidebar.innerHTML = `
-    <a class="brand" href="dashboard.html" aria-label="Museo de la Música de Puerto Rico">
+    <a class="brand" href="${museoPageUrl("dashboard.html")}" aria-label="Museo de la Música de Puerto Rico">
       <img class="brand-logo" src="images/logo-horizontal.jpg" alt="Museo de la Música de Puerto Rico">
       <span class="brand-mark">${iconSvg("file")}</span>
       <span class="brand-copy">
@@ -1371,13 +1407,13 @@ function renderHeader() {
           ${iconSvg("chevron")}
         </button>
         <div class="account-menu" data-account-menu hidden>
-          <a href="perfil-empleado.html">Mi perfil</a>
+          <a href="${museoPageUrl("perfil-empleado.html")}">Mi perfil</a>
           <button type="button" data-logout-button>Cerrar sesión</button>
         </div>
       </div>
     `
     : `
-      <a class="account-button" href="login.html">
+      <a class="account-button" href="${museoPageUrl("login.html")}">
         ${iconSvg("users")}
         <span>${safeHtml(accountLabel)}</span>
         ${iconSvg("chevron")}
@@ -1402,15 +1438,15 @@ function renderHeader() {
       <div class="notification-menu" data-notification-menu hidden>
         <p class="page-kicker">Notificaciones</p>
         <h3>Alertas del Sistema</h3>
-        <a href="notificaciones.html">
+        <a href="${museoPageUrl("notificaciones.html")}">
           <strong>Temperatura y humedad</strong>
           <span>Revise las alertas ambientales de exhibiciones.</span>
         </a>
-        <a href="calendario.html">
+        <a href="${museoPageUrl("calendario.html")}">
           <strong>Calendario de eventos</strong>
           <span>Hay actividades administrativas pendientes de revisión.</span>
         </a>
-        <a href="recursos-humanos.html">
+        <a href="${museoPageUrl("recursos-humanos.html")}">
           <strong>Recursos Humanos</strong>
           <span>Verifique asistencia, perfiles y accesos del personal.</span>
         </a>
@@ -1427,7 +1463,7 @@ function bindHeaderActions() {
       window.history.back();
       return;
     }
-    window.location.href = "dashboard.html";
+    window.location.href = museoPageUrl("dashboard.html");
   });
 
   const accountButton = document.querySelector("[data-account-menu-button]");
@@ -4389,24 +4425,42 @@ function bindFinanceModule() {
     const saved = await saveResponse.json();
     if (!saveResponse.ok) throw new Error(saved.message || "No se pudo guardar el cambio financiero.");
 
-    await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
-      method: "POST",
-      headers: {
-        ...(await supabaseAuthHeaders()),
-        Prefer: "return=minimal"
-      },
-      body: JSON.stringify({
-        museum_id: currentProfile.museum_id,
-        user_id: currentProfile.id,
-        action: "update_finance_record",
-        table_name: "finance_records",
-        record_id: saved[0]?.id || recordId || null,
-        old_value: { amount: Number(previousValue || 0), month: financeMonths[monthIndex], concept: row.concept },
-        new_value: { amount: Number(nextValue || 0), month: financeMonths[monthIndex], concept: row.concept }
-      })
-    }).catch(() => null);
+    const savedRecordId = saved[0]?.id || recordId || null;
+    try {
+      if (typeof supabasePost !== "function") {
+        throw new Error("No se pudo registrar la auditoría de seguridad.");
+      }
+      await supabasePost("/rest/v1/rpc/record_security_audit_event", {
+        p_action: "update_finance_record",
+        p_module: "finance",
+        p_result: "success",
+        p_details: {
+          record_id: savedRecordId,
+          record_type: row.type,
+          category: row.category,
+          concept: row.concept,
+          month: financeMonths[monthIndex],
+          year: financeYear,
+          old_amount: Number(previousValue || 0),
+          new_amount: Number(nextValue || 0)
+        }
+      });
+      setSyncStatus("connected", "Guardado en Supabase", `Última confirmación: ${syncTime()} · ${currentUser}`);
+    } catch (auditError) {
+      setSyncStatus(
+        "connected",
+        "Guardado con advertencia",
+        `Cambio financiero confirmado, pero la auditoría no se registró · ${syncTime()} · ${currentUser}`
+      );
+      const panelNode = document.querySelector("[data-finance-panel]");
+      if (panelNode) {
+        panelNode.insertAdjacentHTML(
+          "afterbegin",
+          `<p class="form-message error" role="status">El valor se guardó en Supabase, pero no se pudo registrar la auditoría: ${safeHtml(auditError.message || "revise su sesión o conexión")}.</p>`
+        );
+      }
+    }
 
-    setSyncStatus("connected", "Guardado en Supabase", `Última confirmación: ${syncTime()} · ${currentUser}`);
     return true;
   };
 
@@ -4773,8 +4827,8 @@ function bindFinanceModule() {
 
   if (!getSupabaseSession()?.access_token) {
     showFinanceGateError("Finanzas requiere una sesión activa. Entre por Mi cuenta para continuar.");
-  } else if (!hasPermission("finance.read")) {
-    showFinanceGateError("Su cuenta no tiene el permiso necesario para abrir Finanzas.");
+  } else if (!isActiveAdministrator() || !hasPermission("finance.read")) {
+    showFinanceGateError("Acceso denegado.");
   } else {
     const sensitiveGate = bindSensitiveModuleGate({
       moduleId: "finance",
@@ -4805,7 +4859,6 @@ function bindExecutiveDirectionModule() {
   const launch = document.querySelector("[data-executive-launch]");
   const loginForm = document.querySelector("[data-executive-login]");
   const loginMessage = document.querySelector("[data-executive-gate-message]");
-  const launchLink = document.querySelector("[data-executive-instituva-launch]");
   const loginFallback = document.querySelector("[data-executive-login-fallback]");
   if (!gate || !launch) return;
 
@@ -4818,10 +4871,36 @@ function bindExecutiveDirectionModule() {
     loginMessage,
     loginFallbackLink: loginFallback,
     async onUnlock() {
-      if (launchLink && typeof instituvaAppUrl === "function") {
-        launchLink.setAttribute("href", instituvaAppUrl("/administracion/direccion-ejecutiva"));
-        launchLink.setAttribute("rel", "noopener noreferrer");
+      if (typeof instituvaAppUrl !== "function") {
+        throw new Error("No se pudo abrir Dirección Ejecutiva en este entorno.");
       }
+      // Staging only: opaque one-time handoff → INSTITUVA session (no third login).
+      if (museoEnvironment?.name === "staging") {
+        const session = getSupabaseSession();
+        if (!session?.access_token) {
+          throw new Error("Sesión Museo no disponible para el handoff.");
+        }
+        // Use the post-password token as-is. Do not refresh: refresh adds amr token_refresh.
+        const response = await fetch(`${supabaseUrl}/functions/v1/museo-executive-handoff-issue`, {
+          method: "POST",
+          headers: {
+            ...supabaseHeaders(),
+            Authorization: `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ destination: "/administracion/direccion-ejecutiva" })
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok || !result?.code) {
+          throw new Error(result?.error || "No se pudo emitir el acceso a Dirección Ejecutiva.");
+        }
+        // Fragment only: code must not appear in query string (Referer / server logs).
+        const handoffUrl = `${instituvaAppUrl("/auth/museo-handoff")}#code=${encodeURIComponent(result.code)}`;
+        window.location.replace(handoffUrl);
+        return "redirecting";
+      }
+      const url = instituvaAppUrl("/administracion/direccion-ejecutiva");
+      window.location.replace(url);
+      return "redirecting";
     }
   }).init();
 }
@@ -4834,10 +4913,24 @@ function bindReportsModule() {
   const loginFallback = document.querySelector("[data-reports-login-fallback]");
   if (!gate || !module) return;
 
-  const reportsPermission = hasPermission("reports.read") ? "reports.read" : "system.configure";
+  if (!isActiveAdministrator() || !hasPermission("reports.read")) {
+    gate.hidden = false;
+    module.hidden = true;
+    if (loginForm) loginForm.hidden = true;
+    if (loginFallback) {
+      loginFallback.hidden = false;
+      loginFallback.href = loginUrlWithReturn("reportes.html");
+    }
+    if (loginMessage) {
+      loginMessage.textContent = "Acceso denegado.";
+      loginMessage.className = "form-message error";
+    }
+    return;
+  }
+
   bindSensitiveModuleGate({
     moduleId: "reports",
-    permission: reportsPermission,
+    permission: "reports.read",
     gate,
     content: module,
     loginForm,
@@ -4856,7 +4949,7 @@ function bindEmployeeProfile() {
         <span class="module-icon theme-red" data-icon="shield"></span>
         <h3>Acceso restringido</h3>
         <p>El perfil administrativo de empleados solo está disponible para usuarios Ejecutivos y Administradores.</p>
-        <a class="button secondary" href="dashboard.html">Volver al dashboard</a>
+        <a class="button secondary" href="${museoPageUrl("dashboard.html")}">Volver al dashboard</a>
       </div>
     `;
     renderInlineIcons();
@@ -5792,7 +5885,7 @@ function bindPortalAttendanceCorrections() {
 async function bindEmployeePortal() {
   if (!document.querySelector("[data-employee-portal]")) return;
   const session = getSupabaseSession();
-  if (!session?.access_token) { window.location.replace(`login.html?environment=${encodeURIComponent(museoEnvironment.name)}`); return; }
+  if (!session?.access_token) { window.location.replace(museoPageUrl("login.html")); return; }
   const profile = await fetchSupabaseProfile();
   const employee = getEmployeeRecords().find((record) => record.authUserId === session.user?.id);
   document.querySelector("[data-portal-name]").textContent = employee ? employeeDisplayName(employee) : (profile?.full_name || session.user?.email || "Usuario");
@@ -5904,6 +5997,40 @@ function bindInstituvaAppLinks() {
   });
 }
 
+/** Keep active environment visible and attached to same-origin .html links. */
+function ensureActiveEnvironmentInAddressBar() {
+  if (typeof museoEnvironment === "undefined" || typeof museoPageUrl !== "function") return;
+  const url = new URL(window.location.href);
+  if (url.searchParams.get("environment") === museoEnvironment.name) return;
+  url.searchParams.set("environment", museoEnvironment.name);
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+}
+
+function preserveActiveEnvironmentOnInternalLinks(root = document) {
+  if (typeof museoEnvironment === "undefined" || typeof museoPageUrl !== "function") return;
+  root.querySelectorAll("a[href]").forEach((anchor) => {
+    const raw = anchor.getAttribute("href");
+    if (!raw || raw.startsWith("#") || raw.startsWith("mailto:") || raw.startsWith("tel:") || raw.startsWith("javascript:")) {
+      return;
+    }
+    let url;
+    try {
+      url = new URL(raw, window.location.href);
+    } catch {
+      return;
+    }
+    if (url.origin !== window.location.origin) return;
+    if (!/\.html$/i.test(url.pathname)) return;
+    if (url.searchParams.get("environment") === museoEnvironment.name) return;
+    const file = url.pathname.split("/").pop();
+    const extras = {};
+    url.searchParams.forEach((value, key) => {
+      if (key !== "environment") extras[key] = value;
+    });
+    anchor.setAttribute("href", museoPageUrl(file, extras));
+  });
+}
+
 async function initApp() {
   if (ensureEnvironmentOnLocalAuthCallback()) return;
   if (redirectAuthCallbackToLogin()) return;
@@ -5912,10 +6039,12 @@ async function initApp() {
     window.location.replace(passwordRecoveryRedirectUrl());
     return;
   }
+  ensureActiveEnvironmentInAddressBar();
   bindInstituvaAppLinks();
   renderSidebar();
   renderHeader();
   renderFooter();
+  preserveActiveEnvironmentOnInternalLinks();
   renderInlineIcons();
   bindHeaderActions();
   if (isLoginPage()) {
@@ -5926,11 +6055,15 @@ async function initApp() {
   await refreshCurrentPermissions().catch(() => {
     currentPermissions.clear();
     currentPermissionsLoaded = Boolean(getSupabaseSession()?.access_token);
+    currentProfileRole = null;
+    currentProfileActive = false;
+    currentProfileMuseumId = null;
   });
   if (enforceAuthenticatedPageAccess()) return;
   await syncEmployeeCacheFromSupabase().catch(() => null);
   updateCurrentUserFromEmployeeCache();
   renderHeader();
+  preserveActiveEnvironmentOnInternalLinks();
   renderInlineIcons();
   bindHeaderActions();
   populateSystemDataSelects();
@@ -5953,6 +6086,7 @@ async function initApp() {
   bindCalendarModules();
   bindMembershipsModule();
   await bindEmployeePortal();
+  preserveActiveEnvironmentOnInternalLinks();
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
