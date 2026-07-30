@@ -4714,17 +4714,16 @@ function bindExecutiveDirectionModule() {
   const loginFallback = document.querySelector("[data-executive-login-fallback]");
   if (!gate || !launch) return;
 
-  launchLink?.addEventListener("click", async (event) => {
-    event.preventDefault();
-    if (launchLink.getAttribute("aria-disabled") === "true") return;
-    const redirectTo = typeof instituvaAppUrl === "function"
-      ? instituvaAppUrl("/administracion/direccion-ejecutiva")
-      : "";
+  const openExecutiveDirection = async () => {
+    if (launchLink?.getAttribute("aria-disabled") === "true") return;
+    const museumBase = window.location.origin;
+    const targetPath = `/administracion/direccion-ejecutiva?surface=website&museumBase=${encodeURIComponent(museumBase)}`;
+    const redirectTo = typeof instituvaAppUrl === "function" ? instituvaAppUrl(targetPath) : "";
     const previousText = launchLink.textContent;
-    launchLink.setAttribute("aria-disabled", "true");
-    launchLink.textContent = "Abriendo INSTITUVA...";
+    launchLink?.setAttribute("aria-disabled", "true");
+    if (launchLink) launchLink.textContent = "Abriendo Dirección Ejecutiva...";
     if (launchMessage) {
-      launchMessage.textContent = "Preparando acceso seguro...";
+      launchMessage.textContent = "Abriendo Dirección Ejecutiva...";
       launchMessage.className = "form-message";
     }
     try {
@@ -4735,13 +4734,21 @@ function bindExecutiveDirectionModule() {
       if (!result?.actionLink) throw new Error("El servidor no devolvió un acceso válido.");
       window.location.assign(result.actionLink);
     } catch (error) {
-      launchLink.removeAttribute("aria-disabled");
-      launchLink.textContent = previousText || "Ir al módulo";
+      launchLink?.removeAttribute("aria-disabled");
+      if (launchLink) {
+        launchLink.hidden = false;
+        launchLink.textContent = previousText || "Reintentar";
+      }
       if (launchMessage) {
         launchMessage.textContent = `No se pudo abrir INSTITUVA: ${error.message || "revise la conexión"}.`;
         launchMessage.className = "form-message error";
       }
     }
+  };
+
+  launchLink?.addEventListener("click", (event) => {
+    event.preventDefault();
+    void openExecutiveDirection();
   });
 
   bindSensitiveModuleGate({
@@ -4753,9 +4760,7 @@ function bindExecutiveDirectionModule() {
     loginMessage,
     loginFallbackLink: loginFallback,
     async onUnlock() {
-      if (launchLink && typeof instituvaAppUrl === "function") {
-        launchLink.setAttribute("href", "#");
-      }
+      await openExecutiveDirection();
     }
   }).init();
 }
