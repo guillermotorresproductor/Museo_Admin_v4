@@ -194,11 +194,17 @@ const SENSITIVE_MODULE_ACCESS = {
   "reportes.html": () => hasPermission("reports.read") || hasPermission("system.configure")
 };
 
-function loginUrlWithReturn(page) {
+function localAwarePageUrl(page) {
+  const isLocal = typeof isLocalMuseoHost === "function" && isLocalMuseoHost();
+  return isLocal ? String(page || "").replace(/\.html$/, "") : page;
+}
+
+function loginUrlWithReturn(page, reason = "") {
   const params = new URLSearchParams();
   params.set("environment", museoEnvironment.name);
   if (page) params.set("next", page);
-  return `login.html?${params.toString()}`;
+  if (reason) params.set("reason", reason);
+  return `${localAwarePageUrl("login.html")}?${params.toString()}`;
 }
 
 function resolvePostLoginDestination() {
@@ -325,10 +331,7 @@ function clearLoginState(redirect = true, reason = "") {
   localStorage.removeItem(currentUserPhotoKey);
   localStorage.removeItem(currentAccessLevelKey);
   if (redirect && !isLoginPage()) {
-    const params = new URLSearchParams();
-    params.set("environment", museoEnvironment.name);
-    if (reason) params.set("reason", reason);
-    window.location.href = `login.html?${params.toString()}`;
+    window.location.href = loginUrlWithReturn("", reason);
   }
 }
 
@@ -1217,9 +1220,10 @@ function renderSidebar() {
   const groupsMarkup = navigationGroups.map((group) => {
     const links = group.items.map((item) => {
       const isActive = item.href === currentPage || (item.activePages || []).includes(currentPage) || (currentPage === "index.html" && item.href === "dashboard.html");
+      const href = item.href === "login.html" ? loginUrlWithReturn("") : item.href;
       return `
         <li>
-          <a class="nav-link${isActive ? " is-active" : ""}" href="${item.href}" aria-current="${isActive ? "page" : "false"}">
+          <a class="nav-link${isActive ? " is-active" : ""}" href="${href}" aria-current="${isActive ? "page" : "false"}">
             <span class="nav-icon">${iconSvg(item.icon)}</span>
             <span>${item.label}</span>
           </a>
@@ -1292,7 +1296,7 @@ function renderHeader() {
       </div>
     `
     : `
-      <a class="account-button" href="login.html">
+      <a class="account-button" href="${loginUrlWithReturn("")}">
         ${iconSvg("users")}
         <span>${safeHtml(accountLabel)}</span>
         ${iconSvg("chevron")}
@@ -5734,7 +5738,7 @@ function bindPortalAttendanceCorrections() {
 async function bindEmployeePortal() {
   if (!document.querySelector("[data-employee-portal]")) return;
   const session = getSupabaseSession();
-  if (!session?.access_token) { window.location.replace(`login.html?environment=${encodeURIComponent(museoEnvironment.name)}`); return; }
+  if (!session?.access_token) { window.location.replace(loginUrlWithReturn("employee-portal.html")); return; }
   const profile = await fetchSupabaseProfile();
   const employee = getEmployeeRecords().find((record) => record.authUserId === session.user?.id);
   document.querySelector("[data-portal-name]").textContent = employee ? employeeDisplayName(employee) : (profile?.full_name || session.user?.email || "Usuario");
