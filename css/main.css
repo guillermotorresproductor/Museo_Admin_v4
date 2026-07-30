@@ -1765,6 +1765,20 @@ body {
   background: #18b45b;
 }
 
+.environment-badge {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border: 1px solid #d97706;
+  border-radius: 999px;
+  background: #fff7ed;
+  padding: 5px 10px;
+  color: #9a3412;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
 .account-menu-wrap {
   position: relative;
 }
