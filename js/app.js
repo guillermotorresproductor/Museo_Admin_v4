@@ -4706,61 +4706,287 @@ function bindFinanceModule() {
 
 function bindExecutiveDirectionModule() {
   const gate = document.querySelector("[data-executive-gate]");
-  const launch = document.querySelector("[data-executive-launch]");
+  const module = document.querySelector("[data-executive-module]");
   const loginForm = document.querySelector("[data-executive-login]");
   const loginMessage = document.querySelector("[data-executive-gate-message]");
-  const launchLink = document.querySelector("[data-executive-instituva-launch]");
-  const launchMessage = document.querySelector("[data-executive-launch-message]");
   const loginFallback = document.querySelector("[data-executive-login-fallback]");
-  if (!gate || !launch) return;
+  const message = document.querySelector("[data-executive-message]");
+  const caseList = document.querySelector("[data-executive-cases]");
+  const detail = document.querySelector("[data-executive-detail]");
+  const refreshButton = document.querySelector("[data-executive-refresh]");
+  if (!gate || !module || !caseList || !detail) return;
 
-  const openExecutiveDirection = async () => {
-    if (launchLink?.getAttribute("aria-disabled") === "true") return;
-    const museumBase = window.location.origin;
-    const targetPath = `/administracion/direccion-ejecutiva?surface=website&museumBase=${encodeURIComponent(museumBase)}`;
-    const redirectTo = typeof instituvaAppUrl === "function" ? instituvaAppUrl(targetPath) : "";
-    const previousText = launchLink.textContent;
-    launchLink?.setAttribute("aria-disabled", "true");
-    if (launchLink) launchLink.textContent = "Abriendo Dirección Ejecutiva...";
-    if (launchMessage) {
-      launchMessage.textContent = "Abriendo Dirección Ejecutiva...";
-      launchMessage.className = "form-message";
+  const statusLabels = {
+    draft: "Borrador",
+    in_review: "En revisión",
+    ready_for_approval: "Para aprobar",
+    returned: "Devuelto",
+    approved: "Aprobado",
+    rejected: "Rechazado",
+    cancelled: "Cancelado",
+    in_municipal_process: "En trámite municipal",
+    completed: "Completado"
+  };
+  const priorityLabels = {
+    normal: "Normal",
+    high: "Alta",
+    urgent: "Urgente",
+    critical: "Crítica"
+  };
+  const areaLabels = {
+    administration: "Administración",
+    collections: "Colecciones",
+    communications: "Comunicaciones",
+    finance: "Finanzas",
+    human_resources: "Recursos Humanos",
+    memberships: "Membresías",
+    operations: "Operaciones",
+    spaces: "Renta de espacios",
+    system_health: "Soporte técnico"
+  };
+  const filters = { area: "", type: "", status: "", priority: "", date: "", urgent: false, resolved: false };
+  let snapshot = { cases: [], decisions: [], permissions: {} };
+  let selectedId = "";
+
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text || "";
+    message.className = `form-message executive-system-message${type ? ` ${type}` : ""}`;
+  };
+  const isOverdue = (item) => Boolean(
+    item.dueAt &&
+    new Date(item.dueAt).getTime() < Date.now() &&
+    !["approved", "rejected", "cancelled", "completed"].includes(item.status)
+  );
+  const formatDate = (value) => {
+    if (!value) return "Sin fecha";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime())
+      ? "Sin fecha"
+      : new Intl.DateTimeFormat("es-PR", { dateStyle: "medium" }).format(parsed);
+  };
+  const visibleCases = () => snapshot.cases.filter((item) => (
+    (!filters.area || item.area === filters.area) &&
+    (!filters.type || item.caseTypeCode === filters.type) &&
+    (!filters.status || item.status === filters.status) &&
+    (!filters.priority || item.priority === filters.priority) &&
+    (!filters.date || String(item.createdAt || "").slice(0, 10) === filters.date) &&
+    (!filters.urgent || ["urgent", "critical"].includes(item.priority) || isOverdue(item)) &&
+    (!filters.resolved || ["approved", "rejected", "completed"].includes(item.status))
+  ));
+
+  const renderCounts = () => {
+    const counts = {
+      in_review: snapshot.cases.filter((item) => item.status === "in_review").length,
+      ready_for_approval: snapshot.cases.filter((item) => item.status === "ready_for_approval").length,
+      returned: snapshot.cases.filter((item) => item.status === "returned").length,
+      urgent: snapshot.cases.filter((item) => ["urgent", "critical"].includes(item.priority) || isOverdue(item)).length,
+      resolved: snapshot.cases.filter((item) => ["approved", "rejected", "completed"].includes(item.status)).length
+    };
+    Object.entries(counts).forEach(([name, value]) => {
+      const target = document.querySelector(`[data-executive-count="${name}"]`);
+      if (target) target.textContent = String(value);
+    });
+  };
+
+  const populateFilter = (name, entries) => {
+    const select = document.querySelector(`[data-executive-filter="${name}"]`);
+    if (!select) return;
+    const firstOption = select.options[0]?.outerHTML || "<option value=\"\">Todos</option>";
+    select.innerHTML = firstOption + entries
+      .map(([value, label]) => `<option value="${safeHtml(value)}">${safeHtml(label)}</option>`)
+      .join("");
+    select.value = filters[name] || "";
+  };
+
+  const renderFilters = () => {
+    const areas = [...new Set(snapshot.cases.map((item) => item.area).filter(Boolean))]
+      .map((value) => [value, areaLabels[value] || value]);
+    const types = [...new Map(snapshot.cases
+      .filter((item) => item.caseTypeCode)
+      .map((item) => [item.caseTypeCode, item.caseTypeLabel || item.caseTypeCode])).entries()];
+    populateFilter("area", areas);
+    populateFilter("type", types);
+  };
+
+  const renderDetail = () => {
+    const selected = snapshot.cases.find((item) => item.id === selectedId);
+    if (!selected) {
+      detail.innerHTML = '<div class="executive-empty-state">Seleccione un asunto para revisar su detalle.</div>';
+      return;
     }
+    const decisions = snapshot.decisions.filter((item) => item.executiveCaseId === selected.id);
+    const canReview = Boolean(snapshot.permissions?.review);
+    const canDecide = Boolean(snapshot.permissions?.decide);
+    const actions = [
+      canReview && selected.status === "in_review"
+        ? '<button type="button" data-executive-action="ready">Marcar listo para aprobación</button>'
+        : "",
+      selected.status === "returned"
+        ? '<button type="button" data-executive-action="resubmit">Reenviar a revisión</button>'
+        : "",
+      canDecide && selected.status === "ready_for_approval"
+        ? '<button class="approve" type="button" data-executive-action="approve">Aprobar</button><button type="button" data-executive-action="return">Devolver</button><button class="reject" type="button" data-executive-action="reject">Rechazar</button>'
+        : ""
+    ].join("");
+    detail.innerHTML = `
+      <div class="executive-detail-heading">
+        <div>
+          <span>${safeHtml(selected.caseTypeLabel || selected.caseTypeCode || "Asunto")}</span>
+          <h3>${safeHtml(selected.title || "Asunto sin título")}</h3>
+        </div>
+        <strong class="executive-status status-${safeHtml(selected.status || "")}">
+          ${safeHtml(isOverdue(selected) ? "Vencido" : (statusLabels[selected.status] || selected.status))}
+        </strong>
+      </div>
+      <p class="executive-detail-summary">${safeHtml(selected.summary || "No se registró una descripción adicional.")}</p>
+      <dl class="executive-detail-facts">
+        <div><dt>Solicitante</dt><dd>${safeHtml(selected.requestedByName || "Solicitante autorizado")}</dd></div>
+        <div><dt>Área</dt><dd>${safeHtml(areaLabels[selected.area] || selected.area || "Administración")}</dd></div>
+        <div><dt>Prioridad</dt><dd>${safeHtml(priorityLabels[selected.priority] || selected.priority || "Normal")}</dd></div>
+        <div><dt>Creado</dt><dd>${safeHtml(formatDate(selected.createdAt))}</dd></div>
+        <div><dt>Vencimiento</dt><dd>${safeHtml(selected.dueAt ? formatDate(selected.dueAt) : "Sin vencimiento")}</dd></div>
+        <div><dt>Referencia</dt><dd>${safeHtml(selected.sourceResourceType || "expediente")}${selected.sourceResourceId ? ` · ${safeHtml(selected.sourceResourceId)}` : ""}</dd></div>
+      </dl>
+      <section class="executive-evidence">
+        <h4>Expediente de origen</h4>
+        <p>Los documentos, recibos municipales, cantidades y evidencia permanecen en su módulo correspondiente. Esta bandeja conserva la referencia oficial.</p>
+      </section>
+      <section class="executive-decision-history">
+        <h4>Historial de decisiones</h4>
+        ${decisions.length ? `
+          <ol>${decisions.map((decision) => `
+            <li>
+              <strong>${safeHtml(decision.action === "approve" ? "Aprobado" : decision.action === "reject" ? "Rechazado" : "Devuelto")}</strong>
+              <span>${safeHtml(decision.actorName || "Autoridad autorizada")} · ${safeHtml(formatDate(decision.createdAt))}</span>
+              ${decision.reason ? `<p>${safeHtml(decision.reason)}</p>` : ""}
+            </li>
+          `).join("")}</ol>
+        ` : "<p>Todavía no hay decisiones registradas.</p>"}
+      </section>
+      ${actions ? `<div class="executive-detail-actions">${actions}</div>` : ""}
+    `;
+  };
+
+  const renderCases = () => {
+    const rows = visibleCases();
+    if (!rows.length) {
+      caseList.innerHTML = '<div class="executive-empty-state">No hay asuntos para los filtros seleccionados.</div>';
+      renderDetail();
+      return;
+    }
+    if (!rows.some((item) => item.id === selectedId)) selectedId = rows[0].id;
+    caseList.innerHTML = rows.map((item) => `
+      <button class="executive-case-row${item.id === selectedId ? " is-selected" : ""}" type="button" data-executive-case="${safeHtml(item.id)}">
+        <span class="executive-priority priority-${safeHtml(item.priority || "normal")}"></span>
+        <span class="executive-case-copy">
+          <small>${safeHtml(item.caseTypeLabel || item.caseTypeCode || "Asunto")} · ${safeHtml(areaLabels[item.area] || item.area || "Administración")}</small>
+          <strong>${safeHtml(item.title || "Asunto sin título")}</strong>
+          <em>${safeHtml(item.summary || "Sin resumen adicional")}</em>
+        </span>
+        <span class="executive-status status-${safeHtml(item.status || "")}">
+          ${safeHtml(isOverdue(item) ? "Vencido" : (statusLabels[item.status] || item.status))}
+        </span>
+      </button>
+    `).join("");
+    renderDetail();
+  };
+
+  const render = () => {
+    renderCounts();
+    renderFilters();
+    renderCases();
+  };
+
+  const loadExecutiveDirection = async () => {
+    refreshButton?.setAttribute("disabled", "disabled");
+    setMessage("Actualizando la bandeja…");
     try {
-      const result = await callInstitutionalDataBridge({
-        kind: "session_handoff",
-        redirectTo
-      });
-      if (!result?.actionLink) throw new Error("El servidor no devolvió un acceso válido.");
-      window.location.assign(result.actionLink);
+      const result = await callInstitutionalDataBridge({ kind: "executive_snapshot" });
+      snapshot = {
+        cases: Array.isArray(result?.cases) ? result.cases : [],
+        decisions: Array.isArray(result?.decisions) ? result.decisions : [],
+        permissions: result?.permissions || {}
+      };
+      render();
+      setMessage(`Bandeja sincronizada. ${snapshot.cases.length} asunto${snapshot.cases.length === 1 ? "" : "s"}.`, "success");
     } catch (error) {
-      launchLink?.removeAttribute("aria-disabled");
-      if (launchLink) {
-        launchLink.hidden = false;
-        launchLink.textContent = previousText || "Reintentar";
-      }
-      if (launchMessage) {
-        launchMessage.textContent = `No se pudo abrir INSTITUVA: ${error.message || "revise la conexión"}.`;
-        launchMessage.className = "form-message error";
-      }
+      setMessage(`No se pudo cargar Dirección Ejecutiva: ${error.message || "revise su conexión"}.`, "error");
+      caseList.innerHTML = '<div class="executive-empty-state">La bandeja no está disponible en este momento.</div>';
+    } finally {
+      refreshButton?.removeAttribute("disabled");
     }
   };
 
-  launchLink?.addEventListener("click", (event) => {
-    event.preventDefault();
-    void openExecutiveDirection();
+  const runExecutiveAction = async (action) => {
+    const selected = snapshot.cases.find((item) => item.id === selectedId);
+    if (!selected) return;
+    let reason = null;
+    if (action === "return" || action === "reject") {
+      reason = window.prompt(action === "reject" ? "Indique el motivo del rechazo:" : "Indique las correcciones requeridas:");
+      if (!reason?.trim()) return;
+    } else if (action === "approve") {
+      const confirmed = window.confirm(`¿Confirma la aprobación de “${selected.title}”?`);
+      if (!confirmed) return;
+    }
+    detail.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+    setMessage("Registrando la decisión…");
+    try {
+      await callInstitutionalDataBridge({
+        kind: "executive_action",
+        caseId: selected.id,
+        action,
+        reason: reason?.trim() || null
+      });
+      await loadExecutiveDirection();
+      setMessage("La decisión se registró correctamente.", "success");
+    } catch (error) {
+      setMessage(`No se pudo registrar la acción: ${error.message || "revise sus permisos"}.`, "error");
+      renderDetail();
+    }
+  };
+
+  refreshButton?.addEventListener("click", () => void loadExecutiveDirection());
+  document.querySelectorAll("[data-executive-filter]").forEach((control) => {
+    control.addEventListener("change", () => {
+      filters[control.dataset.executiveFilter] = control.value;
+      filters.urgent = false;
+      filters.resolved = false;
+      renderCases();
+    });
+  });
+  document.querySelectorAll("[data-executive-summary]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = button.dataset.executiveSummary;
+      filters.status = ["in_review", "ready_for_approval", "returned"].includes(target) ? target : "";
+      filters.urgent = target === "urgent";
+      filters.resolved = target === "resolved";
+      const statusSelect = document.querySelector('[data-executive-filter="status"]');
+      if (statusSelect) statusSelect.value = filters.status;
+      renderCases();
+    });
+  });
+  caseList.addEventListener("click", (event) => {
+    const row = event.target.closest("[data-executive-case]");
+    if (!row) return;
+    selectedId = row.dataset.executiveCase;
+    renderCases();
+  });
+  detail.addEventListener("click", (event) => {
+    const actionButton = event.target.closest("[data-executive-action]");
+    if (actionButton) void runExecutiveAction(actionButton.dataset.executiveAction);
   });
 
   bindSensitiveModuleGate({
     moduleId: "executive_direction",
     permission: "executive.case.read",
     gate,
-    content: launch,
+    content: module,
     loginForm,
     loginMessage,
     loginFallbackLink: loginFallback,
     async onUnlock() {
-      await openExecutiveDirection();
+      await loadExecutiveDirection();
     }
   }).init();
 }
