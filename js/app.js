@@ -4706,8 +4706,39 @@ function bindExecutiveDirectionModule() {
   const loginForm = document.querySelector("[data-executive-login]");
   const loginMessage = document.querySelector("[data-executive-gate-message]");
   const launchLink = document.querySelector("[data-executive-instituva-launch]");
+  const launchMessage = document.querySelector("[data-executive-launch-message]");
   const loginFallback = document.querySelector("[data-executive-login-fallback]");
   if (!gate || !launch) return;
+
+  launchLink?.addEventListener("click", async (event) => {
+    event.preventDefault();
+    if (launchLink.getAttribute("aria-disabled") === "true") return;
+    const redirectTo = typeof instituvaAppUrl === "function"
+      ? instituvaAppUrl("/administracion/direccion-ejecutiva")
+      : "";
+    const previousText = launchLink.textContent;
+    launchLink.setAttribute("aria-disabled", "true");
+    launchLink.textContent = "Abriendo INSTITUVA...";
+    if (launchMessage) {
+      launchMessage.textContent = "Preparando acceso seguro...";
+      launchMessage.className = "form-message";
+    }
+    try {
+      const result = await callInstitutionalDataBridge({
+        kind: "session_handoff",
+        redirectTo
+      });
+      if (!result?.actionLink) throw new Error("El servidor no devolvió un acceso válido.");
+      window.location.assign(result.actionLink);
+    } catch (error) {
+      launchLink.removeAttribute("aria-disabled");
+      launchLink.textContent = previousText || "Ir al módulo";
+      if (launchMessage) {
+        launchMessage.textContent = `No se pudo abrir INSTITUVA: ${error.message || "revise la conexión"}.`;
+        launchMessage.className = "form-message error";
+      }
+    }
+  });
 
   bindSensitiveModuleGate({
     moduleId: "executive_direction",
@@ -4719,8 +4750,7 @@ function bindExecutiveDirectionModule() {
     loginFallbackLink: loginFallback,
     async onUnlock() {
       if (launchLink && typeof instituvaAppUrl === "function") {
-        launchLink.setAttribute("href", instituvaAppUrl("/administracion/direccion-ejecutiva"));
-        launchLink.setAttribute("rel", "noopener noreferrer");
+        launchLink.setAttribute("href", "#");
       }
     }
   }).init();
