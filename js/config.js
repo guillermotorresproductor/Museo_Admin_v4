@@ -24,6 +24,7 @@ const museoEnvironments = Object.freeze({
 const requestedMuseoEnvironment = new URLSearchParams(window.location.search).get("environment");
 const currentPathPage = (window.location.pathname.split("/").pop() || "").toLowerCase();
 const isLoginEntryPage = currentPathPage === "login.html" || currentPathPage === "login";
+const isLocalMuseoEnvironment = ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
 if (requestedMuseoEnvironment === "production") {
   // Forzar el entorno real del cliente.
@@ -31,11 +32,17 @@ if (requestedMuseoEnvironment === "production") {
 } else if (requestedMuseoEnvironment && museoEnvironments[requestedMuseoEnvironment]) {
   sessionStorage.setItem("museo-admin-environment", requestedMuseoEnvironment);
 } else if (isLoginEntryPage && !requestedMuseoEnvironment) {
-  // Login sin parámetro = siempre producción. Evita quedar atrapado en staging.
-  sessionStorage.removeItem("museo-admin-environment");
+  // En desarrollo local el acceso debe permanecer en staging. En el sitio
+  // publicado, un login sin parámetro continúa usando producción.
+  if (isLocalMuseoEnvironment) {
+    sessionStorage.setItem("museo-admin-environment", "staging");
+  } else {
+    sessionStorage.removeItem("museo-admin-environment");
+  }
 }
 
-const museoEnvironmentName = sessionStorage.getItem("museo-admin-environment") || "production";
+const museoEnvironmentName = sessionStorage.getItem("museo-admin-environment")
+  || (isLocalMuseoEnvironment ? "staging" : "production");
 const museoEnvironment = museoEnvironments[museoEnvironmentName] || museoEnvironments.production;
 
 const institutionalDataQuery = new URLSearchParams(window.location.search).get("institutionalData");
