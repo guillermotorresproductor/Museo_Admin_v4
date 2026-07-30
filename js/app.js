@@ -4707,9 +4707,6 @@ function bindFinanceModule() {
 function bindExecutiveDirectionModule() {
   const gate = document.querySelector("[data-executive-gate]");
   const module = document.querySelector("[data-executive-module]");
-  const loginForm = document.querySelector("[data-executive-login]");
-  const loginMessage = document.querySelector("[data-executive-gate-message]");
-  const loginFallback = document.querySelector("[data-executive-login-fallback]");
   const message = document.querySelector("[data-executive-message]");
   const caseList = document.querySelector("[data-executive-cases]");
   const detail = document.querySelector("[data-executive-detail]");
@@ -4977,18 +4974,19 @@ function bindExecutiveDirectionModule() {
     if (actionButton) void runExecutiveAction(actionButton.dataset.executiveAction);
   });
 
-  bindSensitiveModuleGate({
-    moduleId: "executive_direction",
-    permission: "executive.case.read",
-    gate,
-    content: module,
-    loginForm,
-    loginMessage,
-    loginFallbackLink: loginFallback,
-    async onUnlock() {
-      await loadExecutiveDirection();
-    }
-  }).init();
+  // La protección de ruta ya exige sesión activa y executive.case.read.
+  // No se solicita una segunda contraseña dentro del mismo sitio.
+  gate.hidden = true;
+  gate.style.display = "none";
+  module.hidden = false;
+  module.style.display = "";
+  void recordSecurityAuditEvent(
+    "SENSITIVE_MODULE_ENTER",
+    "executive_direction",
+    "allowed",
+    { permission: "executive.case.read", authentication: "active_session" }
+  );
+  void loadExecutiveDirection();
 }
 
 function bindReportsModule() {
