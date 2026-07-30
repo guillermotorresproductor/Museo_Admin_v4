@@ -7,25 +7,6 @@ const RENTAL_RPC: Record<string, string> = {
   log_rental_blocked_event: "service_bridge_log_rental_blocked_event",
 };
 
-function isAllowedInstituvaRedirect(value: string) {
-  try {
-    const url = new URL(value);
-    if (
-      url.origin === "http://localhost:5173" ||
-      url.origin === "http://127.0.0.1:5173" ||
-      url.origin === "https://app.instituva.com"
-    ) {
-      return true;
-    }
-    return (
-      url.origin === "https://guillermotorresproductor.github.io" &&
-      url.pathname.startsWith("/Instituva_App/")
-    );
-  } catch {
-    return false;
-  }
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Método no permitido." }, 405);
@@ -42,7 +23,9 @@ Deno.serve(async (req) => {
       return json({ error: "Puente Instituva no configurado en el servidor." }, 503);
     }
 
-    const permission = kind === "session_handoff" ? "executive.case.read" : "rentals.manage";
+    const permission = ["executive_snapshot", "executive_action"].includes(kind)
+      ? "executive.case.read"
+      : "rentals.manage";
     const { profile, user } = await requirePermission(req, permission);
     const email = profile.email || user.email;
     if (!email) return json({ error: "La cuenta no tiene correo para vincular con Instituva." }, 403);
@@ -65,30 +48,37 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (kind === "session_handoff") {
-      const redirectTo = String(body.redirectTo || "");
-      if (!isAllowedInstituvaRedirect(redirectTo)) {
-        return json({ error: "Destino de INSTITUVA no autorizado." }, 400);
-      }
-      const { data: linkedUser, error: linkedUserError } =
-        await instituva.auth.admin.getUserById(String(actorId));
-      if (
-        linkedUserError ||
-        !linkedUser?.user ||
-        String(linkedUser.user.email || "").toLowerCase() !== String(email).toLowerCase()
-      ) {
-        return json({ error: "La identidad vinculada en INSTITUVA no es válida." }, 403);
-      }
-      const { data, error } = await instituva.auth.admin.generateLink({
-        type: "magiclink",
-        email,
-        options: { redirectTo },
+    if (kind === "executive_snapshot") {
+      const { data, error } = await instituva.rpc("service_bridge_executive_snapshot", {
+        p_organization_id: organizationId,
+        p_actor_user_id: actorId,
       });
-      const actionLink = data?.properties?.action_link;
-      if (error || !actionLink) {
-        return json({ error: "No se pudo crear el acceso temporal a INSTITUVA." }, 502);
+      if (error) throw error;
+      return json(data);
+    }
+
+    if (kind === "executive_action") {
+      const caseId = String(body.caseId || "");
+      const action = String(body.action || "");
+      const reason = typeof body.reason === "string" ? body.reason.trim() || null : null;
+      if (!/^[0-9a-f-]{36}$/i.test(caseId)) {
+        return json({ error: "El asunto ejecutivo no es válido." }, 400);
       }
-      return json({ actionLink });
+      if (!["ready", "resubmit", "approve", "reject", "return"].includes(action)) {
+        return json({ error: "La acción ejecutiva no es válida." }, 400);
+      }
+      if (["reject", "return"].includes(action) && !reason) {
+        return json({ error: "La decisión requiere un motivo." }, 400);
+      }
+      const { data, error } = await instituva.rpc("service_bridge_execute_executive_action", {
+        p_organization_id: organizationId,
+        p_actor_user_id: actorId,
+        p_case_id: caseId,
+        p_action: action,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      return json({ success: Boolean(data) });
     }
 
     if (kind === "membership_list") {
