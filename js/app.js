@@ -12,6 +12,7 @@ const appPages = {
   "renta-espacios.html": { title: "Renta de Espacios", subtitle: "Solicitud de áreas y tarifas oficiales." },
   "renta-espacio.html": { title: "Renta de Espacios", subtitle: "Ficha, fotografías y condiciones del espacio." },
   "membresias.html": { title: "Membresías", subtitle: "Socios, beneficios, renovaciones y participación." },
+  "departamento-museologico.html": { title: "Departamento Museológico", subtitle: "Museología, salas, colecciones y formularios museográficos." },
   "administracion.html": { title: "Administración", subtitle: "Dirección ejecutiva, recursos humanos, notificaciones, reportes y finanzas." },
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
   "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
@@ -20,11 +21,11 @@ const appPages = {
   "finanzas.html": { title: "Finanzas", subtitle: "Acceso restringido pendiente para firewall." },
   "direccion-ejecutiva.html": { title: "Dirección Ejecutiva", subtitle: "Aprobaciones, seguimientos y supervisión operacional (INSTITUVA)." },
   "reglamento.html": { title: "Reglamento del Museo", subtitle: "Normas oficiales, impresión y descarga." },
-  "documentos.html": { title: "Formularios y Papelería", subtitle: "Stationary, reglamento, solicitud de empleo y formularios oficiales." },
+  "documentos.html": { title: "Formularios y papelería", subtitle: "Documentos, papelería institucional y más." },
   "deposito-artes.html": { title: "Depósito de Artes", subtitle: "Logos oficiales, artes y guías de marca del Museo." },
   "recibo-prestamo.html": { title: "Formularios Museográficos", subtitle: "Formularios digitales para artículos de colección y procesos museográficos." },
-  "boletin.html": { title: "Boletín Board", subtitle: "Publicaciones, anuncios y comunicaciones internas." },
-  "inventario.html": { title: "Inventario de Equipos y Obras de Arte", subtitle: "Registro, consulta y localización de artículos del museo." }
+  "boletin.html": { title: "Boletín institucional", subtitle: "Publicaciones, anuncios y comunicaciones." },
+  "inventario.html": { title: "Inventario de equipos", subtitle: "Registro, consulta y localización de equipos." }
 };
 
 const iconPaths = {
@@ -54,15 +55,16 @@ const navigationGroups = [
     label: "Menu",
     items: [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
+      { href: "departamento-museologico.html", label: "Departamento Museológico", icon: "building", activePages: ["recibo-prestamo.html"] },
       { href: "calendario.html", label: "Calendario de Eventos del Museo", icon: "calendar" },
       { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building", activePages: ["renta-espacio.html"] },
       { href: "membresias.html", label: "Membresías", icon: "users" },
       { href: "ujieres.html", label: "Ujieres", icon: "users" },
       { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"] },
-      { href: "documentos.html", label: "Formularios y Papelería", icon: "file", activePages: ["deposito-artes.html", "empleados.html", "recibo-prestamo.html", "reglamento.html"] },
+      { href: "documentos.html", label: "Formularios y papelería", icon: "file", activePages: ["deposito-artes.html", "empleados.html", "reglamento.html"] },
       { href: "administracion.html", label: "Administración", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html", "direccion-ejecutiva.html"] },
-      { href: "boletin.html", label: "Boletín Board", icon: "megaphone" },
-      { href: "inventario.html", label: "Inventario de Equipos y Obras de Arte", icon: "briefcase" },
+      { href: "boletin.html", label: "Boletín institucional", icon: "megaphone" },
+      { href: "inventario.html", label: "Inventario de equipos", icon: "briefcase" },
       { href: "login.html", label: "Mi cuenta", icon: "logout" }
     ]
   }
@@ -78,13 +80,19 @@ const moduleShortcutGroups = [
     ]
   },
   {
-    pages: ["documentos.html", "deposito-artes.html", "reglamento.html", "recibo-prestamo.html", "empleados.html"],
+    pages: ["documentos.html", "deposito-artes.html", "reglamento.html", "empleados.html"],
     links: [
-      { href: "documentos.html", label: "Formularios y Papelería", icon: "file" },
+      { href: "documentos.html", label: "Formularios y papelería", icon: "file" },
       { href: "deposito-artes.html", label: "Depósito de Artes", icon: "image" },
       { href: "reglamento.html", label: "Reglamento", icon: "book" },
-      { href: "recibo-prestamo.html", label: "Formularios Museográficos", icon: "file" },
       { href: "empleados.html", label: "Solicitud de Empleo", icon: "users" }
+    ]
+  },
+  {
+    pages: ["departamento-museologico.html", "recibo-prestamo.html"],
+    links: [
+      { href: "departamento-museologico.html", label: "Departamento Museológico", icon: "building" },
+      { href: "recibo-prestamo.html", label: "Formularios Museográficos", icon: "file" }
     ]
   },
   {
@@ -146,109 +154,6 @@ const activityClassificationThemes = {
   "Colaboraciones con entidades públicas o privadas": "theme-slate"
 };
 
-const defaultEmployeeProfiles = {
-  "guillermo-torres": {
-    id: "guillermo-torres",
-    avatar: "GT",
-    nombre: "Guillermo",
-    apellidos: "Torres",
-    nombreCompleto: "Guillermo Torres",
-    direccion: "Guaynabo, Puerto Rico",
-    telefono: "787-000-0000",
-    correo: "guillermotorrespr@gmail.com",
-    educacion: "Graduado",
-    condicion: "Ninguna registrada",
-    posicion: "Administrador",
-    departamento: "Administración",
-    horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
-    notificaciones: "Recibe notificaciones administrativas, cambios de horario y alertas internas.",
-    acceso: "Administrador",
-    fechaContratacion: "2026-07-01",
-    estado: "Activo",
-    foto: ""
-  },
-  "juan-perez": {
-    id: "juan-perez",
-    avatar: "JP",
-    nombre: "Juan",
-    apellidos: "Pérez",
-    nombreCompleto: "Juan Pérez",
-    direccion: "Guaynabo, Puerto Rico",
-    telefono: "787-000-0000",
-    correo: "juan.perez@museodelamusica.pr",
-    educacion: "Graduado",
-    condicion: "Ninguna registrada",
-    posicion: "Mantenimiento",
-    departamento: "Mantenimiento",
-    horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
-    notificaciones: "Recibe avisos de ruta digital, materiales y calendario de obras.",
-    acceso: "Empleado",
-    fechaContratacion: "2026-07-01",
-    estado: "Activo",
-    foto: ""
-  },
-  "dora-ortiz": {
-    id: "dora-ortiz",
-    avatar: "DO",
-    nombre: "Dora",
-    apellidos: "Ortiz",
-    nombreCompleto: "Dora Ortiz",
-    direccion: "Guaynabo, Puerto Rico",
-    telefono: "787-000-0000",
-    correo: "dora.ortiz@museodelamusica.pr",
-    educacion: "Estudiante",
-    condicion: "Ninguna registrada",
-    posicion: "Mantenimiento",
-    departamento: "Mantenimiento",
-    horario: "Martes a sábado, 8:00 AM - 4:00 PM",
-    notificaciones: "Recibe avisos de inspección, mantenimiento preventivo y tareas asignadas.",
-    acceso: "Empleado",
-    fechaContratacion: "2026-07-01",
-    estado: "Activo",
-    foto: ""
-  },
-  "ana-rivera": {
-    id: "ana-rivera",
-    avatar: "AR",
-    nombre: "Ana",
-    apellidos: "Rivera",
-    nombreCompleto: "Ana Rivera",
-    direccion: "Guaynabo, Puerto Rico",
-    telefono: "787-000-0000",
-    correo: "ana.rivera@museodelamusica.pr",
-    educacion: "Graduado",
-    condicion: "Ninguna registrada",
-    posicion: "Ujier",
-    departamento: "Operaciones",
-    horario: "Según calendario de eventos",
-    notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
-    acceso: "Empleado",
-    fechaContratacion: "2026-07-01",
-    estado: "Activo",
-    foto: ""
-  },
-  "carlos-mendez": {
-    id: "carlos-mendez",
-    avatar: "CM",
-    nombre: "Carlos",
-    apellidos: "Méndez",
-    nombreCompleto: "Carlos Méndez",
-    direccion: "Guaynabo, Puerto Rico",
-    telefono: "787-000-0000",
-    correo: "carlos.mendez@museodelamusica.pr",
-    educacion: "Estudiante",
-    condicion: "Ninguna registrada",
-    posicion: "Ujier",
-    departamento: "Operaciones",
-    horario: "Según calendario de eventos",
-    notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
-    acceso: "Empleado",
-    fechaContratacion: "2026-07-01",
-    estado: "Activo",
-    foto: ""
-  }
-};
-
 const supabaseUrl = museoEnvironment.supabaseUrl;
 const supabasePublishableKey = museoEnvironment.supabasePublishableKey;
 const supabaseSessionKey = `museo-admin-supabase-session-${museoEnvironment.name}`;
@@ -260,7 +165,7 @@ const currentAccessLevelKey = "museo-admin-access-level";
 const currentAccessLevel = () => localStorage.getItem(currentAccessLevelKey) || "Empleado";
 const SUPABASE_REFRESH_MARGIN_SECONDS = 60;
 const SESSION_IDLE_MS = 5 * 60 * 1000;
-let employeeRecords = Object.values(defaultEmployeeProfiles);
+let employeeRecords = [];
 let currentPermissions = new Set();
 let currentPermissionsLoaded = false;
 const hasPermission = (permission) => currentPermissions.has(permission);
@@ -884,7 +789,8 @@ function employeeDisplayName(employee) {
 
 function updateCurrentUserFromEmployeeCache() {
   const userName = localStorage.getItem(currentUserKey);
-  const sessionEmail = getSupabaseSession()?.user?.email || "";
+  const sessionUser = getSupabaseSession()?.user;
+  const sessionEmail = sessionUser?.email || "";
   if (!userName && !sessionEmail) return;
   const normalizedName = String(userName || "").trim().toLowerCase();
   const normalizedEmail = String(sessionEmail || "").trim().toLowerCase();
@@ -892,9 +798,13 @@ function updateCurrentUserFromEmployeeCache() {
     String(record.correo || "").trim().toLowerCase() === normalizedEmail ||
     employeeDisplayName(record).trim().toLowerCase() === normalizedName
   );
-  if (!employee) return;
-  localStorage.setItem(currentUserKey, employeeDisplayName(employee));
-  if (employee.foto) {
+  const storedName = String(userName || "").trim();
+  const metadataName = String(sessionUser?.user_metadata?.full_name || "").trim();
+  const displayName = employee
+    ? employeeDisplayName(employee)
+    : metadataName || (!storedName.includes("@") ? storedName : "") || "Usuario institucional";
+  localStorage.setItem(currentUserKey, displayName);
+  if (employee?.foto) {
     localStorage.setItem(currentUserPhotoKey, employee.foto);
   } else {
     localStorage.removeItem(currentUserPhotoKey);
@@ -1255,7 +1165,12 @@ function resolvePageMeta() {
   const currentPage = getCurrentPage();
   const meta = appPages[currentPage] || appPages["dashboard.html"];
   if (currentPage === "dashboard.html" || currentPage === "index.html") {
-    const loggedUser = localStorage.getItem(currentUserKey);
+    const storedUser = localStorage.getItem(currentUserKey) || "";
+    const loggedUser = storedUser && !storedUser.includes("@")
+      ? storedUser
+      : getSupabaseSession()?.access_token
+        ? "Usuario institucional"
+        : "";
     return {
       ...meta,
       subtitle: loggedUser ? `Bienvenido, ${loggedUser}` : "Panel principal del sistema."
@@ -1358,10 +1273,17 @@ function renderHeader() {
   const meta = resolvePageMeta();
   const loggedUser = localStorage.getItem(currentUserKey);
   const loggedUserPhoto = localStorage.getItem(currentUserPhotoKey);
-  const accountLabel = loggedUser || "Entrar a mi cuenta";
+  const accountLabel = loggedUser && !loggedUser.includes("@") ? loggedUser : "Usuario institucional";
+  const accountInitials = accountLabel
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase() || "UI";
   const accountVisual = loggedUserPhoto
     ? `<img class="account-photo" src="${loggedUserPhoto}" alt="Foto de ${safeHtml(accountLabel)}">`
-    : iconSvg("users");
+    : `<span class="account-initials" aria-hidden="true">${safeHtml(accountInitials)}</span>`;
   const accountControl = loggedUser
     ? `
       <div class="account-menu-wrap">
@@ -1716,7 +1638,7 @@ function bindLoginDemo() {
       }
 
       saveSupabaseSession({ ...session, user });
-      localStorage.setItem(currentUserKey, user.user_metadata?.full_name || user.email || "Empleado");
+      localStorage.setItem(currentUserKey, user.user_metadata?.full_name || "Usuario institucional");
       const profile = await fetchSupabaseProfile().catch(() => null);
       localStorage.setItem(
         currentAccessLevelKey,
@@ -1749,7 +1671,10 @@ function bindLoginDemo() {
         }
         const session = await signInWithSupabase(username, password);
         const profile = await fetchSupabaseProfile();
-        localStorage.setItem(currentUserKey, profile?.full_name || session.user.email || username);
+        localStorage.setItem(
+          currentUserKey,
+          profile?.full_name || session.user?.user_metadata?.full_name || "Usuario institucional"
+        );
         localStorage.setItem(currentAccessLevelKey, profile?.role === "administrador" ? "Administrador" : profile?.role === "ejecutivo" ? "Ejecutivo" : "Empleado");
         localStorage.removeItem(currentUserPhotoKey);
         await refreshCurrentPermissions();
@@ -2681,33 +2606,6 @@ function bindLoanReceiptForm() {
     const sequence = nextSequence();
     const internalNumber = formatArticleNumber(sequence);
     const emissionDate = today();
-    const body = [
-      "Formulario de Recibo de Artículos de Colección Mediante Préstamo",
-      `Número interno: ${internalNumber}`,
-      `Fecha de emisión: ${displayDate(emissionDate)}`,
-      "",
-      `Prestamista: ${data.get("prestamista")}`,
-      `Correo electrónico: ${data.get("correo")}`,
-      `Teléfono: ${data.get("telefono")}`,
-      `Dirección postal: ${data.get("direccion")}`,
-      `Fecha de recibo: ${data.get("fecha")}`,
-      "",
-      "Articulo",
-      `Nombre o titulo: ${data.get("articulo")}`,
-      `Categoria: ${data.get("categoria")}`,
-      `Descripcion: ${data.get("descripcion")}`,
-      `Condicion: ${data.get("condicion")}`,
-      `Valor estimado: ${data.get("valor")}`,
-      "",
-      "Préstamo",
-      `Fecha de inicio: ${data.get("inicio")}`,
-      `Fecha estimada de devolucion: ${data.get("devolucion")}`,
-      `Propósito: ${data.get("proposito")}`,
-      "",
-      `Observaciones: ${data.get("observaciones") || "N/A"}`,
-      "",
-      "El prestamista certifica que la información suministrada es correcta."
-    ].join("\n");
 
     const nextReceipts = [...receipts, {
       id: `loan-${Date.now()}`,
@@ -2715,8 +2613,20 @@ function bindLoanReceiptForm() {
       numeroArticulo: internalNumber,
       fechaEmision: emissionDate,
       prestamista: data.get("prestamista"),
+      correo: data.get("correo"),
+      telefono: data.get("telefono"),
+      direccion: data.get("direccion"),
+      fechaRecibo: data.get("fecha"),
       articulo: data.get("articulo"),
-      categoria: data.get("categoria")
+      categoria: data.get("categoria"),
+      descripcion: data.get("descripcion"),
+      condicion: data.get("condicion"),
+      valorEstimado: data.get("valor"),
+      fechaInicio: data.get("inicio"),
+      fechaDevolucionEstimada: data.get("devolucion"),
+      proposito: data.get("proposito"),
+      observaciones: data.get("observaciones") || "",
+      certificacionAceptada: true
     }];
 
     try {
@@ -2737,16 +2647,10 @@ function bindLoanReceiptForm() {
       return;
     }
 
-    const mailto = new URL("mailto:guillermotorrespr@gmail.com");
-    mailto.searchParams.set("subject", `${internalNumber} - Recibo de préstamo - ${data.get("articulo")}`);
-    mailto.searchParams.set("body", body);
-
     if (message) {
-      message.textContent = "Formulario validado. Se abrira el correo para enviar la información al administrador.";
+      message.textContent = "Formulario validado y registrado correctamente en el sistema central.";
       message.className = "form-message success";
     }
-
-    window.location.href = mailto.toString();
   });
 
   const loadReceipts = async () => {
@@ -3571,7 +3475,7 @@ function bindHrAttendanceView() {
     const employees = new Set(entries.map((entry) => entry.employee_id)).size;
     summary.innerHTML = [
       ["Registros", entries.length],
-      ["Empleados", employees],
+      ["Empleados con actividad", employees],
       ["Horas completadas", totalHours.toLocaleString("es-PR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
       ["Ponches abiertos", open]
     ].map(([label, value]) => `<article><span>${label}</span><strong>${value}</strong></article>`).join("");
@@ -3680,6 +3584,14 @@ function bindHumanResourcesModule() {
 
   const renderDirectory = () => {
     const records = getEmployeeRecords();
+    if (!records.length) {
+      directory.innerHTML = `
+        <p class="employee-directory-empty">
+          No hay empleados registrados para mostrar.
+        </p>
+      `;
+      return;
+    }
     directory.innerHTML = records.map((employee) => {
       const isInactive = employee.estado === "Inactivo";
       const profileLink = canManageEmployees()
@@ -3722,15 +3634,18 @@ function bindHumanResourcesModule() {
       setMessage("SINCRONIZANDO DIRECTORIO DE EMPLEADOS...");
       supabaseProfile = await fetchSupabaseProfile();
       const records = await fetchSupabaseEmployees();
-      if (records.length) {
-        saveEmployeeRecords(records);
-        renderDirectory();
-        setMessage("DIRECTORIO SINCRONIZADO.", "success");
-      } else {
-        setMessage("DIRECTORIO CONECTADO. AUN NO HAY EMPLEADOS REGISTRADOS.", "success");
-      }
+      saveEmployeeRecords(records);
+      renderDirectory();
+      setMessage(
+        records.length
+          ? `DIRECTORIO SINCRONIZADO. ${records.length} EMPLEADO${records.length === 1 ? "" : "S"}.`
+          : "DIRECTORIO CONECTADO. AUN NO HAY EMPLEADOS REGISTRADOS.",
+        "success"
+      );
     } catch (error) {
-      setMessage("NO SE PUDO SINCRONIZAR. SE MUESTRA EL DIRECTORIO LOCAL.", "error");
+      saveEmployeeRecords([]);
+      renderDirectory();
+      setMessage("NO SE PUDO SINCRONIZAR EL DIRECTORIO. NO SE MOSTRARAN EMPLEADOS DE EJEMPLO.", "error");
     }
   };
 
@@ -4389,22 +4304,13 @@ function bindFinanceModule() {
     const saved = await saveResponse.json();
     if (!saveResponse.ok) throw new Error(saved.message || "No se pudo guardar el cambio financiero.");
 
-    await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
-      method: "POST",
-      headers: {
-        ...(await supabaseAuthHeaders()),
-        Prefer: "return=minimal"
-      },
-      body: JSON.stringify({
-        museum_id: currentProfile.museum_id,
-        user_id: currentProfile.id,
-        action: "update_finance_record",
-        table_name: "finance_records",
-        record_id: saved[0]?.id || recordId || null,
-        old_value: { amount: Number(previousValue || 0), month: financeMonths[monthIndex], concept: row.concept },
-        new_value: { amount: Number(nextValue || 0), month: financeMonths[monthIndex], concept: row.concept }
-      })
-    }).catch(() => null);
+    await recordSecurityAuditEvent("UPDATE_FINANCE_RECORD", "finance", "success", {
+      record_id: saved[0]?.id || recordId || null,
+      concept: row.concept,
+      month: financeMonths[monthIndex],
+      previous_amount: Number(previousValue || 0),
+      next_amount: Number(nextValue || 0)
+    });
 
     setSyncStatus("connected", "Guardado en Supabase", `Última confirmación: ${syncTime()} · ${currentUser}`);
     return true;
@@ -4866,6 +4772,18 @@ function bindEmployeeProfile() {
   const params = new URLSearchParams(window.location.search);
   const id = params.get("empleado") || "guillermo-torres";
   let profile = getEmployeeById(id);
+  if (!profile) {
+    profileCard.innerHTML = `
+      <div class="module-placeholder">
+        <span class="module-icon theme-blue" data-icon="users"></span>
+        <h3>Empleado no disponible</h3>
+        <p>El directorio no devolvió un expediente para este empleado.</p>
+        <a class="button" href="recursos-humanos.html">Volver al directorio</a>
+      </div>
+    `;
+    renderInlineIcons();
+    return;
+  }
   let pendingPhoto = profile.foto || "";
 
   const avatar = document.querySelector("[data-profile-avatar]");

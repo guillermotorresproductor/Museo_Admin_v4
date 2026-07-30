@@ -1777,6 +1777,20 @@ body {
   border: 2px solid rgba(255, 255, 255, 0.78);
 }
 
+.account-initials {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  background: #159447;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
 .account-menu {
   position: absolute;
   top: calc(100% + 12px);
@@ -1854,6 +1868,19 @@ body {
 .document-card:focus-visible {
   transform: translateY(-4px);
   box-shadow: var(--shadow-strong);
+}
+
+.module-card.is-unavailable {
+  cursor: default;
+}
+
+.module-card.is-unavailable:hover {
+  transform: none;
+  box-shadow: var(--shadow);
+}
+
+.module-card.is-unavailable .card-action {
+  background: #6b7280;
 }
 
 .module-icon,
@@ -2060,6 +2087,15 @@ body {
 
 .employee-row.is-inactive {
   opacity: 0.65;
+}
+
+.employee-directory-empty {
+  margin: 0;
+  padding: 18px;
+  border: 1px dashed rgba(148, 163, 184, 0.55);
+  border-radius: 12px;
+  color: #64748b;
+  text-align: center;
 }
 
 .employee-avatar {
