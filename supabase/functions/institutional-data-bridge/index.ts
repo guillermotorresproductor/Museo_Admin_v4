@@ -7,6 +7,25 @@ const RENTAL_RPC: Record<string, string> = {
   log_rental_blocked_event: "service_bridge_log_rental_blocked_event",
 };
 
+function isAllowedInstituvaRedirect(value: string) {
+  try {
+    const url = new URL(value);
+    if (
+      url.origin === "http://localhost:5173" ||
+      url.origin === "http://127.0.0.1:5173" ||
+      url.origin === "https://app.instituva.com"
+    ) {
+      return true;
+    }
+    return (
+      url.origin === "https://guillermotorresproductor.github.io" &&
+      url.pathname.startsWith("/Instituva_App/")
+    );
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Método no permitido." }, 405);
@@ -23,7 +42,7 @@ Deno.serve(async (req) => {
       return json({ error: "Puente Instituva no configurado en el servidor." }, 503);
     }
 
-    const permission = "rentals.manage";
+    const permission = kind === "session_handoff" ? "executive.case.read" : "rentals.manage";
     const { profile, user } = await requirePermission(req, permission);
     const email = profile.email || user.email;
     if (!email) return json({ error: "La cuenta no tiene correo para vincular con Instituva." }, 403);
@@ -44,6 +63,32 @@ Deno.serve(async (req) => {
         },
         403,
       );
+    }
+
+    if (kind === "session_handoff") {
+      const redirectTo = String(body.redirectTo || "");
+      if (!isAllowedInstituvaRedirect(redirectTo)) {
+        return json({ error: "Destino de INSTITUVA no autorizado." }, 400);
+      }
+      const { data: linkedUser, error: linkedUserError } =
+        await instituva.auth.admin.getUserById(String(actorId));
+      if (
+        linkedUserError ||
+        !linkedUser?.user ||
+        String(linkedUser.user.email || "").toLowerCase() !== String(email).toLowerCase()
+      ) {
+        return json({ error: "La identidad vinculada en INSTITUVA no es válida." }, 403);
+      }
+      const { data, error } = await instituva.auth.admin.generateLink({
+        type: "magiclink",
+        email,
+        options: { redirectTo },
+      });
+      const actionLink = data?.properties?.action_link;
+      if (error || !actionLink) {
+        return json({ error: "No se pudo crear el acceso temporal a INSTITUVA." }, 502);
+      }
+      return json({ actionLink });
     }
 
     if (kind === "membership_list") {
