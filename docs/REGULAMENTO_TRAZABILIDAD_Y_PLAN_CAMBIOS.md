@@ -44,7 +44,7 @@
 | Canon, fianza, horas mínimas (ej. salón multiuso $300 / $50 fianza evento completo; por horas sin fianza) | `defaultRentalSpaces` (`canon`, `deposit`, `hourlyRate`, `requirements[]`) | Coincide con reglas en copy del espacio |
 | Recibo municipal antes de aprobar; no reutilizar recibo; producción interna exenta | `docs/supabase-rental-approval-controls.sql` + `app.js` (`record_rental_municipal_receipt`, `set_rental_approval`) | **Servidor** impide aprobar sin recibo salvo excepción |
 | Dos pagos (renta y fianza); MAG custodia fianza; **ArteGrafiko no recibe/devuelve fianza** | `CURRENT_IMPLEMENTATION_STATUS.md` §9.1; `13_EXECUTIVE_DIRECTION_MODULE.md` §8.2 | Documentado; UI museo separa recibo; Dirección Ejecutiva define flujo de disposición de fianza (0039) |
-| Aprobación final Dirección Ejecutiva | Instituva `executive_cases`, `ExecutiveDirectionPage`; Museo enlace a Instituva | Integración **parcial** (Museo opera renta; bandeja ejecutiva en Instituva) |
+| Aprobación final Dirección Ejecutiva | Instituva conserva `executive_cases` y las reglas; Museo presenta la bandeja mediante el puente seguro | Una fuente de datos y dos superficies independientes: website administrativo y app móvil |
 
 ### 3.2 Membresías
 
@@ -99,7 +99,7 @@ Leyenda: **OK** = trazable y coherente en repo; **Parcial** = falta BD, UI o un 
 | Fianza vs renta separadas; MAG custodia | Parcial UI | Doc | OK |
 | Membresía: recibo MAG activación | OK | Doc | OK |
 | Categorías → módulos portal | Gap | OK | OK |
-| Dirección Ejecutiva bandeja | Enlace externo | Parcial (0039 BD, UI DE) | OK |
+| Dirección Ejecutiva bandeja | UI nativa conectada por puente seguro | UI móvil independiente + backend 0039 | OK |
 | Autoaprobación prohibida | Parcial | Doc + diseño DE | OK |
 | Asistencia / ponche por política reglamento | Parcial | Parcial (paquete categoría) | Doc (BR-ATT) |
 
