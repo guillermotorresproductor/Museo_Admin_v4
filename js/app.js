@@ -1108,17 +1108,7 @@ function iconSvg(name) {
 
 function getCurrentPage() {
   const segment = window.location.pathname.split("/").pop() || "index.html";
-  const barePageNames = {
-    login: "login.html",
-    finanzas: "finanzas.html",
-    "direccion-ejecutiva": "direccion-ejecutiva.html",
-    reportes: "reportes.html",
-    administracion: "administracion.html",
-    membresias: "membresias.html",
-    "renta-espacios": "renta-espacios.html",
-    "renta-espacio": "renta-espacio.html"
-  };
-  return barePageNames[segment] || segment;
+  return segment.includes(".") ? segment : `${segment}.html`;
 }
 
 function isLoginPage() {
@@ -1284,6 +1274,9 @@ function renderHeader() {
   const accountVisual = loggedUserPhoto
     ? `<img class="account-photo" src="${loggedUserPhoto}" alt="Foto de ${safeHtml(accountLabel)}">`
     : `<span class="account-initials" aria-hidden="true">${safeHtml(accountInitials)}</span>`;
+  const environmentBadge = museoEnvironment.name === "staging"
+    ? `<span class="environment-badge" aria-label="Entorno de pruebas">STAGING</span>`
+    : "";
   const accountControl = loggedUser
     ? `
       <div class="account-menu-wrap">
@@ -1317,6 +1310,7 @@ function renderHeader() {
       </div>
     </div>
     <div class="header-right">
+      ${environmentBadge}
       <button class="notification-button" type="button" aria-label="Notificaciones" data-notification-menu-button aria-expanded="false">
         ${iconSvg("bell")}
         <span class="notification-badge">3</span>
