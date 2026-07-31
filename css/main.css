@@ -616,6 +616,10 @@ input {
   gap: 18px;
 }
 
+.form-row-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .submit-button {
   width: fit-content;
   min-height: 40px;

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Ujieres</title>
-  <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
+  <link rel="stylesheet" href="css/main.css?v=usher-schedule-20260731">
 </head>
 <body>
   <div class="app-shell">
@@ -31,22 +31,26 @@
 
           <form class="calendar-form" data-calendar-form hidden>
             <input type="hidden" name="id">
-            <div class="form-row">
+            <div class="form-row form-row-three">
               <label class="field">
-                <span>Fecha</span>
+                <span>Día</span>
                 <input type="date" name="fecha" required>
               </label>
+              <label class="field">
+                <span>Hora de entrada</span>
+                <input type="time" name="horaEntrada" required>
+              </label>
+              <label class="field">
+                <span>Hora de salida</span>
+                <input type="time" name="horaSalida" required>
+              </label>
+            </div>
+            <div class="form-row">
               <label class="field">
                 <span>Nombre del ujier</span>
                 <select name="ujier" data-usher-select required>
                   <option value="">Seleccione un ujier...</option>
                 </select>
-              </label>
-            </div>
-            <div class="form-row">
-              <label class="field">
-                <span>Horario</span>
-                <input type="text" name="horario" placeholder="8:00 AM - 12:00 PM" required>
               </label>
               <label class="field">
                 <span>Área del Museo</span>
@@ -68,7 +72,7 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=employee-sensitive-20260721"></script>
+  <script src="js/app.js?v=usher-schedule-20260731"></script>
 </body>
 </html>
 

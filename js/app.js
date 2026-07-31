@@ -3460,6 +3460,84 @@ function bindInventoryModule() {
   loadInventoryRecords();
 }
 
+function parseUsherTimeToken(raw) {
+  const text = String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\./g, "")
+    .replace(/\s+/g, " ");
+  if (!text) return "";
+
+  const match12 = text.match(/^(\d{1,2}):(\d{2})\s*(a\s*m|p\s*m|am|pm)$/i);
+  if (match12) {
+    let hour = Number(match12[1]);
+    const minute = Number(match12[2]);
+    if (!Number.isFinite(hour) || !Number.isFinite(minute) || hour < 1 || hour > 12 || minute > 59) return "";
+    const period = match12[3].replace(/\s+/g, "");
+    if (period.startsWith("p") && hour < 12) hour += 12;
+    if (period.startsWith("a") && hour === 12) hour = 0;
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+
+  const match24 = text.match(/^(\d{1,2}):(\d{2})$/);
+  if (match24) {
+    const hour = Number(match24[1]);
+    const minute = Number(match24[2]);
+    if (!Number.isFinite(hour) || !Number.isFinite(minute) || hour > 23 || minute > 59) return "";
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+
+  return "";
+}
+
+function parseUsherScheduleText(horario) {
+  const text = String(horario || "").trim();
+  if (!text) return null;
+  const parts = text.split(/\s*[-–—]\s*/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 2) return null;
+  const entrada = parseUsherTimeToken(parts[0]);
+  const salida = parseUsherTimeToken(parts[1]);
+  if (!entrada || !salida) return null;
+  return { entrada, salida };
+}
+
+function resolveUsherTimes(record) {
+  const structuredEntrada = String(record?.horaEntrada || "").trim();
+  const structuredSalida = String(record?.horaSalida || "").trim();
+  if (/^\d{2}:\d{2}$/.test(structuredEntrada) && /^\d{2}:\d{2}$/.test(structuredSalida)) {
+    return { entrada: structuredEntrada, salida: structuredSalida };
+  }
+  return parseUsherScheduleText(record?.horario);
+}
+
+function formatUsherTimeLabel(hhmm) {
+  const match = String(hhmm || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return "";
+  let hour = Number(match[1]);
+  const minute = match[2];
+  if (!Number.isFinite(hour) || hour > 23) return "";
+  const period = hour >= 12 ? "p. m." : "a. m.";
+  hour = hour % 12;
+  if (hour === 0) hour = 12;
+  return `${hour}:${minute} ${period}`;
+}
+
+function formatUsherScheduleDisplay(record) {
+  const times = resolveUsherTimes(record);
+  if (times) {
+    const entrada = formatUsherTimeLabel(times.entrada);
+    const salida = formatUsherTimeLabel(times.salida);
+    if (entrada && salida) return `${entrada} – ${salida}`;
+  }
+  return String(record?.horario || "").trim();
+}
+
+function usherTimeToMinutes(hhmm) {
+  const match = String(hhmm || "").trim().match(/^(\d{2}):(\d{2})$/);
+  if (!match) return NaN;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
 function bindCalendarModules() {
   const panel = document.querySelector("[data-calendar-module]");
   if (!panel) return;
@@ -3512,6 +3590,15 @@ function bindCalendarModules() {
     if (isUshers) return "Calendario de Ujieres";
     return "Calendario de Eventos del Museo";
   };
+  const fillUsherScheduleFields = (record = null) => {
+    if (!isUshers || !form) return;
+    const entradaField = form.elements.horaEntrada;
+    const salidaField = form.elements.horaSalida;
+    if (!entradaField || !salidaField) return;
+    const times = record ? resolveUsherTimes(record) : null;
+    entradaField.value = times?.entrada || "";
+    salidaField.value = times?.salida || "";
+  };
 
   const populateUshers = () => {
     if (!usherSelect) return;
@@ -3551,7 +3638,7 @@ function bindCalendarModules() {
       return `Empleado: ${record.empleado}\nTarea: ${record.tarea}\nÁrea: ${areaLabel}\nEstado: ${record.estado || "Pendiente"}\nFecha: ${record.fecha}`;
     }
     if (isUshers) {
-      return `Ujier: ${record.ujier}\nHorario: ${record.horario}\nÁrea: ${areaLabel}\nFecha: ${record.fecha}`;
+      return `Ujier: ${record.ujier}\nHorario: ${formatUsherScheduleDisplay(record)}\nÁrea: ${areaLabel}\nDía: ${record.fecha}`;
     }
     return `Evento: ${record.titulo}\nClasificación: ${record.clasificacion || "Sin clasificación"}\nÁrea: ${areaLabel}\nCreado por: ${record.empleado || "Sin empleado"}\nDescripción: ${record.descripcion || "Sin descripción"}\nFecha: ${record.fecha}`;
   };
@@ -3593,7 +3680,7 @@ function bindCalendarModules() {
         const body = isMaintenance
           ? `<strong>${escapeHtml(record.empleado)}</strong><span>${escapeHtml(record.tarea)}</span><small>${escapeHtml(areaLabel)} · ${escapeHtml(record.estado || "Pendiente")}</small>`
           : isUshers
-            ? `<strong>${escapeHtml(record.ujier)}</strong><span>${escapeHtml(record.horario)}</span><small>${escapeHtml(areaLabel)}</small>`
+            ? `<strong>${escapeHtml(record.ujier)}</strong><span>${escapeHtml(formatUsherScheduleDisplay(record))}</span><small>${escapeHtml(areaLabel)}</small>`
             : `<strong>${escapeHtml(record.titulo)}</strong><span>${escapeHtml(record.clasificacion || "Sin clasificación")}</span><small>${escapeHtml(areaLabel)}</small>`;
         const theme = isGeneral ? activityClassificationThemes[record.clasificacion] || "theme-slate" : "";
         const actions = canEdit()
@@ -3621,6 +3708,7 @@ function bindCalendarModules() {
   const resetForm = () => {
     form.reset();
     form.elements.id.value = "";
+    fillUsherScheduleFields(null);
     if (submitButton) submitButton.textContent = isMaintenance ? "Guardar Tarea" : isUshers ? "Guardar Asignación" : "Guardar Evento";
     if (cancelButton) cancelButton.hidden = true;
     if (isGeneral || isUshers) form.hidden = true;
@@ -3635,37 +3723,55 @@ function bindCalendarModules() {
 
     const data = new FormData(form);
     const id = data.get("id");
-    const record = isMaintenance
-      ? {
-          id: id || createId(),
-          fecha: data.get("fecha"),
-          empleado: data.get("empleado").trim(),
-          tarea: data.get("tarea").trim(),
-          area: data.get("area").trim(),
-          estado: data.get("estado")
-        }
-      : isUshers
-        ? {
-            id: id || createId(),
-            fecha: data.get("fecha"),
-            ujier: data.get("ujier"),
-            horario: data.get("horario").trim(),
-            area: data.get("area")
-          }
-        : {
-            id: id || createId(),
-            fecha: data.get("fecha"),
-            empleado: data.get("empleado"),
-            titulo: data.get("titulo").trim(),
-            clasificacion: data.get("clasificacion"),
-            area: data.get("area"),
-            descripcion: data.get("descripcion").trim()
-          };
+    let record;
+    if (isMaintenance) {
+      record = {
+        id: id || createId(),
+        fecha: data.get("fecha"),
+        empleado: data.get("empleado").trim(),
+        tarea: data.get("tarea").trim(),
+        area: data.get("area").trim(),
+        estado: data.get("estado")
+      };
+    } else if (isUshers) {
+      const horaEntrada = String(data.get("horaEntrada") || "").trim();
+      const horaSalida = String(data.get("horaSalida") || "").trim();
+      if (!data.get("fecha") || !data.get("ujier") || !horaEntrada || !horaSalida || !data.get("area")) {
+        setMessage("Complete el día, la hora de entrada, la hora de salida, el ujier y el área antes de guardar.", "error");
+        return;
+      }
+      const entradaMinutes = usherTimeToMinutes(horaEntrada);
+      const salidaMinutes = usherTimeToMinutes(horaSalida);
+      if (!Number.isFinite(entradaMinutes) || !Number.isFinite(salidaMinutes) || salidaMinutes <= entradaMinutes) {
+        setMessage("La hora de salida debe ser posterior a la hora de entrada.", "error");
+        return;
+      }
+      const horario = formatUsherScheduleDisplay({ horaEntrada, horaSalida });
+      record = {
+        id: id || createId(),
+        fecha: data.get("fecha"),
+        ujier: data.get("ujier"),
+        horaEntrada,
+        horaSalida,
+        horario,
+        area: data.get("area")
+      };
+    } else {
+      record = {
+        id: id || createId(),
+        fecha: data.get("fecha"),
+        empleado: data.get("empleado"),
+        titulo: data.get("titulo").trim(),
+        clasificacion: data.get("clasificacion"),
+        area: data.get("area"),
+        descripcion: data.get("descripcion").trim()
+      };
+    }
 
     const isInvalid = isMaintenance
       ? !record.fecha || !record.empleado || !record.tarea
       : isUshers
-        ? !record.fecha || !record.ujier || !record.horario || !record.area
+        ? false
         : !record.fecha || !record.empleado || !record.titulo || !record.clasificacion || !record.area;
     if (isInvalid) {
       setMessage("Complete los campos requeridos antes de guardar.", "error");
@@ -3710,10 +3816,12 @@ function bindCalendarModules() {
       if (!record) return;
       if (isGeneral || isUshers) form.hidden = false;
       Object.entries(record).forEach(([key, value]) => {
+        if (key === "horaEntrada" || key === "horaSalida" || key === "horario") return;
         const field = form.elements[key];
         if (!field) return;
         field.value = key === "area" ? displayMuseumArea(value) || value : value;
       });
+      fillUsherScheduleFields(record);
       if (submitButton) submitButton.textContent = isMaintenance ? "Actualizar Tarea" : isUshers ? "Actualizar Asignación" : "Actualizar Evento";
       if (cancelButton) cancelButton.hidden = false;
       form.scrollIntoView({ behavior: "smooth", block: "start" });
