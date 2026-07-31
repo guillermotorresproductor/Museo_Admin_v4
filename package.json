@@ -6,6 +6,7 @@
   "scripts": {
     "build:cloudflare-pages": "node scripts/build-cloudflare-pages.mjs",
     "test:demo-hostname": "node scripts/test-demo-hostname.mjs",
-    "test:usher-schedule": "node scripts/test-usher-schedule-views.cjs"
+    "test:usher-schedule": "node scripts/test-usher-schedule-views.cjs",
+    "test:operational-migrations": "node scripts/test-operational-migrations.cjs"
   }
 }
