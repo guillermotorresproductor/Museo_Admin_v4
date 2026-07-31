@@ -159,6 +159,7 @@ const supabasePublishableKey = museoEnvironment.supabasePublishableKey;
 const supabaseSessionKey = `museo-admin-supabase-session-${museoEnvironment.name}`;
 const supabaseSystemRecordsTable = "app_records";
 const supabaseRentalDocumentsBucket = "rental-documents";
+const supabaseCollectionLoanDocumentsBucket = "collection-loan-documents";
 const currentUserKey = "museo-admin-current-user";
 const currentUserPhotoKey = "museo-admin-current-user-photo";
 const currentAccessLevelKey = "museo-admin-access-level";
@@ -769,6 +770,93 @@ async function deleteRentalDocuments(paths = []) {
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.message || "No se pudieron retirar los documentos incompletos.");
+  }
+}
+
+async function sha256HexFromFile(file) {
+  if (!globalThis.crypto?.subtle?.digest) {
+    throw new Error("Este navegador no permite calcular la huella SHA-256 del archivo.");
+  }
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function uploadCollectionLoanDocuments(loanReceiptId, fileInputs) {
+  const profile = await currentMuseumContext();
+  const files = fileInputs.flatMap((input) => (
+    Array.from(input.files || []).map((file) => ({ field: input.name, file }))
+  ));
+  if (!files.length) return [];
+
+  const allowedTypes = new Set([
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+  ]);
+  const maximumSize = 15 * 1024 * 1024;
+  files.forEach(({ file }) => {
+    if (!allowedTypes.has(file.type)) {
+      throw new Error(`El archivo ${file.name} no tiene un formato permitido.`);
+    }
+    if (file.size > maximumSize) {
+      throw new Error(`El archivo ${file.name} excede el máximo de 15 MB.`);
+    }
+  });
+
+  const uploaded = [];
+  try {
+    for (const { field, file } of files) {
+      const uniquePart = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const path = `${profile.museum_id}/${loanReceiptId}/${uniquePart}-${safeStorageFileName(file.name)}`;
+      const huella = await sha256HexFromFile(file);
+      const response = await fetch(
+        `${supabaseUrl}/storage/v1/object/${supabaseCollectionLoanDocumentsBucket}/${path.split("/").map(encodeURIComponent).join("/")}`,
+        {
+          method: "POST",
+          headers: {
+            ...(await supabaseAuthHeaders()),
+            "Content-Type": file.type,
+            "x-upsert": "false"
+          },
+          body: file
+        }
+      );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || `No se pudo guardar ${file.name} en el expediente digital.`);
+      }
+      uploaded.push({
+        campo: field,
+        nombre: file.name,
+        tipo: file.type,
+        tamano: file.size,
+        bucket: supabaseCollectionLoanDocumentsBucket,
+        ruta: path,
+        huellaSha256: huella,
+        cargadoEn: new Date().toISOString(),
+        cargadoPorId: profile.id
+      });
+    }
+    return uploaded;
+  } catch (error) {
+    if (uploaded.length) {
+      await deleteCollectionLoanDocuments(uploaded.map((document) => document.ruta)).catch(() => {});
+    }
+    throw error;
+  }
+}
+
+async function deleteCollectionLoanDocuments(paths = []) {
+  if (!paths.length) return;
+  const response = await fetch(`${supabaseUrl}/storage/v1/object/${supabaseCollectionLoanDocumentsBucket}`, {
+    method: "DELETE",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify({ prefixes: paths })
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "No se pudieron retirar los documentos incompletos del préstamo.");
   }
 }
 
@@ -2608,105 +2696,280 @@ function bindLoanReceiptForm() {
 
   const articleNumber = document.querySelector("[data-loan-article-number]");
   const articleDate = document.querySelector("[data-loan-article-date]");
+  const statusPreview = document.querySelector("[data-loan-status-preview]");
+  const message = document.querySelector("[data-loan-message]");
+  const submitButton = form.querySelector('button[type="submit"]');
+  const differentDeliverer = form.querySelector("[data-loan-different-deliverer]");
+  const delivererFields = form.querySelector("[data-loan-deliverer-fields]");
   let receipts = [];
+
   const today = () => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   };
   const displayDate = (date) => {
-    const [year, month, day] = date.split("-");
+    if (!date) return "";
+    const [year, month, day] = String(date).split("-");
+    if (!year || !month || !day) return String(date);
     return `${day}/${month}/${year}`;
   };
-  const nextSequence = () => receipts.reduce((highest, receipt) => Math.max(highest, Number(receipt.sequence || 0)), 0) + 1;
-  const formatArticleNumber = (sequence) => `Artículo ${String(sequence).padStart(5, "0")}`;
-  const saveReceipts = async () => saveSystemCollection("recibos_prestamo", "receipts", receipts);
-  const refreshMeta = () => {
-    if (articleNumber) articleNumber.textContent = formatArticleNumber(nextSequence());
-    if (articleDate) articleDate.textContent = displayDate(today());
+  const currentUser = () => localStorage.getItem(currentUserKey) || "Administrador";
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text;
+    message.className = `form-message ${type}`.trim();
   };
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const message = document.querySelector("[data-loan-message]");
+  const resolveOverallStatus = (estadoLegal, estadoSeguro) => (
+    estadoLegal === "Completado" && estadoSeguro === "Cubierta confirmada"
+      ? "Activo"
+      : "Pendiente de formalización"
+  );
+  const nextLoanIdentity = (year = new Date().getFullYear()) => {
+    let highest = 0;
+    receipts.forEach((receipt) => {
+      const raw = String(receipt.numeroPrestamo || receipt.numeroArticulo || "");
+      const match = raw.match(new RegExp(`^P-${year}-(\\d{5})$`, "i"));
+      if (match) {
+        highest = Math.max(highest, Number(match[1]));
+        return;
+      }
+      if (Number(receipt.anio) === year && Number(receipt.sequence)) {
+        highest = Math.max(highest, Number(receipt.sequence));
+      }
+    });
+    const sequence = highest + 1;
+    return {
+      year,
+      sequence,
+      numeroPrestamo: `P-${year}-${String(sequence).padStart(5, "0")}`
+    };
+  };
+  const saveReceipts = async (nextReceipts) => saveSystemCollection("recibos_prestamo", "receipts", nextReceipts);
+  const refreshMeta = () => {
+    const identity = nextLoanIdentity();
+    if (articleNumber) articleNumber.textContent = identity.numeroPrestamo;
+    if (articleDate) articleDate.textContent = displayDate(today());
+    updateStatusPreview();
+  };
+  const updateStatusPreview = () => {
+    if (!statusPreview) return;
+    const legal = form.elements.estadoLegal?.value || "";
+    const insurance = form.elements.estadoSeguro?.value || "";
+    statusPreview.textContent = legal && insurance
+      ? resolveOverallStatus(legal, insurance)
+      : "Pendiente de formalización";
+  };
+  const syncDelivererRequirements = () => {
+    const required = Boolean(differentDeliverer?.checked);
+    if (delivererFields) delivererFields.hidden = !required;
+    form.querySelectorAll("[data-loan-deliverer-required]").forEach((field) => {
+      field.required = required;
+      if (!required) field.value = "";
+    });
+  };
+  const syncPrintSignerLabels = () => {
+    const map = [
+      ["[data-loan-print-signer-lender]", "#loan-signer-lender", "Prestamista"],
+      ["[data-loan-print-signer-director]", "#loan-signer-director", "Director"],
+      ["[data-loan-print-signer-operator]", "#loan-signer-operator", "Operador/Administrador"]
+    ];
+    map.forEach(([selector, inputSelector, fallback]) => {
+      const label = document.querySelector(selector);
+      const input = form.querySelector(inputSelector);
+      if (label) label.textContent = String(input?.value || "").trim() || fallback;
+    });
+  };
+  const validateLoanForm = () => {
     const requiredFields = Array.from(form.querySelectorAll("[required]"));
     const invalidFields = requiredFields.filter((field) => {
+      if (field.disabled || field.closest("[hidden]")) return false;
       if (field.type === "checkbox") return !field.checked;
-      return !field.value.trim();
+      if (field.type === "file") return !(field.files && field.files.length);
+      return !String(field.value || "").trim();
     });
 
     const email = form.querySelector("#loan-email");
     if (email && email.value && !email.checkValidity()) invalidFields.push(email);
 
+    const start = form.querySelector("#loan-start")?.value;
+    const end = form.querySelector("#loan-end")?.value;
+    if (start && end && end < start) {
+      invalidFields.push(form.querySelector("#loan-end"));
+    }
+
+    const signedPdf = form.querySelector("#loan-signed-pdf");
+    if (signedPdf?.files?.[0] && signedPdf.files[0].type !== "application/pdf") {
+      invalidFields.push(signedPdf);
+    }
+
+    const photos = form.querySelector("#loan-condition-photos");
+    if (photos && !(photos.files && photos.files.length)) {
+      invalidFields.push(photos);
+    }
+
+    return invalidFields.filter(Boolean);
+  };
+
+  differentDeliverer?.addEventListener("change", syncDelivererRequirements);
+  form.querySelectorAll("[data-loan-status-source]").forEach((field) => {
+    field.addEventListener("change", updateStatusPreview);
+  });
+  ["#loan-signer-lender", "#loan-signer-director", "#loan-signer-operator"].forEach((selector) => {
+    form.querySelector(selector)?.addEventListener("input", syncPrintSignerLabels);
+  });
+
+  document.querySelector("[data-loan-print]")?.addEventListener("click", () => {
+    syncPrintSignerLabels();
+    const invalidFields = validateLoanForm().filter((field) => field.type !== "file");
+    if (invalidFields.length) {
+      invalidFields[0].focus();
+      setMessage("Complete los datos del expediente antes de imprimir el PDF para firmas. Los archivos se adjuntan después de firmar.", "error");
+      return;
+    }
+    document.body.classList.add("loan-print-mode");
+    window.print();
+    window.setTimeout(() => document.body.classList.remove("loan-print-mode"), 300);
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    syncDelivererRequirements();
+    syncPrintSignerLabels();
+
+    const invalidFields = validateLoanForm();
     if (invalidFields.length > 0) {
       invalidFields[0].focus();
-      if (message) {
-        message.textContent = "Complete todos los campos requeridos correctamente antes de enviar.";
-        message.className = "form-message error";
+      if (form.querySelector("#loan-end") && invalidFields.includes(form.querySelector("#loan-end"))
+        && form.querySelector("#loan-start")?.value
+        && form.querySelector("#loan-end")?.value < form.querySelector("#loan-start")?.value) {
+        setMessage("La fecha pactada de devolución no puede ser anterior a la fecha de inicio.", "error");
+      } else if (invalidFields.some((field) => field.id === "loan-signed-pdf" || field.id === "loan-condition-photos")) {
+        setMessage("Debe adjuntar el PDF firmado y al menos una fotografía de condición antes de registrar el expediente.", "error");
+      } else if (differentDeliverer?.checked && invalidFields.some((field) => field.hasAttribute("data-loan-deliverer-required"))) {
+        setMessage("Si entrega una persona distinta, indique su nombre y su autoridad para entregar la pieza.", "error");
+      } else {
+        setMessage("Complete todos los campos reglamentarios correctamente antes de registrar el expediente.", "error");
       }
       return;
     }
 
     const data = new FormData(form);
-    const sequence = nextSequence();
-    const internalNumber = formatArticleNumber(sequence);
+    const identity = nextLoanIdentity();
     const emissionDate = today();
+    const estadoLegal = String(data.get("estadoLegal") || "").trim();
+    const estadoSeguro = String(data.get("estadoSeguro") || "").trim();
+    const estado = resolveOverallStatus(estadoLegal, estadoSeguro);
+    const receiptId = `loan-${Date.now()}`;
+    let uploadedDocuments = [];
 
-    const nextReceipts = [...receipts, {
-      id: `loan-${Date.now()}`,
-      sequence,
-      numeroArticulo: internalNumber,
+    if (submitButton) submitButton.disabled = true;
+    setMessage("Guardando anexos en el expediente digital privado...", "");
+
+    try {
+      uploadedDocuments = await uploadCollectionLoanDocuments(
+        receiptId,
+        Array.from(form.querySelectorAll('input[type="file"]'))
+      );
+      const hasSignedPdf = uploadedDocuments.some((doc) => doc.campo === "pdfFirmado" && doc.tipo === "application/pdf");
+      const hasPhotos = uploadedDocuments.some((doc) => doc.campo === "fotosCondicion");
+      if (!hasSignedPdf || !hasPhotos) {
+        throw new Error("El PDF firmado y las fotografías de condición son obligatorios.");
+      }
+    } catch (error) {
+      if (submitButton) submitButton.disabled = false;
+      setMessage(`No se pudo completar el expediente digital: ${error.message}`, "error");
+      return;
+    }
+
+    const now = new Date();
+    const receipt = {
+      id: receiptId,
+      anio: identity.year,
+      sequence: identity.sequence,
+      numeroPrestamo: identity.numeroPrestamo,
+      numeroArticulo: identity.numeroPrestamo,
       fechaEmision: emissionDate,
-      prestamista: data.get("prestamista"),
-      correo: data.get("correo"),
-      telefono: data.get("telefono"),
-      direccion: data.get("direccion"),
-      fechaRecibo: data.get("fecha"),
-      articulo: data.get("articulo"),
-      categoria: data.get("categoria"),
-      descripcion: data.get("descripcion"),
-      condicion: data.get("condicion"),
-      valorEstimado: data.get("valor"),
-      fechaInicio: data.get("inicio"),
-      fechaDevolucionEstimada: data.get("devolucion"),
-      proposito: data.get("proposito"),
-      observaciones: data.get("observaciones") || "",
-      certificacionAceptada: true
-    }];
+      estado,
+      estadoLegal,
+      estadoSeguro,
+      metodoFirma: "manuscrita_pdf",
+      referenciaAprobacion: String(data.get("referenciaAprobacion") || "").trim(),
+      fechaAprobacion: String(data.get("fechaAprobacion") || "").trim(),
+      fechaRecibo: String(data.get("fechaRecibo") || "").trim(),
+      primeraUbicacion: String(data.get("primeraUbicacion") || "").trim(),
+      nombrePropietario: String(data.get("nombrePropietario") || "").trim(),
+      organizacion: String(data.get("organizacion") || "").trim(),
+      correo: String(data.get("correo") || "").trim(),
+      telefono: String(data.get("telefono") || "").trim(),
+      direccion: String(data.get("direccion") || "").trim(),
+      entregaDistinta: Boolean(differentDeliverer?.checked),
+      personaEntrega: String(data.get("personaEntrega") || "").trim(),
+      autoridadEntrega: String(data.get("autoridadEntrega") || "").trim(),
+      tituloPieza: String(data.get("tituloPieza") || "").trim(),
+      categoria: String(data.get("categoria") || "").trim(),
+      autorRelacionado: String(data.get("autorRelacionado") || "").trim(),
+      periodoCreacion: String(data.get("periodoCreacion") || "").trim(),
+      descripcion: String(data.get("descripcion") || "").trim(),
+      componentes: String(data.get("componentes") || "").trim(),
+      condicion: String(data.get("condicion") || "").trim(),
+      valorAcordado: String(data.get("valorAcordado") || "").trim(),
+      detalleCondicion: String(data.get("detalleCondicion") || "").trim(),
+      metodoIdentificacion: String(data.get("metodoIdentificacion") || "").trim(),
+      fechaInicio: String(data.get("fechaInicio") || "").trim(),
+      fechaDevolucion: String(data.get("fechaDevolucion") || "").trim(),
+      proposito: String(data.get("proposito") || "").trim(),
+      restricciones: String(data.get("restricciones") || "").trim(),
+      observaciones: String(data.get("observaciones") || "").trim(),
+      firmantePrestamista: String(data.get("firmantePrestamista") || "").trim(),
+      firmanteDirector: String(data.get("firmanteDirector") || "").trim(),
+      firmanteOperador: String(data.get("firmanteOperador") || "").trim(),
+      fechaFormalizacion: String(data.get("fechaFormalizacion") || "").trim(),
+      documentos: uploadedDocuments,
+      registradoPorId: getSupabaseSession()?.user?.id || "",
+      registradoPor: currentUser(),
+      registradoEn: now.toISOString(),
+      audit: [{
+        usuario: currentUser(),
+        fecha: now.toLocaleDateString("es-PR"),
+        hora: now.toLocaleTimeString("es-PR"),
+        estado,
+        comentarios: `Expediente ${identity.numeroPrestamo} registrado con firma manuscrita en PDF.`
+      }]
+    };
 
     try {
       const previousReceipts = receipts;
+      const nextReceipts = [...receipts, receipt];
       receipts = nextReceipts;
       try {
-        await saveReceipts();
+        await saveReceipts(nextReceipts);
       } catch (error) {
         receipts = previousReceipts;
         throw error;
       }
+      form.reset();
+      syncDelivererRequirements();
+      syncPrintSignerLabels();
       refreshMeta();
+      if (submitButton) submitButton.disabled = false;
+      setMessage(`Expediente ${receipt.numeroPrestamo} registrado. Estado: ${receipt.estado}.`, "success");
     } catch (error) {
-      if (message) {
-        message.textContent = `No se pudo guardar en Supabase: ${error.message}`;
-        message.className = "form-message error";
-      }
-      return;
-    }
-
-    if (message) {
-      message.textContent = "Formulario validado y registrado correctamente en el sistema central.";
-      message.className = "form-message success";
+      await deleteCollectionLoanDocuments(uploadedDocuments.map((document) => document.ruta)).catch(() => {});
+      if (submitButton) submitButton.disabled = false;
+      setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
     }
   });
 
   const loadReceipts = async () => {
     try {
       receipts = await fetchSystemCollection("recibos_prestamo", "receipts", []);
+      if (!Array.isArray(receipts)) receipts = [];
     } catch (error) {
-      const message = document.querySelector("[data-loan-message]");
-      if (message) {
-        message.textContent = `No se pudo cargar Recibos desde Supabase: ${error.message}`;
-        message.className = "form-message error";
-      }
+      receipts = [];
+      setMessage(`No se pudo cargar Recibos desde Supabase: ${error.message}`, "error");
     }
+    syncDelivererRequirements();
+    syncPrintSignerLabels();
     refreshMeta();
   };
 

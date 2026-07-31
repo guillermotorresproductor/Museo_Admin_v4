@@ -4217,3 +4217,155 @@ body {
 .attendance-heading-actions{display:flex;align-items:center;gap:8px}.attendance-close{background:#050505!important;color:#fff!important;border-color:#050505!important}
 
 .portal-inline-button{border:0;border-radius:999px;padding:8px 11px;background:#050505;color:#fff;font:inherit;font-size:.72rem;font-weight:800;cursor:pointer}.portal-correction-form{display:grid;gap:12px;margin-bottom:14px;padding:14px;border:1px solid #dfe3e8;border-radius:14px;background:#f8fafb}.portal-correction-form label{display:grid;gap:5px;color:#4f5864;font-size:.76rem;font-weight:800}.portal-correction-form select,.portal-correction-form input,.portal-correction-form textarea{width:100%;box-sizing:border-box;border:1px solid #cfd5dc;border-radius:10px;padding:11px;background:#fff;color:#101114;font:inherit}.portal-correction-actions{display:flex;gap:8px}.portal-correction-actions button{min-height:40px;border:0;border-radius:10px;padding:8px 12px;background:#159447;color:#fff;font:inherit;font-weight:800}.portal-correction-actions button+button{background:#050505}.portal-correction-item{display:grid;gap:4px;padding:13px;background:#fafbfc}.portal-correction-item span,.portal-correction-item small{color:#69707d;font-size:.78rem}.portal-correction-item .portal-entry-status{justify-self:start}.attendance-corrections{margin:18px 0;padding:16px;border:1px solid var(--line);border-radius:12px;background:#fbfcfd}.attendance-correction-list{display:grid;gap:8px}.attendance-correction-item{display:grid;grid-template-columns:1fr auto;gap:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff}.attendance-correction-item div{display:grid;gap:4px}.attendance-correction-item small{color:var(--muted)}.attendance-correction-actions{display:flex;align-items:center;gap:6px}.attendance-correction-actions .button{padding:7px 10px}@media(max-width:720px){.attendance-correction-item{grid-template-columns:1fr}.attendance-correction-actions{justify-content:flex-start}}
+
+/* Expediente de préstamo de colección */
+.loan-expediente-panel .loan-expediente-heading {
+  display: grid;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.loan-expediente-intro,
+.loan-section-note,
+.field-optional {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.loan-expediente-intro {
+  margin: 8px 0 0;
+  max-width: 62ch;
+}
+
+.loan-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.loan-process-steps {
+  margin: 0 0 22px;
+  padding: 16px 16px 16px 36px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #334155;
+  line-height: 1.55;
+}
+
+.loan-section {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.loan-section h4 {
+  margin: 0 0 14px;
+  color: var(--ink);
+  font-size: 1.08rem;
+}
+
+.loan-toggle {
+  margin: 8px 0 12px;
+}
+
+.loan-deliverer-fields {
+  margin-bottom: 10px;
+}
+
+.loan-signature-lines {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.loan-signature-line {
+  min-height: 120px;
+  padding: 14px;
+  border: 1px dashed #94a3b8;
+  border-radius: 12px;
+  background: #fff;
+  display: grid;
+  align-content: space-between;
+  gap: 28px;
+}
+
+.loan-signature-line span {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.loan-signature-line em {
+  border-top: 1px solid #0f172a;
+  padding-top: 8px;
+  color: #64748b;
+  font-style: normal;
+  font-size: 0.82rem;
+}
+
+.loan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+@media (max-width: 900px) {
+  .loan-meta,
+  .loan-signature-lines {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  body.loan-print-mode .sidebar,
+  body.loan-print-mode .sidebar-backdrop,
+  body.loan-print-mode .site-header,
+  body.loan-print-mode .site-footer,
+  body.loan-print-mode [data-loan-process-steps],
+  body.loan-print-mode [data-loan-documents],
+  body.loan-print-mode [data-loan-actions],
+  body.loan-print-mode [data-loan-message],
+  body.loan-print-mode .loan-toggle,
+  body.loan-print-mode .terms-accept,
+  body.loan-print-mode section.card.section-stack {
+    display: none !important;
+  }
+
+  body.loan-print-mode .app-shell,
+  body.loan-print-mode .main-area,
+  body.loan-print-mode .page-content,
+  body.loan-print-mode .loan-expediente-panel {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    background: #fff;
+  }
+
+  body.loan-print-mode .loan-section {
+    break-inside: avoid;
+  }
+
+  body.loan-print-mode input,
+  body.loan-print-mode select,
+  body.loan-print-mode textarea {
+    border: 0;
+    border-bottom: 1px solid #94a3b8;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: #0f172a;
+  }
+
+  body.loan-print-mode .loan-signature-lines {
+    margin-top: 28px;
+  }
+
+  body.loan-print-mode .loan-signature-line {
+    min-height: 140px;
+  }
+}

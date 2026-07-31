@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Recibo de Préstamo</title>
-  <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
+  <title>Museo Admin v4.0 | Expediente de Préstamo de Colección</title>
+  <link rel="stylesheet" href="css/main.css?v=loan-expediente-20260731">
 </head>
 <body>
   <div class="app-shell">
@@ -13,112 +13,338 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="card panel form-panel rental-panel">
-          <h3>Formulario Digital de Recibo de Artículos de Colección Mediante Préstamo</h3>
-          <div class="request-meta">
+        <section class="card panel form-panel rental-panel loan-expediente-panel" data-loan-screen>
+          <div class="loan-expediente-heading">
             <div>
-              <span>Número interno del artículo</span>
-              <strong data-loan-article-number>Artículo 00001</strong>
+              <p class="eyebrow">Formularios museográficos · Anejo B</p>
+              <h3>Expediente de recibo de artículos de colección mediante préstamo</h3>
+              <p class="loan-expediente-intro">
+                Documento institucional alineado con el Reglamento del Museo de la Música de Puerto Rico.
+                Este expediente aplica únicamente a préstamos. Las donaciones se tramitan en un formulario aparte (Anejo A).
+              </p>
             </div>
-            <div>
-              <span>Fecha de emisión</span>
-              <strong data-loan-article-date></strong>
+            <div class="request-meta loan-meta">
+              <div>
+                <span>Número de préstamo</span>
+                <strong data-loan-article-number>P-2026-00001</strong>
+              </div>
+              <div>
+                <span>Fecha de emisión</span>
+                <strong data-loan-article-date></strong>
+              </div>
+              <div>
+                <span>Estado del expediente</span>
+                <strong data-loan-status-preview>Pendiente de formalización</strong>
+              </div>
             </div>
           </div>
-          <form id="loan-receipt-form" class="application-form" action="#" method="post" novalidate>
-            <div class="form-row">
-              <div class="field">
-                <label for="loan-lender">Nombre del prestamista</label>
-                <input id="loan-lender" name="prestamista" type="text" autocomplete="name" required>
+
+          <ol class="loan-process-steps" data-loan-process-steps>
+            <li>Complete el expediente digital.</li>
+            <li>Use <strong>Imprimir / guardar PDF para firmas</strong>.</li>
+            <li>Obtenga las tres firmas manuscritas requeridas.</li>
+            <li>Escanee el documento firmado en PDF.</li>
+            <li>Adjunte el PDF firmado y las fotografías de condición.</li>
+            <li>Registre el expediente en el sistema.</li>
+          </ol>
+
+          <form id="loan-receipt-form" class="application-form loan-expediente-form" action="#" method="post" novalidate>
+            <section class="loan-section" aria-labelledby="loan-section-auth">
+              <h4 id="loan-section-auth">1. Autorización y recibo</h4>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-approval-ref">Número o referencia de aprobación</label>
+                  <input id="loan-approval-ref" name="referenciaAprobacion" type="text" required autocomplete="off">
+                </div>
+                <div class="field">
+                  <label for="loan-approval-date">Fecha de aprobación</label>
+                  <input id="loan-approval-date" name="fechaAprobacion" type="date" required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-receipt-date">Fecha de recibo físico</label>
+                  <input id="loan-receipt-date" name="fechaRecibo" type="date" required>
+                </div>
+                <div class="field">
+                  <label for="loan-first-location">Primera ubicación de la pieza en el Museo</label>
+                  <input id="loan-first-location" name="primeraUbicacion" type="text" required autocomplete="off">
+                </div>
+              </div>
+            </section>
+
+            <section class="loan-section" aria-labelledby="loan-section-owner">
+              <h4 id="loan-section-owner">2. Propietario, prestamista y persona que entrega</h4>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-owner-name">Nombre legal del propietario o prestamista</label>
+                  <input id="loan-owner-name" name="nombrePropietario" type="text" required autocomplete="name">
+                </div>
+                <div class="field">
+                  <label for="loan-organization">Organización <span class="field-optional">(si aplica)</span></label>
+                  <input id="loan-organization" name="organizacion" type="text" autocomplete="organization">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-email">Correo electrónico</label>
+                  <input id="loan-email" name="correo" type="email" required autocomplete="email">
+                </div>
+                <div class="field">
+                  <label for="loan-phone">Teléfono</label>
+                  <input id="loan-phone" name="telefono" type="tel" required autocomplete="tel">
+                </div>
               </div>
               <div class="field">
-                <label for="loan-email">Correo electrónico</label>
-                <input id="loan-email" name="correo" type="email" autocomplete="email" required>
+                <label for="loan-address">Dirección postal</label>
+                <input id="loan-address" name="direccion" type="text" required autocomplete="street-address">
               </div>
-            </div>
-            <div class="form-row">
-              <div class="field">
-                <label for="loan-phone">Teléfono</label>
-                <input id="loan-phone" name="telefono" type="tel" autocomplete="tel" required>
+              <label class="terms-accept loan-toggle">
+                <input id="loan-different-deliverer" name="entregaDistinta" type="checkbox" value="si" data-loan-different-deliverer>
+                <span>La persona que entrega la pieza es distinta del propietario o prestamista.</span>
+              </label>
+              <div class="loan-deliverer-fields" data-loan-deliverer-fields hidden>
+                <div class="form-row">
+                  <div class="field">
+                    <label for="loan-deliverer-name">Persona que entrega</label>
+                    <input id="loan-deliverer-name" name="personaEntrega" type="text" autocomplete="name" data-loan-deliverer-required>
+                  </div>
+                  <div class="field">
+                    <label for="loan-deliverer-authority">Relación o autoridad para entregar la pieza</label>
+                    <input id="loan-deliverer-authority" name="autoridadEntrega" type="text" autocomplete="off" data-loan-deliverer-required>
+                  </div>
+                </div>
               </div>
-              <div class="field">
-                <label for="loan-date">Fecha de recibo</label>
-                <input id="loan-date" name="fecha" type="date" required>
+              <label class="terms-accept">
+                <input id="loan-ownership-cert" name="certificacionPropiedad" type="checkbox" required>
+                <span>Certifico que el prestamista es propietario de la pieza o cuenta con autoridad legal para prestarla al Museo.</span>
+              </label>
+            </section>
+
+            <section class="loan-section" aria-labelledby="loan-section-piece">
+              <h4 id="loan-section-piece">3. Identificación de la pieza</h4>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-item-name">Nombre o título</label>
+                  <input id="loan-item-name" name="tituloPieza" type="text" required>
+                </div>
+                <div class="field">
+                  <label for="loan-category">Categoría</label>
+                  <select id="loan-category" name="categoria" required>
+                    <option value="">Seleccione...</option>
+                    <option>Instrumento musical</option>
+                    <option>Fotografía</option>
+                    <option>Documento</option>
+                    <option>Vestuario</option>
+                    <option>Memorabilia</option>
+                    <option>Equipo electrónico</option>
+                    <option>Otro</option>
+                  </select>
+                </div>
               </div>
-            </div>
-            <div class="field">
-              <label for="loan-address">Dirección postal</label>
-              <input id="loan-address" name="direccion" type="text" autocomplete="street-address" required>
-            </div>
-            <div class="form-row">
-              <div class="field">
-                <label for="loan-item-name">Nombre o título del artículo</label>
-                <input id="loan-item-name" name="articulo" type="text" required>
-              </div>
-              <div class="field">
-                <label for="loan-category">Categoría</label>
-                <select id="loan-category" name="categoria" required>
-                  <option value="">Seleccione...</option>
-                  <option>Instrumento musical</option>
-                  <option>Fotografía</option>
-                  <option>Documento</option>
-                  <option>Vestuario</option>
-                  <option>Memorabilia</option>
-                  <option>Equipo electrónico</option>
-                  <option>Otro</option>
-                </select>
-              </div>
-            </div>
-            <div class="field">
-              <label for="loan-description">Descripción detallada del artículo</label>
-              <textarea id="loan-description" name="descripcion" rows="5" required></textarea>
-            </div>
-            <div class="form-row">
-              <div class="field">
-                <label for="loan-condition">Condición al momento del recibo</label>
-                <select id="loan-condition" name="condicion" required>
-                  <option value="">Seleccione...</option>
-                  <option>Excelente</option>
-                  <option>Buena</option>
-                  <option>Regular</option>
-                  <option>Requiere evaluación</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="loan-value">Valor estimado</label>
-                <input id="loan-value" name="valor" type="text" required>
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="field">
-                <label for="loan-start">Fecha de inicio del préstamo</label>
-                <input id="loan-start" name="inicio" type="date" required>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-creator">Autor, fabricante o intérprete relacionado</label>
+                  <input id="loan-creator" name="autorRelacionado" type="text" required>
+                </div>
+                <div class="field">
+                  <label for="loan-creation-period">Fecha o periodo de creación</label>
+                  <input id="loan-creation-period" name="periodoCreacion" type="text" required>
+                </div>
               </div>
               <div class="field">
-                <label for="loan-end">Fecha estimada de devolución</label>
-                <input id="loan-end" name="devolucion" type="date" required>
+                <label for="loan-description">Descripción detallada</label>
+                <textarea id="loan-description" name="descripcion" rows="5" required></textarea>
               </div>
-            </div>
-            <div class="field">
-              <label for="loan-purpose">Propósito del préstamo</label>
-              <textarea id="loan-purpose" name="proposito" rows="4" required></textarea>
-            </div>
-            <div class="field">
-              <label for="loan-notes">Observaciones adicionales</label>
-              <textarea id="loan-notes" name="observaciones" rows="4"></textarea>
-            </div>
-            <label class="terms-accept">
-              <input id="loan-certification" name="certificacion" type="checkbox" required>
-              <span>Certifico que la información suministrada es correcta y autorizo al Museo a evaluar el recibo del artículo mediante préstamo.</span>
-            </label>
+              <div class="field">
+                <label for="loan-components">Componentes, accesorios y documentos acompañantes</label>
+                <textarea id="loan-components" name="componentes" rows="4" required></textarea>
+              </div>
+            </section>
+
+            <section class="loan-section" aria-labelledby="loan-section-condition">
+              <h4 id="loan-section-condition">4. Condición y valor</h4>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-condition">Condición general</label>
+                  <select id="loan-condition" name="condicion" required>
+                    <option value="">Seleccione...</option>
+                    <option>Excelente</option>
+                    <option>Buena</option>
+                    <option>Regular</option>
+                    <option>Con daños visibles</option>
+                    <option>Requiere evaluación</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="loan-value">Valor acordado para efectos del préstamo</label>
+                  <input id="loan-value" name="valorAcordado" type="text" required>
+                </div>
+              </div>
+              <div class="field">
+                <label for="loan-damage-detail">Descripción detallada de daños, marcas, faltantes o alteraciones</label>
+                <textarea id="loan-damage-detail" name="detalleCondicion" rows="4" required></textarea>
+              </div>
+              <div class="field">
+                <label for="loan-id-method">Método para colocar el número de identificación sin afectar la pieza</label>
+                <textarea id="loan-id-method" name="metodoIdentificacion" rows="3" required></textarea>
+              </div>
+            </section>
+
+            <section class="loan-section" aria-labelledby="loan-section-terms">
+              <h4 id="loan-section-terms">5. Término y condiciones</h4>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-start">Fecha de inicio</label>
+                  <input id="loan-start" name="fechaInicio" type="date" required>
+                </div>
+                <div class="field">
+                  <label for="loan-end">Fecha pactada de devolución</label>
+                  <input id="loan-end" name="fechaDevolucion" type="date" required>
+                </div>
+              </div>
+              <div class="field">
+                <label for="loan-purpose">Propósito autorizado</label>
+                <textarea id="loan-purpose" name="proposito" rows="4" required></textarea>
+              </div>
+              <div class="field">
+                <label for="loan-restrictions">Restricciones de exhibición, reproducción, manejo o conservación</label>
+                <textarea id="loan-restrictions" name="restricciones" rows="4" required></textarea>
+              </div>
+              <div class="field">
+                <label for="loan-notes">Observaciones</label>
+                <textarea id="loan-notes" name="observaciones" rows="3"></textarea>
+              </div>
+              <label class="terms-accept">
+                <input id="loan-return-commitment" name="compromisoDevolucion" type="checkbox" required>
+                <span>El prestamista se compromete a recibir la pieza en las mismas condiciones registradas al momento del recibo, salvo deterioro normal no atribuible a negligencia.</span>
+              </label>
+            </section>
+
+            <section class="loan-section loan-signatures" aria-labelledby="loan-section-signatures">
+              <h4 id="loan-section-signatures">6. Firmas requeridas</h4>
+              <p class="loan-section-note">
+                Complete los nombres aquí. Las firmas manuscritas se obtienen en el PDF impreso.
+                No se utiliza pad de firma ni se presenta una firma dibujada como firma digital certificada.
+              </p>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-signer-lender">Nombre del prestamista</label>
+                  <input id="loan-signer-lender" name="firmantePrestamista" type="text" required>
+                </div>
+                <div class="field">
+                  <label for="loan-signer-director">Nombre del Director</label>
+                  <input id="loan-signer-director" name="firmanteDirector" type="text" required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-signer-operator">Nombre del Operador/Administrador</label>
+                  <input id="loan-signer-operator" name="firmanteOperador" type="text" required>
+                </div>
+                <div class="field">
+                  <label for="loan-formalization-date">Fecha de formalización</label>
+                  <input id="loan-formalization-date" name="fechaFormalizacion" type="date" required>
+                </div>
+              </div>
+              <div class="loan-signature-lines" aria-hidden="false">
+                <div class="loan-signature-line">
+                  <span data-loan-print-signer-lender>Prestamista</span>
+                  <em>Firma del prestamista</em>
+                </div>
+                <div class="loan-signature-line">
+                  <span data-loan-print-signer-director>Director</span>
+                  <em>Firma del Director</em>
+                </div>
+                <div class="loan-signature-line">
+                  <span data-loan-print-signer-operator>Operador/Administrador</span>
+                  <em>Firma del Operador/Administrador</em>
+                </div>
+              </div>
+            </section>
+
+            <section class="loan-section rental-documents" aria-labelledby="loan-section-docs" data-loan-documents>
+              <h4 id="loan-section-docs">7. Expediente digital privado</h4>
+              <p class="rental-document-note">
+                Los archivos se guardan en un repositorio privado del museo. Máximo 15 MB por archivo.
+                Formatos permitidos: PDF, JPG, PNG y WebP.
+              </p>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-signed-pdf">PDF completo con las tres firmas <strong>(obligatorio)</strong></label>
+                  <input id="loan-signed-pdf" name="pdfFirmado" type="file" accept="application/pdf,.pdf" required>
+                </div>
+                <div class="field">
+                  <label for="loan-condition-photos">Fotografías de condición <strong>(obligatorias, múltiples)</strong></label>
+                  <input id="loan-condition-photos" name="fotosCondicion" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-condition-report">Informe de condición adicional</label>
+                  <input id="loan-condition-report" name="informeCondicion" type="file" accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp">
+                </div>
+                <div class="field">
+                  <label for="loan-approval-comm">Comunicación de aprobación</label>
+                  <input id="loan-approval-comm" name="comunicacionAprobacion" type="file" accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-ownership-evidence">Evidencia de propiedad o autoridad</label>
+                  <input id="loan-ownership-evidence" name="evidenciaPropiedad" type="file" accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp">
+                </div>
+                <div class="field">
+                  <label for="loan-insurance-evidence">Evidencia de cubierta de seguro</label>
+                  <input id="loan-insurance-evidence" name="evidenciaSeguro" type="file" accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp">
+                </div>
+              </div>
+              <div class="field">
+                <label for="loan-appraisal-extra">Tasación y documentos adicionales</label>
+                <input id="loan-appraisal-extra" name="tasacionAdicionales" type="file" accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp" multiple>
+              </div>
+            </section>
+
+            <section class="loan-section" aria-labelledby="loan-section-process">
+              <h4 id="loan-section-process">8. Trámite institucional</h4>
+              <div class="form-row">
+                <div class="field">
+                  <label for="loan-legal-status">Estado de Asuntos Legales</label>
+                  <select id="loan-legal-status" name="estadoLegal" required data-loan-status-source>
+                    <option value="">Seleccione...</option>
+                    <option value="Pendiente de envío">Pendiente de envío</option>
+                    <option value="En revisión">En revisión</option>
+                    <option value="Completado">Completado</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="loan-insurance-status">Estado del seguro</label>
+                  <select id="loan-insurance-status" name="estadoSeguro" required data-loan-status-source>
+                    <option value="">Seleccione...</option>
+                    <option value="Pendiente de evidencia">Pendiente de evidencia</option>
+                    <option value="En trámite">En trámite</option>
+                    <option value="Cubierta confirmada">Cubierta confirmada</option>
+                  </select>
+                </div>
+              </div>
+              <p class="loan-section-note">
+                El expediente quedará <strong>Activo</strong> únicamente cuando Asuntos Legales esté completado
+                y la cubierta de seguro esté confirmada. En cualquier otro caso permanecerá
+                <strong>Pendiente de formalización</strong>.
+              </p>
+            </section>
+
             <p class="form-message" data-loan-message aria-live="polite"></p>
-            <button class="button submit-button" type="submit">Enviar formulario</button>
+            <div class="loan-actions" data-loan-actions>
+              <button class="button secondary" type="button" data-loan-print>Imprimir / guardar PDF para firmas</button>
+              <button class="button submit-button" type="submit">Registrar expediente</button>
+            </div>
           </form>
         </section>
 
-        <section class="card panel section-stack">
-          <h3>Documento descargable</h3>
-          <p>Si necesita completar la versión en papel, descargue el formulario oficial existente en formato Word.</p>
+        <section class="card panel section-stack" data-loan-screen>
+          <h3>Plantilla Word de referencia</h3>
+          <p>Si necesita la versión en papel histórica, puede descargar el formulario Word existente. El expediente oficial se registra en este formulario digital.</p>
           <a class="button secondary section-stack" href="docs/formulario-recibo-articulos-coleccion-prestamo.docx" download>Descargar formulario Word</a>
         </section>
       </main>
@@ -126,9 +352,7 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=employee-sensitive-20260721"></script>
+  <script src="js/services/supabase.js?v=loan-expediente-20260731"></script>
+  <script src="js/app.js?v=loan-expediente-20260731"></script>
 </body>
 </html>
-
-
