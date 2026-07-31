@@ -112,10 +112,11 @@ const officialMuseumAreas = [
   "Estacionamiento",
   "Baños externos",
   "Salón Multiuso",
-  "Plazoleta y Entrada de Museo",
-  "Lobby",
-  "Mezzanine Raíces",
-  "Cine Bienvenida",
+  "La Terraza de la Música",
+  "Anfiteatro Andy Montañez",
+  "El Lobby",
+  "Mezzanine",
+  "Cine 189",
   "Sala Clásica",
   "Pasillo Instrumentos",
   "Sala Bailable",
@@ -127,9 +128,25 @@ const officialMuseumAreas = [
   "Almacén",
   "Sala Experimental Guaynabo",
   "Área Itinerante con Foyer frente a los elevadores",
-  "Ball Room",
+  "Salón Lito Peña",
   "Escaleras de salida"
 ];
+
+/** Legacy calendar area labels → current rental-aligned names (display only; stored data unchanged). */
+const museumAreaLegacyNames = {
+  "Ball Room": "Salón Lito Peña",
+  "Mezzanine Raíces": "Mezzanine",
+  "Cine Bienvenida": "Cine 189",
+  "Lobby": "El Lobby",
+  "Plazoleta y Entrada de Museo": "La Terraza de la Música",
+  "Anfiteatro": "Anfiteatro Andy Montañez"
+};
+
+function displayMuseumArea(area) {
+  const value = String(area || "").trim();
+  if (!value) return value;
+  return museumAreaLegacyNames[value] || value;
+}
 
 const officialActivityClassifications = [
   "Actividades culturales o educativas",
@@ -3524,13 +3541,14 @@ function bindCalendarModules() {
   };
 
   const describeRecord = (record) => {
+    const areaLabel = displayMuseumArea(record.area) || "Sin área";
     if (isMaintenance) {
-      return `Empleado: ${record.empleado}\nTarea: ${record.tarea}\nÁrea: ${record.area || "Sin área"}\nEstado: ${record.estado || "Pendiente"}\nFecha: ${record.fecha}`;
+      return `Empleado: ${record.empleado}\nTarea: ${record.tarea}\nÁrea: ${areaLabel}\nEstado: ${record.estado || "Pendiente"}\nFecha: ${record.fecha}`;
     }
     if (isUshers) {
-      return `Ujier: ${record.ujier}\nHorario: ${record.horario}\nÁrea: ${record.area}\nFecha: ${record.fecha}`;
+      return `Ujier: ${record.ujier}\nHorario: ${record.horario}\nÁrea: ${areaLabel}\nFecha: ${record.fecha}`;
     }
-    return `Evento: ${record.titulo}\nClasificación: ${record.clasificacion || "Sin clasificación"}\nÁrea: ${record.area || "Sin área"}\nCreado por: ${record.empleado || "Sin empleado"}\nDescripción: ${record.descripcion || "Sin descripción"}\nFecha: ${record.fecha}`;
+    return `Evento: ${record.titulo}\nClasificación: ${record.clasificacion || "Sin clasificación"}\nÁrea: ${areaLabel}\nCreado por: ${record.empleado || "Sin empleado"}\nDescripción: ${record.descripcion || "Sin descripción"}\nFecha: ${record.fecha}`;
   };
 
   const setEditableState = () => {
@@ -3566,11 +3584,12 @@ function bindCalendarModules() {
       const date = `${currentMonth}-${String(day).padStart(2, "0")}`;
       const dayRecords = records.filter((record) => record.fecha === date);
       const items = dayRecords.map((record) => {
+        const areaLabel = displayMuseumArea(record.area) || "Sin área";
         const body = isMaintenance
-          ? `<strong>${escapeHtml(record.empleado)}</strong><span>${escapeHtml(record.tarea)}</span><small>${escapeHtml(record.area || "Sin área")} · ${escapeHtml(record.estado || "Pendiente")}</small>`
+          ? `<strong>${escapeHtml(record.empleado)}</strong><span>${escapeHtml(record.tarea)}</span><small>${escapeHtml(areaLabel)} · ${escapeHtml(record.estado || "Pendiente")}</small>`
           : isUshers
-            ? `<strong>${escapeHtml(record.ujier)}</strong><span>${escapeHtml(record.horario)}</span><small>${escapeHtml(record.area)}</small>`
-            : `<strong>${escapeHtml(record.titulo)}</strong><span>${escapeHtml(record.clasificacion || "Sin clasificación")}</span><small>${escapeHtml(record.area || "Sin área")}</small>`;
+            ? `<strong>${escapeHtml(record.ujier)}</strong><span>${escapeHtml(record.horario)}</span><small>${escapeHtml(areaLabel)}</small>`
+            : `<strong>${escapeHtml(record.titulo)}</strong><span>${escapeHtml(record.clasificacion || "Sin clasificación")}</span><small>${escapeHtml(areaLabel)}</small>`;
         const theme = isGeneral ? activityClassificationThemes[record.clasificacion] || "theme-slate" : "";
         const actions = canEdit()
           ? `<div class="calendar-item-actions"><button type="button" data-calendar-edit="${record.id}">Editar</button><button type="button" data-calendar-delete="${record.id}">Eliminar</button></div>`
@@ -3687,7 +3706,8 @@ function bindCalendarModules() {
       if (isGeneral || isUshers) form.hidden = false;
       Object.entries(record).forEach(([key, value]) => {
         const field = form.elements[key];
-        if (field) field.value = value;
+        if (!field) return;
+        field.value = key === "area" ? displayMuseumArea(value) || value : value;
       });
       if (submitButton) submitButton.textContent = isMaintenance ? "Actualizar Tarea" : isUshers ? "Actualizar Asignación" : "Actualizar Evento";
       if (cancelButton) cancelButton.hidden = false;
