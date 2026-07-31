@@ -3106,6 +3106,8 @@ function bindInventoryModule() {
 
   const artworkFieldControls = () => Array.from(artworkFields?.querySelectorAll("input, select, textarea") || []);
 
+  const isOperationalEquipment = (record) => String(record?.tipo || "Equipo") !== "Obra de Arte";
+
   const setInventoryType = (type, { allowArtworkUi = false } = {}) => {
     const isArtwork = type === "Obra de Arte";
     if (typeField) typeField.value = isArtwork ? "Obra de Arte" : "Equipo";
@@ -3118,15 +3120,14 @@ function bindInventoryModule() {
     artworkFieldControls().forEach((field) => {
       field.disabled = !(isArtwork && allowArtworkUi);
     });
-    if (typeTabs) typeTabs.hidden = true;
+    // Keep the equipment entry control visible; only hide cultural "Obra de Arte".
+    if (typeTabs) typeTabs.hidden = false;
     typeButtons.forEach((button) => {
-      const active = button.dataset.inventoryType === (isArtwork ? "Obra de Arte" : "Equipo");
-      button.classList.toggle("is-active", active);
-      button.classList.toggle("submit-button", active);
-      button.classList.toggle("secondary", !active);
-      if (button.dataset.inventoryType === "Obra de Arte") {
-        button.hidden = true;
-      }
+      const isArtworkButton = button.dataset.inventoryType === "Obra de Arte";
+      button.hidden = isArtworkButton;
+      if (isArtworkButton) return;
+      button.classList.add("is-active", "submit-button");
+      button.classList.remove("secondary");
     });
   };
 
@@ -3151,6 +3152,7 @@ function bindInventoryModule() {
     const selectedStatus = statusFilter?.value || "";
 
     return records
+      .filter((record) => isOperationalEquipment(record))
       .filter((record) => {
         const matchesSearch = !term || [
           record.tipo,
@@ -3175,12 +3177,12 @@ function bindInventoryModule() {
   };
 
   const renderRecords = () => {
-    if (total) total.textContent = records.length;
+    const filteredRecords = getFilteredRecords();
+    if (total) total.textContent = filteredRecords.length;
     if (!list) return;
 
-    const filteredRecords = getFilteredRecords();
     if (filteredRecords.length === 0) {
-      list.innerHTML = `<tr><td colspan="9">No hay artículos registrados.</td></tr>`;
+      list.innerHTML = `<tr><td colspan="9">No hay equipos registrados.</td></tr>`;
       return;
     }
 
@@ -3280,32 +3282,73 @@ function bindInventoryModule() {
     }
   });
 
+  const beginNewEquipmentEntry = () => {
+    resetForm();
+    setInventoryType("Equipo");
+    setMessage("Complete el formulario para registrar un equipo.");
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+    form.querySelector("#inventory-name")?.focus();
+  };
+
   document.addEventListener("click", async (event) => {
     const editButton = event.target.closest("[data-inventory-edit]");
     const deleteButton = event.target.closest("[data-inventory-delete]");
     const sortButton = event.target.closest("[data-inventory-sort]");
+    const newEquipmentButton = event.target.closest("[data-inventory-new-equipment]");
+
+    if (newEquipmentButton) {
+      if (!canEditInventory()) return;
+      beginNewEquipmentEntry();
+      return;
+    }
 
     if (editButton) {
       if (!canEditInventory()) return;
       const record = records.find((item) => item.id === editButton.dataset.inventoryEdit);
-      if (!record) return;
-      const isLegacyArtwork = record.tipo === "Obra de Arte";
-      setInventoryType(record.tipo || "Equipo", { allowArtworkUi: isLegacyArtwork });
+      if (!record || !isOperationalEquipment(record)) return;
+      setInventoryType("Equipo");
       Object.entries(record).forEach(([key, value]) => {
         const field = form.elements[key];
         if (field) field.value = value;
       });
       if (submitButton) submitButton.textContent = "Actualizar Registro";
       if (cancelButton) cancelButton.hidden = false;
-      setMessage(
-        isLegacyArtwork
-          ? "Editando registro histórico de Obra de Arte. Los nuevos objetos culturales deben gestionarse en Colecciones Museográficas."
-          : "Editando registro de equipo.",
-        ""
-      );
+      setMessage("Editando registro de equipo.", "");
       form.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
     }
 
+    if (deleteButton) {
+      if (!canEditInventory()) return;
+      const recordId = deleteButton.dataset.inventoryDelete;
+      const record = records.find((item) => item.id === recordId);
+      if (!record || !isOperationalEquipment(record)) return;
+      if (!window.confirm(`¿Eliminar el equipo "${record.nombre}"?`)) return;
+      const previousRecords = records;
+      try {
+        records = records.filter((item) => item.id !== recordId);
+        await saveRecords();
+        if (idField?.value === recordId) resetForm();
+        setMessage("Equipo eliminado de Supabase.", "success");
+        renderRecords();
+      } catch (error) {
+        records = previousRecords;
+        setMessage(`No se pudo eliminar en Supabase: ${error.message}`, "error");
+      }
+      return;
+    }
+
+    if (sortButton) {
+      const nextKey = sortButton.dataset.inventorySort;
+      if (!nextKey) return;
+      if (sortKey === nextKey) {
+        sortDirection = sortDirection === "asc" ? "desc" : "asc";
+      } else {
+        sortKey = nextKey;
+        sortDirection = "asc";
+      }
+      renderRecords();
+    }
   });
 
   if (cancelButton) {
@@ -3321,9 +3364,8 @@ function bindInventoryModule() {
         setMessage("Las obras y piezas culturales se gestionan en Colecciones Museográficas.", "error");
         return;
       }
-      resetForm();
-      setInventoryType("Equipo");
-      setMessage("");
+      if (button.hasAttribute("data-inventory-new-equipment")) return;
+      beginNewEquipmentEntry();
     });
   });
 
@@ -3333,6 +3375,8 @@ function bindInventoryModule() {
 
   if (!canEditInventory() && entryPanel) {
     entryPanel.hidden = true;
+  } else if (entryPanel) {
+    entryPanel.hidden = false;
   }
   const loadInventoryRecords = async () => {
     try {

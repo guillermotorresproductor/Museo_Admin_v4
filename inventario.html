@@ -78,13 +78,14 @@
                 Los objetos culturales se gestionan en Colecciones Museográficas.
               </p>
             </div>
-            <!--
-              Legacy: la pestaña Obra de Arte se oculta. La lógica permanece en
-              js/app.js (bindInventoryModule) para registros históricos hasta
-              migrarlos a Colecciones Museográficas.
-            -->
-            <div class="inventory-type-tabs" role="tablist" aria-label="Tipo de inventario" data-inventory-type-tabs hidden>
-              <button class="button submit-button is-active" type="button" data-inventory-type="Equipo">Equipos</button>
+            <div class="inventory-type-tabs" role="tablist" aria-label="Registro de inventario de equipos" data-inventory-type-tabs>
+              <button class="button submit-button is-active" type="button" data-inventory-type="Equipo" data-inventory-new-equipment>
+                Registrar equipo
+              </button>
+              <!--
+                Legacy: "Obra de Arte" permanece en el DOM/JS solo para registros
+                históricos. No debe ofrecerse como alta nueva (Colecciones).
+              -->
               <button class="button secondary" type="button" data-inventory-type="Obra de Arte" hidden>Obra de Arte</button>
             </div>
           </div>
