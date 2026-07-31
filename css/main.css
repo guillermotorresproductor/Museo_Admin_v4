@@ -2884,18 +2884,19 @@ body {
 }
 
 .inventory-list-actions {
-  display: flex !important;
+  display: flex;
   flex-shrink: 0;
   align-items: center;
   gap: 10px;
-  visibility: visible !important;
 }
 
-.inventory-list-actions .button,
-.inventory-list-actions [data-inventory-new-equipment] {
-  display: inline-flex !important;
-  visibility: visible !important;
+.inventory-list-actions .button {
   white-space: nowrap;
+}
+
+.inventory-list-actions[hidden],
+.inventory-list-actions [hidden] {
+  display: none !important;
 }
 
 .inventory-panel[data-inventory-entry-panel][hidden] {

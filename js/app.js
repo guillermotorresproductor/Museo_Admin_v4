@@ -3091,22 +3091,22 @@ function bindInventoryModule() {
   let sortKey = "fecha";
   let sortDirection = "desc";
 
-  // Same authorization gate as before the equipment/collections split.
+  // Administrador/Ejecutivo receive inventory.manage via role_permissions.
   const canEditInventory = () => hasPermission("inventory.manage");
   const saveRecords = async () => saveSystemCollection("inventario", "records", records);
   const setEntryPanelOpen = (open) => {
     if (!entryPanel) return;
     entryPanel.hidden = !open;
   };
-  const ensureEquipmentCtaVisible = () => {
-    // The list-header CTA must stay visible. Never hide it for permission timing
-    // or missing inventory.manage — save/edit still enforce authorization.
+  const syncEquipmentManagementControls = () => {
+    const allowed = canEditInventory();
     newEquipmentButtons.forEach((button) => {
-      button.removeAttribute("hidden");
-      button.hidden = false;
-      button.style.removeProperty("display");
-      button.style.removeProperty("visibility");
+      button.hidden = !allowed;
     });
+    document.querySelectorAll(".inventory-list-actions").forEach((actions) => {
+      actions.hidden = !allowed;
+    });
+    if (!allowed) setEntryPanelOpen(false);
   };
   const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({
@@ -3309,15 +3309,16 @@ function bindInventoryModule() {
   });
 
   const beginNewEquipmentEntry = () => {
-    ensureEquipmentCtaVisible();
+    if (!canEditInventory()) {
+      setMessage("Solo Ejecutivos y Administradores pueden crear o editar inventario.", "error", { listOnly: true });
+      setEntryPanelOpen(false);
+      syncEquipmentManagementControls();
+      return;
+    }
     resetForm();
     setInventoryType("Equipo");
     setEntryPanelOpen(true);
-    if (!canEditInventory()) {
-      setMessage("Para guardar equipos debe entrar por Mi cuenta con permiso de inventario.", "error");
-    } else {
-      setMessage("Complete el formulario para registrar un equipo.");
-    }
+    setMessage("Complete el formulario para registrar un equipo.");
     entryPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
     form.querySelector("#inventory-name")?.focus();
   };
@@ -3329,12 +3330,19 @@ function bindInventoryModule() {
     const newEquipmentButton = event.target.closest("[data-inventory-new-equipment]");
 
     if (newEquipmentButton) {
+      if (!canEditInventory()) {
+        setMessage("Solo Ejecutivos y Administradores pueden crear o editar inventario.", "error", { listOnly: true });
+        return;
+      }
       beginNewEquipmentEntry();
       return;
     }
 
     if (editButton) {
-      if (!canEditInventory()) return;
+      if (!canEditInventory()) {
+        setMessage("Solo Ejecutivos y Administradores pueden crear o editar inventario.", "error", { listOnly: true });
+        return;
+      }
       const record = records.find((item) => item.id === editButton.dataset.inventoryEdit);
       if (!record || !isOperationalEquipment(record)) return;
       setInventoryType("Equipo");
@@ -3354,7 +3362,10 @@ function bindInventoryModule() {
     }
 
     if (deleteButton) {
-      if (!canEditInventory()) return;
+      if (!canEditInventory()) {
+        setMessage("Solo Ejecutivos y Administradores pueden crear o editar inventario.", "error", { listOnly: true });
+        return;
+      }
       const recordId = deleteButton.dataset.inventoryDelete;
       const record = records.find((item) => item.id === recordId);
       if (!record || !isOperationalEquipment(record)) return;
@@ -3363,8 +3374,11 @@ function bindInventoryModule() {
       try {
         records = records.filter((item) => item.id !== recordId);
         await saveRecords();
-        if (idField?.value === recordId) resetForm();
-        setMessage("Equipo eliminado de Supabase.", "success");
+        if (idField?.value === recordId) {
+          resetForm();
+          setEntryPanelOpen(false);
+        }
+        setMessage("Equipo eliminado de Supabase.", "success", { listOnly: true });
         renderRecords();
       } catch (error) {
         records = previousRecords;
@@ -3402,8 +3416,8 @@ function bindInventoryModule() {
     if (control) control.addEventListener("input", renderRecords);
   });
 
-  // CTA lives in the list card (outside the collapsible form panel) and stays visible.
-  ensureEquipmentCtaVisible();
+  // CTA and entry panel follow inventory.manage; list/filters stay available to viewers.
+  syncEquipmentManagementControls();
   setEntryPanelOpen(false);
 
   const loadInventoryRecords = async () => {
@@ -3415,7 +3429,7 @@ function bindInventoryModule() {
       setMessage(`No se pudo cargar Inventario desde Supabase: ${error.message}`, "error", { listOnly: true });
     }
     setInventoryType("Equipo");
-    ensureEquipmentCtaVisible();
+    syncEquipmentManagementControls();
     setEntryPanelOpen(false);
     populateFilters();
     renderRecords();
