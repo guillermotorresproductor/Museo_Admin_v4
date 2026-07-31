@@ -112,10 +112,11 @@
   }) {
     const permissionSet = new Set(permissions);
     const statusValue = linkedEmployee?.estado || linkedEmployee?.status;
-    const linkedIsInactive = Boolean(linkedEmployee) && isInactiveEmployeeStatus(statusValue);
-    const inactiveFlag = Boolean(inactiveLinkedUsher) || linkedIsInactive;
+    // Fail-closed: any linked employee that is not explicitly active blocks, including null/empty/unknown.
+    const linkedIsNonActive = Boolean(linkedEmployee) && !isActiveEmployeeStatus(statusValue);
+    const inactiveFlag = Boolean(inactiveLinkedUsher) || linkedIsNonActive;
 
-    // Inactive/terminated linked employee blocks all calendar access, including RBAC manage/read.all.
+    // Non-active linked employee blocks all calendar access, including RBAC manage/read.all.
     if (inactiveFlag) {
       return {
         canManage: false,

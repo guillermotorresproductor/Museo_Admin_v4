@@ -3821,9 +3821,7 @@ function bindUsherCalendarModule(panel) {
       const inactiveLinked = Boolean(serverAccess?.inactive_blocked) || getEmployeeRecords().some((employee) => {
         if (!(employee.authUserId && sessionUserId && employee.authUserId === sessionUserId)) return false;
         const status = employee.estado || employee.status;
-        return core.isInactiveEmployeeStatus
-          ? core.isInactiveEmployeeStatus(status)
-          : !isActiveEmployeeStatus(status);
+        return !isActiveEmployeeStatus(status);
       });
 
       access = core.resolveUsherScheduleAccess({

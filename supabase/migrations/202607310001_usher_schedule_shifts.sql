@@ -182,8 +182,8 @@ as $$
   limit 1;
 $$;
 
--- Any linked employee (any cargo) that is inactive/terminated blocks calendar access.
-create or replace function public.current_linked_inactive_employee_id()
+-- Any linked employee (any cargo) whose status is not explicitly active blocks calendar access.
+create or replace function public.current_linked_nonactive_employee_id()
 returns uuid
 language sql
 stable
@@ -194,7 +194,7 @@ as $$
   from public.employees e
   where e.museum_id = public.current_user_museum_id()
     and e.auth_user_id = auth.uid()
-    and public.employee_status_is_inactive(e.status)
+    and not public.employee_status_is_active(e.status)
   order by e.created_at asc
   limit 1;
 $$;
@@ -206,7 +206,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select public.current_linked_inactive_employee_id() is not null;
+  select public.current_linked_nonactive_employee_id() is not null;
 $$;
 
 create or replace function public.can_manage_usher_schedule()
@@ -312,10 +312,10 @@ begin
     return;
   end if;
 
-  inactive_id := public.current_linked_inactive_employee_id();
+  inactive_id := public.current_linked_nonactive_employee_id();
   inactive_blocked := inactive_id is not null;
 
-  -- Inactive/terminated linked employee (any cargo) blocks all access, even RBAC manage/read.all.
+  -- Non-active linked employee (any cargo/status other than activo/active) blocks all access, even RBAC.
   if inactive_blocked then
     museum_id := mid;
     can_manage := false;
@@ -771,6 +771,7 @@ using (
 -- Drop legacy helpers if a previous revision created them.
 drop function if exists public.current_linked_usher_employee();
 drop function if exists public.current_linked_inactive_usher_employee_id();
+drop function if exists public.current_linked_inactive_employee_id();
 
 revoke all on table public.usher_shifts from public, anon, authenticated;
 revoke all on table public.usher_shift_audit from public, anon, authenticated;
@@ -795,7 +796,7 @@ begin
         'is_usher_position',
         'is_usher_executive_position',
         'current_linked_usher_employee_id',
-        'current_linked_inactive_employee_id',
+        'current_linked_nonactive_employee_id',
         'linked_employee_blocks_usher_schedule',
         'can_manage_usher_schedule',
         'can_read_all_usher_schedule',

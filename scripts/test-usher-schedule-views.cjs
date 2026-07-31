@@ -126,17 +126,30 @@ test("null empty and unknown status are not active", () => {
   );
 });
 
-test("inactive or terminado blocked even with read.all and manage", () => {
-  for (const estado of ["inactivo", "Inactivo", " INACTIVO ", "terminado", "Terminated"]) {
+test("inactive or non-active linked status blocked even with read.all and manage", () => {
+  for (const estado of [null, "", "   ", "desconocido", "inactivo", "terminado"]) {
     const access = core.resolveUsherScheduleAccess({
       permissions: ["usher.schedule.read.all", "usher.schedule.manage"],
       profileRole: "administrador",
-      linkedEmployee: { id: "e-inactive", posicion: "Administrador", estado }
+      linkedEmployee: { id: "e-nonactive", posicion: "Administrador", estado }
     });
-    assert.strictEqual(access.inactiveBlocked, true, estado);
-    assert.strictEqual(access.canManage, false, estado);
-    assert.strictEqual(access.canReadAll, false, estado);
-    assert.strictEqual(access.canReadOwn, false, estado);
+    assert.strictEqual(access.inactiveBlocked, true, String(estado));
+    assert.strictEqual(access.canManage, false, String(estado));
+    assert.strictEqual(access.canReadAll, false, String(estado));
+    assert.strictEqual(access.canReadOwn, false, String(estado));
+  }
+});
+
+test("explicitly active linked status is not blocked", () => {
+  for (const estado of ["activo", "active", "Activo", "ACTIVE"]) {
+    const access = core.resolveUsherScheduleAccess({
+      permissions: ["usher.schedule.read.all", "usher.schedule.manage"],
+      profileRole: "administrador",
+      linkedEmployee: { id: "e-active", posicion: "Administrador", estado }
+    });
+    assert.strictEqual(access.inactiveBlocked, false, estado);
+    assert.strictEqual(access.canManage, true, estado);
+    assert.strictEqual(access.canReadAll, true, estado);
   }
 });
 
@@ -191,10 +204,13 @@ test("SESSION_IDLE_MS remains five minutes", () => {
 });
 
 test("migration inactive detection is cargo-agnostic and prevails", () => {
-  assert.match(migrationSql, /current_linked_inactive_employee_id/);
+  assert.match(migrationSql, /current_linked_nonactive_employee_id/);
+  assert.match(migrationSql, /not public\.employee_status_is_active\(e\.status\)/);
   assert.match(migrationSql, /linked_employee_blocks_usher_schedule/);
-  assert.match(migrationSql, /Inactive\/terminated linked employee \(any cargo\) blocks all access/);
+  assert.match(migrationSql, /Non-active linked employee/);
+  assert.match(migrationSql, /drop function if exists public\.current_linked_inactive_employee_id\(\);/);
   assert.match(migrationSql, /drop function if exists public\.current_linked_inactive_usher_employee_id\(\);/);
+  assert.doesNotMatch(migrationSql, /create or replace function public\.current_linked_inactive_employee_id/);
   assert.doesNotMatch(migrationSql, /create or replace function public\.current_linked_inactive_usher_employee_id/);
   assert.match(migrationSql, /and not public\.linked_employee_blocks_usher_schedule\(\)/);
 });
