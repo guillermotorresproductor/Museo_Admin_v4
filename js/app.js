@@ -4438,7 +4438,7 @@ function bindHumanResourcesModule() {
     showForm();
     populateDepartmentSelects(form, safeHtml);
     Object.entries(employee).forEach(([key, value]) => {
-      if (key === "departamento") return;
+      if (key === "departamento" || key === "horario") return;
       const field = form.elements[key];
       if (field && key !== "foto") field.value = value || "";
     });
@@ -4522,7 +4522,8 @@ function bindHumanResourcesModule() {
       telefono: data.get("telefono").trim(),
       direccion: data.get("direccion").trim(),
       fechaContratacion: data.get("fechaContratacion"),
-      horario: data.get("horario").trim(),
+      // Preserve historical work_schedule; the editable HR field was removed in favor of calendars.
+      horario: existing?.horario || "",
       educacion: data.get("educacion"),
       condicion: data.get("condicion").trim(),
       acceso: data.get("acceso"),
@@ -5878,7 +5879,7 @@ function bindEmployeeProfile() {
   populateDepartmentSelects(profileCard, safeHtml);
   document.querySelectorAll("[data-profile-field]").forEach((field) => {
     const key = field.dataset.profileField;
-    if (key === "departamento") return;
+    if (key === "departamento" || key === "horario") return;
     const value = profile[key] || "";
     field.value = value;
   });
@@ -5960,8 +5961,12 @@ function bindEmployeeProfile() {
   saveButton?.addEventListener("click", async () => {
     const updatedProfile = { ...profile, foto: pendingPhoto };
     document.querySelectorAll("[data-profile-field]").forEach((field) => {
-      updatedProfile[field.dataset.profileField] = field.value;
+      const key = field.dataset.profileField;
+      if (key === "horario") return;
+      updatedProfile[key] = field.value;
     });
+    // Keep historical work_schedule even though the editable field was removed.
+    updatedProfile.horario = profile.horario || "";
     const resolvedDepartment = resolveMuseumDepartmentForSave(updatedProfile.departamento);
     if (!resolvedDepartment) {
       setProfileMessage(

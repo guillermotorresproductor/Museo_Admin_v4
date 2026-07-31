@@ -13,7 +13,7 @@ Administrar el expediente laboral de los empleados del museo.
 
 ## Cambios implementados
 - Cambio visual de "Puesto" a "Cargo".
-- Placeholder en "Horario asignado de trabajo".
+- El campo editable "Horario asignado de trabajo" se retiró de alta/edición/perfil; el horario operativo vive en calendarios. `work_schedule` histórico se conserva en Supabase al guardar otros datos.
 - Cambio visual de "Rol dentro del sistema" a "Nivel de acceso".
 - Eliminación visual de los campos Usuario y Contraseña temporal.
 - Aclaración de que la creación del expediente no crea automáticamente una cuenta de acceso.

@@ -116,7 +116,7 @@ Compatibilidad de visualización (sin migración SQL): `Dirección` y `Recursos 
 | `compensation_type` | altamente restringido | Horario, salario, contrato. |
 | `hourly_rate` | altamente restringido | Dato compensatorio. |
 | `exempt_status` | restringido | Clasificacion laboral. |
-| `work_schedule` | privado | Horario asignado. |
+| `work_schedule` | privado | Horario laboral legado. Se conserva en base de datos; ya no es editable en formularios de RRHH (el horario operativo se administra en calendarios). |
 | `active` | privado | Estado operativo. |
 
 ## 8. Datos que no deben vivir en employees
