@@ -255,11 +255,7 @@ function isUsherPosition(posicion) {
 
 function isActiveEmployeeStatus(estado) {
   const status = normalizeMuseumLabel(estado).toLowerCase();
-  return status !== "inactivo"
-    && status !== "inactive"
-    && status !== "terminado"
-    && status !== "terminated"
-    && status !== "suspended";
+  return status === "activo" || status === "active";
 }
 
 const officialActivityClassifications = [
@@ -3822,9 +3818,13 @@ function bindUsherCalendarModule(panel) {
       ) || (serverAccess?.linked_employee_id
         ? { id: serverAccess.linked_employee_id, posicion: "Ujier", estado: "Activo" }
         : null);
-      const inactiveLinked = Boolean(serverAccess?.inactive_blocked) || getEmployeeRecords().some((employee) =>
-        employee.authUserId && sessionUserId && employee.authUserId === sessionUserId && isUsherPosition(employee.posicion) && !isActiveEmployeeStatus(employee.estado)
-      );
+      const inactiveLinked = Boolean(serverAccess?.inactive_blocked) || getEmployeeRecords().some((employee) => {
+        if (!(employee.authUserId && sessionUserId && employee.authUserId === sessionUserId)) return false;
+        const status = employee.estado || employee.status;
+        return core.isInactiveEmployeeStatus
+          ? core.isInactiveEmployeeStatus(status)
+          : !isActiveEmployeeStatus(status);
+      });
 
       access = core.resolveUsherScheduleAccess({
         permissions: [...currentPermissions],

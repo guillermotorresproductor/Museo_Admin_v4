@@ -55,8 +55,13 @@ create table if not exists public.usher_shifts (
 do $$
 begin
   if not exists (
-    select 1 from pg_constraint
-    where conname = 'employees_id_museum_key'
+    select 1
+    from pg_constraint c
+    join pg_class rel on rel.oid = c.conrelid
+    join pg_namespace n on n.oid = rel.relnamespace
+    where c.conname = 'employees_id_museum_key'
+      and n.nspname = 'public'
+      and rel.relname = 'employees'
   ) then
     alter table public.employees
       add constraint employees_id_museum_key unique (id, museum_id);
@@ -66,8 +71,13 @@ end $$;
 do $$
 begin
   if not exists (
-    select 1 from pg_constraint
-    where conname = 'usher_shifts_employee_museum_fk'
+    select 1
+    from pg_constraint c
+    join pg_class rel on rel.oid = c.conrelid
+    join pg_namespace n on n.oid = rel.relnamespace
+    where c.conname = 'usher_shifts_employee_museum_fk'
+      and n.nspname = 'public'
+      and rel.relname = 'usher_shifts'
   ) then
     alter table public.usher_shifts
       add constraint usher_shifts_employee_museum_fk
@@ -123,8 +133,8 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select public.normalize_usher_label(coalesce(nullif(trim(both from coalesce(raw, '')), ''), 'activo'))
-    in ('activo', 'active');
+  -- Fail-closed: only explicit active labels. null/empty/unknown => false.
+  select public.normalize_usher_label(raw) in ('activo', 'active');
 $$;
 
 create or replace function public.normalize_usher_position(raw text)
@@ -172,7 +182,8 @@ as $$
   limit 1;
 $$;
 
-create or replace function public.current_linked_inactive_usher_employee_id()
+-- Any linked employee (any cargo) that is inactive/terminated blocks calendar access.
+create or replace function public.current_linked_inactive_employee_id()
 returns uuid
 language sql
 stable
@@ -183,10 +194,19 @@ as $$
   from public.employees e
   where e.museum_id = public.current_user_museum_id()
     and e.auth_user_id = auth.uid()
-    and public.is_usher_position(e.position)
     and public.employee_status_is_inactive(e.status)
   order by e.created_at asc
   limit 1;
+$$;
+
+create or replace function public.linked_employee_blocks_usher_schedule()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select public.current_linked_inactive_employee_id() is not null;
 $$;
 
 create or replace function public.can_manage_usher_schedule()
@@ -198,6 +218,7 @@ set search_path = ''
 as $$
   select auth.uid() is not null
     and public.current_user_museum_id() is not null
+    and not public.linked_employee_blocks_usher_schedule()
     and (
       public.has_permission('usher.schedule.manage')
       or exists (
@@ -216,8 +237,11 @@ stable
 security definer
 set search_path = ''
 as $$
-  select public.has_permission('usher.schedule.read.all')
-    or public.can_manage_usher_schedule();
+  select not public.linked_employee_blocks_usher_schedule()
+    and (
+      public.has_permission('usher.schedule.read.all')
+      or public.can_manage_usher_schedule()
+    );
 $$;
 
 create or replace function public.can_read_own_usher_schedule()
@@ -228,7 +252,8 @@ security definer
 set search_path = ''
 as $$
   -- Own access requires an active linked Ujier/Ujier ejecutivo in the same museum.
-  select public.current_linked_usher_employee_id() is not null;
+  select not public.linked_employee_blocks_usher_schedule()
+    and public.current_linked_usher_employee_id() is not null;
 $$;
 
 create or replace function public.write_usher_shift_audit(
@@ -287,8 +312,23 @@ begin
     return;
   end if;
 
+  inactive_id := public.current_linked_inactive_employee_id();
+  inactive_blocked := inactive_id is not null;
+
+  -- Inactive/terminated linked employee (any cargo) blocks all access, even RBAC manage/read.all.
+  if inactive_blocked then
+    museum_id := mid;
+    can_manage := false;
+    can_read_all := false;
+    can_read_own := false;
+    linked_employee_id := null;
+    linked_employee_name := null;
+    unlinked := false;
+    return next;
+    return;
+  end if;
+
   linked_id := public.current_linked_usher_employee_id();
-  inactive_id := public.current_linked_inactive_usher_employee_id();
 
   if linked_id is not null then
     select trim(both from concat(coalesce(e.first_name, ''), ' ', coalesce(e.last_name, '')))
@@ -304,8 +344,7 @@ begin
   can_read_own := public.can_read_own_usher_schedule();
   linked_employee_id := linked_id;
   linked_employee_name := linked_name;
-  inactive_blocked := linked_id is null and inactive_id is not null and not can_read_all and not can_manage;
-  unlinked := linked_id is null and inactive_id is null and not can_read_all and not can_manage;
+  unlinked := linked_id is null and not can_read_all and not can_manage;
   return next;
 end;
 $$;
@@ -408,11 +447,14 @@ begin
   end if;
 
   select * into access_row from public.usher_schedule_access_state();
-  if access_row.museum_id is null or not access_row.can_manage then
-    raise exception 'FORBIDDEN' using errcode = '42501';
+  if access_row.museum_id is null then
+    raise exception 'UNAUTHORIZED' using errcode = '42501';
   end if;
   if access_row.inactive_blocked then
     raise exception 'INACTIVE_EMPLOYEE' using errcode = '42501';
+  end if;
+  if not access_row.can_manage then
+    raise exception 'FORBIDDEN' using errcode = '42501';
   end if;
   if p_employee_id is null or p_shift_date is null or p_starts_at is null or p_ends_at is null then
     raise exception 'MISSING_REQUIRED_FIELDS' using errcode = '22000';
@@ -483,11 +525,14 @@ begin
   end if;
 
   select * into access_row from public.usher_schedule_access_state();
-  if access_row.museum_id is null or not access_row.can_manage then
-    raise exception 'FORBIDDEN' using errcode = '42501';
+  if access_row.museum_id is null then
+    raise exception 'UNAUTHORIZED' using errcode = '42501';
   end if;
   if access_row.inactive_blocked then
     raise exception 'INACTIVE_EMPLOYEE' using errcode = '42501';
+  end if;
+  if not access_row.can_manage then
+    raise exception 'FORBIDDEN' using errcode = '42501';
   end if;
   if p_id is null then
     raise exception 'MISSING_REQUIRED_FIELDS' using errcode = '22000';
@@ -551,7 +596,8 @@ begin
 end;
 $$;
 
--- Administrative importer: not granted to authenticated. Requires system.configure.
+-- Administrative importer: EXECUTE granted to authenticated only.
+-- Authorization still requires auth.uid(), museum_id and system.configure.
 create or replace function public.import_legacy_usher_shifts()
 returns jsonb
 language plpgsql
@@ -575,9 +621,13 @@ declare
   area_text text;
   raw_horario text;
   parts text[];
+  saved public.usher_shifts;
 begin
   if mid is null or auth.uid() is null or not public.has_permission('system.configure') then
     raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+  if public.linked_employee_blocks_usher_schedule() then
+    raise exception 'INACTIVE_EMPLOYEE' using errcode = '42501';
   end if;
 
   select payload into doc
@@ -596,6 +646,7 @@ begin
   for item in select * from jsonb_array_elements(doc)
   loop
     begin
+      saved := null;
       emp_name := lower(trim(both from coalesce(item->>'ujier', '')));
       if emp_name = '' then
         skipped := skipped + 1;
@@ -652,6 +703,7 @@ begin
         area_text := 'Sin área';
       end if;
 
+      -- Insert + audit in the same subtransaction: audit failure rolls back the insert.
       insert into public.usher_shifts(
         museum_id, employee_id, shift_date, starts_at, ends_at, area, legacy_horario, source, created_by, updated_by
       )
@@ -664,11 +716,14 @@ begin
           and s.shift_date = shift_day
           and s.starts_at = entrada
           and s.ends_at = salida
-      );
-      if found then
-        inserted := inserted + 1;
-      else
+      )
+      returning * into saved;
+
+      if saved.id is null then
         skipped := skipped + 1;
+      else
+        perform public.write_usher_shift_audit(mid, saved.id, 'create', null, to_jsonb(saved));
+        inserted := inserted + 1;
       end if;
     exception when others then
       errors := errors + 1;
@@ -681,7 +736,7 @@ begin
     'ambiguous', ambiguous,
     'errors', errors,
     'source', 'calendario_ujieres',
-    'note', 'Historical app_records JSON was not modified.'
+    'note', 'Historical app_records JSON was not modified. Successful inserts were audited as create.'
   );
 end;
 $$;
@@ -713,8 +768,9 @@ using (
   and public.has_permission('audit.read')
 );
 
--- Drop legacy full-row helper if a previous revision created it.
+-- Drop legacy helpers if a previous revision created them.
 drop function if exists public.current_linked_usher_employee();
+drop function if exists public.current_linked_inactive_usher_employee_id();
 
 revoke all on table public.usher_shifts from public, anon, authenticated;
 revoke all on table public.usher_shift_audit from public, anon, authenticated;
@@ -739,7 +795,8 @@ begin
         'is_usher_position',
         'is_usher_executive_position',
         'current_linked_usher_employee_id',
-        'current_linked_inactive_usher_employee_id',
+        'current_linked_inactive_employee_id',
+        'linked_employee_blocks_usher_schedule',
         'can_manage_usher_schedule',
         'can_read_all_usher_schedule',
         'can_read_own_usher_schedule',
@@ -760,5 +817,6 @@ grant execute on function public.usher_schedule_access_state() to authenticated;
 grant execute on function public.list_usher_shifts(date, date) to authenticated;
 grant execute on function public.upsert_usher_shift(uuid, uuid, date, time, time, text) to authenticated;
 grant execute on function public.delete_usher_shift(uuid) to authenticated;
+grant execute on function public.import_legacy_usher_shifts() to authenticated;
 
 commit;
