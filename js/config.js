@@ -21,28 +21,94 @@ const museoEnvironments = Object.freeze({
   })
 });
 
+const MUSEO_ENV_SESSION_KEY = "museo-admin-environment";
+/** Survives tab close for non-production test sessions; cleared only by explicit production. */
+const MUSEO_ENV_STICKY_KEY = "museo-admin-environment-sticky";
+const DEMO_MUSEO_HOSTNAME = "demo.instituva.com";
+const DEMO_INSTITUVA_APP_ORIGIN = "https://demo-app.instituva.com";
+
 const requestedMuseoEnvironment = new URLSearchParams(window.location.search).get("environment");
 const currentPathPage = (window.location.pathname.split("/").pop() || "").toLowerCase();
 const isLoginEntryPage = currentPathPage === "login.html" || currentPathPage === "login";
-const isLocalMuseoEnvironment = ["localhost", "127.0.0.1"].includes(window.location.hostname);
 
-if (requestedMuseoEnvironment === "production") {
-  // Forzar el entorno real del cliente.
-  sessionStorage.removeItem("museo-admin-environment");
-} else if (requestedMuseoEnvironment && museoEnvironments[requestedMuseoEnvironment]) {
-  sessionStorage.setItem("museo-admin-environment", requestedMuseoEnvironment);
-} else if (isLoginEntryPage && !requestedMuseoEnvironment) {
-  // En desarrollo local el acceso debe permanecer en staging. En el sitio
-  // publicado, un login sin parámetro continúa usando producción.
-  if (isLocalMuseoEnvironment) {
-    sessionStorage.setItem("museo-admin-environment", "staging");
-  } else {
-    sessionStorage.removeItem("museo-admin-environment");
+function isHostnameLockedDemoMuseoHost(host = window.location.hostname) {
+  return String(host || "").toLowerCase() === DEMO_MUSEO_HOSTNAME;
+}
+
+function isLocalMuseoHost(host = window.location.hostname) {
+  return host === "localhost" || host === "127.0.0.1" || /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+
+function clearMuseoEnvironmentSticky() {
+  sessionStorage.removeItem(MUSEO_ENV_SESSION_KEY);
+  try {
+    localStorage.removeItem(MUSEO_ENV_STICKY_KEY);
+  } catch {
+    // ignore
   }
 }
 
-const museoEnvironmentName = sessionStorage.getItem("museo-admin-environment")
-  || (isLocalMuseoEnvironment ? "staging" : "production");
+function rememberMuseoEnvironment(name) {
+  if (isHostnameLockedDemoMuseoHost()) return;
+  if (!museoEnvironments[name]) return;
+  sessionStorage.setItem(MUSEO_ENV_SESSION_KEY, name);
+  try {
+    if (name === "production") {
+      localStorage.removeItem(MUSEO_ENV_STICKY_KEY);
+    } else {
+      localStorage.setItem(MUSEO_ENV_STICKY_KEY, name);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function resolveMuseoEnvironmentName() {
+  // Host-locked demo: always Museo staging. Query/session/sticky cannot switch to production.
+  if (isHostnameLockedDemoMuseoHost()) {
+    return "staging";
+  }
+
+  if (requestedMuseoEnvironment === "production") {
+    clearMuseoEnvironmentSticky();
+    return "production";
+  }
+
+  if (requestedMuseoEnvironment && museoEnvironments[requestedMuseoEnvironment]) {
+    rememberMuseoEnvironment(requestedMuseoEnvironment);
+    return requestedMuseoEnvironment;
+  }
+
+  // Login entry without ?environment=: local stays on staging; published login uses production.
+  if (isLoginEntryPage) {
+    if (isLocalMuseoHost()) {
+      rememberMuseoEnvironment("staging");
+      return "staging";
+    }
+    clearMuseoEnvironmentSticky();
+    return "production";
+  }
+
+  const fromSession = sessionStorage.getItem(MUSEO_ENV_SESSION_KEY);
+  if (fromSession && museoEnvironments[fromSession]) {
+    return fromSession;
+  }
+
+  try {
+    const fromSticky = localStorage.getItem(MUSEO_ENV_STICKY_KEY);
+    if (fromSticky && museoEnvironments[fromSticky] && fromSticky !== "production") {
+      sessionStorage.setItem(MUSEO_ENV_SESSION_KEY, fromSticky);
+      return fromSticky;
+    }
+  } catch {
+    // ignore
+  }
+
+  // Local development defaults to staging; published hosts default to production.
+  return isLocalMuseoHost() ? "staging" : "production";
+}
+
+const museoEnvironmentName = resolveMuseoEnvironmentName();
 const museoEnvironment = museoEnvironments[museoEnvironmentName] || museoEnvironments.production;
 
 const institutionalDataQuery = new URLSearchParams(window.location.search).get("institutionalData");
@@ -84,12 +150,13 @@ function storedInstituvaBaseLooksInvalid(storedBase) {
   }
 }
 
-function isLocalMuseoHost(host = window.location.hostname) {
-  return host === "localhost" || host === "127.0.0.1" || /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host);
-}
-
 /** Instituva_App — misma app en PC y celular; un mismo backend (instituva-development). */
 function resolveInstituvaAppBaseUrl() {
+  const host = window.location.hostname;
+  if (isHostnameLockedDemoMuseoHost(host)) {
+    return DEMO_INSTITUVA_APP_ORIGIN;
+  }
+
   const params = new URLSearchParams(window.location.search);
   const queryOverride = params.get("instituvaApp");
   if (queryOverride) {
@@ -98,7 +165,6 @@ function resolveInstituvaAppBaseUrl() {
     return normalized;
   }
 
-  const host = window.location.hostname;
   if (isLocalMuseoHost(host)) {
     sessionStorage.removeItem("instituva-app-base");
     if (host === "localhost" || host === "127.0.0.1") {
@@ -123,4 +189,33 @@ const instituvaAppBaseUrl = resolveInstituvaAppBaseUrl();
 function instituvaAppUrl(path = "/") {
   const segment = path.startsWith("/") ? path : `/${path}`;
   return `${instituvaAppBaseUrl}${segment}`;
+}
+
+/**
+ * Build an internal Museo page URL.
+ * On demo.instituva.com, omit the technical ?environment= query.
+ * Elsewhere, always carry the active environment to prevent silent production fallback.
+ */
+function museoPageUrl(page, extraParams = {}) {
+  const raw = String(page || "dashboard.html");
+  let url;
+  try {
+    url = new URL(raw, window.location.href);
+  } catch {
+    return raw;
+  }
+  if (url.origin !== window.location.origin) return raw;
+  const params = new URLSearchParams(url.search);
+  Object.entries(extraParams || {}).forEach(([key, value]) => {
+    if (value == null || value === "") params.delete(key);
+    else params.set(key, String(value));
+  });
+  if (isHostnameLockedDemoMuseoHost()) {
+    params.delete("environment");
+  } else {
+    params.set("environment", museoEnvironment.name);
+  }
+  const file = url.pathname.split("/").pop() || raw.split("?")[0];
+  const query = params.toString();
+  return query ? `${file}?${query}` : file;
 }

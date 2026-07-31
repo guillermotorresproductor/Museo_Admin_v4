@@ -1,0 +1,10 @@
+{
+  "name": "museo-admin-v4",
+  "private": true,
+  "version": "4.0.0",
+  "description": "Museo Admin static site. Browser assets only in dist/.",
+  "scripts": {
+    "build:cloudflare-pages": "node scripts/build-cloudflare-pages.mjs",
+    "test:demo-hostname": "node scripts/test-demo-hostname.mjs"
+  }
+}
