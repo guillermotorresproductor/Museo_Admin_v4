@@ -1,6 +1,6 @@
 -- Reconcile employee identity links with authenticated profiles.
 -- Employment data (status, position, department, access_level) is NEVER auto-changed.
--- Only missing profile_id / auth_user_id links may be completed when the match is unambiguous.
+-- Completes partial or missing profile_id / auth_user_id links when the match is unambiguous.
 
 do $$
 declare
@@ -64,8 +64,11 @@ begin
       or exists (
         select 1
         from public.employees other
-        where other.auth_user_id = p.id
-          and other.id <> e.id
+        where other.id <> e.id
+          and (
+            other.auth_user_id = p.id
+            or other.profile_id = p.id
+          )
       )
     );
 
@@ -75,7 +78,8 @@ begin
       conflict_count;
   end if;
 
-  -- Link only missing identity fields for unequivocal museum+email matches.
+  -- Complete missing or partial identity links for unequivocal museum+email matches.
+  -- Cases: both null; profile_id=p.id with auth_user_id null; auth_user_id=p.id with profile_id null.
   -- Does NOT touch status, position, department, access_level, or other employment fields.
   update public.employees e
      set profile_id = p.id,
@@ -86,13 +90,17 @@ begin
      and lower(btrim(e.email)) = lower(btrim(p.email))
      and nullif(btrim(e.email), '') is not null
      and nullif(btrim(p.email), '') is not null
-     and e.profile_id is null
-     and e.auth_user_id is null
+     and (e.profile_id is null or e.profile_id = p.id)
+     and (e.auth_user_id is null or e.auth_user_id = p.id)
+     and (e.profile_id is null or e.auth_user_id is null)
      and not exists (
        select 1
        from public.employees other
-       where other.auth_user_id = p.id
-         and other.id <> e.id
+       where other.id <> e.id
+         and (
+           other.auth_user_id = p.id
+           or other.profile_id = p.id
+         )
      );
 end
 $$;

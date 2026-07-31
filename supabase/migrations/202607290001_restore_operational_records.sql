@@ -21,16 +21,17 @@ create index if not exists app_records_museum_module_idx
   on public.app_records(museum_id, module);
 
 -- Module → permission inventory (existing codes only):
--- module                | record_key(s)              | pages                         | read                                      | write                                     | delete
--- renta_espacios        | spaces_v2, spaces, requests| renta-espacios.html, ...      | rentals.manage                            | rentals.manage                            | system.configure
--- calendario_general    | records                    | calendario.html, rental-page  | calendar.manage OR schedules.read.team    | calendar.manage                           | system.configure
--- calendario_obras      | records                    | calendario-obras.html         | calendar.manage                           | calendar.manage                           | system.configure
--- inventario            | records                    | inventario.html               | inventory.manage                          | inventory.manage                          | system.configure
--- notificaciones        | preferences                | notificaciones.html           | notifications.manage                      | notifications.manage                      | system.configure
--- solicitud_materiales  | requests                   | solicitud-materiales.html     | system.configure OR (audit.read+notifications.manage) | same | system.configure
--- recibos_prestamo      | receipts                   | recibo-prestamo.html          | system.configure OR (audit.read+notifications.manage) | same | system.configure
--- calendario_ujieres    | records                    | legacy JSON (import only)     | system.configure                          | system.configure                          | system.configure
--- unknown               | *                          | *                             | DENY                                      | DENY                                      | DENY
+-- Physical DELETE of app_records documents is not allowed. Item removals use authorized UPDATE of payload.
+-- module                | record_key(s)              | pages                         | read                                      | write                                     | delete documento
+-- renta_espacios        | spaces_v2, spaces, requests| renta-espacios.html, ...      | rentals.manage                            | rentals.manage                            | no permitido
+-- calendario_general    | records                    | calendario.html, rental-page  | calendar.manage OR schedules.read.team    | calendar.manage                           | no permitido
+-- calendario_obras      | records                    | calendario-obras.html         | calendar.manage                           | calendar.manage                           | no permitido
+-- inventario            | records                    | inventario.html               | authenticated same museum                 | inventory.manage                          | no permitido
+-- notificaciones        | preferences                | notificaciones.html           | notifications.manage                      | notifications.manage                      | no permitido
+-- solicitud_materiales  | requests                   | solicitud-materiales.html     | system.configure OR (audit.read+notifications.manage) | same | no permitido
+-- recibos_prestamo      | receipts                   | recibo-prestamo.html          | system.configure OR (audit.read+notifications.manage) | same | no permitido
+-- calendario_ujieres    | records                    | legacy JSON (import only)     | system.configure                          | system.configure                          | no permitido
+-- unknown               | *                          | *                             | DENY                                      | DENY                                      | no permitido
 
 create or replace function public.app_records_has_module_access(p_module text, p_mode text)
 returns boolean
@@ -49,7 +50,8 @@ begin
   if public.current_user_museum_id() is null then
     return false;
   end if;
-  if mode not in ('read', 'write', 'delete') then
+  -- Physical document DELETE is never authorized; use payload UPDATE instead.
+  if mode not in ('read', 'write') then
     return false;
   end if;
   if module_name = '' then
@@ -58,16 +60,10 @@ begin
 
   -- Hard-coded module map. Callers cannot pass an arbitrary permission code.
   if module_name = 'renta_espacios' then
-    if mode = 'delete' then
-      return public.has_permission('system.configure');
-    end if;
     return public.has_permission('rentals.manage');
   end if;
 
   if module_name = 'calendario_general' then
-    if mode = 'delete' then
-      return public.has_permission('system.configure');
-    end if;
     if mode = 'read' then
       return public.has_permission('calendar.manage')
         or public.has_permission('schedules.read.team');
@@ -76,30 +72,23 @@ begin
   end if;
 
   if module_name = 'calendario_obras' then
-    if mode = 'delete' then
-      return public.has_permission('system.configure');
-    end if;
     return public.has_permission('calendar.manage');
   end if;
 
   if module_name = 'inventario' then
-    if mode = 'delete' then
-      return public.has_permission('system.configure');
+    -- Consulta: cualquier authenticated del mismo museo (museum_id enforced by RLS).
+    -- Escritura: solo inventory.manage (Admin/Ejecutivo vía role_permissions).
+    if mode = 'read' then
+      return true;
     end if;
     return public.has_permission('inventory.manage');
   end if;
 
   if module_name = 'notificaciones' then
-    if mode = 'delete' then
-      return public.has_permission('system.configure');
-    end if;
     return public.has_permission('notifications.manage');
   end if;
 
   if module_name in ('solicitud_materiales', 'recibos_prestamo') then
-    if mode = 'delete' then
-      return public.has_permission('system.configure');
-    end if;
     return public.has_permission('system.configure')
       or (
         public.has_permission('audit.read')
@@ -160,12 +149,8 @@ create policy app_records_module_update
     and public.app_records_has_module_access(module, 'write')
   );
 
-create policy app_records_module_delete
-  on public.app_records for delete to authenticated
-  using (
-    museum_id = public.current_user_museum_id()
-    and public.app_records_has_module_access(module, 'delete')
-  );
+-- No physical DELETE of app_records documents. Removals happen via authorized payload UPDATE.
+-- Keep DELETE revoked; do not create a DELETE policy.
 
 revoke all on table public.app_records from public, anon;
 revoke all on table public.app_records from authenticated;
@@ -251,7 +236,9 @@ create policy finance_records_authorized_delete
     and public.has_permission('finance.write')
   );
 
--- Preserve hardened grants from later finance migrations: no direct UPDATE/DELETE for clients.
+-- Preserve hardened finance grants:
+-- Client uses SELECT + INSERT directly; amount edits go through RPC update_finance_record_amount.
+-- No client DELETE path exists. Do not grant UPDATE/DELETE to authenticated.
 revoke all on table public.finance_records from public, anon;
 revoke all on table public.finance_records from authenticated;
 grant select, insert on public.finance_records to authenticated;
