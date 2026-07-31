@@ -4345,6 +4345,71 @@ function isCompensationFieldActive(type, fieldName) {
   return compensationFieldsForType(type).includes(fieldName);
 }
 
+function normalizeOvertimeEligible(value) {
+  if (value === true || value === 1) return true;
+  const text = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  return text === "true" || text === "1" || text === "si" || text === "yes";
+}
+
+function setCompensationControlDisabled(control, disabled) {
+  if (!control) return;
+  if (typeof RadioNodeList !== "undefined" && control instanceof RadioNodeList) {
+    [...control].forEach((radio) => {
+      radio.disabled = disabled;
+    });
+    return;
+  }
+  if (typeof control.length === "number" && control[0]?.type === "radio") {
+    [...control].forEach((radio) => {
+      radio.disabled = disabled;
+    });
+    return;
+  }
+  control.disabled = disabled;
+}
+
+function setCompensationControlValue(control, value) {
+  if (!control) return;
+  if (typeof RadioNodeList !== "undefined" && control instanceof RadioNodeList) {
+    control.value = String(value);
+    return;
+  }
+  if (typeof control.length === "number" && control[0]?.type === "radio") {
+    const wanted = String(value);
+    [...control].forEach((radio) => {
+      radio.checked = radio.value === wanted;
+    });
+    return;
+  }
+  control.value = value;
+}
+
+function setCompensationControlRequired(control, required) {
+  if (!control) return;
+  const targets = (typeof RadioNodeList !== "undefined" && control instanceof RadioNodeList) || (typeof control.length === "number" && control[0]?.type === "radio")
+    ? [...control]
+    : [control];
+  targets.forEach((item, index) => {
+    if (!item) return;
+    if (required && index === 0) item.setAttribute("required", "required");
+    else item.removeAttribute("required");
+  });
+}
+
+function monthlyCompensationFormulaHint({ type, salaryPeriod }) {
+  const normalizedType = normalizeCompensationType(type);
+  if (normalizedType === "hourly") return "Tarifa × horas semanales × 52 ÷ 12.";
+  if (["salary", "stipend"].includes(normalizedType) || (normalizedType === "mixed" && salaryPeriod)) {
+    if (salaryPeriod === "annual") return "Salario anual ÷ 12.";
+    if (salaryPeriod === "monthly") return "Salario mensual.";
+  }
+  return "";
+}
+
 /**
  * Monthly equivalent (informational only):
  * - hourly: rate × weekly hours × 52 ÷ 12
@@ -4374,15 +4439,12 @@ function syncCompensationFieldsByType(form) {
     const control = form.elements[fieldName];
     const visible = active.has(fieldName);
     wrapper.hidden = !visible;
-    if (control) {
-      control.disabled = !visible;
-      if (visible && required.has(fieldName)) control.setAttribute("required", "required");
-      else control.removeAttribute("required");
-    }
+    setCompensationControlDisabled(control, !visible);
+    setCompensationControlRequired(control, visible && required.has(fieldName));
   });
 
-  form.querySelectorAll(".form-row").forEach((row) => {
-    const fields = [...row.querySelectorAll(":scope > .field")];
+  form.querySelectorAll(".compensation-fields .form-row").forEach((row) => {
+    const fields = [...row.querySelectorAll(":scope > .field, :scope > fieldset.field")];
     if (!fields.some((field) => field.hasAttribute("data-compensation-field"))) return;
     const visibleFields = fields.filter((field) => !field.hidden);
     row.hidden = visibleFields.length === 0;
@@ -4414,7 +4476,7 @@ function buildCompensationSavePayload(data, snapshot) {
     pay_frequency: resolveField("pay_frequency", "payFrequency"),
     standard_hours_week: resolveField("standard_hours_week", "standardHoursWeek"),
     overtime_eligible: isCompensationFieldActive(type, "overtimeEligible")
-      ? data.get("overtimeEligible")
+      ? normalizeOvertimeEligible(data.get("overtimeEligible"))
       : (typeChanged ? null : (snapshot?.overtime_eligible ?? null)),
     bonus_type: resolveField("bonus_type", "bonusType") || "none",
     bonus_amount: resolveField("bonus_amount", "bonusAmount"),
@@ -4446,6 +4508,9 @@ function renderProfileCompensationSummary(compensation) {
   if (isCompensationFieldActive(type, "salaryPeriod") && compensation.salary_period) {
     rows.push(`<div class="field"><span>Periodo del salario</span><strong>${safeHtml(compensationPeriodLabels[compensation.salary_period] || compensation.salary_period)}</strong></div>`);
   }
+  if (isCompensationFieldActive(type, "overtimeEligible")) {
+    rows.push(`<div class="field"><span>Elegible para horas extra</span><strong>${normalizeOvertimeEligible(compensation.overtime_eligible) ? "Sí" : "No"}</strong></div>`);
+  }
 
   if (rows.length === 1 && type === "unconfigured") {
     rows.push(`<p class="field-hint">Compensación pendiente de configurar.</p>`);
@@ -4475,24 +4540,47 @@ function bindHumanResourcesModule() {
   module.querySelectorAll("[data-compensation-section], [data-emergency-section]").forEach((section) => { section.hidden = !canReadSensitiveEmployeeData(); });
 
   const updateMonthlyEquivalent = () => {
-    if (!form.elements.monthlyEquivalent || form.elements.monthlyEquivalent.disabled) {
-      if (form.elements.monthlyEquivalent && form.elements.monthlyEquivalent.disabled) form.elements.monthlyEquivalent.value = "";
+    const formulaHint = form.querySelector("[data-monthly-formula-hint]");
+    const disclaimer = form.querySelector("[data-monthly-disclaimer]");
+    const monthlyField = form.elements.monthlyEquivalent;
+    const monthlyVisible = monthlyField && !monthlyField.disabled && !form.querySelector('[data-compensation-field="monthlyEquivalent"]')?.hidden;
+
+    if (!monthlyField || !monthlyVisible) {
+      if (monthlyField) monthlyField.value = "";
+      if (formulaHint) {
+        formulaHint.hidden = true;
+        formulaHint.textContent = "";
+      }
+      if (disclaimer) disclaimer.hidden = true;
       return;
     }
+
+    const type = form.elements.compensationType?.value;
+    const salaryPeriod = form.elements.salaryPeriod?.value;
+    const formula = monthlyCompensationFormulaHint({ type, salaryPeriod });
+    if (formulaHint) {
+      formulaHint.textContent = formula;
+      formulaHint.hidden = !formula;
+    }
+    if (disclaimer) disclaimer.hidden = false;
+
     const value = computeMonthlyCompensationEquivalent({
-      type: form.elements.compensationType?.value,
+      type,
       hourlyRate: form.elements.hourlyRate?.value,
       standardHoursWeek: form.elements.standardHoursWeek?.value,
       salaryAmount: form.elements.salaryAmount?.value,
-      salaryPeriod: form.elements.salaryPeriod?.value
+      salaryPeriod
     });
-    form.elements.monthlyEquivalent.value = value
+    monthlyField.value = value
       ? value.toLocaleString("es-PR", { style: "currency", currency: "USD" })
       : "";
   };
 
   const refreshCompensationFields = () => {
     syncCompensationFieldsByType(form);
+    if (!canManageSensitiveEmployeeData()) {
+      setCompensationControlDisabled(form.elements.overtimeEligible, true);
+    }
     updateMonthlyEquivalent();
   };
 
@@ -4530,7 +4618,6 @@ function bindHumanResourcesModule() {
       salaryPeriod: c?.salary_period || "",
       payFrequency: c?.pay_frequency || "",
       standardHoursWeek: c?.standard_hours_week ?? "",
-      overtimeEligible: String(c?.overtime_eligible ?? true),
       bonusType: c?.bonus_type || "none",
       bonusAmount: c?.bonus_amount ?? "",
       bonusPercent: c?.bonus_percent ?? "",
@@ -4546,6 +4633,10 @@ function bindHumanResourcesModule() {
     Object.entries(values).forEach(([name, value]) => {
       if (form.elements[name]) form.elements[name].value = value;
     });
+    setCompensationControlValue(
+      form.elements.overtimeEligible,
+      normalizeOvertimeEligible(c?.overtime_eligible) ? "true" : "false"
+    );
     refreshCompensationFields();
   };
 
