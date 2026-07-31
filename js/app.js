@@ -109,34 +109,35 @@ const moduleShortcutGroups = [
 ];
 
 const officialMuseumAreas = [
-  "Estacionamiento",
-  "Baños externos",
-  "Salón Multiuso",
-  "La Terraza de la Música",
+  "Almacén",
   "Anfiteatro Andy Montañez",
+  "Área Itinerante con Foyer frente a los elevadores",
+  "Baños del Museo",
+  "Baños externos",
+  "Cine 180°",
   "El Lobby",
-  "Mezzanine",
-  "Cine 189",
-  "Sala Clásica",
+  "Escalera a segundo piso",
+  "Escaleras de salida",
+  "Estacionamiento",
+  "La Terraza de la Música",
+  "Mezzanine Raíces",
+  "Pasillo Alternativo",
   "Pasillo Instrumentos",
   "Sala Bailable",
-  "Baños del Museo",
-  "Escalera a segundo piso",
-  "Sala Romántica",
-  "Pasillo Alternativo",
-  "Sala Urbana",
-  "Almacén",
+  "Sala Clásica",
   "Sala Experimental Guaynabo",
-  "Área Itinerante con Foyer frente a los elevadores",
+  "Sala Romántica",
+  "Sala Urbana",
   "Salón Lito Peña",
-  "Escaleras de salida"
+  "Salón Multiuso"
 ];
 
-/** Legacy calendar area labels → current rental-aligned names (display only; stored data unchanged). */
+/** Legacy calendar area labels → current official names (display only; stored data unchanged). */
 const museumAreaLegacyNames = {
   "Ball Room": "Salón Lito Peña",
-  "Mezzanine Raíces": "Mezzanine",
-  "Cine Bienvenida": "Cine 189",
+  "Mezzanine": "Mezzanine Raíces",
+  "Cine Bienvenida": "Cine 180°",
+  "Cine 189": "Cine 180°",
   "Lobby": "El Lobby",
   "Plazoleta y Entrada de Museo": "La Terraza de la Música",
   "Anfiteatro": "Anfiteatro Andy Montañez"
@@ -146,6 +147,10 @@ function displayMuseumArea(area) {
   const value = String(area || "").trim();
   if (!value) return value;
   return museumAreaLegacyNames[value] || value;
+}
+
+function sortedMuseumAreas() {
+  return [...new Set(officialMuseumAreas)].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
 }
 
 const officialActivityClassifications = [
@@ -3520,7 +3525,7 @@ function bindCalendarModules() {
 
   const populateAreas = () => {
     if (!areaSelect) return;
-    const options = officialMuseumAreas.map((area) => `<option value="${escapeHtml(area)}">${escapeHtml(area)}</option>`).join("");
+    const options = sortedMuseumAreas().map((area) => `<option value="${escapeHtml(area)}">${escapeHtml(area)}</option>`).join("");
     areaSelect.innerHTML = `<option value="">Seleccione un área...</option>${options}`;
   };
 
@@ -4397,7 +4402,7 @@ function populateSystemDataSelects() {
   });
 
   document.querySelectorAll("[data-area-select]").forEach((select) => {
-    const options = officialMuseumAreas.map((area) => `<option value="${safeHtml(area)}">${safeHtml(area)}</option>`).join("");
+    const options = sortedMuseumAreas().map((area) => `<option value="${safeHtml(area)}">${safeHtml(area)}</option>`).join("");
     select.innerHTML = `<option value="">Seleccione un área...</option>${options}`;
   });
 }
