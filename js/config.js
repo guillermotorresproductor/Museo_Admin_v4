@@ -28,8 +28,6 @@ const DEMO_MUSEO_HOSTNAME = "demo.instituva.com";
 const DEMO_INSTITUVA_APP_ORIGIN = "https://demo-app.instituva.com";
 
 const requestedMuseoEnvironment = new URLSearchParams(window.location.search).get("environment");
-const currentPathPage = (window.location.pathname.split("/").pop() || "").toLowerCase();
-const isLoginEntryPage = currentPathPage === "login.html" || currentPathPage === "login";
 
 function isHostnameLockedDemoMuseoHost(host = window.location.hostname) {
   return String(host || "").toLowerCase() === DEMO_MUSEO_HOSTNAME;
@@ -79,16 +77,7 @@ function resolveMuseoEnvironmentName() {
     return requestedMuseoEnvironment;
   }
 
-  // Login entry without ?environment=: local stays on staging; published login uses production.
-  if (isLoginEntryPage) {
-    if (isLocalMuseoHost()) {
-      rememberMuseoEnvironment("staging");
-      return "staging";
-    }
-    clearMuseoEnvironmentSticky();
-    return "production";
-  }
-
+  // No explicit ?environment= — preserve the active session/sticky environment.
   const fromSession = sessionStorage.getItem(MUSEO_ENV_SESSION_KEY);
   if (fromSession && museoEnvironments[fromSession]) {
     return fromSession;
@@ -104,8 +93,8 @@ function resolveMuseoEnvironmentName() {
     // ignore
   }
 
-  // Local development defaults to staging; published hosts default to production.
-  return isLocalMuseoHost() ? "staging" : "production";
+  // Client default: production only when nothing active is remembered.
+  return "production";
 }
 
 const museoEnvironmentName = resolveMuseoEnvironmentName();
