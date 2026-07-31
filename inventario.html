@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Inventario de Equipos</title>
-  <link rel="stylesheet" href="css/main.css?v=equipment-inventory-20260731">
+  <link rel="stylesheet" href="css/main.css?v=equipment-cta-visible-20260731">
 </head>
 <body>
   <div class="app-shell">
@@ -21,7 +21,13 @@
               <p>Registro y control de equipos, activos, mobiliario y herramientas del museo.</p>
               <p><strong data-inventory-total>0</strong> artículos registrados</p>
             </div>
+            <div class="inventory-list-actions">
+              <button class="button submit-button" type="button" data-inventory-new-equipment>
+                Registrar equipo
+              </button>
+            </div>
           </div>
+          <p class="form-message" data-inventory-list-message aria-live="polite"></p>
 
           <div class="inventory-controls">
             <label class="field" for="inventory-search">
@@ -68,7 +74,7 @@
           </div>
         </section>
 
-        <section class="card panel inventory-panel" data-inventory-entry-panel>
+        <section class="card panel inventory-panel" data-inventory-entry-panel hidden>
           <div class="inventory-entry-header">
             <div>
               <p class="page-kicker">Entrada de Inventario de Equipos</p>
@@ -78,14 +84,12 @@
                 Los objetos culturales se gestionan en Colecciones Museográficas.
               </p>
             </div>
-            <div class="inventory-type-tabs" role="tablist" aria-label="Registro de inventario de equipos" data-inventory-type-tabs>
-              <button class="button submit-button is-active" type="button" data-inventory-type="Equipo" data-inventory-new-equipment>
-                Registrar equipo
-              </button>
-              <!--
-                Legacy: "Obra de Arte" permanece en el DOM/JS solo para registros
-                históricos. No debe ofrecerse como alta nueva (Colecciones).
-              -->
+            <!--
+              Legacy: controles de tipo "Obra de Arte" se conservan ocultos para
+              compatibilidad con registros históricos en js/app.js.
+            -->
+            <div class="inventory-type-tabs" role="tablist" aria-label="Tipo de inventario" data-inventory-type-tabs hidden>
+              <button class="button submit-button is-active" type="button" data-inventory-type="Equipo" hidden>Equipos</button>
               <button class="button secondary" type="button" data-inventory-type="Obra de Arte" hidden>Obra de Arte</button>
             </div>
           </div>
@@ -226,7 +230,7 @@
 
             <div class="inventory-actions">
               <button class="button submit-button" type="submit" data-inventory-submit>Guardar Registro</button>
-              <button class="button secondary" type="button" data-inventory-cancel hidden>Cancelar edición</button>
+              <button class="button secondary" type="button" data-inventory-cancel>Cancelar</button>
             </div>
             <p class="form-message" data-inventory-message></p>
           </form>
@@ -236,7 +240,7 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=equipment-inventory-20260731"></script>
-  <script src="js/app.js?v=equipment-inventory-20260731"></script>
+  <script src="js/services/supabase.js?v=equipment-cta-visible-20260731"></script>
+  <script src="js/app.js?v=equipment-cta-visible-20260731"></script>
 </body>
 </html>

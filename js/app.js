@@ -3069,6 +3069,7 @@ function bindInventoryModule() {
   if (!form) return;
 
   const entryPanel = document.querySelector("[data-inventory-entry-panel]");
+  const newEquipmentButtons = document.querySelectorAll("[data-inventory-new-equipment]");
   const typeButtons = document.querySelectorAll("[data-inventory-type]");
   const typeField = document.querySelector("#inventory-type");
   const formTitle = document.querySelector("[data-inventory-form-title]");
@@ -3076,6 +3077,7 @@ function bindInventoryModule() {
   const typeTabs = document.querySelector("[data-inventory-type-tabs]");
   const list = document.querySelector("[data-inventory-list]");
   const message = document.querySelector("[data-inventory-message]");
+  const listMessage = document.querySelector("[data-inventory-list-message]");
   const search = document.querySelector("[data-inventory-search]");
   const locationFilter = document.querySelector("[data-inventory-filter-location]");
   const statusFilter = document.querySelector("[data-inventory-filter-status]");
@@ -3089,8 +3091,23 @@ function bindInventoryModule() {
   let sortKey = "fecha";
   let sortDirection = "desc";
 
+  // Same authorization gate as before the equipment/collections split.
   const canEditInventory = () => hasPermission("inventory.manage");
   const saveRecords = async () => saveSystemCollection("inventario", "records", records);
+  const setEntryPanelOpen = (open) => {
+    if (!entryPanel) return;
+    entryPanel.hidden = !open;
+  };
+  const ensureEquipmentCtaVisible = () => {
+    // The list-header CTA must stay visible. Never hide it for permission timing
+    // or missing inventory.manage — save/edit still enforce authorization.
+    newEquipmentButtons.forEach((button) => {
+      button.removeAttribute("hidden");
+      button.hidden = false;
+      button.style.removeProperty("display");
+      button.style.removeProperty("visibility");
+    });
+  };
   const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;",
@@ -3120,18 +3137,19 @@ function bindInventoryModule() {
     artworkFieldControls().forEach((field) => {
       field.disabled = !(isArtwork && allowArtworkUi);
     });
-    // Keep the equipment entry control visible; only hide cultural "Obra de Arte".
-    if (typeTabs) typeTabs.hidden = false;
+    // Type tabs stay hidden; equipment entry uses the list-header CTA.
+    if (typeTabs) typeTabs.hidden = true;
     typeButtons.forEach((button) => {
-      const isArtworkButton = button.dataset.inventoryType === "Obra de Arte";
-      button.hidden = isArtworkButton;
-      if (isArtworkButton) return;
-      button.classList.add("is-active", "submit-button");
-      button.classList.remove("secondary");
+      button.hidden = true;
     });
   };
 
-  const setMessage = (text, type = "") => {
+  const setMessage = (text, type = "", { listOnly = false } = {}) => {
+    if (listMessage) {
+      listMessage.textContent = text || "";
+      listMessage.className = `form-message ${type}`.trim();
+    }
+    if (listOnly) return;
     if (!message) return;
     message.textContent = text;
     message.className = `form-message ${type}`.trim();
@@ -3211,7 +3229,10 @@ function bindInventoryModule() {
     if (idField) idField.value = "";
     setInventoryType("Equipo");
     if (submitButton) submitButton.textContent = "Guardar Registro";
-    if (cancelButton) cancelButton.hidden = true;
+    if (cancelButton) {
+      cancelButton.hidden = false;
+      cancelButton.textContent = "Cancelar";
+    }
   };
 
   form.addEventListener("submit", async (event) => {
@@ -3274,8 +3295,13 @@ function bindInventoryModule() {
       records = nextRecords;
       await saveRecords();
       resetForm();
-      setMessage(id ? "Registro actualizado en Supabase." : "Registro guardado en Supabase.", "success");
+      setEntryPanelOpen(false);
       renderRecords();
+      setMessage(
+        id ? "Registro actualizado en Supabase." : "Equipo registrado correctamente.",
+        "success",
+        { listOnly: true }
+      );
     } catch (error) {
       records = previousRecords;
       setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
@@ -3283,10 +3309,16 @@ function bindInventoryModule() {
   });
 
   const beginNewEquipmentEntry = () => {
+    ensureEquipmentCtaVisible();
     resetForm();
     setInventoryType("Equipo");
-    setMessage("Complete el formulario para registrar un equipo.");
-    form.scrollIntoView({ behavior: "smooth", block: "start" });
+    setEntryPanelOpen(true);
+    if (!canEditInventory()) {
+      setMessage("Para guardar equipos debe entrar por Mi cuenta con permiso de inventario.", "error");
+    } else {
+      setMessage("Complete el formulario para registrar un equipo.");
+    }
+    entryPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
     form.querySelector("#inventory-name")?.focus();
   };
 
@@ -3297,7 +3329,6 @@ function bindInventoryModule() {
     const newEquipmentButton = event.target.closest("[data-inventory-new-equipment]");
 
     if (newEquipmentButton) {
-      if (!canEditInventory()) return;
       beginNewEquipmentEntry();
       return;
     }
@@ -3312,9 +3343,13 @@ function bindInventoryModule() {
         if (field) field.value = value;
       });
       if (submitButton) submitButton.textContent = "Actualizar Registro";
-      if (cancelButton) cancelButton.hidden = false;
+      if (cancelButton) {
+        cancelButton.hidden = false;
+        cancelButton.textContent = "Cancelar";
+      }
+      setEntryPanelOpen(true);
       setMessage("Editando registro de equipo.", "");
-      form.scrollIntoView({ behavior: "smooth", block: "start" });
+      entryPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
 
@@ -3354,38 +3389,34 @@ function bindInventoryModule() {
   if (cancelButton) {
     cancelButton.addEventListener("click", () => {
       resetForm();
+      setEntryPanelOpen(false);
       setMessage("");
+      if (listMessage) {
+        listMessage.textContent = "";
+        listMessage.className = "form-message";
+      }
     });
   }
-
-  typeButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      if (button.dataset.inventoryType === "Obra de Arte") {
-        setMessage("Las obras y piezas culturales se gestionan en Colecciones Museográficas.", "error");
-        return;
-      }
-      if (button.hasAttribute("data-inventory-new-equipment")) return;
-      beginNewEquipmentEntry();
-    });
-  });
 
   [search, locationFilter, statusFilter].forEach((control) => {
     if (control) control.addEventListener("input", renderRecords);
   });
 
-  if (!canEditInventory() && entryPanel) {
-    entryPanel.hidden = true;
-  } else if (entryPanel) {
-    entryPanel.hidden = false;
-  }
+  // CTA lives in the list card (outside the collapsible form panel) and stays visible.
+  ensureEquipmentCtaVisible();
+  setEntryPanelOpen(false);
+
   const loadInventoryRecords = async () => {
     try {
       records = await fetchSystemCollection("inventario", "records", []);
-      setMessage("Inventario cargado desde Supabase.", "success");
+      setMessage("", "", { listOnly: true });
     } catch (error) {
-      setMessage(`No se pudo cargar Inventario desde Supabase: ${error.message}`, "error");
+      records = Array.isArray(records) ? records : [];
+      setMessage(`No se pudo cargar Inventario desde Supabase: ${error.message}`, "error", { listOnly: true });
     }
     setInventoryType("Equipo");
+    ensureEquipmentCtaVisible();
+    setEntryPanelOpen(false);
     populateFilters();
     renderRecords();
   };

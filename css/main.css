@@ -2883,6 +2883,25 @@ body {
   margin-bottom: 18px;
 }
 
+.inventory-list-actions {
+  display: flex !important;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  visibility: visible !important;
+}
+
+.inventory-list-actions .button,
+.inventory-list-actions [data-inventory-new-equipment] {
+  display: inline-flex !important;
+  visibility: visible !important;
+  white-space: nowrap;
+}
+
+.inventory-panel[data-inventory-entry-panel][hidden] {
+  display: none !important;
+}
+
 .inventory-list-header h3 {
   margin: 0 0 6px;
   color: var(--ink);
