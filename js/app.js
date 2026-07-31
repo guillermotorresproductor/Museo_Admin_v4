@@ -432,6 +432,11 @@ function enforceAuthenticatedPageAccess() {
   const allowedPages = new Map([
     ["recursos-humanos.html", () => hasPermission("employees.read.all")],
     ["calendario.html", () => hasPermission("calendar.manage") || hasPermission("schedules.read.team")],
+    ["ujieres.html", () =>
+      hasPermission("usher.schedule.read.own")
+      || hasPermission("usher.schedule.read.all")
+      || hasPermission("usher.schedule.manage")
+      || hasPermission("calendar.manage")],
     ["inventario.html", () => hasPermission("inventory.manage")]
   ]);
   if (allowedPages.get(page)?.()) return false;
@@ -3642,19 +3647,365 @@ function usherTimeToMinutes(hhmm) {
   return Number(match[1]) * 60 + Number(match[2]);
 }
 
+function bindUsherCalendarModule(panel) {
+  const core = window.UsherScheduleCore;
+  if (!core) {
+    console.error("UsherScheduleCore is required for the usher calendar.");
+    return;
+  }
+
+  const form = panel.querySelector("[data-calendar-form]");
+  const grid = panel.querySelector("[data-calendar-grid]");
+  const title = panel.querySelector("[data-calendar-title]");
+  const message = panel.querySelector("[data-calendar-message]");
+  const submitButton = panel.querySelector("[data-calendar-submit]");
+  const cancelButton = panel.querySelector("[data-calendar-cancel]");
+  const newButton = panel.querySelector("[data-calendar-new]");
+  const prevButton = panel.querySelector("[data-calendar-prev]");
+  const nextButton = panel.querySelector("[data-calendar-next]");
+  const todayButton = panel.querySelector("[data-calendar-today]");
+  const usherSelect = panel.querySelector("[data-usher-select]");
+  const areaSelect = panel.querySelector("[data-area-select]");
+  const dayPicker = panel.querySelector("[data-usher-day-picker]");
+  const dayInput = panel.querySelector("[data-usher-day-input]");
+  let activeDate = new Date();
+  let activeView = "month";
+  let records = [];
+  let access = core.resolveUsherScheduleAccess({
+    permissions: [...currentPermissions],
+    profileRole: currentProfileRole
+  });
+
+  const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  })[character]);
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text;
+    message.className = `form-message ${type}`.trim();
+  };
+  // Usher mutations require usher.schedule.manage (or linked Ujier ejecutivo via server). Never calendar.manage.
+  const canEdit = () => Boolean(access.canManage);
+
+  const fillUsherScheduleFields = (record = null) => {
+    const entradaField = form?.elements?.horaEntrada;
+    const salidaField = form?.elements?.horaSalida;
+    if (!entradaField || !salidaField) return;
+    const times = record ? resolveUsherTimes(record) : null;
+    entradaField.value = times?.entrada || "";
+    salidaField.value = times?.salida || "";
+  };
+
+  const populateUshers = () => {
+    if (!usherSelect) return;
+    const ushers = getEmployeeRecords().filter((employee) =>
+      isUsherPosition(employee.posicion) && isActiveEmployeeStatus(employee.estado)
+    );
+    if (!ushers.length) {
+      usherSelect.innerHTML = `<option value="">No hay ujieres activos registrados</option>`;
+      return;
+    }
+    usherSelect.innerHTML = `<option value="">Seleccione un ujier...</option>${ushers.map((employee) => (
+      `<option value="${escapeHtml(employee.id)}">${escapeHtml(employeeDisplayName(employee))}</option>`
+    )).join("")}`;
+  };
+
+  const populateAreas = () => {
+    if (!areaSelect) return;
+    areaSelect.innerHTML = `<option value="">Seleccione un área...</option>${sortedMuseumAreas().map((area) => (
+      `<option value="${escapeHtml(area)}">${escapeHtml(area)}</option>`
+    )).join("")}`;
+  };
+
+  const shiftCard = (record) => {
+    const areaLabel = displayMuseumArea(record.area) || "Sin área";
+    const actions = canEdit()
+      ? `<div class="calendar-item-actions"><button type="button" data-calendar-edit="${escapeHtml(record.id)}">Editar</button><button type="button" data-calendar-delete="${escapeHtml(record.id)}">Eliminar</button></div>`
+      : "";
+    return `<article class="calendar-item" data-calendar-view="${escapeHtml(record.id)}"><strong>${escapeHtml(record.ujier)}</strong><span>${escapeHtml(formatUsherScheduleDisplay(record))}</span><small>${escapeHtml(areaLabel)}</small>${actions}</article>`;
+  };
+
+  const updateNavLabels = () => {
+    if (prevButton) prevButton.textContent = activeView === "day" ? "Día anterior" : activeView === "week" ? "Semana anterior" : "Mes anterior";
+    if (nextButton) nextButton.textContent = activeView === "day" ? "Día siguiente" : activeView === "week" ? "Semana siguiente" : "Mes siguiente";
+    if (dayPicker) dayPicker.hidden = activeView !== "day";
+    if (dayInput) dayInput.value = core.toDateKey(activeDate);
+    panel.querySelectorAll("[data-usher-view]").forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.usherView === activeView);
+    });
+  };
+
+  const renderMonth = () => {
+    const year = activeDate.getFullYear();
+    const month = activeDate.getMonth();
+    const days = new Date(year, month + 1, 0).getDate();
+    const firstDay = new Date(year, month, 1).getDay();
+    const monthPrefix = `${year}-${String(month + 1).padStart(2, "0")}`;
+    if (title) title.textContent = `Calendario de Ujieres - ${core.formatSpanishMonthTitle(activeDate)}`;
+    const emptyCells = Array.from({ length: firstDay }, () => `<div class="calendar-day is-empty"></div>`).join("");
+    const dayCells = Array.from({ length: days }, (_, index) => {
+      const day = index + 1;
+      const date = `${monthPrefix}-${String(day).padStart(2, "0")}`;
+      const items = core.filterShiftsForDate(records, date).map(shiftCard).join("");
+      return `<div class="calendar-day" data-calendar-date="${date}"><div class="calendar-day-number">${day}</div>${items}</div>`;
+    }).join("");
+    grid.innerHTML = `<div class="calendar-weekdays"><span>Dom</span><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span></div><div class="calendar-days">${emptyCells}${dayCells}</div>`;
+  };
+
+  const renderWeek = () => {
+    const start = core.startOfWeek(activeDate);
+    if (title) title.textContent = `Calendario de Ujieres - ${core.formatSpanishWeekTitle(activeDate)}`;
+    const columns = Array.from({ length: 7 }, (_, index) => {
+      const date = core.addDays(start, index);
+      const key = core.toDateKey(date);
+      const items = core.filterShiftsForDate(records, key);
+      return `<section class="usher-week-day" data-calendar-date="${key}"><h4>${core.formatSpanishDate(date)}</h4>${items.length ? items.map(shiftCard).join("") : `<p class="usher-empty">Sin turnos</p>`}</section>`;
+    }).join("");
+    grid.innerHTML = `<div class="usher-week-grid">${columns}</div>`;
+  };
+
+  const renderDay = () => {
+    const key = core.toDateKey(activeDate);
+    if (title) title.textContent = `Calendario de Ujieres - ${core.formatSpanishDate(activeDate)}`;
+    const items = core.filterShiftsForDate(records, key);
+    grid.innerHTML = `<section class="usher-day-list" data-calendar-date="${key}"><h4>${core.formatSpanishDate(activeDate)}</h4>${items.length ? items.map(shiftCard).join("") : `<p class="usher-empty">No hay turnos para este día.</p>`}</section>`;
+  };
+
+  const renderCalendar = () => {
+    if (!grid) return;
+    updateNavLabels();
+    if (activeView === "week") renderWeek();
+    else if (activeView === "day") renderDay();
+    else renderMonth();
+  };
+
+  const setEditableState = () => {
+    const allowed = canEdit();
+    form.querySelectorAll("input, select, textarea, button").forEach((field) => {
+      field.disabled = !allowed;
+    });
+    form.hidden = true;
+    if (newButton) newButton.hidden = !allowed;
+    panel.classList.toggle("is-readonly", !allowed);
+    renderCalendar();
+  };
+
+  const resetForm = () => {
+    form.reset();
+    form.elements.id.value = "";
+    fillUsherScheduleFields(null);
+    if (submitButton) submitButton.textContent = "Guardar Asignación";
+    if (cancelButton) cancelButton.hidden = true;
+    form.hidden = true;
+  };
+
+  const describeRecord = (record) => (
+    `Ujier: ${record.ujier}\nHorario: ${formatUsherScheduleDisplay(record)}\nÁrea: ${displayMuseumArea(record.area) || "Sin área"}\nDía: ${record.fecha}`
+  );
+
+  const loadRecords = async () => {
+    const range = core.viewRange(activeView, activeDate);
+    try {
+      const serverAccess = await fetchUsherScheduleAccessState().catch(() => null);
+      const sessionUserId = getSupabaseSession()?.user?.id;
+      const linked = getEmployeeRecords().find((employee) =>
+        employee.authUserId && sessionUserId && employee.authUserId === sessionUserId && isUsherPosition(employee.posicion) && isActiveEmployeeStatus(employee.estado)
+      ) || (serverAccess?.linked_employee_id
+        ? { id: serverAccess.linked_employee_id, posicion: "Ujier", estado: "Activo" }
+        : null);
+      const inactiveLinked = Boolean(serverAccess?.inactive_blocked) || getEmployeeRecords().some((employee) =>
+        employee.authUserId && sessionUserId && employee.authUserId === sessionUserId && isUsherPosition(employee.posicion) && !isActiveEmployeeStatus(employee.estado)
+      );
+
+      access = core.resolveUsherScheduleAccess({
+        permissions: [...currentPermissions],
+        profileRole: currentProfileRole,
+        linkedEmployee: linked,
+        inactiveLinkedUsher: inactiveLinked
+      });
+      if (serverAccess) {
+        access.canManage = Boolean(serverAccess.can_manage);
+        access.canReadAll = Boolean(serverAccess.can_read_all);
+        access.canReadOwn = Boolean(serverAccess.can_read_own);
+        access.unlinked = Boolean(serverAccess.unlinked);
+        access.inactiveBlocked = Boolean(serverAccess.inactive_blocked);
+        access.linkedEmployeeId = serverAccess.linked_employee_id || access.linkedEmployeeId;
+      }
+
+      if (access.inactiveBlocked) {
+        records = [];
+        setMessage("Tu expediente de empleado está inactivo. Contacta a Administración.", "error");
+        setEditableState();
+        return;
+      }
+      if (access.unlinked) {
+        records = [];
+        setMessage("Tu cuenta no está vinculada a un registro de empleado. Contacta a Administración.", "error");
+        setEditableState();
+        return;
+      }
+
+      const rows = await listUsherShifts(range.from, range.to);
+      records = core.assertNetworkIsolation(access, rows.map(core.mapSecureShiftRecord));
+      setMessage("Calendario de ujieres cargado de forma segura.", "success");
+    } catch (error) {
+      records = [];
+      setMessage(error.message || "No se pudo cargar el calendario de ujieres.", "error");
+    }
+    populateUshers();
+    populateAreas();
+    setEditableState();
+  };
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!canEdit()) {
+      setMessage("Este rol no tiene permiso para administrar turnos de ujieres.", "error");
+      return;
+    }
+    const data = new FormData(form);
+    const id = data.get("id") || null;
+    const employeeId = String(data.get("employee_id") || "").trim();
+    const horaEntrada = String(data.get("horaEntrada") || "").trim();
+    const horaSalida = String(data.get("horaSalida") || "").trim();
+    const fecha = String(data.get("fecha") || "").trim();
+    const area = String(data.get("area") || "").trim();
+    if (!fecha || !employeeId || !horaEntrada || !horaSalida || !area) {
+      setMessage("Complete el día, la hora de entrada, la hora de salida, el ujier y el área antes de guardar.", "error");
+      return;
+    }
+    if (!(usherTimeToMinutes(horaSalida) > usherTimeToMinutes(horaEntrada))) {
+      setMessage("La hora de salida debe ser posterior a la hora de entrada.", "error");
+      return;
+    }
+    try {
+      await upsertUsherShift({
+        id: id || null,
+        employeeId,
+        shiftDate: fecha,
+        startsAt: horaEntrada,
+        endsAt: horaSalida,
+        area
+      });
+      activeDate = core.parseDateKey(fecha) || activeDate;
+      resetForm();
+      setMessage(id ? "Turno actualizado." : "Turno creado.", "success");
+      await loadRecords();
+    } catch (error) {
+      setMessage(error.message || "No se pudo guardar el turno.", "error");
+    }
+  });
+
+  panel.addEventListener("click", async (event) => {
+    const editButton = event.target.closest("[data-calendar-edit]");
+    const deleteButton = event.target.closest("[data-calendar-delete]");
+    const viewItem = event.target.closest("[data-calendar-view]");
+    const dayCell = event.target.closest("[data-calendar-date]");
+    const viewButton = event.target.closest("[data-usher-view]");
+
+    if (viewButton) {
+      activeView = viewButton.dataset.usherView || "month";
+      await loadRecords();
+      return;
+    }
+
+    if (viewItem && !editButton && !deleteButton) {
+      const record = records.find((item) => item.id === viewItem.dataset.calendarView);
+      if (record) alert(describeRecord(record));
+      return;
+    }
+
+    if (dayCell && canEdit() && !form.hidden) {
+      form.elements.fecha.value = dayCell.dataset.calendarDate;
+    }
+
+    if (deleteButton) {
+      if (!canEdit()) return;
+      const record = records.find((item) => item.id === deleteButton.dataset.calendarDelete);
+      if (!record || !window.confirm(`¿Eliminar el turno de ${record.ujier} el ${record.fecha}?`)) return;
+      try {
+        await deleteUsherShift(record.id);
+        setMessage("Turno eliminado.", "success");
+        await loadRecords();
+      } catch (error) {
+        setMessage(error.message || "No se pudo eliminar el turno.", "error");
+      }
+      return;
+    }
+
+    if (editButton) {
+      if (!canEdit()) return;
+      const record = records.find((item) => item.id === editButton.dataset.calendarEdit);
+      if (!record) return;
+      form.hidden = false;
+      form.elements.id.value = record.id;
+      form.elements.fecha.value = record.fecha;
+      form.elements.employee_id.value = record.employee_id || "";
+      form.elements.area.value = displayMuseumArea(record.area) || record.area || "";
+      fillUsherScheduleFields(record);
+      if (submitButton) submitButton.textContent = "Actualizar Asignación";
+      if (cancelButton) cancelButton.hidden = false;
+      form.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+
+  prevButton?.addEventListener("click", async () => {
+    activeDate = core.navigateDate(activeView, activeDate, "prev");
+    await loadRecords();
+  });
+  nextButton?.addEventListener("click", async () => {
+    activeDate = core.navigateDate(activeView, activeDate, "next");
+    await loadRecords();
+  });
+  todayButton?.addEventListener("click", async () => {
+    activeDate = core.navigateDate(activeView, activeDate, "today");
+    await loadRecords();
+  });
+  dayInput?.addEventListener("change", async () => {
+    const parsed = core.parseDateKey(dayInput.value);
+    if (!parsed) return;
+    activeDate = parsed;
+    activeView = "day";
+    await loadRecords();
+  });
+  newButton?.addEventListener("click", () => {
+    if (!canEdit()) {
+      form.hidden = true;
+      setMessage("Solo personal autorizado puede crear turnos de ujieres.", "error");
+      return;
+    }
+    form.hidden = false;
+    setMessage("");
+    if (!form.elements.fecha.value) form.elements.fecha.value = core.toDateKey(activeDate);
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  cancelButton?.addEventListener("click", () => {
+    resetForm();
+    setMessage("");
+  });
+
+  loadRecords();
+}
+
 function bindCalendarModules() {
   const panel = document.querySelector("[data-calendar-module]");
   if (!panel) return;
+  if (panel.dataset.calendarModule === "ushers") {
+    bindUsherCalendarModule(panel);
+    return;
+  }
 
   const moduleType = panel.dataset.calendarModule;
   const isMaintenance = moduleType === "maintenance";
-  const isUshers = moduleType === "ushers";
+  const isUshers = false;
   const isGeneral = moduleType === "general";
   const moduleKey = isMaintenance
     ? "calendario_obras"
-    : isUshers
-      ? "calendario_ujieres"
-      : "calendario_general";
+    : "calendario_general";
   const form = panel.querySelector("[data-calendar-form]");
   const grid = panel.querySelector("[data-calendar-grid]");
   const title = panel.querySelector("[data-calendar-title]");

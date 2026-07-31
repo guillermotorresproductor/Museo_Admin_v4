@@ -3345,6 +3345,84 @@ body {
   outline: none;
 }
 
+.usher-calendar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.usher-view-switch {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f7fafb;
+}
+
+.usher-view-switch .button.is-active {
+  background: var(--green);
+  color: #fff;
+}
+
+.usher-day-picker {
+  max-width: 280px;
+  margin: 0 0 16px;
+}
+
+.usher-week-grid,
+.usher-day-list {
+  display: grid;
+  gap: 14px;
+}
+
+.usher-week-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.usher-week-day,
+.usher-day-list {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px;
+  min-height: 140px;
+}
+
+.usher-week-day h4,
+.usher-day-list h4 {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+}
+
+.usher-week-day .calendar-item,
+.usher-day-list .calendar-item {
+  margin-top: 8px;
+}
+
+.usher-empty {
+  color: var(--muted);
+  font-size: 0.92rem;
+  margin: 8px 0 0;
+}
+
+@media (max-width: 900px) {
+  .usher-week-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .usher-calendar-actions {
+    justify-content: stretch;
+  }
+
+  .usher-view-switch {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 @media (max-width: 960px) {
   .calendar-toolbar,
   .calendar-permissions {

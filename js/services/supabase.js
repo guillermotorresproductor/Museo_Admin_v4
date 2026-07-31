@@ -282,3 +282,62 @@ async function saveSupabaseEmployeeSensitiveDetails(employeeId, compensation, em
     emergency_contact: emergencyContact
   });
 }
+
+function usherScheduleRpcError(error) {
+  const message = String(error?.message || error || "");
+  if (/UNLINKED_EMPLOYEE/i.test(message)) {
+    return Object.assign(new Error("Tu cuenta no está vinculada a un registro de empleado. Contacta a Administración."), { code: "UNLINKED_EMPLOYEE" });
+  }
+  if (/INACTIVE_EMPLOYEE/i.test(message)) {
+    return Object.assign(new Error("Tu expediente de empleado está inactivo. Contacta a Administración."), { code: "INACTIVE_EMPLOYEE" });
+  }
+  if (/usher_schedule|list_usher_shifts|upsert_usher_shift|Could not find the function|PGRST202/i.test(message)) {
+    return Object.assign(new Error("El calendario seguro de ujieres requiere aplicar la migración SQL pendiente (usher_shifts)."), { code: "MIGRATION_REQUIRED" });
+  }
+  return error instanceof Error ? error : new Error(message || "No se pudo completar la operación del calendario de ujieres.");
+}
+
+async function fetchUsherScheduleAccessState() {
+  try {
+    const data = await supabasePost("/rest/v1/rpc/usher_schedule_access_state", {});
+    return Array.isArray(data) ? (data[0] || null) : data;
+  } catch (error) {
+    throw usherScheduleRpcError(error);
+  }
+}
+
+async function listUsherShifts(fromDate, toDate) {
+  try {
+    const data = await supabasePost("/rest/v1/rpc/list_usher_shifts", {
+      p_from: fromDate,
+      p_to: toDate
+    });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    throw usherScheduleRpcError(error);
+  }
+}
+
+async function upsertUsherShift({ id = null, employeeId, shiftDate, startsAt, endsAt, area }) {
+  try {
+    const data = await supabasePost("/rest/v1/rpc/upsert_usher_shift", {
+      p_id: id,
+      p_employee_id: employeeId,
+      p_shift_date: shiftDate,
+      p_starts_at: startsAt,
+      p_ends_at: endsAt,
+      p_area: area
+    });
+    return Array.isArray(data) ? data[0] : data;
+  } catch (error) {
+    throw usherScheduleRpcError(error);
+  }
+}
+
+async function deleteUsherShift(id) {
+  try {
+    return await supabasePost("/rest/v1/rpc/delete_usher_shift", { p_id: id });
+  } catch (error) {
+    throw usherScheduleRpcError(error);
+  }
+}

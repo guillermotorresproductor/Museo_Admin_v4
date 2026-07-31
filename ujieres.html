@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Ujieres</title>
-  <link rel="stylesheet" href="css/main.css?v=usher-schedule-20260731">
+  <link rel="stylesheet" href="css/main.css?v=usher-views-20260731">
 </head>
 <body>
   <div class="app-shell">
@@ -18,14 +18,25 @@
             <div>
               <p class="page-kicker">Calendario de Ujieres</p>
               <h3 data-calendar-title>Calendario de Ujieres</h3>
-              <p>Asignaciones mensuales de ujieres, horarios y áreas oficiales del Museo.</p>
+              <p>Asignaciones de ujieres por mes, semana o día, con entrada, salida y área.</p>
             </div>
-            <div class="calendar-actions">
-              <button class="button secondary" type="button" data-calendar-prev>Mes anterior</button>
-              <button class="button secondary" type="button" data-calendar-next>Mes siguiente</button>
+            <div class="calendar-actions usher-calendar-actions">
+              <div class="usher-view-switch" role="group" aria-label="Vista del calendario">
+                <button class="button secondary is-active" type="button" data-usher-view="month">Mes</button>
+                <button class="button secondary" type="button" data-usher-view="week">Semana</button>
+                <button class="button secondary" type="button" data-usher-view="day">Día</button>
+              </div>
+              <button class="button secondary" type="button" data-calendar-prev>Anterior</button>
+              <button class="button secondary" type="button" data-calendar-today>Hoy</button>
+              <button class="button secondary" type="button" data-calendar-next>Siguiente</button>
               <button class="button submit-button" type="button" data-calendar-new>Nueva Entrada</button>
             </div>
           </div>
+
+          <label class="field usher-day-picker" data-usher-day-picker hidden>
+            <span>Fecha</span>
+            <input type="date" data-usher-day-input>
+          </label>
 
           <div class="monthly-calendar" data-calendar-grid></div>
 
@@ -48,7 +59,7 @@
             <div class="form-row">
               <label class="field">
                 <span>Nombre del ujier</span>
-                <select name="ujier" data-usher-select required>
+                <select name="employee_id" data-usher-select required>
                   <option value="">Seleccione un ujier...</option>
                 </select>
               </label>
@@ -71,9 +82,8 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=usher-schedule-20260731"></script>
+  <script src="js/services/supabase.js?v=usher-views-20260731"></script>
+  <script src="js/usher-schedule-core.js?v=usher-views-20260731"></script>
+  <script src="js/app.js?v=usher-views-20260731"></script>
 </body>
 </html>
-
-
