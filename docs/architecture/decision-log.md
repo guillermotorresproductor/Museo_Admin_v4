@@ -129,3 +129,16 @@ QuickBooks sera la fuente oficial futura para contabilidad y nomina. Museo_Admin
 
 Consecuencias:
 La integracion con QuickBooks debe hacerse posteriormente con backend seguro y OAuth 2.0. No debe exponerse ningun secreto de Intuit en frontend.
+
+## ADR-011 - Separacion Inventario de Equipos y Colecciones Museograficas
+
+Estado: Aprobada
+
+Contexto:
+`inventario.html` mezclaba activos operacionales con obras de arte. La expresion "Inventario de piezas" no debe existir como modulo vigente. Colecciones y Formularios Museograficos ya viven bajo el Departamento Museologico.
+
+Decision:
+Inventario de Equipos administra activos operacionales. Colecciones Museograficas administra objetos culturales. No comparten fichas maestras, numeracion, estados ni flujos. Los formularios museograficos alimentan Colecciones, no Inventario de Equipos.
+
+Consecuencias:
+La navegacion y la UI de `inventario.html` quedan restringidas a equipos. La logica legacy de "Obra de Arte" se conserva solo para registros historicos hasta una migracion aprobada. Documentacion: `docs/architecture/13_EQUIPMENT_VS_COLLECTIONS_BOUNDARY.md`.

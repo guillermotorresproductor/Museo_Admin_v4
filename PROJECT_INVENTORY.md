@@ -75,7 +75,7 @@ Todas las paginas cargan `css/main.css` y `js/app.js`; la estructura comun se in
 | `solicitud-materiales.html` | Registro de solicitudes de materiales |
 | `ruta-digital.html` | Recorrido y control de mantenimiento por areas |
 | `renta-espacios.html` | Solicitud, tarifas, disponibilidad e impresion de renta de espacios |
-| `inventario.html` | Inventario administrativo de equipos, mobiliario, instrumentos y obras |
+| `inventario.html` | Inventario de Equipos (activos operacionales). La logica legacy de obras se conserva solo para registros historicos hasta migracion a Colecciones |
 | `documentos.html` | Portal de formularios y papeleria |
 | `deposito-artes.html` | Catalogo descargable de logos, artes y guia de marca |
 | `recibo-prestamo.html` | Formulario museografico de recibo/prestamo de articulos |

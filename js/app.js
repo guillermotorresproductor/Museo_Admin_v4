@@ -25,7 +25,7 @@ const appPages = {
   "deposito-artes.html": { title: "Depósito de Artes", subtitle: "Logos oficiales, artes y guías de marca del Museo." },
   "recibo-prestamo.html": { title: "Formularios Museográficos", subtitle: "Formularios digitales para artículos de colección y procesos museográficos." },
   "boletin.html": { title: "Boletín institucional", subtitle: "Publicaciones, anuncios y comunicaciones." },
-  "inventario.html": { title: "Inventario de equipos", subtitle: "Registro, consulta y localización de equipos." }
+  "inventario.html": { title: "Inventario de Equipos", subtitle: "Registro y control de equipos, activos, mobiliario y herramientas del museo." }
 };
 
 const iconPaths = {
@@ -47,6 +47,7 @@ const iconPaths = {
   dollar: '<path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"></path>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"></path>',
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path>',
+  package: '<path d="M16.5 9.4 7.55 4.24"></path><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><line x1="12" x2="12" y1="22" y2="12"></line>',
   chevron: '<path d="m6 9 6 6 6-6"></path>'
 };
 
@@ -64,7 +65,7 @@ const navigationGroups = [
       { href: "documentos.html", label: "Formularios y papelería", icon: "file", activePages: ["deposito-artes.html", "empleados.html", "reglamento.html"] },
       { href: "administracion.html", label: "Administración", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html", "direccion-ejecutiva.html"] },
       { href: "boletin.html", label: "Boletín institucional", icon: "megaphone" },
-      { href: "inventario.html", label: "Inventario de equipos", icon: "briefcase" },
+      { href: "inventario.html", label: "Inventario de Equipos", icon: "package" },
       { href: "login.html", label: "Mi cuenta", icon: "logout" }
     ]
   }
@@ -3053,6 +3054,16 @@ function bindLoanReceiptForm() {
   loadReceipts();
 }
 
+/**
+ * Inventario de Equipos (activos operacionales).
+ *
+ * Separación aprobada: los objetos culturales pertenecen a Colecciones Museográficas.
+ * La UI ya no ofrece alta de "Obra de Arte". La lógica y campos legacy de obras
+ * (`[data-artwork-fields]`, tipo "Obra de Arte", campos prestamista/préstamo)
+ * se conservan solo para consultar o actualizar registros históricos ya guardados
+ * en `app_records` (módulo `inventario`, clave `records`) hasta su migración
+ * futura a Colecciones. Consumidor: esta función `bindInventoryModule()`.
+ */
 function bindInventoryModule() {
   const form = document.querySelector("#inventory-form");
   if (!form) return;
@@ -3062,6 +3073,7 @@ function bindInventoryModule() {
   const typeField = document.querySelector("#inventory-type");
   const formTitle = document.querySelector("[data-inventory-form-title]");
   const artworkFields = document.querySelector("[data-artwork-fields]");
+  const typeTabs = document.querySelector("[data-inventory-type-tabs]");
   const list = document.querySelector("[data-inventory-list]");
   const message = document.querySelector("[data-inventory-message]");
   const search = document.querySelector("[data-inventory-search]");
@@ -3094,19 +3106,27 @@ function bindInventoryModule() {
 
   const artworkFieldControls = () => Array.from(artworkFields?.querySelectorAll("input, select, textarea") || []);
 
-  const setInventoryType = (type) => {
+  const setInventoryType = (type, { allowArtworkUi = false } = {}) => {
     const isArtwork = type === "Obra de Arte";
-    if (typeField) typeField.value = type;
-    if (formTitle) formTitle.textContent = isArtwork ? "Registro de Obra de Arte" : "Registro de Equipos";
-    if (artworkFields) artworkFields.hidden = !isArtwork;
+    if (typeField) typeField.value = isArtwork ? "Obra de Arte" : "Equipo";
+    if (formTitle) {
+      formTitle.textContent = isArtwork
+        ? "Registro histórico de Obra de Arte (legacy)"
+        : "Registro de Equipos";
+    }
+    if (artworkFields) artworkFields.hidden = !(isArtwork && allowArtworkUi);
     artworkFieldControls().forEach((field) => {
-      field.disabled = !isArtwork;
+      field.disabled = !(isArtwork && allowArtworkUi);
     });
+    if (typeTabs) typeTabs.hidden = true;
     typeButtons.forEach((button) => {
-      const active = button.dataset.inventoryType === type;
+      const active = button.dataset.inventoryType === (isArtwork ? "Obra de Arte" : "Equipo");
       button.classList.toggle("is-active", active);
       button.classList.toggle("submit-button", active);
       button.classList.toggle("secondary", !active);
+      if (button.dataset.inventoryType === "Obra de Arte") {
+        button.hidden = true;
+      }
     });
   };
 
@@ -3187,7 +3207,7 @@ function bindInventoryModule() {
   const resetForm = () => {
     form.reset();
     if (idField) idField.value = "";
-    setInventoryType(typeField?.value || "Equipo");
+    setInventoryType("Equipo");
     if (submitButton) submitButton.textContent = "Guardar Registro";
     if (cancelButton) cancelButton.hidden = true;
   };
@@ -3200,7 +3220,18 @@ function bindInventoryModule() {
     }
     const data = new FormData(form);
     const id = data.get("id");
-    const tipo = data.get("tipo") || "Equipo";
+    const existing = id ? records.find((item) => item.id === id) : null;
+    let tipo = data.get("tipo") || "Equipo";
+    // Nuevos registros solo como Equipo. Obras culturales nuevas van a Colecciones.
+    if (!existing && tipo === "Obra de Arte") {
+      setMessage("Las obras y piezas culturales se gestionan en Colecciones Museográficas, no en Inventario de Equipos.", "error");
+      return;
+    }
+    if (existing?.tipo === "Obra de Arte") {
+      tipo = "Obra de Arte";
+    } else {
+      tipo = "Equipo";
+    }
     const record = {
       id: id || createId(),
       tipo,
@@ -3210,18 +3241,18 @@ function bindInventoryModule() {
       ubicacion: data.get("ubicacion"),
       estado: data.get("estado"),
       contacto: data.get("contacto").trim(),
-      fecha: id ? records.find((item) => item.id === id)?.fecha : new Date().toLocaleDateString("es-PR"),
-      prestamista: data.get("prestamista")?.trim() || "",
-      correo: data.get("correo")?.trim() || "",
-      telefono: data.get("telefono")?.trim() || "",
-      fechaRecibo: data.get("fechaRecibo") || "",
-      direccion: data.get("direccion")?.trim() || "",
-      categoria: data.get("categoria") || "",
-      valor: data.get("valor")?.trim() || "",
-      inicio: data.get("inicio") || "",
-      devolucion: data.get("devolucion") || "",
-      proposito: data.get("proposito")?.trim() || "",
-      observaciones: data.get("observaciones")?.trim() || ""
+      fecha: existing?.fecha || new Date().toLocaleDateString("es-PR"),
+      prestamista: data.get("prestamista")?.trim() || existing?.prestamista || "",
+      correo: data.get("correo")?.trim() || existing?.correo || "",
+      telefono: data.get("telefono")?.trim() || existing?.telefono || "",
+      fechaRecibo: data.get("fechaRecibo") || existing?.fechaRecibo || "",
+      direccion: data.get("direccion")?.trim() || existing?.direccion || "",
+      categoria: data.get("categoria") || existing?.categoria || "",
+      valor: data.get("valor")?.trim() || existing?.valor || "",
+      inicio: data.get("inicio") || existing?.inicio || "",
+      devolucion: data.get("devolucion") || existing?.devolucion || "",
+      proposito: data.get("proposito")?.trim() || existing?.proposito || "",
+      observaciones: data.get("observaciones")?.trim() || existing?.observaciones || ""
     };
 
     if (!record.nombre || !record.descripcion || !record.sello || !record.ubicacion || !record.estado) {
@@ -3258,14 +3289,20 @@ function bindInventoryModule() {
       if (!canEditInventory()) return;
       const record = records.find((item) => item.id === editButton.dataset.inventoryEdit);
       if (!record) return;
-      setInventoryType(record.tipo || "Equipo");
+      const isLegacyArtwork = record.tipo === "Obra de Arte";
+      setInventoryType(record.tipo || "Equipo", { allowArtworkUi: isLegacyArtwork });
       Object.entries(record).forEach(([key, value]) => {
         const field = form.elements[key];
         if (field) field.value = value;
       });
       if (submitButton) submitButton.textContent = "Actualizar Registro";
       if (cancelButton) cancelButton.hidden = false;
-      setMessage("Editando registro seleccionado.", "");
+      setMessage(
+        isLegacyArtwork
+          ? "Editando registro histórico de Obra de Arte. Los nuevos objetos culturales deben gestionarse en Colecciones Museográficas."
+          : "Editando registro de equipo.",
+        ""
+      );
       form.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
@@ -3280,8 +3317,12 @@ function bindInventoryModule() {
 
   typeButtons.forEach((button) => {
     button.addEventListener("click", () => {
+      if (button.dataset.inventoryType === "Obra de Arte") {
+        setMessage("Las obras y piezas culturales se gestionan en Colecciones Museográficas.", "error");
+        return;
+      }
       resetForm();
-      setInventoryType(button.dataset.inventoryType);
+      setInventoryType("Equipo");
       setMessage("");
     });
   });
@@ -6312,7 +6353,7 @@ function renderPortalTools() {
     { permission: "schedules.read.team", href: "calendario.html", icon: "calendar", label: "Calendario del equipo" },
     { permission: "calendar.manage", href: "calendario.html", icon: "calendar", label: "Eventos" },
     { permission: "rentals.manage", href: "renta-espacios.html", icon: "building", label: "Renta de espacios" },
-    { permission: "inventory.manage", href: "inventario.html", icon: "briefcase", label: "Inventario" }
+    { permission: "inventory.manage", href: "inventario.html", icon: "package", label: "Inventario de Equipos" }
   ];
   const available = tools.filter((tool, index, all) => hasPermission(tool.permission) && all.findIndex((candidate) => candidate.href === tool.href) === index);
   const region = document.querySelector("[data-portal-tools]");

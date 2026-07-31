@@ -301,13 +301,15 @@ La responsabilidad principal sobre mantenimiento del espacio pertenece a Manteni
 
 La funcionalidad actual relacionada con Colecciones aparece de forma parcial en varias áreas del sistema.
 
-`inventario.html` contiene registros que mezclan equipos operacionales con obras de arte. Conceptualmente, la parte relacionada con obras de arte, donantes, prestamistas, valor, préstamo, devolución y propósito corresponde a Colecciones. La parte relacionada con equipos y recursos operacionales corresponde a Inventario Administrativo.
+`inventario.html` queda definido como **Inventario de Equipos** (activos operacionales). La UI ya no permite altas de obras culturales. Los registros históricos tipo “Obra de Arte” y sus campos (prestamista, préstamo, valor, propósito) permanecen en código (`bindInventoryModule` en `js/app.js`) solo para continuidad hasta una migración aprobada hacia Colecciones. Ver `13_EQUIPMENT_VS_COLLECTIONS_BOUNDARY.md` y ADR-011.
 
-`recibo-prestamo.html` representa conceptualmente un proceso del ciclo de vida de Colecciones, específicamente la recepción de artículos de colección mediante préstamo.
+Nota histórica: la expresión “Inventario de piezas” no es un módulo vigente y no debe reintroducirse en la interfaz.
+
+`recibo-prestamo.html` representa conceptualmente un proceso del ciclo de vida de Colecciones, específicamente la recepción de artículos de colección mediante préstamo. Los Formularios Museográficos inician procesos; Colecciones conserva la ficha maestra.
 
 `documentos.html` contiene accesos a formularios museográficos y documentos institucionales. Los documentos que respalden piezas, préstamos, donaciones, conservación, restauración o baja deben entenderse como documentación asociada al expediente museográfico.
 
-Estas referencias reconocen el estado actual del sistema y no definen migraciones ni implementación.
+Estas referencias reconocen el estado actual del sistema y no definen migraciones de datos ni cambios Supabase en esta fase.
 
 ## 16. Principios inviolables
 

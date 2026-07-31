@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Inventario</title>
-  <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
+  <title>Museo Admin v4.0 | Inventario de Equipos</title>
+  <link rel="stylesheet" href="css/main.css?v=equipment-inventory-20260731">
 </head>
 <body>
   <div class="app-shell">
@@ -16,8 +16,9 @@
         <section class="card panel inventory-panel section-stack">
           <div class="inventory-list-header">
             <div>
-              <p class="page-kicker">Listado Automático</p>
-              <h3>Artículos Registrados</h3>
+              <p class="page-kicker">Inventario de Equipos</p>
+              <h3>Equipos y activos registrados</h3>
+              <p>Registro y control de equipos, activos, mobiliario y herramientas del museo.</p>
               <p><strong data-inventory-total>0</strong> artículos registrados</p>
             </div>
           </div>
@@ -25,7 +26,7 @@
           <div class="inventory-controls">
             <label class="field" for="inventory-search">
               <span>Buscar</span>
-              <input id="inventory-search" type="search" placeholder="Nombre, sello, descripción, ubicación, donante o estado" data-inventory-search>
+              <input id="inventory-search" type="search" placeholder="Nombre, sello, descripción, ubicación, responsable o estado" data-inventory-search>
             </label>
 
             <label class="field" for="inventory-filter-location">
@@ -50,10 +51,10 @@
                   <th><button type="button" data-inventory-sort="tipo">Tipo</button></th>
                   <th><button type="button" data-inventory-sort="nombre">Nombre</button></th>
                   <th><button type="button" data-inventory-sort="descripcion">Descripción</button></th>
-                  <th><button type="button" data-inventory-sort="sello">Número de sello</button></th>
+                  <th><button type="button" data-inventory-sort="sello">Número de activo / sello</button></th>
                   <th><button type="button" data-inventory-sort="ubicacion">Ubicación</button></th>
                   <th><button type="button" data-inventory-sort="estado">Estado</button></th>
-                  <th><button type="button" data-inventory-sort="contacto">Persona de contacto / Donante</button></th>
+                  <th><button type="button" data-inventory-sort="contacto">Persona de contacto / Responsable</button></th>
                   <th><button type="button" data-inventory-sort="fecha">Fecha de registro</button></th>
                   <th>Acciones</th>
                 </tr>
@@ -70,13 +71,21 @@
         <section class="card panel inventory-panel" data-inventory-entry-panel>
           <div class="inventory-entry-header">
             <div>
-              <p class="page-kicker">Entrada de Inventario</p>
+              <p class="page-kicker">Entrada de Inventario de Equipos</p>
               <h3 data-inventory-form-title>Registro de Equipos</h3>
-              <p>Seleccione el tipo de entrada antes de completar el formulario.</p>
+              <p>
+                Use este módulo únicamente para activos operacionales.
+                Los objetos culturales se gestionan en Colecciones Museográficas.
+              </p>
             </div>
-            <div class="inventory-type-tabs" role="tablist" aria-label="Tipo de inventario">
+            <!--
+              Legacy: la pestaña Obra de Arte se oculta. La lógica permanece en
+              js/app.js (bindInventoryModule) para registros históricos hasta
+              migrarlos a Colecciones Museográficas.
+            -->
+            <div class="inventory-type-tabs" role="tablist" aria-label="Tipo de inventario" data-inventory-type-tabs hidden>
               <button class="button submit-button is-active" type="button" data-inventory-type="Equipo">Equipos</button>
-              <button class="button secondary" type="button" data-inventory-type="Obra de Arte">Obra de Arte</button>
+              <button class="button secondary" type="button" data-inventory-type="Obra de Arte" hidden>Obra de Arte</button>
             </div>
           </div>
 
@@ -91,7 +100,7 @@
               </label>
 
               <label class="field" for="inventory-tag">
-                <span>Número de sello (Asset Tag)</span>
+                <span>Número de activo / sello (Asset Tag)</span>
                 <input id="inventory-tag" name="sello" type="text" required>
               </label>
             </div>
@@ -141,10 +150,15 @@
             </div>
 
             <label class="field" for="inventory-contact">
-              <span>Persona de contacto / Donante</span>
+              <span>Persona de contacto / Responsable</span>
               <input id="inventory-contact" name="contacto" type="text">
             </label>
 
+            <!--
+              Campos legacy de Obra de Arte: ocultos en altas nuevas.
+              Se reactivan solo al editar un registro histórico tipo Obra de Arte.
+              Destino futuro: Colecciones Museográficas.
+            -->
             <div class="artwork-fields" data-artwork-fields hidden>
               <div class="form-row">
                 <label class="field" for="art-lender">
@@ -221,9 +235,7 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=employee-sensitive-20260721"></script>
+  <script src="js/services/supabase.js?v=equipment-inventory-20260731"></script>
+  <script src="js/app.js?v=equipment-inventory-20260731"></script>
 </body>
 </html>
-
-
