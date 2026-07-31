@@ -254,7 +254,12 @@ function isUsherPosition(posicion) {
 }
 
 function isActiveEmployeeStatus(estado) {
-  return normalizeMuseumLabel(estado).toLowerCase() !== "inactivo";
+  const status = normalizeMuseumLabel(estado).toLowerCase();
+  return status !== "inactivo"
+    && status !== "inactive"
+    && status !== "terminado"
+    && status !== "terminated"
+    && status !== "suspended";
 }
 
 const officialActivityClassifications = [

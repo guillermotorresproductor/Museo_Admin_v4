@@ -83,6 +83,20 @@
     return new Date(date.getFullYear(), date.getMonth() + amount, 1, 12, 0, 0);
   }
 
+  function normalizeEmployeeStatus(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  }
+
+  function isInactiveEmployeeStatus(value) {
+    const status = normalizeEmployeeStatus(value);
+    return status === "inactivo" || status === "inactive" || status === "terminado" || status === "terminated" || status === "suspended";
+  }
+
   function resolveUsherScheduleAccess({
     permissions = [],
     profileRole = null,
@@ -90,22 +104,29 @@
     inactiveLinkedUsher = false
   }) {
     const permissionSet = new Set(permissions);
-    const position = String(linkedEmployee?.posicion || linkedEmployee?.position || "").trim().toLowerCase();
+    const statusValue = linkedEmployee?.estado || linkedEmployee?.status || "";
+    const linkedIsInactive = Boolean(linkedEmployee) && isInactiveEmployeeStatus(statusValue);
+    const inactiveFlag = Boolean(inactiveLinkedUsher) || linkedIsInactive;
+    const activeLinked = linkedEmployee && !linkedIsInactive ? linkedEmployee : null;
+    const position = String(activeLinked?.posicion || activeLinked?.position || "").trim().toLowerCase();
     const isExecutiveUsher = position === "ujier ejecutivo";
     const isUsher = position === "ujier" || isExecutiveUsher;
     const roleManage = profileRole === "administrador" || profileRole === "ejecutivo";
-    const canManage = permissionSet.has("usher.schedule.manage") || roleManage || isExecutiveUsher;
-    const canReadAll = permissionSet.has("usher.schedule.read.all") || canManage;
-    const canReadOwn = permissionSet.has("usher.schedule.read.own") || isUsher || canReadAll;
-    const unlinked = !linkedEmployee && !inactiveLinkedUsher && !canReadAll;
-    const inactiveBlocked = !linkedEmployee && inactiveLinkedUsher && !canReadAll;
+    const rbacManage = permissionSet.has("usher.schedule.manage") || roleManage;
+    const rbacReadAll = permissionSet.has("usher.schedule.read.all") || rbacManage;
+    // Cargo privileges require an active linked usher; inactive never elevates.
+    const canManage = rbacManage || Boolean(activeLinked && isExecutiveUsher);
+    const canReadAll = rbacReadAll || canManage;
+    const canReadOwn = Boolean(activeLinked && isUsher) || canReadAll;
+    const unlinked = !activeLinked && !inactiveFlag && !canReadAll;
+    const inactiveBlocked = !activeLinked && inactiveFlag && !canReadAll && !canManage;
     return {
       canManage,
       canReadAll,
       canReadOwn,
       unlinked,
       inactiveBlocked,
-      linkedEmployeeId: linkedEmployee?.id || null,
+      linkedEmployeeId: activeLinked?.id || null,
       // Explicitly separate from museum event calendar authority.
       usesCalendarManage: permissionSet.has("calendar.manage")
     };
@@ -146,6 +167,8 @@
     formatSpanishMonthTitle,
     formatSpanishWeekTitle,
     navigateDate,
+    normalizeEmployeeStatus,
+    isInactiveEmployeeStatus,
     resolveUsherScheduleAccess,
     mapSecureShiftRecord,
     assertNetworkIsolation
