@@ -4368,20 +4368,25 @@ body {
 
   body.loan-print-mode .loan-print-header {
     display: grid;
-    grid-template-columns: 72px 1fr;
-    gap: 14px;
+    grid-template-columns: 70px 1fr;
+    gap: 12px;
     align-items: center;
-    margin: 0 0 16px;
-    padding-bottom: 12px;
+    margin: 0 0 12px;
+    padding-bottom: 10px;
     border-bottom: 1px solid #94a3b8;
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
+  /* Single official mark only — never the multi-variant SVG sheet. */
   body.loan-print-mode .loan-print-logo {
     display: block;
-    width: 72px;
+    width: 70px;
+    max-width: 70px;
     height: auto;
+    max-height: 88px;
+    object-fit: contain;
+    object-position: center top;
   }
 
   body.loan-print-mode .loan-print-museum {
@@ -4398,14 +4403,14 @@ body {
   }
 
   body.loan-print-mode .loan-print-title {
-    margin: 6px 0 0;
-    font-size: 1.05rem;
+    margin: 4px 0 0;
+    font-size: 1.02rem;
     line-height: 1.3;
     color: #0f172a;
   }
 
   body.loan-print-mode .loan-print-number {
-    margin: 6px 0 0;
+    margin: 4px 0 0;
     font-size: 0.86rem;
     color: #0f172a;
   }
@@ -4415,14 +4420,14 @@ body {
   }
 
   body.loan-print-mode .loan-expediente-heading {
-    margin-bottom: 10px;
-    gap: 10px;
+    margin-bottom: 8px;
+    gap: 8px;
   }
 
   body.loan-print-mode .loan-meta {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
+    gap: 8px;
     break-inside: avoid;
     page-break-inside: avoid;
   }
@@ -4432,15 +4437,18 @@ body {
     page-break-inside: avoid;
     border: 1px solid #cbd5e1;
     border-radius: 8px;
-    padding: 8px 10px;
+    padding: 6px 9px;
   }
 
   body.loan-print-mode .loan-section {
+    margin-top: 14px;
+    padding-top: 12px;
     break-inside: auto;
     page-break-inside: auto;
   }
 
   body.loan-print-mode .loan-section h4 {
+    margin-bottom: 10px;
     break-after: avoid;
     page-break-after: avoid;
   }
@@ -4450,6 +4458,17 @@ body {
   body.loan-print-mode .loan-signature-line {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+
+  body.loan-print-mode .loan-admin-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-top: 12px;
+    padding-top: 10px;
+  }
+
+  body.loan-print-mode .loan-admin-section .loan-section-note {
+    margin: 8px 0 0;
   }
 
   body.loan-print-mode .field input:not([type="checkbox"]):not([type="file"]):not([type="hidden"]),
@@ -4468,9 +4487,9 @@ body {
     border-radius: 0;
     background: transparent;
     color: #0f172a;
-    min-height: 1.35em;
-    padding: 4px 0 6px;
-    line-height: 1.45;
+    min-height: 1.25em;
+    padding: 3px 0 5px;
+    line-height: 1.4;
   }
 
   body.loan-print-mode .terms-accept:not(.loan-print-cert) {
@@ -4481,7 +4500,7 @@ body {
     display: flex !important;
     gap: 8px;
     align-items: flex-start;
-    margin: 12px 0 0;
+    margin: 10px 0 0;
     break-inside: avoid;
     page-break-inside: avoid;
   }
@@ -4499,10 +4518,17 @@ body {
   }
 
   body.loan-print-mode .loan-signature-lines {
-    margin-top: 28px;
+    margin-top: 14px;
+    gap: 12px;
   }
 
   body.loan-print-mode .loan-signature-line {
-    min-height: 140px;
+    min-height: 92px;
+    padding: 10px 12px;
+    gap: 18px;
+  }
+
+  body.loan-print-mode .loan-signature-line em {
+    padding-top: 6px;
   }
 }
