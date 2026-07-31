@@ -153,6 +153,110 @@ function sortedMuseumAreas() {
   return [...new Set(officialMuseumAreas)].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
 }
 
+/** Official employee departments (HR selector source of truth). Not RBAC roles. */
+const officialMuseumDepartments = [
+  "Administración",
+  "Atención al Cliente",
+  "Colecciones Museográficas",
+  "Educación",
+  "Finanzas",
+  "Mantenimiento",
+  "Operaciones",
+  "Producción Artística",
+  "Seguridad",
+  "Soporte Técnico"
+];
+
+const museumDepartmentLegacyNames = {
+  "Dirección": "Administración",
+  "Recursos Humanos": "Administración",
+  "Colecciones": "Colecciones Museográficas"
+};
+
+const legacyEducationProgrammingDepartment = "Educación/Programación";
+
+function normalizeMuseumLabel(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function sortedMuseumDepartments() {
+  return [...new Set(officialMuseumDepartments)].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+}
+
+function isLegacyEducationProgrammingDepartment(department) {
+  const value = normalizeMuseumLabel(department)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  return value === "educacion/programacion";
+}
+
+function findOfficialMuseumDepartment(department) {
+  const value = normalizeMuseumLabel(department).toLowerCase();
+  if (!value) return "";
+  return officialMuseumDepartments.find((item) => item.toLowerCase() === value) || "";
+}
+
+function displayMuseumDepartment(department) {
+  const value = normalizeMuseumLabel(department);
+  if (!value) return value;
+  if (isLegacyEducationProgrammingDepartment(value)) return legacyEducationProgrammingDepartment;
+  const legacyKey = Object.keys(museumDepartmentLegacyNames).find(
+    (key) => normalizeMuseumLabel(key).toLowerCase() === value.toLowerCase()
+  );
+  if (legacyKey) return museumDepartmentLegacyNames[legacyKey];
+  return findOfficialMuseumDepartment(value) || value;
+}
+
+/** Resolves a selectable official department for save. Rejects Educación/Programación. */
+function resolveMuseumDepartmentForSave(department) {
+  const value = normalizeMuseumLabel(department);
+  if (!value || isLegacyEducationProgrammingDepartment(value)) return "";
+  const displayed = displayMuseumDepartment(value);
+  return findOfficialMuseumDepartment(displayed);
+}
+
+function departmentSelectOptionsMarkup(escapeFn, includePlaceholder = true) {
+  const options = sortedMuseumDepartments()
+    .map((department) => `<option value="${escapeFn(department)}">${escapeFn(department)}</option>`)
+    .join("");
+  return includePlaceholder
+    ? `<option value="">Seleccione un departamento...</option>${options}`
+    : options;
+}
+
+function populateDepartmentSelects(root = document, escapeFn = safeHtml) {
+  const scope = root && root.querySelectorAll ? root : document;
+  scope.querySelectorAll("[data-department-select], select[name='departamento']").forEach((select) => {
+    const current = select.value;
+    select.innerHTML = departmentSelectOptionsMarkup(escapeFn);
+    if (current && findOfficialMuseumDepartment(current)) {
+      select.value = findOfficialMuseumDepartment(current);
+    }
+  });
+}
+
+function applyDepartmentSelectValue(select, department) {
+  if (!select) return { legacyEducationProgramming: false };
+  const value = normalizeMuseumLabel(department);
+  if (isLegacyEducationProgrammingDepartment(value)) {
+    select.value = "";
+    return { legacyEducationProgramming: true };
+  }
+  const resolved = resolveMuseumDepartmentForSave(value) || findOfficialMuseumDepartment(displayMuseumDepartment(value));
+  select.value = resolved || "";
+  return { legacyEducationProgramming: false };
+}
+
+function isUsherPosition(posicion) {
+  const value = normalizeMuseumLabel(posicion).toLowerCase();
+  return value === "ujier" || value === "ujier ejecutivo";
+}
+
+function isActiveEmployeeStatus(estado) {
+  return normalizeMuseumLabel(estado).toLowerCase() !== "inactivo";
+}
+
 const officialActivityClassifications = [
   "Actividades culturales o educativas",
   "Exhibiciones temporeras",
@@ -3602,7 +3706,13 @@ function bindCalendarModules() {
 
   const populateUshers = () => {
     if (!usherSelect) return;
-    const ushers = getEmployeeRecords().filter((employee) => employee.posicion === "Ujier" && employee.estado !== "Inactivo");
+    const ushers = getEmployeeRecords().filter((employee) =>
+      isUsherPosition(employee.posicion) && isActiveEmployeeStatus(employee.estado)
+    );
+    if (!ushers.length) {
+      usherSelect.innerHTML = `<option value="">No hay ujieres activos registrados</option>`;
+      return;
+    }
     const options = ushers.map((employee) => {
       const name = employeeDisplayName(employee);
       return `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
@@ -4258,7 +4368,7 @@ function bindHumanResourcesModule() {
           ${renderPhoto(employee)}
           <span class="employee-info">
             <strong>${safeHtml(employeeDisplayName(employee))}</strong>
-            <span>${safeHtml(employee.posicion)} · ${safeHtml(employee.departamento || "Sin departamento")} · ${safeHtml(employee.estado || "Activo")}</span>
+            <span>${safeHtml(employee.posicion)} · ${safeHtml(displayMuseumDepartment(employee.departamento) || "Sin departamento")} · ${safeHtml(employee.estado || "Activo")}</span>
           </span>
           <span class="employee-actions">
             ${profileLink}
@@ -4326,24 +4436,32 @@ function bindHumanResourcesModule() {
 
   const loadForm = async (employee) => {
     showForm();
+    populateDepartmentSelects(form, safeHtml);
     Object.entries(employee).forEach(([key, value]) => {
+      if (key === "departamento") return;
       const field = form.elements[key];
       if (field && key !== "foto") field.value = value || "";
     });
     form.elements.id.value = employee.id;
+    const departmentState = applyDepartmentSelectValue(form.elements.departamento, employee.departamento);
     selectedPhoto = employee.foto || "";
     if (photoStatus) photoStatus.textContent = selectedPhoto ? "Fotografía existente cargada." : "Ninguna fotografía seleccionada.";
     if (submitButton) submitButton.textContent = "Actualizar Empleado";
     if (cancelButton) cancelButton.hidden = false;
+    if (departmentState.legacyEducationProgramming) {
+      setMessage("Este empleado tiene el departamento legado Educación/Programación. Seleccione Educación o Soporte Técnico antes de guardar.", "error");
+    }
     await loadSensitiveEmployeeData(employee.id).catch(() => setMessage("No se pudieron cargar los datos sensibles del empleado.", "error"));
     form.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   form.hidden = true;
   if (createButton) createButton.hidden = !canManageEmployees();
+  populateDepartmentSelects(form, safeHtml);
 
   createButton?.addEventListener("click", () => {
     resetForm();
+    populateDepartmentSelects(form, safeHtml);
     setMessage("");
     showForm();
   });
@@ -4381,6 +4499,16 @@ function bindHumanResourcesModule() {
     const data = new FormData(form);
     const id = data.get("id") || buildEmployeeId(data.get("nombre"), data.get("apellidos"));
     const existing = getEmployeeRecords().find((employee) => employee.id === id);
+    const resolvedDepartment = resolveMuseumDepartmentForSave(data.get("departamento"));
+    if (!resolvedDepartment) {
+      setMessage(
+        isLegacyEducationProgrammingDepartment(data.get("departamento")) || isLegacyEducationProgrammingDepartment(existing?.departamento)
+          ? "Seleccione Educación o Soporte Técnico. El departamento legado Educación/Programación ya no está disponible para guardar."
+          : "Seleccione un departamento oficial de la lista antes de guardar.",
+        "error"
+      );
+      return;
+    }
     const employee = {
       id,
       avatar: existing?.avatar || employeeInitials({ nombre: data.get("nombre"), apellidos: data.get("apellidos") }),
@@ -4389,7 +4517,7 @@ function bindHumanResourcesModule() {
       nombreCompleto: `${data.get("nombre").trim()} ${data.get("apellidos").trim()}`,
       foto: selectedPhoto || existing?.foto || "",
       posicion: data.get("posicion").trim(),
-      departamento: data.get("departamento").trim(),
+      departamento: resolvedDepartment,
       correo: data.get("correo").trim(),
       telefono: data.get("telefono").trim(),
       direccion: data.get("direccion").trim(),
@@ -4498,9 +4626,17 @@ function populateSystemDataSelects() {
   document.querySelectorAll("[data-employee-select]").forEach((select) => {
     const filter = select.dataset.employeeFilter;
     const employees = getEmployeeRecords().filter((employee) => {
-      if (employee.estado === "Inactivo") return false;
+      if (!isActiveEmployeeStatus(employee.estado)) return false;
       if (!filter) return true;
-      return employee.posicion === filter || employee.departamento === filter;
+      if (isUsherPosition(filter)) return isUsherPosition(employee.posicion);
+      const normalizedFilter = normalizeMuseumLabel(filter);
+      if (employee.posicion === filter || normalizeMuseumLabel(employee.posicion).toLowerCase() === normalizedFilter.toLowerCase()) {
+        return true;
+      }
+      const employeeDepartment = displayMuseumDepartment(employee.departamento);
+      return employeeDepartment === filter
+        || normalizeMuseumLabel(employeeDepartment).toLowerCase() === normalizedFilter.toLowerCase()
+        || normalizeMuseumLabel(employee.departamento).toLowerCase() === normalizedFilter.toLowerCase();
     });
     const options = employees.map((employee) => {
       const name = employeeDisplayName(employee);
@@ -4513,6 +4649,8 @@ function populateSystemDataSelects() {
     const options = sortedMuseumAreas().map((area) => `<option value="${safeHtml(area)}">${safeHtml(area)}</option>`).join("");
     select.innerHTML = `<option value="">Seleccione un área...</option>${options}`;
   });
+
+  populateDepartmentSelects(document, safeHtml);
 }
 
 function bindNotificationsModule() {
@@ -4566,7 +4704,7 @@ function bindNotificationsModule() {
         <tr>
           <td>
             <strong>${safeHtml(employeeDisplayName(employee))}</strong>
-            <span class="table-subtext">${safeHtml(employee.posicion || "Empleado")} · ${safeHtml(employee.departamento || "Sin departamento")}</span>
+            <span class="table-subtext">${safeHtml(employee.posicion || "Empleado")} · ${safeHtml(displayMuseumDepartment(employee.departamento) || "Sin departamento")}</span>
           </td>
           <td>${safeHtml(employee.acceso || "Empleado")}</td>
           ${notificationTypes.map((type) => `<td>${renderToggle(employee, type, Boolean(prefs[type.key]))}</td>`).join("")}
@@ -5737,10 +5875,20 @@ function bindEmployeeProfile() {
   if (position) position.textContent = profile.posicion;
   updateInviteButton();
 
+  populateDepartmentSelects(profileCard, safeHtml);
   document.querySelectorAll("[data-profile-field]").forEach((field) => {
-    const value = profile[field.dataset.profileField] || "";
+    const key = field.dataset.profileField;
+    if (key === "departamento") return;
+    const value = profile[key] || "";
     field.value = value;
   });
+  const departmentState = applyDepartmentSelectValue(
+    profileCard.querySelector("[data-profile-field='departamento']"),
+    profile.departamento
+  );
+  if (departmentState.legacyEducationProgramming) {
+    setProfileMessage("Este empleado tiene el departamento legado Educación/Programación. Seleccione Educación o Soporte Técnico antes de guardar.", "error");
+  }
 
   const showPhoto = (photoData) => {
     if (!photo || !avatar) return;
@@ -5814,6 +5962,17 @@ function bindEmployeeProfile() {
     document.querySelectorAll("[data-profile-field]").forEach((field) => {
       updatedProfile[field.dataset.profileField] = field.value;
     });
+    const resolvedDepartment = resolveMuseumDepartmentForSave(updatedProfile.departamento);
+    if (!resolvedDepartment) {
+      setProfileMessage(
+        isLegacyEducationProgrammingDepartment(updatedProfile.departamento) || isLegacyEducationProgrammingDepartment(profile.departamento)
+          ? "Seleccione Educación o Soporte Técnico. El departamento legado Educación/Programación ya no está disponible para guardar."
+          : "Seleccione un departamento oficial de la lista antes de guardar.",
+        "error"
+      );
+      return;
+    }
+    updatedProfile.departamento = resolvedDepartment;
     updatedProfile.nombreCompleto = `${updatedProfile.nombre || ""} ${updatedProfile.apellidos || ""}`.trim();
     updatedProfile.avatar = employeeInitials(updatedProfile);
 

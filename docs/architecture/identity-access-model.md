@@ -91,7 +91,24 @@ Campos recomendados:
 | `address` | sensible | Direccion fisica. |
 | `photo_path` | privado | Ruta en Storage, no binario. |
 | `position` | publico interno | Puesto laboral visible. |
-| `department` | publico interno | Departamento. |
+| `department` | publico interno | Departamento laboral del catálogo oficial en `js/app.js` (`officialMuseumDepartments`). No representa permisos RBAC. |
+
+### Catálogo oficial de departamentos
+
+Fuente de verdad: `officialMuseumDepartments` en `js/app.js`.
+
+- Administración
+- Atención al Cliente
+- Colecciones Museográficas
+- Educación
+- Finanzas
+- Mantenimiento
+- Operaciones
+- Producción Artística
+- Seguridad
+- Soporte Técnico
+
+Compatibilidad de visualización (sin migración SQL): `Dirección` y `Recursos Humanos` → Administración; `Colecciones` → Colecciones Museográficas. `Educación/Programación` se conserva como dato legado legible y exige elegir Educación o Soporte Técnico al guardar.
 | `supervisor_employee_id` | restringido | Supervisor laboral. |
 | `hire_date` | privado | Fecha de contratacion. |
 | `employment_status` | privado | Activo, inactivo, terminado. |
