@@ -4219,6 +4219,13 @@ body {
 .portal-inline-button{border:0;border-radius:999px;padding:8px 11px;background:#050505;color:#fff;font:inherit;font-size:.72rem;font-weight:800;cursor:pointer}.portal-correction-form{display:grid;gap:12px;margin-bottom:14px;padding:14px;border:1px solid #dfe3e8;border-radius:14px;background:#f8fafb}.portal-correction-form label{display:grid;gap:5px;color:#4f5864;font-size:.76rem;font-weight:800}.portal-correction-form select,.portal-correction-form input,.portal-correction-form textarea{width:100%;box-sizing:border-box;border:1px solid #cfd5dc;border-radius:10px;padding:11px;background:#fff;color:#101114;font:inherit}.portal-correction-actions{display:flex;gap:8px}.portal-correction-actions button{min-height:40px;border:0;border-radius:10px;padding:8px 12px;background:#159447;color:#fff;font:inherit;font-weight:800}.portal-correction-actions button+button{background:#050505}.portal-correction-item{display:grid;gap:4px;padding:13px;background:#fafbfc}.portal-correction-item span,.portal-correction-item small{color:#69707d;font-size:.78rem}.portal-correction-item .portal-entry-status{justify-self:start}.attendance-corrections{margin:18px 0;padding:16px;border:1px solid var(--line);border-radius:12px;background:#fbfcfd}.attendance-correction-list{display:grid;gap:8px}.attendance-correction-item{display:grid;grid-template-columns:1fr auto;gap:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff}.attendance-correction-item div{display:grid;gap:4px}.attendance-correction-item small{color:var(--muted)}.attendance-correction-actions{display:flex;align-items:center;gap:6px}.attendance-correction-actions .button{padding:7px 10px}@media(max-width:720px){.attendance-correction-item{grid-template-columns:1fr}.attendance-correction-actions{justify-content:flex-start}}
 
 /* Expediente de préstamo de colección */
+.loan-print-header,
+.loan-print-only,
+.loan-print-value,
+.loan-print-cert-mark {
+  display: none;
+}
+
 .loan-expediente-panel .loan-expediente-heading {
   display: grid;
   gap: 18px;
@@ -4311,11 +4318,22 @@ body {
   margin-top: 18px;
 }
 
+.loan-print-cert {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
 @media (max-width: 900px) {
   .loan-meta,
   .loan-signature-lines {
     grid-template-columns: 1fr;
   }
+}
+
+@page {
+  size: Letter portrait;
+  margin: 0.55in;
 }
 
 @media print {
@@ -4328,7 +4346,9 @@ body {
   body.loan-print-mode [data-loan-actions],
   body.loan-print-mode [data-loan-message],
   body.loan-print-mode .loan-toggle,
-  body.loan-print-mode .terms-accept,
+  body.loan-print-mode .loan-screen-heading,
+  body.loan-print-mode .loan-screen-only,
+  body.loan-print-mode .loan-expediente-intro,
   body.loan-print-mode section.card.section-stack {
     display: none !important;
   }
@@ -4346,19 +4366,136 @@ body {
     background: #fff;
   }
 
-  body.loan-print-mode .loan-section {
+  body.loan-print-mode .loan-print-header {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 14px;
+    align-items: center;
+    margin: 0 0 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #94a3b8;
     break-inside: avoid;
+    page-break-inside: avoid;
   }
 
-  body.loan-print-mode input,
-  body.loan-print-mode select,
-  body.loan-print-mode textarea {
+  body.loan-print-mode .loan-print-logo {
+    display: block;
+    width: 72px;
+    height: auto;
+  }
+
+  body.loan-print-mode .loan-print-museum {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #0f172a;
+  }
+
+  body.loan-print-mode .loan-print-form-label {
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+    color: #475569;
+  }
+
+  body.loan-print-mode .loan-print-title {
+    margin: 6px 0 0;
+    font-size: 1.05rem;
+    line-height: 1.3;
+    color: #0f172a;
+  }
+
+  body.loan-print-mode .loan-print-number {
+    margin: 6px 0 0;
+    font-size: 0.86rem;
+    color: #0f172a;
+  }
+
+  body.loan-print-mode .loan-print-only {
+    display: inline;
+  }
+
+  body.loan-print-mode .loan-expediente-heading {
+    margin-bottom: 10px;
+    gap: 10px;
+  }
+
+  body.loan-print-mode .loan-meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.loan-print-mode .loan-meta > div {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+
+  body.loan-print-mode .loan-section {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  body.loan-print-mode .loan-section h4 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  body.loan-print-mode .loan-signatures,
+  body.loan-print-mode .loan-signature-lines,
+  body.loan-print-mode .loan-signature-line {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.loan-print-mode .field input:not([type="checkbox"]):not([type="file"]):not([type="hidden"]),
+  body.loan-print-mode .field select,
+  body.loan-print-mode .field textarea {
+    display: none !important;
+  }
+
+  body.loan-print-mode .loan-print-value {
+    display: block;
+    white-space: pre-wrap;
+    overflow: visible;
+    word-break: break-word;
     border: 0;
     border-bottom: 1px solid #94a3b8;
     border-radius: 0;
     background: transparent;
-    box-shadow: none;
     color: #0f172a;
+    min-height: 1.35em;
+    padding: 4px 0 6px;
+    line-height: 1.45;
+  }
+
+  body.loan-print-mode .terms-accept:not(.loan-print-cert) {
+    display: none !important;
+  }
+
+  body.loan-print-mode .loan-print-cert {
+    display: flex !important;
+    gap: 8px;
+    align-items: flex-start;
+    margin: 12px 0 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.loan-print-mode .loan-print-cert input[type="checkbox"] {
+    display: none !important;
+  }
+
+  body.loan-print-mode .loan-print-cert-mark {
+    display: inline-block;
+    flex: 0 0 auto;
+    font-weight: 800;
+    color: #0f172a;
+    min-width: 2ch;
   }
 
   body.loan-print-mode .loan-signature-lines {

@@ -2713,6 +2713,19 @@ function bindLoanReceiptForm() {
     if (!year || !month || !day) return String(date);
     return `${day}/${month}/${year}`;
   };
+  const formatLoanMoney = (raw) => {
+    const text = String(raw ?? "").trim();
+    if (!text) return "";
+    const normalized = text.replace(/[^0-9.,-]/g, "").replace(/,/g, "");
+    const amount = Number(normalized);
+    if (!Number.isFinite(amount)) return text;
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  };
   const currentUser = () => localStorage.getItem(currentUserKey) || "Administrador";
   const setMessage = (text, type = "") => {
     if (!message) return;
@@ -2779,6 +2792,55 @@ function bindLoanReceiptForm() {
       if (label) label.textContent = String(input?.value || "").trim() || fallback;
     });
   };
+  const syncLoanPrintHeader = () => {
+    const printNumber = document.querySelector("[data-loan-print-number]");
+    if (printNumber && articleNumber) {
+      printNumber.textContent = articleNumber.textContent || "";
+    }
+  };
+  const clearLoanPrintStaticValues = () => {
+    form.querySelectorAll(".loan-print-value").forEach((node) => node.remove());
+    form.querySelectorAll("[data-loan-print-cert] .loan-print-cert-mark").forEach((mark) => {
+      mark.textContent = "";
+    });
+  };
+  const prepareLoanPrintStaticValues = () => {
+    clearLoanPrintStaticValues();
+    syncLoanPrintHeader();
+    syncPrintSignerLabels();
+
+    form.querySelectorAll(".field").forEach((field) => {
+      if (field.closest("[data-loan-documents]")) return;
+      const control = field.querySelector("input, select, textarea");
+      if (!control) return;
+      if (control.type === "file" || control.type === "checkbox" || control.type === "hidden") return;
+      if (control.closest("[hidden]")) return;
+
+      let printText = "";
+      if (control.tagName === "SELECT") {
+        const option = control.options[control.selectedIndex];
+        printText = option && control.value ? String(option.textContent || "").trim() : "";
+      } else if (control.type === "date") {
+        printText = displayDate(control.value);
+      } else if (control.id === "loan-value") {
+        printText = formatLoanMoney(control.value);
+      } else {
+        printText = String(control.value || "");
+      }
+
+      const mirror = document.createElement("div");
+      mirror.className = "loan-print-value";
+      mirror.setAttribute("aria-hidden", "true");
+      mirror.textContent = printText.trim() ? printText : "—";
+      field.appendChild(mirror);
+    });
+
+    form.querySelectorAll("[data-loan-print-cert]").forEach((label) => {
+      const checkbox = label.querySelector('input[type="checkbox"]');
+      const mark = label.querySelector(".loan-print-cert-mark");
+      if (mark) mark.textContent = checkbox?.checked ? "[X]" : "[ ]";
+    });
+  };
   const validateLoanForm = () => {
     const requiredFields = Array.from(form.querySelectorAll("[required]"));
     const invalidFields = requiredFields.filter((field) => {
@@ -2818,6 +2880,20 @@ function bindLoanReceiptForm() {
     form.querySelector(selector)?.addEventListener("input", syncPrintSignerLabels);
   });
 
+  const LOAN_PRINT_HEADER_WARNING =
+    "En Más ajustes, desactive Encabezados y pies de página para evitar que aparezcan la dirección local, la fecha y el título del navegador.";
+
+  window.addEventListener("beforeprint", () => {
+    if (!document.querySelector("#loan-receipt-form")) return;
+    document.body.classList.add("loan-print-mode");
+    prepareLoanPrintStaticValues();
+  });
+  window.addEventListener("afterprint", () => {
+    if (!document.querySelector("#loan-receipt-form")) return;
+    clearLoanPrintStaticValues();
+    document.body.classList.remove("loan-print-mode");
+  });
+
   document.querySelector("[data-loan-print]")?.addEventListener("click", () => {
     syncPrintSignerLabels();
     const invalidFields = validateLoanForm().filter((field) => field.type !== "file");
@@ -2826,9 +2902,10 @@ function bindLoanReceiptForm() {
       setMessage("Complete los datos del expediente antes de imprimir el PDF para firmas. Los archivos se adjuntan después de firmar.", "error");
       return;
     }
+    if (!window.confirm(LOAN_PRINT_HEADER_WARNING)) return;
     document.body.classList.add("loan-print-mode");
+    prepareLoanPrintStaticValues();
     window.print();
-    window.setTimeout(() => document.body.classList.remove("loan-print-mode"), 300);
   });
 
   form.addEventListener("submit", async (event) => {

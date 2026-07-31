@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Expediente de Préstamo de Colección</title>
-  <link rel="stylesheet" href="css/main.css?v=loan-expediente-20260731">
+  <link rel="stylesheet" href="css/main.css?v=loan-print-20260731">
 </head>
 <body>
   <div class="app-shell">
@@ -14,8 +14,18 @@
       <header class="site-header" data-header></header>
       <main class="page-content">
         <section class="card panel form-panel rental-panel loan-expediente-panel" data-loan-screen>
+          <header class="loan-print-header" data-loan-print-header aria-hidden="true">
+            <img class="loan-print-logo" src="assets/brand/museo-musica-pr-logo.svg" alt="Museo de la Música de Puerto Rico">
+            <div class="loan-print-header-text">
+              <p class="loan-print-museum">Museo de la Música de Puerto Rico</p>
+              <p class="loan-print-form-label">Formulario museográfico - Anejo B</p>
+              <h2 class="loan-print-title">Expediente de recibo de artículos de colección mediante préstamo</h2>
+              <p class="loan-print-number">Número de préstamo: <strong data-loan-print-number>P-2026-00001</strong></p>
+            </div>
+          </header>
+
           <div class="loan-expediente-heading">
-            <div>
+            <div class="loan-screen-heading">
               <p class="eyebrow">Formularios museográficos · Anejo B</p>
               <h3>Expediente de recibo de artículos de colección mediante préstamo</h3>
               <p class="loan-expediente-intro">
@@ -115,8 +125,9 @@
                   </div>
                 </div>
               </div>
-              <label class="terms-accept">
+              <label class="terms-accept loan-print-cert" data-loan-print-cert>
                 <input id="loan-ownership-cert" name="certificacionPropiedad" type="checkbox" required>
+                <span class="loan-print-cert-mark" aria-hidden="true"></span>
                 <span>Certifico que el prestamista es propietario de la pieza o cuenta con autoridad legal para prestarla al Museo.</span>
               </label>
             </section>
@@ -215,8 +226,9 @@
                 <label for="loan-notes">Observaciones</label>
                 <textarea id="loan-notes" name="observaciones" rows="3"></textarea>
               </div>
-              <label class="terms-accept">
+              <label class="terms-accept loan-print-cert" data-loan-print-cert>
                 <input id="loan-return-commitment" name="compromisoDevolucion" type="checkbox" required>
+                <span class="loan-print-cert-mark" aria-hidden="true"></span>
                 <span>El prestamista se compromete a recibir la pieza en las mismas condiciones registradas al momento del recibo, salvo deterioro normal no atribuible a negligencia.</span>
               </label>
             </section>
@@ -305,8 +317,11 @@
               </div>
             </section>
 
-            <section class="loan-section" aria-labelledby="loan-section-process">
-              <h4 id="loan-section-process">8. Trámite institucional</h4>
+            <section class="loan-section loan-admin-section" aria-labelledby="loan-section-process">
+              <h4 id="loan-section-process">
+                <span class="loan-screen-only">8. Trámite institucional</span>
+                <span class="loan-print-only">Control interno del expediente</span>
+              </h4>
               <div class="form-row">
                 <div class="field">
                   <label for="loan-legal-status">Estado de Asuntos Legales</label>
@@ -352,7 +367,7 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=loan-expediente-20260731"></script>
-  <script src="js/app.js?v=loan-expediente-20260731"></script>
+  <script src="js/services/supabase.js?v=loan-print-20260731"></script>
+  <script src="js/app.js?v=loan-print-20260731"></script>
 </body>
 </html>
