@@ -640,8 +640,8 @@ test("usher navigation exception does not create portal redirect loop", () => {
 test("environment staging is preserved on portal and usher calendar links", () => {
   assert.match(appJs, /museoPageUrl\("ujieres\.html"\)/);
   assert.match(appJs, /museoPageUrl\("employee-portal\.html"\)/);
-  assert.match(portalHtml, /usher-nav-fix-20260731/);
-  assert.match(ujieresHtml, /usher-nav-fix-20260731/);
+  assert.match(portalHtml, /usher-toolbar-align-20260731/);
+  assert.match(ujieresHtml, /usher-toolbar-align-20260731/);
   assert.match(appJs, /ensureActiveEnvironmentInAddressBar/);
   assert.match(appJs, /preserveActiveEnvironmentOnInternalLinks/);
 });
@@ -679,6 +679,72 @@ test("RLS and RPC remain the authority for usher schedule page access", () => {
     }).allowed,
     false
   );
+});
+
+test("usher toolbar keeps view switch on first row and nav group on second", () => {
+  const css = fs.readFileSync(path.join(__dirname, "..", "css", "main.css"), "utf8");
+  assert.match(ujieresHtml, /usher-toolbar-primary/);
+  assert.match(ujieresHtml, /usher-toolbar-secondary/);
+  assert.match(ujieresHtml, /usher-nav-group/);
+  assert.match(ujieresHtml, /usher-view-switch/);
+  assert.match(css, /\.usher-calendar-actions\s*\{[\s\S]*flex-direction:\s*column/);
+  assert.match(css, /\.usher-toolbar-row/);
+  assert.match(css, /\.usher-nav-group/);
+
+  const primary = ujieresHtml.slice(
+    ujieresHtml.indexOf('class="usher-toolbar-row usher-toolbar-primary"'),
+    ujieresHtml.indexOf('class="usher-toolbar-row usher-toolbar-secondary"')
+  );
+  const secondary = ujieresHtml.slice(
+    ujieresHtml.indexOf('class="usher-toolbar-row usher-toolbar-secondary"'),
+    ujieresHtml.indexOf("usher-day-picker")
+  );
+  assert.match(primary, /data-usher-portal-back/);
+  assert.match(primary, /data-usher-view="month"/);
+  assert.match(primary, /data-usher-view="week"/);
+  assert.match(primary, /data-usher-view="day"/);
+  assert.doesNotMatch(primary, /data-calendar-prev/);
+  assert.doesNotMatch(primary, /data-calendar-new/);
+
+  assert.match(secondary, /usher-nav-group/);
+  assert.match(secondary, /data-calendar-prev/);
+  assert.match(secondary, /data-calendar-today/);
+  assert.match(secondary, /data-calendar-next/);
+  assert.match(secondary, /data-calendar-new/);
+  assert.doesNotMatch(secondary, /data-usher-view/);
+
+  const prevAt = secondary.indexOf("data-calendar-prev");
+  const todayAt = secondary.indexOf("data-calendar-today");
+  const nextAt = secondary.indexOf("data-calendar-next");
+  const newAt = secondary.indexOf("data-calendar-new");
+  assert.ok(prevAt < todayAt && todayAt < nextAt && nextAt < newAt);
+});
+
+test("usher period navigation labels follow Mes Semana Día without changing logic", () => {
+  assert.match(appJs, /Mes anterior/);
+  assert.match(appJs, /Mes siguiente/);
+  assert.match(appJs, /Semana anterior/);
+  assert.match(appJs, /Semana siguiente/);
+  assert.match(appJs, /Día anterior/);
+  assert.match(appJs, /Día siguiente/);
+  assert.match(appJs, /updateNavLabels/);
+  assert.match(ujieresHtml, /Mes anterior/);
+  assert.match(ujieresHtml, /Mes siguiente/);
+  assert.match(ujieresHtml, />Hoy</);
+  // Navigation still uses the same prev/today/next handlers.
+  assert.match(appJs, /data-calendar-prev/);
+  assert.match(appJs, /data-calendar-today/);
+  assert.match(appJs, /data-calendar-next/);
+  assert.match(appJs, /navigateDate\(/);
+});
+
+test("usher nav group stays together on mobile and Nueva Entrada can wrap", () => {
+  const css = fs.readFileSync(path.join(__dirname, "..", "css", "main.css"), "utf8");
+  assert.match(css, /@media \(max-width:\s*900px\)[\s\S]*\.usher-nav-group\s*\{[\s\S]*grid-template-columns:\s*repeat\(3,/);
+  assert.match(css, /\.usher-new-entry/);
+  assert.match(css, /@media \(max-width:\s*900px\)[\s\S]*\.usher-toolbar-secondary[\s\S]*flex-direction:\s*column/);
+  assert.match(ujieresHtml, /aria-label="Navegación del calendario"/);
+  assert.match(ujieresHtml, /aria-label="Vista del calendario"/);
 });
 
 console.log("All usher schedule view/access checks passed.");

@@ -3347,19 +3347,56 @@ body {
 
 .usher-calendar-actions {
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  min-width: min(100%, 560px);
+}
+
+.usher-toolbar-row {
+  display: flex;
   flex-wrap: wrap;
-  gap: 10px;
   align-items: center;
   justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+}
+
+.usher-toolbar-primary {
+  gap: 12px;
+}
+
+.usher-toolbar-secondary {
+  gap: 14px;
+}
+
+.usher-nav-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.usher-nav-group .button {
+  min-height: 42px;
+}
+
+.usher-new-entry {
+  margin-left: 4px;
 }
 
 .usher-view-switch {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 4px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #f7fafb;
+}
+
+.usher-view-switch .button {
+  min-height: 42px;
 }
 
 .usher-view-switch .button.is-active {
@@ -3464,7 +3501,36 @@ body {
   }
 
   .usher-calendar-actions {
+    align-items: stretch;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .usher-toolbar-row {
     justify-content: stretch;
+  }
+
+  .usher-toolbar-primary,
+  .usher-toolbar-secondary {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .usher-nav-group {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+
+  .usher-nav-group .button,
+  .usher-new-entry,
+  .usher-portal-back {
+    width: 100%;
+  }
+
+  .usher-new-entry {
+    margin-left: 0;
   }
 
   .usher-view-switch {
