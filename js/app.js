@@ -1698,14 +1698,30 @@ function bindHeaderActions() {
   });
 }
 
+const OFFICIAL_COPYRIGHT_NOTICE = "© 2026 INSTITUVA. Todos los derechos reservados.";
+const COPYRIGHT_NOTICE_PAGES = new Set([
+  "login.html",
+  "reglamento.html"
+]);
+
+function shouldShowCopyrightNotice(page = getCurrentPage()) {
+  return COPYRIGHT_NOTICE_PAGES.has(page);
+}
+
 function renderFooter() {
   const footer = document.querySelector("[data-footer]");
   if (!footer) return;
 
-  footer.innerHTML = `
-    <span>© 2025 Museo de la Música de Puerto Rico. Todos los derechos reservados.</span>
-    <span>Sistema Administrativo v4.0</span>
-  `;
+  if (!shouldShowCopyrightNotice()) {
+    footer.innerHTML = "";
+    footer.hidden = true;
+    footer.setAttribute("aria-hidden", "true");
+    return;
+  }
+
+  footer.hidden = false;
+  footer.removeAttribute("aria-hidden");
+  footer.innerHTML = `<span>${OFFICIAL_COPYRIGHT_NOTICE}</span>`;
 }
 
 function bindSidebarToggle() {

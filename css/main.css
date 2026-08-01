@@ -1409,6 +1409,10 @@ input {
   font-size: 0.85rem;
 }
 
+.site-footer[hidden] {
+  display: none !important;
+}
+
 .sidebar-backdrop {
   display: none;
 }
