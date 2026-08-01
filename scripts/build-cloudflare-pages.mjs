@@ -12,6 +12,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,6 +34,8 @@ const ALLOW_DIRS = Object.freeze([
 /** Public downloadables referenced by HTML (not governance docs/SQL). */
 const ALLOW_FILES = Object.freeze([
   ".nojekyll",
+  "_headers",
+  "robots.txt",
   "docs/formulario-recibo-articulos-coleccion-prestamo.docx",
 ]);
 
@@ -47,7 +50,12 @@ const REQUIRED_PATHS = Object.freeze([
   "images/logo-horizontal.jpg",
   "pdf/reglamento-museo-musica.pdf",
   "assets/brand/museo-musica-pr-logo.svg",
+  "_headers",
+  "robots.txt",
 ]);
+
+const ROBOTS_META =
+  '<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">';
 
 const SKIP_DIR_NAMES = new Set([
   ".git",
@@ -95,6 +103,7 @@ function shouldSkipEntry(absPath, name) {
   if (SENSITIVE_NAME_RE.test(rel)) return true;
   if (/\.(sql|md|txt|toml|mjs|cjs|ts|map)$/i.test(name) && !rel.startsWith("js/")) {
     // Browser JS under js/ is allowed; other code/docs formats are not published.
+    // robots.txt is published explicitly via ALLOW_FILES.
     if (rel.startsWith("js/") && /\.js$/i.test(name)) return false;
     if (rel.startsWith("js/") && !/\.js$/i.test(name)) return true;
     return true;
@@ -110,6 +119,35 @@ function copyFileSafe(src, dest) {
   }
   mkdirSync(path.dirname(dest), { recursive: true });
   cpSync(src, dest, { dereference: false });
+}
+
+function injectRobotsMeta(html) {
+  if (/<meta\s+[^>]*name=["']robots["']/i.test(html)) {
+    return html.replace(
+      /<meta\s+[^>]*name=["']robots["'][^>]*>/i,
+      ROBOTS_META,
+    );
+  }
+  if (/<meta\s+charset=/i.test(html)) {
+    return html.replace(/(<meta\s+charset=[^>]*>)/i, `$1\n  ${ROBOTS_META}`);
+  }
+  if (/<head[^>]*>/i.test(html)) {
+    return html.replace(/(<head[^>]*>)/i, `$1\n  ${ROBOTS_META}`);
+  }
+  fail("unable to inject robots meta: missing <head> or charset meta");
+}
+
+function publishHtmlPage(relName) {
+  const src = path.join(ROOT, relName);
+  const dest = path.join(DIST, relName);
+  assertInsideRoot(src);
+  assertInsideRoot(dest);
+  if (lstatSync(src).isSymbolicLink()) {
+    fail(`refusing symlink file: ${relName}`);
+  }
+  const html = injectRobotsMeta(readFileSync(src, "utf8"));
+  mkdirSync(path.dirname(dest), { recursive: true });
+  writeFileSync(dest, html, "utf8");
 }
 
 function copyDirAllowlisted(relDir) {
@@ -212,6 +250,26 @@ function assertNoSensitive(files) {
   }
 }
 
+function assertNoindexArtifacts(files) {
+  if (!files.includes("_headers")) fail("dist/_headers missing");
+  if (!files.includes("robots.txt")) fail("dist/robots.txt missing");
+  const headers = readFileSync(path.join(DIST, "_headers"), "utf8");
+  if (!/X-Robots-Tag:\s*noindex,\s*nofollow,\s*noarchive,\s*nosnippet/.test(headers)) {
+    fail("dist/_headers missing required X-Robots-Tag rule");
+  }
+  const robots = readFileSync(path.join(DIST, "robots.txt"), "utf8");
+  if (!/User-agent:\s*\*/.test(robots) || !/Disallow:\s*\//.test(robots)) {
+    fail("dist/robots.txt must disallow all crawlers");
+  }
+  const htmlFiles = files.filter((file) => file.endsWith(".html"));
+  for (const file of htmlFiles) {
+    const html = readFileSync(path.join(DIST, file), "utf8");
+    if (!/<meta\s+name=["']robots["']\s+content=["']noindex,\s*nofollow,\s*noarchive,\s*nosnippet["']\s*>/i.test(html)) {
+      fail(`dist/${file} missing robots meta tag`);
+    }
+  }
+}
+
 function main() {
   if (existsSync(DIST)) {
     rmSync(DIST, { recursive: true, force: true });
@@ -219,7 +277,7 @@ function main() {
   mkdirSync(DIST, { recursive: true });
 
   for (const html of ROOT_HTML) {
-    copyFileSafe(path.join(ROOT, html), path.join(DIST, html));
+    publishHtmlPage(html);
   }
 
   for (const dir of ALLOW_DIRS) {
@@ -245,6 +303,7 @@ function main() {
 
   const files = collectPublishedFiles().sort();
   assertNoSensitive(files);
+  assertNoindexArtifacts(files);
   validateAssetReferences(files);
 
   console.log(`build-cloudflare-pages: wrote ${files.length} files to dist/`);
