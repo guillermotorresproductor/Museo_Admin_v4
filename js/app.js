@@ -307,6 +307,23 @@ const hasAdministrativeWorkspaceAccess = () =>
 const canAccessAdministrationHub = () => hasAdministrativeWorkspaceAccess();
 const isActiveAdministrator = () =>
   currentProfileRole === "administrador" && currentProfileActive && Boolean(currentProfileMuseumId);
+const canOpenUsherCalendarPage = () => {
+  if (
+    hasPermission("usher.schedule.read.own")
+    || hasPermission("usher.schedule.read.all")
+    || hasPermission("usher.schedule.manage")
+    || hasPermission("calendar.manage")
+  ) {
+    return true;
+  }
+  const sessionUserId = getSupabaseSession()?.user?.id;
+  if (!sessionUserId) return false;
+  return getEmployeeRecords().some((employee) =>
+    employee.authUserId === sessionUserId
+    && isUsherPosition(employee.posicion)
+    && isActiveEmployeeStatus(employee.estado)
+  );
+};
 const postLoginDestination = () => {
   if (hasAdministrativeWorkspaceAccess()) return "dashboard.html";
   if (hasPermission("employees.read.all") && hasPermission("attendance.corrections.approve")) return "recursos-humanos.html";
@@ -433,11 +450,7 @@ function enforceAuthenticatedPageAccess() {
   const allowedPages = new Map([
     ["recursos-humanos.html", () => hasPermission("employees.read.all")],
     ["calendario.html", () => hasPermission("calendar.manage") || hasPermission("schedules.read.team")],
-    ["ujieres.html", () =>
-      hasPermission("usher.schedule.read.own")
-      || hasPermission("usher.schedule.read.all")
-      || hasPermission("usher.schedule.manage")
-      || hasPermission("calendar.manage")],
+    ["ujieres.html", () => canOpenUsherCalendarPage()],
     ["inventario.html", () => hasPermission("inventory.manage")]
   ]);
   if (allowedPages.get(page)?.()) return false;
@@ -3792,6 +3805,15 @@ function bindUsherCalendarModule(panel) {
     form.hidden = true;
     if (newButton) newButton.hidden = !allowed;
     panel.classList.toggle("is-readonly", !allowed);
+    const portalBack = panel.querySelector("[data-usher-portal-back]");
+    if (portalBack) {
+      const showPortalBack = !hasAdministrativeWorkspaceAccess()
+        && Boolean(access.linkedEmployeeId || access.canReadOwn || access.canManage)
+        && !access.unlinked
+        && !access.inactiveBlocked;
+      portalBack.hidden = !showPortalBack;
+      portalBack.href = typeof museoPageUrl === "function" ? museoPageUrl("employee-portal.html") : "employee-portal.html";
+    }
     renderCalendar();
   };
 
@@ -7419,6 +7441,124 @@ function renderPortalNotifications(notifications) {
   list.innerHTML = notifications.map((item) => `<article class="portal-notification"><strong>${escapeHtml(item.title || "Aviso")}</strong><p>${escapeHtml(item.message || "")}</p><small>${formatPortalDate(item.created_at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></article>`).join("");
 }
 
+function renderPortalUsherShiftLine(record) {
+  const dayLabel = record?.fecha || record?.shift_date || "";
+  const schedule = formatUsherScheduleDisplay(record);
+  const area = displayMuseumArea(record?.area) || "Sin área";
+  const name = record?.ujier ? `${safeHtml(record.ujier)} · ` : "";
+  return `<article class="portal-usher-shift"><strong>${name}${safeHtml(dayLabel)}</strong><span>${safeHtml(schedule)}</span><small>${safeHtml(area)}</small></article>`;
+}
+
+async function bindPortalUsherCard(employee) {
+  const card = document.querySelector("[data-portal-usher-card]");
+  if (!card) return;
+  const core = window.UsherScheduleCore;
+  const title = card.querySelector("[data-portal-usher-title]");
+  const summary = card.querySelector("[data-portal-usher-summary]");
+  const cta = card.querySelector("[data-portal-usher-cta]");
+  const message = card.querySelector("[data-portal-usher-message]");
+  const hideCard = () => {
+    card.hidden = true;
+    if (summary) summary.innerHTML = "";
+    if (message) {
+      message.hidden = true;
+      message.textContent = "";
+    }
+  };
+
+  if (!core || !employee || !isUsherPosition(employee.posicion) || !isActiveEmployeeStatus(employee.estado)) {
+    hideCard();
+    return;
+  }
+  if (typeof fetchUsherScheduleAccessState !== "function" || typeof listUsherShifts !== "function") {
+    hideCard();
+    return;
+  }
+
+  try {
+    const serverAccess = await fetchUsherScheduleAccessState().catch(() => null);
+    let access = core.resolveUsherScheduleAccess({
+      permissions: [...currentPermissions],
+      profileRole: currentProfileRole,
+      linkedEmployee: employee,
+      inactiveLinkedUsher: Boolean(serverAccess?.inactive_blocked)
+    });
+    if (serverAccess) {
+      access.canManage = Boolean(serverAccess.can_manage);
+      access.canReadAll = Boolean(serverAccess.can_read_all);
+      access.canReadOwn = Boolean(serverAccess.can_read_own);
+      access.unlinked = Boolean(serverAccess.unlinked);
+      access.inactiveBlocked = Boolean(serverAccess.inactive_blocked);
+      access.linkedEmployeeId = serverAccess.linked_employee_id || employee.id;
+    }
+
+    const todayKey = core.toDateKey(new Date());
+    const rangeTo = core.toDateKey(core.addDays(new Date(), 21));
+    let shifts = [];
+    if (!access.inactiveBlocked && !access.unlinked && (access.canReadOwn || access.canReadAll || access.canManage)) {
+      const rows = await listUsherShifts(todayKey, rangeTo);
+      shifts = core.assertNetworkIsolation(access, rows.map(core.mapSecureShiftRecord));
+    }
+
+    const model = core.resolvePortalUsherCardModel({
+      linkedEmployee: employee,
+      access,
+      shifts,
+      todayKey
+    });
+    if (!model.visible) {
+      hideCard();
+      return;
+    }
+
+    card.hidden = false;
+    if (title) title.textContent = model.title;
+    if (cta) {
+      cta.textContent = model.ctaLabel;
+      cta.href = typeof museoPageUrl === "function" ? museoPageUrl("ujieres.html") : "ujieres.html";
+    }
+    if (message) {
+      message.hidden = true;
+      message.textContent = "";
+    }
+
+    if (!model.upcoming.length) {
+      summary.innerHTML = `<p class="portal-empty">${safeHtml(model.emptyMessage)}</p>`;
+      return;
+    }
+
+    if (model.mode === "own" && model.nextShift) {
+      summary.innerHTML = `
+        <p class="portal-usher-lead">Próximo turno</p>
+        ${renderPortalUsherShiftLine(model.nextShift)}
+      `;
+      return;
+    }
+
+    summary.innerHTML = `
+      <p class="portal-usher-lead">Próximos turnos del equipo</p>
+      <div class="portal-usher-list">${model.upcoming.map(renderPortalUsherShiftLine).join("")}</div>
+    `;
+  } catch (error) {
+    card.hidden = false;
+    if (title) title.textContent = isUsherPosition(employee.posicion) && String(employee.posicion).toLowerCase().includes("ejecutivo")
+      ? "Calendario de Ujieres"
+      : "Mis turnos";
+    if (summary) summary.innerHTML = "";
+    if (cta) {
+      cta.textContent = String(employee.posicion || "").toLowerCase().includes("ejecutivo")
+        ? "Ver y administrar turnos"
+        : "Ver mi calendario";
+      cta.href = typeof museoPageUrl === "function" ? museoPageUrl("ujieres.html") : "ujieres.html";
+    }
+    if (message) {
+      message.hidden = false;
+      message.textContent = error.message || "No se pudieron cargar los turnos.";
+      message.className = "portal-message error";
+    }
+  }
+}
+
 function renderPortalTools() {
   const tools = [
     { permission: "employees.read.all", href: "recursos-humanos.html", icon: "users", label: "Equipo" },
@@ -7541,7 +7681,12 @@ async function bindEmployeePortal() {
   });
   document.querySelector("[data-portal-logout]")?.addEventListener("click", () => clearLoginState(true, "logout"));
   renderPortalTools();
-  await Promise.all([refresh(), fetchOwnSupabaseNotifications(5).then(renderPortalNotifications), bindPortalAttendanceCorrections()]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
+  await Promise.all([
+    refresh(),
+    fetchOwnSupabaseNotifications(5).then(renderPortalNotifications),
+    bindPortalAttendanceCorrections(),
+    bindPortalUsherCard(employee)
+  ]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
 }
 function ensureEnvironmentOnLocalAuthCallback() {
   const params = getAuthCallbackParams();

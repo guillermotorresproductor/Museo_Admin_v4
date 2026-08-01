@@ -182,6 +182,61 @@
     return records.filter((record) => record.employee_id === access.linkedEmployeeId);
   }
 
+  function upcomingUsherShifts(records, todayKey, limit = 5) {
+    const key = String(todayKey || "");
+    return sortShiftsChronologically(
+      (records || []).filter((record) => String(record.fecha || record.shift_date || "") >= key)
+    ).slice(0, Math.max(0, limit));
+  }
+
+  function resolvePortalUsherCardModel({
+    linkedEmployee = null,
+    access = null,
+    shifts = [],
+    todayKey = null
+  } = {}) {
+    const statusValue = linkedEmployee?.estado || linkedEmployee?.status;
+    const position = String(linkedEmployee?.posicion || linkedEmployee?.position || "").trim().toLowerCase();
+    const isExecutiveUsher = position === "ujier ejecutivo";
+    const isUsher = position === "ujier" || isExecutiveUsher;
+    if (!linkedEmployee || !isUsher || !isActiveEmployeeStatus(statusValue)) {
+      return { visible: false };
+    }
+    if (access?.inactiveBlocked || access?.unlinked) {
+      return { visible: false };
+    }
+    if (!access?.canReadOwn && !access?.canReadAll && !access?.canManage) {
+      return { visible: false };
+    }
+
+    const upcoming = upcomingUsherShifts(shifts, todayKey, access?.canManage || access?.canReadAll ? 3 : 1);
+    if (access?.canManage || isExecutiveUsher) {
+      return {
+        visible: true,
+        mode: "manage",
+        title: "Calendario de Ujieres",
+        emptyMessage: "No hay turnos próximos",
+        ctaLabel: "Ver y administrar turnos",
+        showManageControls: true,
+        upcoming,
+        nextShift: upcoming[0] || null,
+        calendarHrefUsesEnvironment: true
+      };
+    }
+
+    return {
+      visible: true,
+      mode: "own",
+      title: "Mis turnos",
+      emptyMessage: "No tienes turnos próximos",
+      ctaLabel: "Ver mi calendario",
+      showManageControls: false,
+      upcoming,
+      nextShift: upcoming[0] || null,
+      calendarHrefUsesEnvironment: true
+    };
+  }
+
   const api = {
     dayNames,
     monthNames,
@@ -201,7 +256,9 @@
     isActiveEmployeeStatus,
     resolveUsherScheduleAccess,
     mapSecureShiftRecord,
-    assertNetworkIsolation
+    assertNetworkIsolation,
+    upcomingUsherShifts,
+    resolvePortalUsherCardModel
   };
 
   root.UsherScheduleCore = api;

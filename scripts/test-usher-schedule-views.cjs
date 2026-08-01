@@ -318,4 +318,179 @@ test("migration does not return full employees row to clients", () => {
   assert.match(migrationSql, /current_linked_usher_employee_id\(\)/);
 });
 
+const portalHtml = fs.readFileSync(path.join(__dirname, "..", "employee-portal.html"), "utf8");
+const ujieresHtml = fs.readFileSync(path.join(__dirname, "..", "ujieres.html"), "utf8");
+const supabaseJs = fs.readFileSync(path.join(__dirname, "..", "js", "services", "supabase.js"), "utf8");
+
+test("active ujier portal card shows Mis turnos and own summary only", () => {
+  const ownShift = {
+    id: "s1",
+    employee_id: "u1",
+    fecha: "2026-08-02",
+    horaEntrada: "09:00",
+    horaSalida: "13:00",
+    area: "Sala 1",
+    ujier: "Ana"
+  };
+  const otherShift = {
+    id: "s2",
+    employee_id: "u2",
+    fecha: "2026-08-01",
+    horaEntrada: "08:00",
+    horaSalida: "12:00",
+    area: "Lobby",
+    ujier: "Luis"
+  };
+  const access = {
+    canReadOwn: true,
+    canReadAll: false,
+    canManage: false,
+    linkedEmployeeId: "u1",
+    unlinked: false,
+    inactiveBlocked: false
+  };
+  const filtered = core.assertNetworkIsolation(access, [ownShift, otherShift]);
+  const model = core.resolvePortalUsherCardModel({
+    linkedEmployee: { id: "u1", posicion: "Ujier", estado: "Activo" },
+    access,
+    shifts: filtered,
+    todayKey: "2026-08-01"
+  });
+  assert.strictEqual(model.visible, true);
+  assert.strictEqual(model.title, "Mis turnos");
+  assert.strictEqual(model.ctaLabel, "Ver mi calendario");
+  assert.strictEqual(model.showManageControls, false);
+  assert.strictEqual(model.mode, "own");
+  assert.strictEqual(model.upcoming.length, 1);
+  assert.strictEqual(model.upcoming[0].id, "s1");
+  assert.strictEqual(model.nextShift.id, "s1");
+  assert.strictEqual(model.emptyMessage, "No tienes turnos próximos");
+});
+
+test("active ujier does not receive management controls in portal card model", () => {
+  const model = core.resolvePortalUsherCardModel({
+    linkedEmployee: { id: "u1", posicion: "Ujier", estado: "Activo" },
+    access: { canReadOwn: true, canManage: false, canReadAll: false },
+    shifts: [],
+    todayKey: "2026-08-01"
+  });
+  assert.strictEqual(model.showManageControls, false);
+  assert.match(appJs, /newButton\.hidden = !allowed/);
+  assert.match(appJs, /is-readonly/);
+});
+
+test("active ujier ejecutivo portal card shows team calendar CTA", () => {
+  const model = core.resolvePortalUsherCardModel({
+    linkedEmployee: { id: "e1", posicion: "Ujier ejecutivo", estado: "Activo" },
+    access: {
+      canReadOwn: true,
+      canReadAll: true,
+      canManage: true,
+      linkedEmployeeId: "e1",
+      unlinked: false,
+      inactiveBlocked: false
+    },
+    shifts: [
+      { id: "a", employee_id: "e1", fecha: "2026-08-02", horaEntrada: "09:00", horaSalida: "12:00" },
+      { id: "b", employee_id: "u2", fecha: "2026-08-03", horaEntrada: "10:00", horaSalida: "14:00" },
+      { id: "c", employee_id: "u3", fecha: "2026-08-04", horaEntrada: "11:00", horaSalida: "15:00" },
+      { id: "d", employee_id: "u4", fecha: "2026-08-05", horaEntrada: "12:00", horaSalida: "16:00" }
+    ],
+    todayKey: "2026-08-01"
+  });
+  assert.strictEqual(model.visible, true);
+  assert.strictEqual(model.title, "Calendario de Ujieres");
+  assert.strictEqual(model.ctaLabel, "Ver y administrar turnos");
+  assert.strictEqual(model.showManageControls, true);
+  assert.strictEqual(model.mode, "manage");
+  assert.strictEqual(model.upcoming.length, 3);
+  assert.strictEqual(model.emptyMessage, "No hay turnos próximos");
+});
+
+test("non-usher and inactive or terminated employees do not see portal usher card", () => {
+  const access = { canReadOwn: true, canManage: false, canReadAll: false };
+  assert.strictEqual(
+    core.resolvePortalUsherCardModel({
+      linkedEmployee: { id: "x", posicion: "Recepcionista", estado: "Activo" },
+      access,
+      shifts: [],
+      todayKey: "2026-08-01"
+    }).visible,
+    false
+  );
+  assert.strictEqual(
+    core.resolvePortalUsherCardModel({
+      linkedEmployee: { id: "x", posicion: "Ujier", estado: "Inactivo" },
+      access,
+      shifts: [],
+      todayKey: "2026-08-01"
+    }).visible,
+    false
+  );
+  assert.strictEqual(
+    core.resolvePortalUsherCardModel({
+      linkedEmployee: { id: "x", posicion: "Ujier ejecutivo", estado: "Terminado" },
+      access: { canManage: true, canReadAll: true },
+      shifts: [],
+      todayKey: "2026-08-01"
+    }).visible,
+    false
+  );
+});
+
+test("unlinked account does not receive portal usher shifts", () => {
+  const model = core.resolvePortalUsherCardModel({
+    linkedEmployee: { id: "u1", posicion: "Ujier", estado: "Activo" },
+    access: { canReadOwn: false, canManage: false, canReadAll: false, unlinked: true },
+    shifts: [{ id: "s1", employee_id: "u1", fecha: "2026-08-02" }],
+    todayKey: "2026-08-01"
+  });
+  assert.strictEqual(model.visible, false);
+  assert.match(appJs, /access\.unlinked/);
+  assert.match(appJs, /inactiveBlocked/);
+});
+
+test("portal usher CTA preserves environment=staging via museoPageUrl", () => {
+  assert.match(portalHtml, /data-portal-usher-card/);
+  assert.match(portalHtml, /data-portal-usher-cta/);
+  assert.match(appJs, /bindPortalUsherCard/);
+  assert.match(appJs, /museoPageUrl\("ujieres\.html"\)/);
+  assert.match(appJs, /cta\.href = typeof museoPageUrl === "function" \? museoPageUrl\("ujieres\.html"\)/);
+});
+
+test("ujieres calendar exposes return link to employee portal for ushers", () => {
+  assert.match(ujieresHtml, /data-usher-portal-back/);
+  assert.match(ujieresHtml, /Volver a Mi jornada/);
+  assert.match(appJs, /data-usher-portal-back/);
+  assert.match(appJs, /museoPageUrl\("employee-portal\.html"\)/);
+  assert.match(appJs, /!hasAdministrativeWorkspaceAccess\(\)/);
+});
+
+test("portal usher card reuses secure RPCs and never app_records", () => {
+  assert.match(appJs, /fetchUsherScheduleAccessState/);
+  assert.match(appJs, /listUsherShifts/);
+  assert.match(supabaseJs, /rpc\/usher_schedule_access_state/);
+  assert.match(supabaseJs, /rpc\/list_usher_shifts/);
+  const portalBind = appJs.slice(appJs.indexOf("async function bindPortalUsherCard"), appJs.indexOf("function renderPortalTools"));
+  assert.doesNotMatch(portalBind, /app_records/);
+  assert.match(portalBind, /listUsherShifts/);
+  assert.match(portalBind, /fetchUsherScheduleAccessState/);
+});
+
+test("general calendar remains separate from usher schedule permissions", () => {
+  assert.match(appJs, /calendario\.html/);
+  assert.doesNotMatch(
+    appJs.slice(appJs.indexOf("const canOpenUsherCalendarPage"), appJs.indexOf("const postLoginDestination")),
+    /hasPermission\("calendar\.manage"\)[\s\S]*usher\.schedule\.manage/
+  );
+  assert.match(migrationSql, /has_permission\('usher\.schedule\.manage'\)/);
+  assert.doesNotMatch(
+    migrationSql.slice(
+      migrationSql.indexOf("create or replace function public.can_manage_usher_schedule"),
+      migrationSql.indexOf("create or replace function public.usher_schedule_access_state")
+    ),
+    /calendar\.manage/
+  );
+});
+
 console.log("All usher schedule view/access checks passed.");
