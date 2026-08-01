@@ -3372,6 +3372,15 @@ body {
   margin: 0 0 16px;
 }
 
+.usher-week-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
 .usher-week-grid,
 .usher-day-list {
   display: grid;
@@ -3379,7 +3388,8 @@ body {
 }
 
 .usher-week-grid {
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(168px, 1fr));
+  min-width: 1176px;
 }
 
 .usher-week-day,
@@ -3389,17 +3399,52 @@ body {
   background: #fff;
   padding: 12px;
   min-height: 140px;
+  min-width: 0;
 }
 
 .usher-week-day h4,
 .usher-day-list h4 {
   margin: 0 0 10px;
   font-size: 0.95rem;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .usher-week-day .calendar-item,
 .usher-day-list .calendar-item {
   margin-top: 8px;
+}
+
+.usher-shift-card {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.usher-shift-name,
+.usher-shift-time,
+.usher-shift-area {
+  display: block;
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: manual;
+  white-space: normal;
+}
+
+.usher-shift-time {
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+
+.usher-week-day .usher-shift-card .calendar-item-actions {
+  flex-wrap: wrap;
+}
+
+.usher-week-day .usher-shift-card .calendar-item-actions button {
+  flex: 1 1 auto;
+  white-space: nowrap;
 }
 
 .usher-empty {
@@ -3409,8 +3454,13 @@ body {
 }
 
 @media (max-width: 900px) {
+  .usher-week-scroll {
+    overflow-x: visible;
+  }
+
   .usher-week-grid {
     grid-template-columns: 1fr;
+    min-width: 0;
   }
 
   .usher-calendar-actions {

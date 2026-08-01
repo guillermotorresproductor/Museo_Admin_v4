@@ -71,7 +71,16 @@
   function formatSpanishWeekTitle(date) {
     const start = startOfWeek(date);
     const end = addDays(start, 6);
-    return `${start.getDate()}–${end.getDate()} de ${monthNames[end.getMonth()]} de ${end.getFullYear()}`;
+    const sameYear = start.getFullYear() === end.getFullYear();
+    const sameMonth = sameYear && start.getMonth() === end.getMonth();
+
+    if (sameMonth) {
+      return `${start.getDate()}–${end.getDate()} de ${monthNames[end.getMonth()]} de ${end.getFullYear()}`;
+    }
+    if (sameYear) {
+      return `${start.getDate()} de ${monthNames[start.getMonth()]}–${end.getDate()} de ${monthNames[end.getMonth()]} de ${end.getFullYear()}`;
+    }
+    return `${start.getDate()} de ${monthNames[start.getMonth()]} de ${start.getFullYear()}–${end.getDate()} de ${monthNames[end.getMonth()]} de ${end.getFullYear()}`;
   }
 
   function navigateDate(view, activeDate, direction) {

@@ -19,6 +19,42 @@ test("month/week/day ranges preserve selected date anchors", () => {
   assert.deepStrictEqual(core.viewRange("month", date), { from: "2026-07-01", to: "2026-07-31" });
 });
 
+test("week title formats same month, cross-month, and cross-year ranges", () => {
+  assert.strictEqual(
+    core.formatSpanishWeekTitle(new Date(2026, 7, 5, 12, 0, 0)),
+    "2–8 de agosto de 2026"
+  );
+  assert.strictEqual(
+    core.formatSpanishWeekTitle(new Date(2026, 6, 29, 12, 0, 0)),
+    "26 de julio–1 de agosto de 2026"
+  );
+  assert.strictEqual(
+    core.formatSpanishWeekTitle(new Date(2026, 11, 30, 12, 0, 0)),
+    "27 de diciembre de 2026–2 de enero de 2027"
+  );
+});
+
+test("week shift cards keep full schedule labels and admin actions", () => {
+  assert.match(appJs, /usher-shift-card/);
+  assert.match(appJs, /usher-shift-name/);
+  assert.match(appJs, /usher-shift-time/);
+  assert.match(appJs, /usher-shift-area/);
+  assert.match(appJs, /data-calendar-edit/);
+  assert.match(appJs, /data-calendar-delete/);
+  assert.match(appJs, /formatUsherScheduleDisplay\(record\)/);
+  assert.doesNotMatch(appJs, /usher-shift-time[\s\S]{0,80}\.\.\./);
+});
+
+test("weekly schedule layout is responsive without page-wide overflow", () => {
+  const css = fs.readFileSync(path.join(__dirname, "..", "css", "main.css"), "utf8");
+  assert.match(css, /\.usher-week-scroll/);
+  assert.match(css, /overflow-x:\s*auto/);
+  assert.match(css, /grid-template-columns:\s*repeat\(7,\s*minmax\(168px,\s*1fr\)\)/);
+  assert.match(css, /@media \(max-width:\s*900px\)[\s\S]*\.usher-week-grid\s*\{[\s\S]*grid-template-columns:\s*1fr;/);
+  assert.match(css, /\.usher-shift-time[\s\S]*font-variant-numeric:\s*tabular-nums/);
+  assert.match(css, /word-break:\s*normal/);
+});
+
 test("navigation previous / today / next", () => {
   const date = new Date(2026, 6, 15, 12, 0, 0);
   assert.strictEqual(core.toDateKey(core.navigateDate("day", date, "prev")), "2026-07-14");

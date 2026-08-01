@@ -3727,7 +3727,7 @@ function bindUsherCalendarModule(panel) {
     const actions = canEdit()
       ? `<div class="calendar-item-actions"><button type="button" data-calendar-edit="${escapeHtml(record.id)}">Editar</button><button type="button" data-calendar-delete="${escapeHtml(record.id)}">Eliminar</button></div>`
       : "";
-    return `<article class="calendar-item" data-calendar-view="${escapeHtml(record.id)}"><strong>${escapeHtml(record.ujier)}</strong><span>${escapeHtml(formatUsherScheduleDisplay(record))}</span><small>${escapeHtml(areaLabel)}</small>${actions}</article>`;
+    return `<article class="calendar-item usher-shift-card" data-calendar-view="${escapeHtml(record.id)}"><strong class="usher-shift-name">${escapeHtml(record.ujier)}</strong><span class="usher-shift-time">${escapeHtml(formatUsherScheduleDisplay(record))}</span><small class="usher-shift-area">${escapeHtml(areaLabel)}</small>${actions}</article>`;
   };
 
   const updateNavLabels = () => {
@@ -3766,7 +3766,7 @@ function bindUsherCalendarModule(panel) {
       const items = core.filterShiftsForDate(records, key);
       return `<section class="usher-week-day" data-calendar-date="${key}"><h4>${core.formatSpanishDate(date)}</h4>${items.length ? items.map(shiftCard).join("") : `<p class="usher-empty">Sin turnos</p>`}</section>`;
     }).join("");
-    grid.innerHTML = `<div class="usher-week-grid">${columns}</div>`;
+    grid.innerHTML = `<div class="usher-week-scroll"><div class="usher-week-grid">${columns}</div></div>`;
   };
 
   const renderDay = () => {
