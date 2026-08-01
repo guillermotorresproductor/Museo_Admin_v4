@@ -7585,12 +7585,14 @@ function bindHrAnnouncementPublish() {
 
   const message = panel.querySelector("[data-hr-announcement-message]");
   const submit = panel.querySelector("[data-hr-announcement-submit]");
+  const avisosCard = document.querySelector('[data-hr-hub-card="avisos"]');
 
   if (!canPublishInstitutionalAnnouncement()) {
-    panel.hidden = true;
+    panel.closest("[data-hr-announcement-workspace]")?.setAttribute("hidden", "");
+    if (avisosCard) avisosCard.hidden = true;
     return;
   }
-  panel.hidden = false;
+  if (avisosCard) avisosCard.hidden = false;
 
   const setMessage = (text, type = "") => {
     if (!message) return;
@@ -7625,6 +7627,91 @@ function bindHrAnnouncementPublish() {
       if (submit) submit.disabled = false;
     }
   });
+}
+
+function bindHrWorkspaceNavigation() {
+  const page = document.querySelector("[data-hr-page]");
+  if (!page) return;
+
+  const hub = page.querySelector("[data-hr-hub]");
+  const directoryWorkspace = page.querySelector("[data-hr-directory-workspace]");
+  const announcementWorkspace = page.querySelector("[data-hr-announcement-workspace]");
+  const avisosCard = page.querySelector('[data-hr-hub-card="avisos"]');
+  const canPublish = canPublishInstitutionalAnnouncement();
+  if (avisosCard) avisosCard.hidden = !canPublish;
+
+  const clearWorkspaceMessages = (workspace) => {
+    if (!workspace) return;
+    workspace.querySelectorAll(".form-message, .portal-message").forEach((node) => {
+      node.textContent = "";
+      node.className = node.classList.contains("portal-message") ? "portal-message" : "form-message";
+    });
+  };
+
+  const hrPageUrl = (section) => {
+    const extras = {};
+    new URLSearchParams(window.location.search).forEach((value, key) => {
+      if (key !== "section") extras[key] = value;
+    });
+    if (section && section !== "hub") extras.section = section;
+    return typeof museoPageUrl === "function"
+      ? museoPageUrl("recursos-humanos.html", extras)
+      : `recursos-humanos.html${section && section !== "hub" ? `?section=${encodeURIComponent(section)}` : ""}`;
+  };
+
+  const resolveSection = () => {
+    const raw = String(new URLSearchParams(window.location.search).get("section") || "").trim().toLowerCase();
+    if (raw === "directorio") return "directorio";
+    if (raw === "avisos") return canPublish ? "avisos" : "hub";
+    return "hub";
+  };
+
+  const applySection = (section, { syncUrl = false, replace = false } = {}) => {
+    let next = section === "avisos" && !canPublish ? "hub" : section;
+    if (!["hub", "directorio", "avisos"].includes(next)) next = "hub";
+
+    if (hub) hub.hidden = next !== "hub";
+    if (directoryWorkspace) directoryWorkspace.hidden = next !== "directorio";
+    if (announcementWorkspace) announcementWorkspace.hidden = next !== "avisos";
+
+    if (next !== "directorio") clearWorkspaceMessages(directoryWorkspace);
+    if (next !== "avisos") clearWorkspaceMessages(announcementWorkspace);
+
+    page.querySelectorAll("[data-hr-open]").forEach((anchor) => {
+      const target = anchor.getAttribute("data-hr-open");
+      if (target) anchor.setAttribute("href", hrPageUrl(target));
+    });
+
+    if (syncUrl) {
+      const url = hrPageUrl(next);
+      const method = replace ? "replaceState" : "pushState";
+      window.history[method]({ hrSection: next }, "", url);
+    }
+
+    if (typeof renderInlineIcons === "function") renderInlineIcons();
+  };
+
+  page.querySelectorAll("[data-hr-open]").forEach((anchor) => {
+    anchor.addEventListener("click", (event) => {
+      const section = anchor.getAttribute("data-hr-open");
+      if (!section) return;
+      if (section === "avisos" && !canPublish) return;
+      event.preventDefault();
+      applySection(section, { syncUrl: true });
+    });
+  });
+
+  page.querySelectorAll("[data-hr-back]").forEach((button) => {
+    button.addEventListener("click", () => {
+      applySection("hub", { syncUrl: true });
+    });
+  });
+
+  window.addEventListener("popstate", () => {
+    applySection(resolveSection());
+  });
+
+  applySection(resolveSection(), { syncUrl: true, replace: true });
 }
 
 function bindAnnouncementsModule() {
@@ -8164,6 +8251,7 @@ async function initApp() {
   bindMaterialsRequestModule();
   bindHumanResourcesModule();
   bindHrAnnouncementPublish();
+  bindHrWorkspaceNavigation();
   bindAnnouncementsModule();
   bindNotificationsModule();
   bindFinanceModule();

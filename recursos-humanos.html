@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Recursos Humanos</title>
-  <link rel="stylesheet" href="css/main.css?v=attendance-toggle-20260721">
+  <link rel="stylesheet" href="css/main.css?v=hr-workspaces-20260731">
 </head>
 <body>
   <div class="app-shell">
@@ -12,8 +12,32 @@
     <div class="sidebar-backdrop" data-sidebar-backdrop></div>
     <div class="main-area">
       <header class="site-header" data-header></header>
-      <main class="page-content">
-        <section class="card panel directory-panel" data-hr-module>
+      <main class="page-content" data-hr-page>
+        <section class="card panel hr-hub-panel" data-hr-hub>
+          <p class="page-kicker">Recursos Humanos</p>
+          <h3>Recursos Humanos</h3>
+          <p>Seleccione el área de trabajo. Cada módulo se abre por separado.</p>
+          <div class="hr-hub-grid" role="list">
+            <article class="hr-hub-card theme-blue" role="listitem" data-hr-hub-card="directorio">
+              <span class="module-icon" data-icon="users"></span>
+              <h3>Directorio de Empleados</h3>
+              <p>Consulta y administración del personal del museo.</p>
+              <a class="button" href="recursos-humanos.html?section=directorio" data-hr-open="directorio">Abrir directorio</a>
+            </article>
+            <article class="hr-hub-card theme-gold" role="listitem" data-hr-hub-card="avisos" hidden>
+              <span class="module-icon" data-icon="megaphone"></span>
+              <h3>Publicación de Avisos Institucionales</h3>
+              <p>Publica avisos para el personal activo del museo.</p>
+              <a class="button" href="recursos-humanos.html?section=avisos" data-hr-open="avisos">Publicar aviso</a>
+            </article>
+          </div>
+        </section>
+
+        <section class="card panel directory-panel hr-workspace" data-hr-directory-workspace hidden>
+          <div class="hr-workspace-toolbar">
+            <button class="button secondary" type="button" data-hr-back>Volver a Recursos Humanos</button>
+          </div>
+          <section data-hr-module>
           <p class="page-kicker">Directorio</p>
           <h3>Directorio de Empleados</h3>
           <p>Base central de empleados del Museo. Los módulos del sistema toman sus empleados desde este directorio.</p>
@@ -271,26 +295,6 @@
             <div class="employee-list section-stack" aria-label="Directorio de empleados" data-employee-directory></div>
           </section>
 
-          <section class="section-stack hr-announcement-panel" data-hr-announcement-panel hidden aria-labelledby="hr-announcement-title">
-            <p class="page-kicker">Publicación institucional</p>
-            <h3 id="hr-announcement-title">Publicar aviso institucional</h3>
-            <p>El aviso se enviará a todo el personal activo con cuenta vinculada del museo, incluidos Administradores y Ejecutivos.</p>
-            <form class="hr-announcement-form" data-hr-announcement-form>
-              <label class="field">
-                <span>Título</span>
-                <input type="text" name="title" maxlength="180" required placeholder="Título del aviso">
-              </label>
-              <label class="field">
-                <span>Aviso</span>
-                <textarea name="body" rows="5" maxlength="8000" required placeholder="Escriba el aviso institucional"></textarea>
-              </label>
-              <div class="inventory-actions">
-                <button class="button submit-button" type="submit" data-hr-announcement-submit>Publicar aviso</button>
-              </div>
-              <p class="form-message" data-hr-announcement-message></p>
-            </form>
-          </section>
-
           <section class="hr-attendance section-stack" data-attendance-module hidden aria-labelledby="attendance-title">
             <div class="panel-heading-inline">
               <div>
@@ -353,14 +357,40 @@
             </div>
           </section>
 
+          </section>
+        </section>
+
+        <section class="card panel hr-workspace hr-announcement-workspace" data-hr-announcement-workspace hidden>
+          <div class="hr-workspace-toolbar">
+            <button class="button secondary" type="button" data-hr-back>Volver a Recursos Humanos</button>
+          </div>
+          <section class="section-stack hr-announcement-panel" data-hr-announcement-panel aria-labelledby="hr-announcement-title">
+            <p class="page-kicker">Publicación institucional</p>
+            <h3 id="hr-announcement-title">Publicar aviso institucional</h3>
+            <p>El aviso se enviará a todo el personal activo con cuenta vinculada del museo, incluidos Administradores y Ejecutivos.</p>
+            <form class="hr-announcement-form" data-hr-announcement-form>
+              <label class="field">
+                <span>Título</span>
+                <input type="text" name="title" maxlength="180" required placeholder="Título del aviso">
+              </label>
+              <label class="field">
+                <span>Aviso</span>
+                <textarea name="body" rows="5" maxlength="8000" required placeholder="Escriba el aviso institucional"></textarea>
+              </label>
+              <div class="inventory-actions">
+                <button class="button submit-button" type="submit" data-hr-announcement-submit>Publicar aviso</button>
+              </div>
+              <p class="form-message" data-hr-announcement-message></p>
+            </form>
+          </section>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=announcements-20260731"></script>
-  <script src="js/app.js?v=announcements-20260731"></script>
+  <script src="js/services/supabase.js?v=hr-workspaces-20260731"></script>
+  <script src="js/app.js?v=hr-workspaces-20260731"></script>
 </body>
 </html>
 

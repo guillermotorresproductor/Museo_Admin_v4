@@ -111,7 +111,63 @@ test("active ujier receives announcement but cannot publish", () => {
   assert.match(eligibleSlice, /profile_has_active_auth_linked_employee/);
   assert.match(migrationSql, /e\.auth_user_id = p_profile_id/);
   assert.match(migrationSql, /if not public\.can_publish_institutional_announcement\(\) then/);
-  assert.match(appJs, /if \(!canPublishInstitutionalAnnouncement\(\)\) \{\s*panel\.hidden = true;/);
+  assert.match(appJs, /function canPublishInstitutionalAnnouncement\(\)/);
+  assert.match(
+    appJs,
+    /if \(!canPublishInstitutionalAnnouncement\(\)\) \{\s*panel\.closest\("\[data-hr-announcement-workspace\]"\)\?\.setAttribute\("hidden", ""\);\s*if \(avisosCard\) avisosCard\.hidden = true;/
+  );
+  assert.match(appJs, /avisosCard\.hidden = !canPublish/);
+  assert.doesNotMatch(appJs, /canPublishInstitutionalAnnouncement\(\)\s*\|\|\s*currentProfileRole === "ujier"/);
+});
+
+test("HR page separates directory and announcement workspaces", () => {
+  assert.match(hrHtml, /data-hr-hub/);
+  assert.match(hrHtml, /data-hr-hub-card="directorio"/);
+  assert.match(hrHtml, /data-hr-hub-card="avisos"/);
+  assert.match(hrHtml, /Directorio de Empleados/);
+  assert.match(hrHtml, /Consulta y administración del personal del museo\./);
+  assert.match(hrHtml, /Abrir directorio/);
+  assert.match(hrHtml, /Publicación de Avisos Institucionales/);
+  assert.match(hrHtml, /Publica avisos para el personal activo del museo\./);
+  assert.match(hrHtml, /data-hr-open="avisos">Publicar aviso</);
+  assert.match(hrHtml, /data-hr-directory-workspace/);
+  assert.match(hrHtml, /data-hr-announcement-workspace/);
+  assert.match(hrHtml, /Volver a Recursos Humanos/);
+  assert.match(hrHtml, /data-icon="users"/);
+  assert.match(hrHtml, /data-icon="megaphone"/);
+
+  // Hub visible by default; workspaces start hidden (not simultaneous).
+  assert.match(hrHtml, /<section class="card panel hr-hub-panel" data-hr-hub>/);
+  assert.match(hrHtml, /data-hr-directory-workspace hidden/);
+  assert.match(hrHtml, /data-hr-announcement-workspace hidden/);
+  assert.ok(
+    hrHtml.indexOf("data-hr-hub") < hrHtml.indexOf("data-hr-directory-workspace"),
+    "hub precedes directory workspace"
+  );
+  assert.ok(
+    hrHtml.indexOf("data-hr-directory-workspace") < hrHtml.indexOf("data-hr-announcement-workspace"),
+    "directory and announcement are separate sections"
+  );
+  // Announcement form must not live inside hub cards.
+  const hubStart = hrHtml.indexOf('data-hr-hub>');
+  const hubEnd = hrHtml.indexOf("data-hr-directory-workspace");
+  const hubChunk = hrHtml.slice(hubStart, hubEnd);
+  assert.doesNotMatch(hubChunk, /data-hr-announcement-form/);
+  assert.doesNotMatch(hubChunk, /data-employee-form/);
+
+  assert.match(appJs, /function bindHrWorkspaceNavigation\(/);
+  assert.match(appJs, /raw === "directorio"/);
+  assert.match(appJs, /raw === "avisos"/);
+  assert.match(appJs, /extras\.section = section/);
+  assert.match(appJs, /museoPageUrl\("recursos-humanos\.html", extras\)/);
+  assert.match(appJs, /window\.history\[method\]\(\{ hrSection: next \}/);
+  assert.match(appJs, /popstate/);
+  assert.match(appJs, /applySection\("hub"/);
+  assert.match(appJs, /directoryWorkspace\.hidden = next !== "directorio"/);
+  assert.match(appJs, /announcementWorkspace\.hidden = next !== "avisos"/);
+  assert.match(appJs, /hub\.hidden = next !== "hub"/);
+  assert.match(appJs, /clearWorkspaceMessages\(directoryWorkspace\)/);
+  assert.match(appJs, /clearWorkspaceMessages\(announcementWorkspace\)/);
 });
 
 test("inactive employee does not receive announcement", () => {
