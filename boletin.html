@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Boletín Board</title>
-  <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
+  <title>Museo Admin v4.0 | Boletín de Avisos Institucionales</title>
+  <link rel="stylesheet" href="css/main.css?v=announcements-20260731">
 </head>
 <body>
   <div class="app-shell">
@@ -13,25 +13,29 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="card panel placeholder-panel">
-          <span class="module-icon theme-gold" data-icon="megaphone"></span>
-          <h3>Boletín Board</h3>
-          <p>Espacio reservado para públicaciones, anuncios y comunicaciones internas.</p>
+        <section class="card panel announcements-panel" data-announcements-module>
+          <div class="announcements-toolbar">
+            <div>
+              <p class="page-kicker">Comunicaciones</p>
+              <h3>Boletín de Avisos Institucionales</h3>
+              <p>Avisos oficiales del museo, con autor, fecha y estado de lectura.</p>
+            </div>
+            <label class="announcements-archive-toggle" data-announcements-admin-controls hidden>
+              <input type="checkbox" data-announcements-include-archived>
+              <span>Mostrar archivados</span>
+            </label>
+          </div>
+          <p class="form-message" data-announcements-message></p>
+          <div class="announcements-list" data-announcements-list>
+            <p class="portal-empty">Cargando avisos...</p>
+          </div>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=employee-sensitive-20260721"></script>
+  <script src="js/services/supabase.js?v=announcements-20260731"></script>
+  <script src="js/app.js?v=announcements-20260731"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-

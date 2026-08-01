@@ -234,7 +234,12 @@ async function decideSupabaseAttendanceCorrection(requestId, decision, reason) {
 
 async function fetchOwnSupabaseNotifications(limit = 5) {
   const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 20);
-  return supabaseGet(`/rest/v1/employee_notifications?select=id,title,message,category,read_at,created_at&order=created_at.desc&limit=${safeLimit}`);
+  const base = `/rest/v1/employee_notifications?order=created_at.desc&limit=${safeLimit}`;
+  try {
+    return await supabaseGet(`${base}&select=id,title,message,category,read_at,created_at,related_announcement_id`);
+  } catch {
+    return supabaseGet(`${base}&select=id,title,message,category,read_at,created_at`);
+  }
 }
 
 async function fetchSupabaseAttendance({ from, to, employeeId } = {}) {
@@ -339,5 +344,67 @@ async function deleteUsherShift(id) {
     return await supabasePost("/rest/v1/rpc/delete_usher_shift", { p_id: id });
   } catch (error) {
     throw usherScheduleRpcError(error);
+  }
+}
+
+function institutionalAnnouncementRpcError(error) {
+  const message = String(error?.message || error || "");
+  if (/FORBIDDEN|42501/i.test(message)) {
+    return Object.assign(new Error("No tiene autorización para esta acción del boletín."), { code: "FORBIDDEN" });
+  }
+  if (/NO_ELIGIBLE_RECIPIENTS/i.test(message)) {
+    return Object.assign(new Error("No hay destinatarios activos vinculados en este museo."), { code: "NO_ELIGIBLE_RECIPIENTS" });
+  }
+  if (/INVALID_ANNOUNCEMENT/i.test(message)) {
+    return Object.assign(new Error("El título y el aviso son obligatorios."), { code: "INVALID_ANNOUNCEMENT" });
+  }
+  if (/institutional_announcement|publish_institutional|list_institutional|PGRST202|Could not find the function/i.test(message)) {
+    return Object.assign(new Error("El Boletín de Avisos Institucionales requiere aplicar la migración SQL pendiente."), { code: "MIGRATION_REQUIRED" });
+  }
+  return error instanceof Error ? error : new Error(message || "No se pudo completar la operación del boletín.");
+}
+
+async function publishInstitutionalAnnouncement(title, body) {
+  try {
+    const data = await supabasePost("/rest/v1/rpc/publish_institutional_announcement", {
+      p_title: title,
+      p_body: body
+    });
+    return Array.isArray(data) ? data[0] : data;
+  } catch (error) {
+    throw institutionalAnnouncementRpcError(error);
+  }
+}
+
+async function listInstitutionalAnnouncements(includeArchived = false) {
+  try {
+    const data = await supabasePost("/rest/v1/rpc/list_institutional_announcements", {
+      p_include_archived: Boolean(includeArchived)
+    });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    throw institutionalAnnouncementRpcError(error);
+  }
+}
+
+async function markInstitutionalAnnouncementRead(announcementId) {
+  try {
+    const data = await supabasePost("/rest/v1/rpc/mark_institutional_announcement_read", {
+      p_announcement_id: announcementId
+    });
+    return Array.isArray(data) ? data[0] : data;
+  } catch (error) {
+    throw institutionalAnnouncementRpcError(error);
+  }
+}
+
+async function archiveInstitutionalAnnouncement(announcementId) {
+  try {
+    const data = await supabasePost("/rest/v1/rpc/archive_institutional_announcement", {
+      p_announcement_id: announcementId
+    });
+    return Array.isArray(data) ? data[0] : data;
+  } catch (error) {
+    throw institutionalAnnouncementRpcError(error);
   }
 }

@@ -271,6 +271,26 @@
             <div class="employee-list section-stack" aria-label="Directorio de empleados" data-employee-directory></div>
           </section>
 
+          <section class="section-stack hr-announcement-panel" data-hr-announcement-panel hidden aria-labelledby="hr-announcement-title">
+            <p class="page-kicker">Publicación institucional</p>
+            <h3 id="hr-announcement-title">Publicar aviso institucional</h3>
+            <p>El aviso se enviará a todo el personal activo con cuenta vinculada del museo, incluidos Administradores y Ejecutivos.</p>
+            <form class="hr-announcement-form" data-hr-announcement-form>
+              <label class="field">
+                <span>Título</span>
+                <input type="text" name="title" maxlength="180" required placeholder="Título del aviso">
+              </label>
+              <label class="field">
+                <span>Aviso</span>
+                <textarea name="body" rows="5" maxlength="8000" required placeholder="Escriba el aviso institucional"></textarea>
+              </label>
+              <div class="inventory-actions">
+                <button class="button submit-button" type="submit" data-hr-announcement-submit>Publicar aviso</button>
+              </div>
+              <p class="form-message" data-hr-announcement-message></p>
+            </form>
+          </section>
+
           <section class="hr-attendance section-stack" data-attendance-module hidden aria-labelledby="attendance-title">
             <div class="panel-heading-inline">
               <div>
@@ -339,8 +359,8 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=provider-neutral-20260721"></script>
-  <script src="js/app.js?v=provider-neutral-20260721"></script>
+  <script src="js/services/supabase.js?v=announcements-20260731"></script>
+  <script src="js/app.js?v=announcements-20260731"></script>
 </body>
 </html>
 

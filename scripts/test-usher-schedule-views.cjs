@@ -640,8 +640,8 @@ test("usher navigation exception does not create portal redirect loop", () => {
 test("environment staging is preserved on portal and usher calendar links", () => {
   assert.match(appJs, /museoPageUrl\("ujieres\.html"\)/);
   assert.match(appJs, /museoPageUrl\("employee-portal\.html"\)/);
-  assert.match(portalHtml, /usher-toolbar-align-20260731/);
-  assert.match(ujieresHtml, /usher-toolbar-align-20260731/);
+  assert.match(portalHtml, /usher-toolbar-align-20260731|announcements-20260731/);
+  assert.match(ujieresHtml, /usher-toolbar-align-20260731|announcements-20260731|usher-nav-fix-20260731/);
   assert.match(appJs, /ensureActiveEnvironmentInAddressBar/);
   assert.match(appJs, /preserveActiveEnvironmentOnInternalLinks/);
 });

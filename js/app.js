@@ -24,7 +24,7 @@ const appPages = {
   "documentos.html": { title: "Formularios y papelería", subtitle: "Documentos, papelería institucional y más." },
   "deposito-artes.html": { title: "Depósito de Artes", subtitle: "Logos oficiales, artes y guías de marca del Museo." },
   "recibo-prestamo.html": { title: "Formularios Museográficos", subtitle: "Formularios digitales para artículos de colección y procesos museográficos." },
-  "boletin.html": { title: "Boletín institucional", subtitle: "Publicaciones, anuncios y comunicaciones." },
+  "boletin.html": { title: "Boletín de Avisos Institucionales", subtitle: "Avisos oficiales del museo para el personal." },
   "inventario.html": { title: "Inventario de Equipos", subtitle: "Registro y control de equipos, activos, mobiliario y herramientas del museo." }
 };
 
@@ -64,7 +64,7 @@ const navigationGroups = [
       { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"] },
       { href: "documentos.html", label: "Formularios y papelería", icon: "file", activePages: ["deposito-artes.html", "empleados.html", "reglamento.html"] },
       { href: "administracion.html", label: "Administración", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html", "direccion-ejecutiva.html"] },
-      { href: "boletin.html", label: "Boletín institucional", icon: "megaphone" },
+      { href: "boletin.html", label: "Boletín de Avisos Institucionales", icon: "megaphone" },
       { href: "inventario.html", label: "Inventario de Equipos", icon: "package" },
       { href: "login.html", label: "Mi cuenta", icon: "logout" }
     ]
@@ -496,7 +496,11 @@ async function enforceAuthenticatedPageAccess() {
   const allowedPages = new Map([
     ["recursos-humanos.html", () => hasPermission("employees.read.all")],
     ["calendario.html", () => hasPermission("calendar.manage") || hasPermission("schedules.read.team")],
-    ["inventario.html", () => hasPermission("inventory.manage")]
+    ["inventario.html", () => hasPermission("inventory.manage")],
+    ["boletin.html", () =>
+      hasPermission("announcements.read")
+      || hasPermission("announcements.publish")
+      || hasPermission("notifications.read.self")]
   ]);
   if (allowedPages.get(page)?.()) return false;
   window.location.replace(museoPageUrl("employee-portal.html"));
@@ -1744,26 +1748,6 @@ function bindSidebarToggle() {
     link.addEventListener("click", () => {
       document.body.classList.remove("sidebar-open");
     });
-  });
-}
-
-function bindNotificationMenu() {
-  const button = document.querySelector("[data-notification-menu-button]");
-  const menu = document.querySelector("[data-notification-menu]");
-  if (!button || !menu) return;
-
-  button.addEventListener("click", (event) => {
-    event.stopPropagation();
-    const nextState = !menu.hidden;
-    menu.hidden = nextState;
-    button.setAttribute("aria-expanded", String(!nextState));
-  });
-
-  document.addEventListener("click", (event) => {
-    if (menu.hidden) return;
-    if (menu.contains(event.target) || button.contains(event.target)) return;
-    menu.hidden = true;
-    button.setAttribute("aria-expanded", "false");
   });
 }
 
@@ -7492,6 +7476,29 @@ function renderPortalTimeEntries(entries) {
     </article>`).join("");
 }
 
+function canPublishInstitutionalAnnouncement() {
+  return hasPermission("announcements.publish")
+    || currentProfileRole === "administrador"
+    || currentProfileRole === "ejecutivo";
+}
+
+function formatAnnouncementDateTime(value) {
+  if (!value) return "";
+  try {
+    return new Intl.DateTimeFormat("es-PR", {
+      dateStyle: "medium",
+      timeStyle: "short"
+    }).format(new Date(value));
+  } catch {
+    return String(value);
+  }
+}
+
+function announcementDeepLink(announcementId) {
+  const extras = announcementId ? { aviso: announcementId } : {};
+  return typeof museoPageUrl === "function" ? museoPageUrl("boletin.html", extras) : `boletin.html${announcementId ? `?aviso=${encodeURIComponent(announcementId)}` : ""}`;
+}
+
 function renderPortalNotifications(notifications) {
   const list = document.querySelector("[data-portal-notifications]");
   if (!list) return;
@@ -7499,7 +7506,269 @@ function renderPortalNotifications(notifications) {
     list.innerHTML = '<p class="portal-empty">No tienes notificaciones nuevas.</p>';
     return;
   }
-  list.innerHTML = notifications.map((item) => `<article class="portal-notification"><strong>${escapeHtml(item.title || "Aviso")}</strong><p>${escapeHtml(item.message || "")}</p><small>${formatPortalDate(item.created_at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></article>`).join("");
+  list.innerHTML = notifications.map((item) => {
+    const unread = !item.read_at;
+    const href = item.related_announcement_id || item.category === "institutional_announcement"
+      ? announcementDeepLink(item.related_announcement_id)
+      : null;
+    const body = `<strong>${escapeHtml(item.title || "Aviso")}</strong><p>${escapeHtml(item.message || "")}</p><small>${formatPortalDate(item.created_at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small>`;
+    if (href) {
+      return `<a class="portal-notification${unread ? " is-unread" : ""}" href="${href}">${body}</a>`;
+    }
+    return `<article class="portal-notification${unread ? " is-unread" : ""}">${body}</article>`;
+  }).join("");
+}
+
+async function refreshHeaderNotificationMenu() {
+  const menu = document.querySelector("[data-notification-menu]");
+  const badge = document.querySelector(".notification-badge");
+  if (!menu || typeof fetchOwnSupabaseNotifications !== "function") return;
+  try {
+    const rows = await fetchOwnSupabaseNotifications(8);
+    const unread = rows.filter((row) => !row.read_at);
+    if (badge) {
+      badge.hidden = unread.length === 0;
+      badge.textContent = String(Math.min(unread.length, 9));
+    }
+    const items = (unread.length ? unread : rows).slice(0, 5);
+    if (!items.length) {
+      menu.innerHTML = `
+        <p class="page-kicker">Notificaciones</p>
+        <h3>Sin avisos nuevos</h3>
+        <a href="${museoPageUrl("boletin.html")}"><strong>Boletín de Avisos Institucionales</strong><span>Consultar avisos del museo.</span></a>
+      `;
+      return;
+    }
+    menu.innerHTML = `
+      <p class="page-kicker">Notificaciones</p>
+      <h3>Avisos recientes</h3>
+      ${items.map((item) => {
+        const href = item.related_announcement_id
+          ? announcementDeepLink(item.related_announcement_id)
+          : museoPageUrl("boletin.html");
+        return `<a href="${href}"><strong>${safeHtml(item.title || "Aviso")}</strong><span>${safeHtml(item.message || "")}</span></a>`;
+      }).join("")}
+      <a href="${museoPageUrl("boletin.html")}"><strong>Ver boletín completo</strong><span>Boletín de Avisos Institucionales</span></a>
+    `;
+  } catch {
+    /* Keep the static fallback rendered by renderHeader when the inbox is unavailable. */
+  }
+}
+
+function bindNotificationMenu() {
+  const button = document.querySelector("[data-notification-menu-button]");
+  const menu = document.querySelector("[data-notification-menu]");
+  if (!button || !menu) return;
+
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const nextState = !menu.hidden;
+    menu.hidden = nextState;
+    button.setAttribute("aria-expanded", String(!nextState));
+    if (!nextState) void refreshHeaderNotificationMenu();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (menu.hidden) return;
+    if (menu.contains(event.target) || button.contains(event.target)) return;
+    menu.hidden = true;
+    button.setAttribute("aria-expanded", "false");
+  });
+
+  void refreshHeaderNotificationMenu();
+}
+
+function bindHrAnnouncementPublish() {
+  const panel = document.querySelector("[data-hr-announcement-panel]");
+  const form = document.querySelector("[data-hr-announcement-form]");
+  if (!panel || !form) return;
+
+  const message = panel.querySelector("[data-hr-announcement-message]");
+  const submit = panel.querySelector("[data-hr-announcement-submit]");
+
+  if (!canPublishInstitutionalAnnouncement()) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text;
+    message.className = `form-message ${type}`.trim();
+  };
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const title = String(form.elements.title?.value || "").trim();
+    const body = String(form.elements.body?.value || "").trim();
+    if (!title || !body) {
+      setMessage("El título y el aviso son obligatorios.", "error");
+      return;
+    }
+    if (!window.confirm("¿Publicar este aviso institucional para todo el personal activo del museo?")) {
+      return;
+    }
+    if (submit) submit.disabled = true;
+    setMessage("Publicando aviso...", "");
+    try {
+      if (typeof publishInstitutionalAnnouncement !== "function") {
+        throw new Error("La función de publicación no está disponible.");
+      }
+      const saved = await publishInstitutionalAnnouncement(title, body);
+      form.reset();
+      setMessage(`Aviso publicado correctamente${saved?.published_at ? ` · ${formatAnnouncementDateTime(saved.published_at)}` : ""}.`, "success");
+      void refreshHeaderNotificationMenu();
+    } catch (error) {
+      setMessage(error.message || "No se pudo publicar el aviso.", "error");
+    } finally {
+      if (submit) submit.disabled = false;
+    }
+  });
+}
+
+function bindAnnouncementsModule() {
+  const panel = document.querySelector("[data-announcements-module]");
+  if (!panel) return;
+  const list = panel.querySelector("[data-announcements-list]");
+  const message = panel.querySelector("[data-announcements-message]");
+  const includeArchived = panel.querySelector("[data-announcements-include-archived]");
+  const adminControls = panel.querySelector("[data-announcements-admin-controls]");
+  const canManage = canPublishInstitutionalAnnouncement();
+  if (adminControls) adminControls.hidden = !canManage;
+
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text || "";
+    message.className = `form-message ${type}`.trim();
+  };
+
+  const render = async () => {
+    if (!list) return;
+    list.innerHTML = '<p class="portal-empty">Cargando avisos...</p>';
+    try {
+      if (typeof listInstitutionalAnnouncements !== "function") {
+        throw new Error("La función de listado no está disponible.");
+      }
+      const rows = await listInstitutionalAnnouncements(Boolean(includeArchived?.checked));
+      if (!rows.length) {
+        list.innerHTML = '<p class="portal-empty">No hay avisos institucionales publicados.</p>';
+        return;
+      }
+      list.innerHTML = rows.map((row) => {
+        const unread = !row.read_at && row.status === "published";
+        const archiveButton = canManage && row.status === "published"
+          ? `<button class="button secondary" type="button" data-announcement-archive="${safeHtml(row.id)}">Archivar</button>`
+          : "";
+        const readButton = !row.read_at
+          ? `<button class="button secondary" type="button" data-announcement-read="${safeHtml(row.id)}">Marcar como leído</button>`
+          : `<span class="announcement-read-badge">Leído</span>`;
+        return `
+          <article class="announcement-card${unread ? " is-unread" : ""}${row.status === "archived" ? " is-archived" : ""}" id="aviso-${safeHtml(row.id)}" data-announcement-id="${safeHtml(row.id)}">
+            <div class="announcement-card-heading">
+              <h4>${safeHtml(row.title)}</h4>
+              <span class="announcement-status">${row.status === "archived" ? "Archivado" : (unread ? "No leído" : "Publicado")}</span>
+            </div>
+            <p class="announcement-body">${safeHtml(row.body)}</p>
+            <div class="announcement-meta">
+              <span>Autor: ${safeHtml(row.author_name || "Autor institucional")}</span>
+              <span>${safeHtml(formatAnnouncementDateTime(row.published_at))}</span>
+            </div>
+            <div class="announcement-actions">${readButton}${archiveButton}</div>
+          </article>
+        `;
+      }).join("");
+
+      const focusId = new URLSearchParams(window.location.search).get("aviso");
+      if (focusId) {
+        const target = panel.querySelector(`#aviso-${CSS.escape(focusId)}`);
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    } catch (error) {
+      list.innerHTML = `<p class="portal-empty">${safeHtml(error.message || "No se pudieron cargar los avisos.")}</p>`;
+    }
+  };
+
+  includeArchived?.addEventListener("change", () => { void render(); });
+
+  panel.addEventListener("click", async (event) => {
+    const readButton = event.target.closest("[data-announcement-read]");
+    const archiveButton = event.target.closest("[data-announcement-archive]");
+    if (readButton) {
+      readButton.disabled = true;
+      try {
+        await markInstitutionalAnnouncementRead(readButton.getAttribute("data-announcement-read"));
+        setMessage("Aviso marcado como leído.", "success");
+        await render();
+        void refreshHeaderNotificationMenu();
+      } catch (error) {
+        setMessage(error.message || "No se pudo marcar como leído.", "error");
+        readButton.disabled = false;
+      }
+      return;
+    }
+    if (archiveButton) {
+      if (!window.confirm("¿Archivar este aviso? Se conservará como documentación institucional.")) return;
+      archiveButton.disabled = true;
+      try {
+        await archiveInstitutionalAnnouncement(archiveButton.getAttribute("data-announcement-archive"));
+        setMessage("Aviso archivado.", "success");
+        await render();
+      } catch (error) {
+        setMessage(error.message || "No se pudo archivar el aviso.", "error");
+        archiveButton.disabled = false;
+      }
+    }
+  });
+
+  void render();
+}
+
+async function bindPortalAnnouncementsCard() {
+  const card = document.querySelector("[data-portal-announcements-card]");
+  if (!card) return;
+  const summary = card.querySelector("[data-portal-announcements-summary]");
+  const cta = card.querySelector("[data-portal-announcements-cta]");
+  const message = card.querySelector("[data-portal-announcements-message]");
+  if (cta) cta.href = typeof museoPageUrl === "function" ? museoPageUrl("boletin.html") : "boletin.html";
+
+  try {
+    if (typeof listInstitutionalAnnouncements !== "function") {
+      card.hidden = true;
+      return;
+    }
+    const rows = await listInstitutionalAnnouncements(false);
+    const unread = rows.filter((row) => !row.read_at && row.status === "published");
+    card.hidden = false;
+    if (!rows.length) {
+      if (summary) summary.innerHTML = '<p class="portal-empty">No hay avisos institucionales.</p>';
+      return;
+    }
+    if (!unread.length) {
+      if (summary) summary.innerHTML = `<p class="portal-empty">No tienes avisos sin leer. Último: ${safeHtml(rows[0].title)}</p>`;
+      return;
+    }
+    if (summary) {
+      summary.innerHTML = `
+        <p class="portal-usher-lead">${unread.length} aviso${unread.length === 1 ? "" : "s"} sin leer</p>
+        <div class="portal-usher-list">${unread.slice(0, 3).map((row) => `
+          <article class="portal-usher-shift">
+            <strong>${safeHtml(row.title)}</strong>
+            <span>${safeHtml(formatAnnouncementDateTime(row.published_at))}</span>
+            <small>${safeHtml(row.author_name || "Autor institucional")}</small>
+          </article>
+        `).join("")}</div>
+      `;
+    }
+  } catch (error) {
+    card.hidden = false;
+    if (summary) summary.innerHTML = "";
+    if (message) {
+      message.hidden = false;
+      message.textContent = error.message || "No se pudieron cargar los avisos.";
+      message.className = "portal-message error";
+    }
+  }
 }
 
 function renderPortalUsherShiftLine(record) {
@@ -7630,10 +7899,22 @@ function renderPortalTools() {
     { permission: "inventory.manage", href: "inventario.html", icon: "package", label: "Inventario de Equipos" }
   ];
   const available = tools.filter((tool, index, all) => hasPermission(tool.permission) && all.findIndex((candidate) => candidate.href === tool.href) === index);
+  if (
+    hasPermission("announcements.read")
+    || hasPermission("announcements.publish")
+    || hasPermission("notifications.read.self")
+  ) {
+    available.unshift({
+      permission: "announcements.read",
+      href: "boletin.html",
+      icon: "megaphone",
+      label: "Boletín de Avisos Institucionales"
+    });
+  }
   const region = document.querySelector("[data-portal-tools]");
   if (!region) return;
   if (!available.length) { region.closest(".portal-section").hidden = true; return; }
-  region.innerHTML = available.map((tool) => `<a class="portal-tool" href="${tool.href}"><span class="portal-tool-icon">${iconSvg(tool.icon)}</span><span>${tool.label}</span></a>`).join("");
+  region.innerHTML = available.map((tool) => `<a class="portal-tool" href="${typeof museoPageUrl === "function" ? museoPageUrl(tool.href) : tool.href}"><span class="portal-tool-icon">${iconSvg(tool.icon)}</span><span>${tool.label}</span></a>`).join("");
 }
 
 function bindPortalAttendanceCorrections() {
@@ -7746,7 +8027,8 @@ async function bindEmployeePortal() {
     refresh(),
     fetchOwnSupabaseNotifications(5).then(renderPortalNotifications),
     bindPortalAttendanceCorrections(),
-    bindPortalUsherCard(employee)
+    bindPortalUsherCard(employee),
+    bindPortalAnnouncementsCard()
   ]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
 }
 function ensureEnvironmentOnLocalAuthCallback() {
@@ -7881,6 +8163,8 @@ async function initApp() {
   populateSystemDataSelects();
   bindMaterialsRequestModule();
   bindHumanResourcesModule();
+  bindHrAnnouncementPublish();
+  bindAnnouncementsModule();
   bindNotificationsModule();
   bindFinanceModule();
   bindExecutiveDirectionModule();
