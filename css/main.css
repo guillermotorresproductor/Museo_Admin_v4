@@ -4984,55 +4984,48 @@ a.portal-notification {
   }
 }
 
-.hr-hub-panel {
-  padding: 28px;
-}
-
-.hr-hub-grid {
+.hr-hub {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-  gap: 18px;
-  margin-top: 22px;
-  max-width: 920px;
+  gap: 24px;
 }
 
-.hr-hub-card {
-  display: grid;
-  gap: 12px;
-  align-content: start;
-  min-height: 220px;
-  padding: 22px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.05);
+.hr-hub-intro {
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: center;
 }
 
-.hr-hub-card .module-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: var(--card-soft, #edf0f3);
-  color: var(--card-color, #159447);
+.hr-hub-intro h3 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: 1.38rem;
+  font-weight: 900;
+  line-height: 1.15;
 }
 
-.hr-hub-card h3 {
-  margin: 0;
-  font-size: 1.2rem;
-}
-
-.hr-hub-card p {
+.hr-hub-intro p {
   margin: 0;
   color: var(--muted);
-  line-height: 1.45;
 }
 
-.hr-hub-card .button {
-  justify-self: start;
-  margin-top: auto;
+.hr-hub-intro .page-kicker {
+  margin-bottom: 8px;
 }
 
-.hr-hub-card[hidden] {
+.hr-module-grid.module-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
+  justify-content: center;
+}
+
+.hr-module-grid.module-grid:not(:has(.module-card:not([hidden]) ~ .module-card:not([hidden]))) {
+  grid-template-columns: minmax(0, 348px);
+}
+
+.hr-module-grid .module-card[hidden] {
   display: none !important;
 }
 
@@ -5043,7 +5036,7 @@ a.portal-notification {
 }
 
 .hr-workspace[hidden],
-.hr-hub-panel[hidden] {
+.hr-hub[hidden] {
   display: none !important;
 }
 
@@ -5053,8 +5046,10 @@ a.portal-notification {
   padding-top: 0;
 }
 
-@media (max-width: 900px) {
-  .hr-hub-grid {
-    grid-template-columns: 1fr;
+@media (max-width: 680px) {
+  .hr-module-grid.module-grid,
+  .hr-module-grid.module-grid:not(:has(.module-card:not([hidden]) ~ .module-card:not([hidden]))) {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 400px;
   }
 }

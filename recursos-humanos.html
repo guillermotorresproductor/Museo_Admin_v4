@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Recursos Humanos</title>
-  <link rel="stylesheet" href="css/main.css?v=hr-workspaces-20260731">
+  <link rel="stylesheet" href="css/main.css?v=hr-module-cards-20260731">
 </head>
 <body>
   <div class="app-shell">
@@ -13,24 +13,26 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content" data-hr-page>
-        <section class="card panel hr-hub-panel" data-hr-hub>
-          <p class="page-kicker">Recursos Humanos</p>
-          <h3>Recursos Humanos</h3>
-          <p>Seleccione el área de trabajo. Cada módulo se abre por separado.</p>
-          <div class="hr-hub-grid" role="list">
-            <article class="hr-hub-card theme-blue" role="listitem" data-hr-hub-card="directorio">
+        <section class="hr-hub" data-hr-hub>
+          <div class="hr-hub-intro">
+            <p class="page-kicker">Recursos Humanos</p>
+            <h3>Recursos Humanos</h3>
+            <p>Seleccione el área de trabajo. Cada módulo se abre por separado.</p>
+          </div>
+          <section class="grid module-grid hr-module-grid" aria-label="Módulos de Recursos Humanos">
+            <a class="card module-card theme-blue" href="recursos-humanos.html?section=directorio" data-hr-hub-card="directorio" data-hr-open="directorio">
               <span class="module-icon" data-icon="users"></span>
               <h3>Directorio de Empleados</h3>
               <p>Consulta y administración del personal del museo.</p>
-              <a class="button" href="recursos-humanos.html?section=directorio" data-hr-open="directorio">Abrir directorio</a>
-            </article>
-            <article class="hr-hub-card theme-gold" role="listitem" data-hr-hub-card="avisos" hidden>
+              <span class="card-action">Abrir directorio</span>
+            </a>
+            <a class="card module-card theme-gold" href="recursos-humanos.html?section=avisos" data-hr-hub-card="avisos" data-hr-open="avisos" hidden>
               <span class="module-icon" data-icon="megaphone"></span>
               <h3>Publicación de Avisos Institucionales</h3>
               <p>Publica avisos para el personal activo del museo.</p>
-              <a class="button" href="recursos-humanos.html?section=avisos" data-hr-open="avisos">Publicar aviso</a>
-            </article>
-          </div>
+              <span class="card-action">Publicar aviso</span>
+            </a>
+          </section>
         </section>
 
         <section class="card panel directory-panel hr-workspace" data-hr-directory-workspace hidden>
@@ -389,8 +391,8 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=hr-workspaces-20260731"></script>
-  <script src="js/app.js?v=hr-workspaces-20260731"></script>
+  <script src="js/services/supabase.js?v=hr-module-cards-20260731"></script>
+  <script src="js/app.js?v=hr-module-cards-20260731"></script>
 </body>
 </html>
 

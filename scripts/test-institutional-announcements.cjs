@@ -129,15 +129,22 @@ test("HR page separates directory and announcement workspaces", () => {
   assert.match(hrHtml, /Abrir directorio/);
   assert.match(hrHtml, /Publicación de Avisos Institucionales/);
   assert.match(hrHtml, /Publica avisos para el personal activo del museo\./);
-  assert.match(hrHtml, /data-hr-open="avisos">Publicar aviso</);
+  assert.match(hrHtml, /Publicar aviso/);
   assert.match(hrHtml, /data-hr-directory-workspace/);
   assert.match(hrHtml, /data-hr-announcement-workspace/);
   assert.match(hrHtml, /Volver a Recursos Humanos/);
   assert.match(hrHtml, /data-icon="users"/);
   assert.match(hrHtml, /data-icon="megaphone"/);
 
-  // Hub visible by default; workspaces start hidden (not simultaneous).
-  assert.match(hrHtml, /<section class="card panel hr-hub-panel" data-hr-hub>/);
+  // Hub uses Dashboard module-card pattern; workspaces start hidden.
+  assert.match(hrHtml, /<section class="hr-hub" data-hr-hub>/);
+  assert.match(hrHtml, /class="grid module-grid hr-module-grid"/);
+  assert.match(hrHtml, /class="card module-card theme-blue"[^>]*data-hr-hub-card="directorio"/);
+  assert.match(hrHtml, /class="card module-card theme-gold"[^>]*data-hr-hub-card="avisos"/);
+  assert.match(hrHtml, /card-action">Abrir directorio</);
+  assert.match(hrHtml, /card-action">Publicar aviso</);
+  assert.doesNotMatch(hrHtml, /class="[^"]*hr-hub-panel|class="[^"]*hr-hub-card/);
+  assert.doesNotMatch(hrHtml, /hr-hub-grid/);
   assert.match(hrHtml, /data-hr-directory-workspace hidden/);
   assert.match(hrHtml, /data-hr-announcement-workspace hidden/);
   assert.ok(
@@ -150,11 +157,12 @@ test("HR page separates directory and announcement workspaces", () => {
   );
   // Announcement form must not live inside hub cards.
   const hubStart = hrHtml.indexOf('data-hr-hub>');
-  const hubEnd = hrHtml.indexOf("data-hr-directory-workspace");
-  const hubChunk = hrHtml.slice(hubStart, hubEnd);
+  const hubClose = hrHtml.indexOf("</section>", hrHtml.indexOf("hr-module-grid"));
+  const hubChunk = hrHtml.slice(hubStart, hubClose);
   assert.doesNotMatch(hubChunk, /data-hr-announcement-form/);
   assert.doesNotMatch(hubChunk, /data-employee-form/);
-
+  assert.doesNotMatch(hubChunk, /class="card panel/);
+  assert.match(hubChunk, /class="card module-card/);
   assert.match(appJs, /function bindHrWorkspaceNavigation\(/);
   assert.match(appJs, /raw === "directorio"/);
   assert.match(appJs, /raw === "avisos"/);
