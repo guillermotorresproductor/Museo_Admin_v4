@@ -175,9 +175,9 @@ test("full_name recovery only for placeholder names", () => {
   assert.match(reconcileSql, /btrim\(coalesce\(p\.full_name, ''\)\) = ''/);
 });
 
-test("usher schedule suite still has thirty-eight tests", () => {
+test("usher schedule suite still has forty-nine tests", () => {
   const count = (usherTest.match(/^test\(/gm) || []).length;
-  assert.strictEqual(count, 38);
+  assert.strictEqual(count, 49);
 });
 
 console.log("All operational migration hardening checks passed.");

@@ -481,8 +481,21 @@ test("general calendar remains separate from usher schedule permissions", () => 
   assert.match(appJs, /calendario\.html/);
   assert.doesNotMatch(
     appJs.slice(appJs.indexOf("const canOpenUsherCalendarPage"), appJs.indexOf("const postLoginDestination")),
-    /hasPermission\("calendar\.manage"\)[\s\S]*usher\.schedule\.manage/
+    /calendar\.manage/
   );
+  assert.doesNotMatch(
+    String(core.canOpenUsherScheduleFromNavigation({
+      permissions: ["calendar.manage"],
+      linkedEmployee: { id: "e1", posicion: "Ujier ejecutivo", estado: "Activo" }
+    }).reason),
+    /calendar/
+  );
+  const calendarOnly = core.canOpenUsherScheduleFromNavigation({
+    permissions: ["calendar.manage"],
+    linkedEmployee: null,
+    serverAccess: null
+  });
+  assert.strictEqual(calendarOnly.allowed, false);
   assert.match(migrationSql, /has_permission\('usher\.schedule\.manage'\)/);
   assert.doesNotMatch(
     migrationSql.slice(
@@ -490,6 +503,181 @@ test("general calendar remains separate from usher schedule permissions", () => 
       migrationSql.indexOf("create or replace function public.usher_schedule_access_state")
     ),
     /calendar\.manage/
+  );
+});
+
+test("portal CTA opens ujieres.html and navigation gate awaits access state", () => {
+  assert.match(appJs, /museoPageUrl\("ujieres\.html"\)/);
+  assert.match(appJs, /async function enforceAuthenticatedPageAccess/);
+  assert.match(appJs, /await enforceAuthenticatedPageAccess\(\)/);
+  assert.match(appJs, /resolveUsherScheduleNavigationDecision/);
+  assert.match(appJs, /page === "ujieres\.html"/);
+  assert.ok(
+    appJs.indexOf("await syncEmployeeCacheFromSupabase()")
+      < appJs.indexOf("await enforceAuthenticatedPageAccess()")
+  );
+});
+
+test("ujier ejecutivo is not redirected away from ujieres.html", () => {
+  const decision = core.canOpenUsherScheduleFromNavigation({
+    permissions: [],
+    linkedEmployee: { id: "e1", posicion: "Ujier ejecutivo", estado: "Activo" },
+    serverAccess: {
+      can_read_own: true,
+      can_read_all: true,
+      can_manage: true,
+      unlinked: false,
+      inactive_blocked: false
+    }
+  });
+  assert.strictEqual(decision.allowed, true);
+  assert.strictEqual(decision.redirectToPortal, false);
+});
+
+test("regular ujier is not redirected away from ujieres.html", () => {
+  const decision = core.canOpenUsherScheduleFromNavigation({
+    permissions: [],
+    linkedEmployee: { id: "u1", posicion: "Ujier", estado: "Activo" },
+    serverAccess: {
+      can_read_own: true,
+      can_read_all: false,
+      can_manage: false,
+      unlinked: false,
+      inactive_blocked: false
+    }
+  });
+  assert.strictEqual(decision.allowed, true);
+  assert.strictEqual(decision.redirectToPortal, false);
+  assert.strictEqual(decision.reason, "server_access");
+});
+
+test("non-usher remains blocked from ujieres navigation", () => {
+  const decision = core.canOpenUsherScheduleFromNavigation({
+    permissions: [],
+    linkedEmployee: { id: "r1", posicion: "Recepcionista", estado: "Activo" },
+    serverAccess: {
+      can_read_own: false,
+      can_read_all: false,
+      can_manage: false,
+      unlinked: false,
+      inactive_blocked: false
+    }
+  });
+  assert.strictEqual(decision.allowed, false);
+  assert.strictEqual(decision.redirectToPortal, true);
+});
+
+test("unlinked account is blocked from ujieres navigation", () => {
+  const decision = core.canOpenUsherScheduleFromNavigation({
+    permissions: [],
+    linkedEmployee: null,
+    serverAccess: {
+      can_read_own: false,
+      can_read_all: false,
+      can_manage: false,
+      unlinked: true,
+      inactive_blocked: false
+    }
+  });
+  assert.strictEqual(decision.allowed, false);
+  assert.strictEqual(decision.reason, "unlinked");
+});
+
+test("inactive or terminated linked usher is blocked from ujieres navigation", () => {
+  for (const status of ["Inactivo", "Terminado"]) {
+    const byServer = core.canOpenUsherScheduleFromNavigation({
+      permissions: ["usher.schedule.manage"],
+      linkedEmployee: { id: "u1", posicion: "Ujier ejecutivo", estado: status },
+      serverAccess: {
+        inactive_blocked: true,
+        unlinked: false,
+        can_manage: false,
+        can_read_own: false,
+        can_read_all: false
+      }
+    });
+    assert.strictEqual(byServer.allowed, false, status);
+    assert.strictEqual(byServer.reason, "inactive", status);
+
+    const byLinkedOnly = core.canOpenUsherScheduleFromNavigation({
+      permissions: [],
+      linkedEmployee: { id: "u1", posicion: "Ujier ejecutivo", estado: status },
+      serverAccess: null
+    });
+    assert.strictEqual(byLinkedOnly.allowed, false, status);
+  }
+});
+
+test("administrator keeps ujieres navigation access", () => {
+  const decision = core.canOpenUsherScheduleFromNavigation({
+    permissions: [],
+    hasAdministrativeWorkspace: true,
+    linkedEmployee: null,
+    serverAccess: null
+  });
+  assert.strictEqual(decision.allowed, true);
+  assert.strictEqual(decision.reason, "admin_workspace");
+  assert.match(appJs, /if \(hasAdministrativeWorkspaceAccess\(\)\) return false;/);
+});
+
+test("usher navigation exception does not create portal redirect loop", () => {
+  assert.match(appJs, /Controlled exception: active linked Ujier/);
+  assert.doesNotMatch(
+    appJs.slice(
+      appJs.indexOf('if (page === "ujieres.html")'),
+      appJs.indexOf('const allowedPages = new Map([')
+    ),
+    /allowedPages\.get\(page\)/
+  );
+  const allowed = core.canOpenUsherScheduleFromNavigation({
+    permissions: [],
+    linkedEmployee: { id: "e1", posicion: "Ujier ejecutivo", estado: "Activo" },
+    serverAccess: { can_manage: true, can_read_all: true, can_read_own: true, unlinked: false, inactive_blocked: false }
+  });
+  assert.strictEqual(allowed.redirectToPortal, false);
+});
+
+test("environment staging is preserved on portal and usher calendar links", () => {
+  assert.match(appJs, /museoPageUrl\("ujieres\.html"\)/);
+  assert.match(appJs, /museoPageUrl\("employee-portal\.html"\)/);
+  assert.match(portalHtml, /usher-nav-fix-20260731/);
+  assert.match(ujieresHtml, /usher-nav-fix-20260731/);
+  assert.match(appJs, /ensureActiveEnvironmentInAddressBar/);
+  assert.match(appJs, /preserveActiveEnvironmentOnInternalLinks/);
+});
+
+test("ujier ejecutivo does not gain Calendario General via usher navigation", () => {
+  const toolsSlice = appJs.slice(appJs.indexOf("function renderPortalTools"), appJs.indexOf("function bindPortalAttendanceCorrections"));
+  assert.doesNotMatch(toolsSlice, /usher\.schedule/);
+  assert.match(toolsSlice, /calendar\.manage/);
+  const nav = core.canOpenUsherScheduleFromNavigation({
+    permissions: [],
+    linkedEmployee: { id: "e1", posicion: "Ujier ejecutivo", estado: "Activo" },
+    serverAccess: { can_manage: true, can_read_all: true, can_read_own: true, unlinked: false, inactive_blocked: false }
+  });
+  assert.strictEqual(nav.allowed, true);
+  assert.strictEqual(
+    core.canOpenUsherScheduleFromNavigation({
+      permissions: [],
+      linkedEmployee: { id: "e1", posicion: "Ujier ejecutivo", estado: "Activo" },
+      serverAccess: null
+    }).allowed,
+    true
+  );
+  assert.match(appJs, /\["calendario\.html", \(\) => hasPermission\("calendar\.manage"\) \|\| hasPermission\("schedules\.read\.team"\)\]/);
+});
+
+test("RLS and RPC remain the authority for usher schedule page access", () => {
+  assert.match(appJs, /fetchUsherScheduleAccessState/);
+  assert.match(appJs, /usher_schedule_access_state|serverAccess/);
+  assert.match(appJs, /canOpenUsherScheduleFromNavigation/);
+  assert.strictEqual(
+    core.canOpenUsherScheduleFromNavigation({
+      permissions: ["usher.schedule.manage"],
+      linkedEmployee: { id: "u1", posicion: "Ujier", estado: "Activo" },
+      serverAccess: { inactive_blocked: true, unlinked: false, can_manage: false, can_read_own: false, can_read_all: false }
+    }).allowed,
+    false
   );
 });
 

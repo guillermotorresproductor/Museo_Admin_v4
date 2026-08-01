@@ -237,6 +237,54 @@
     };
   }
 
+  /**
+   * Navigation gate for ujieres.html. Prefer serverAccess (usher_schedule_access_state)
+   * when present; never treat calendar.manage as usher schedule authority.
+   */
+  function canOpenUsherScheduleFromNavigation({
+    permissions = [],
+    hasAdministrativeWorkspace = false,
+    linkedEmployee = null,
+    serverAccess = null
+  } = {}) {
+    if (hasAdministrativeWorkspace) {
+      return { allowed: true, reason: "admin_workspace", redirectToPortal: false };
+    }
+
+    // Server access state is authoritative when available (fail-closed for inactive/unlinked).
+    if (serverAccess) {
+      if (serverAccess.unlinked || serverAccess.inactive_blocked) {
+        return {
+          allowed: false,
+          reason: serverAccess.unlinked ? "unlinked" : "inactive",
+          redirectToPortal: true
+        };
+      }
+      if (serverAccess.can_read_own || serverAccess.can_read_all || serverAccess.can_manage) {
+        return { allowed: true, reason: "server_access", redirectToPortal: false };
+      }
+      return { allowed: false, reason: "server_denied", redirectToPortal: true };
+    }
+
+    const permissionSet = new Set(permissions || []);
+    if (
+      permissionSet.has("usher.schedule.read.own")
+      || permissionSet.has("usher.schedule.read.all")
+      || permissionSet.has("usher.schedule.manage")
+    ) {
+      return { allowed: true, reason: "usher_permission", redirectToPortal: false };
+    }
+
+    const statusValue = linkedEmployee?.estado || linkedEmployee?.status;
+    const position = String(linkedEmployee?.posicion || linkedEmployee?.position || "").trim().toLowerCase();
+    const isUsher = position === "ujier" || position === "ujier ejecutivo";
+    if (linkedEmployee && isUsher && isActiveEmployeeStatus(statusValue)) {
+      return { allowed: true, reason: "linked_active_usher", redirectToPortal: false };
+    }
+
+    return { allowed: false, reason: "not_usher", redirectToPortal: true };
+  }
+
   const api = {
     dayNames,
     monthNames,
@@ -258,7 +306,8 @@
     mapSecureShiftRecord,
     assertNetworkIsolation,
     upcomingUsherShifts,
-    resolvePortalUsherCardModel
+    resolvePortalUsherCardModel,
+    canOpenUsherScheduleFromNavigation
   };
 
   root.UsherScheduleCore = api;

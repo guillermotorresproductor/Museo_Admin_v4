@@ -307,22 +307,34 @@ const hasAdministrativeWorkspaceAccess = () =>
 const canAccessAdministrationHub = () => hasAdministrativeWorkspaceAccess();
 const isActiveAdministrator = () =>
   currentProfileRole === "administrador" && currentProfileActive && Boolean(currentProfileMuseumId);
-const canOpenUsherCalendarPage = () => {
+const findLinkedUsherEmployeeForSession = () => {
+  const sessionUserId = getSupabaseSession()?.user?.id;
+  if (!sessionUserId) return null;
+  return getEmployeeRecords().find((employee) =>
+    employee.authUserId === sessionUserId
+    && isUsherPosition(employee.posicion)
+    && isActiveEmployeeStatus(employee.estado)
+  ) || null;
+};
+
+const canOpenUsherCalendarPage = (serverAccess = null) => {
+  const core = window.UsherScheduleCore;
+  if (core?.canOpenUsherScheduleFromNavigation) {
+    return Boolean(core.canOpenUsherScheduleFromNavigation({
+      permissions: [...currentPermissions],
+      hasAdministrativeWorkspace: hasAdministrativeWorkspaceAccess(),
+      linkedEmployee: findLinkedUsherEmployeeForSession(),
+      serverAccess
+    }).allowed);
+  }
   if (
     hasPermission("usher.schedule.read.own")
     || hasPermission("usher.schedule.read.all")
     || hasPermission("usher.schedule.manage")
-    || hasPermission("calendar.manage")
   ) {
     return true;
   }
-  const sessionUserId = getSupabaseSession()?.user?.id;
-  if (!sessionUserId) return false;
-  return getEmployeeRecords().some((employee) =>
-    employee.authUserId === sessionUserId
-    && isUsherPosition(employee.posicion)
-    && isActiveEmployeeStatus(employee.estado)
-  );
+  return Boolean(findLinkedUsherEmployeeForSession());
 };
 const postLoginDestination = () => {
   if (hasAdministrativeWorkspaceAccess()) return "dashboard.html";
@@ -400,7 +412,32 @@ async function recordSecurityAuditEvent(action, moduleId, result, details = {}) 
   }
 }
 
-function enforceAuthenticatedPageAccess() {
+async function resolveUsherScheduleNavigationDecision() {
+  const core = window.UsherScheduleCore;
+  let serverAccess = null;
+  if (typeof fetchUsherScheduleAccessState === "function") {
+    serverAccess = await fetchUsherScheduleAccessState().catch(() => null);
+  }
+  if (!findLinkedUsherEmployeeForSession() && !serverAccess) {
+    await syncEmployeeCacheFromSupabase().catch(() => null);
+  }
+  const linkedEmployee = findLinkedUsherEmployeeForSession();
+  if (core?.canOpenUsherScheduleFromNavigation) {
+    return core.canOpenUsherScheduleFromNavigation({
+      permissions: [...currentPermissions],
+      hasAdministrativeWorkspace: hasAdministrativeWorkspaceAccess(),
+      linkedEmployee,
+      serverAccess
+    });
+  }
+  return {
+    allowed: canOpenUsherCalendarPage(serverAccess),
+    reason: "legacy",
+    redirectToPortal: !canOpenUsherCalendarPage(serverAccess)
+  };
+}
+
+async function enforceAuthenticatedPageAccess() {
   const page = getCurrentPage();
   if (page === "login.html" || page === "dashboard.html" || page === "index.html") return false;
 
@@ -447,10 +484,18 @@ function enforceAuthenticatedPageAccess() {
 
   if (hasAdministrativeWorkspaceAccess()) return false;
 
+  // Controlled exception: active linked Ujier / Ujier ejecutivo may open ujieres.html.
+  // Authority comes from usher_schedule_access_state (and linked cargo), not calendar.manage.
+  if (page === "ujieres.html") {
+    const decision = await resolveUsherScheduleNavigationDecision();
+    if (decision.allowed) return false;
+    window.location.replace(museoPageUrl("employee-portal.html"));
+    return true;
+  }
+
   const allowedPages = new Map([
     ["recursos-humanos.html", () => hasPermission("employees.read.all")],
     ["calendario.html", () => hasPermission("calendar.manage") || hasPermission("schedules.read.team")],
-    ["ujieres.html", () => canOpenUsherCalendarPage()],
     ["inventario.html", () => hasPermission("inventory.manage")]
   ]);
   if (allowedPages.get(page)?.()) return false;
@@ -7809,8 +7854,9 @@ async function initApp() {
     currentProfileActive = false;
     currentProfileMuseumId = null;
   });
-  if (enforceAuthenticatedPageAccess()) return;
+  // Load employee links before page gates so Ujier / Ujier ejecutivo can open ujieres.html.
   await syncEmployeeCacheFromSupabase().catch(() => null);
+  if (await enforceAuthenticatedPageAccess()) return;
   updateCurrentUserFromEmployeeCache();
   renderHeader();
   preserveActiveEnvironmentOnInternalLinks();
