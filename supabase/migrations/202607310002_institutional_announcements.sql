@@ -1,5 +1,5 @@
 -- Institutional announcements (Boletín de Avisos Institucionales)
--- Not applied automatically: create only. Do not db push from this task.
+-- Pending: apply only after security audit. Do not db push from casual work.
 
 insert into public.permissions(code, description, sensitivity) values
   ('announcements.publish', 'Publicar y archivar avisos institucionales', 'sensitive'),
@@ -41,8 +41,7 @@ create table if not exists public.institutional_announcement_recipients (
   recipient_user_id uuid not null references auth.users(id) on delete cascade,
   notified_at timestamptz not null default now(),
   read_at timestamptz,
-  primary key (announcement_id, recipient_user_id),
-  constraint institutional_announcement_recipients_unique unique (announcement_id, recipient_user_id)
+  primary key (announcement_id, recipient_user_id)
 );
 
 create index if not exists institutional_announcement_recipients_museum_idx
@@ -63,44 +62,70 @@ create index if not exists employee_notifications_related_announcement_idx
 alter table public.institutional_announcements enable row level security;
 alter table public.institutional_announcement_recipients enable row level security;
 
+-- RPC-only access: no direct PostgREST SELECT for authenticated.
 revoke all on table public.institutional_announcements from public, anon, authenticated;
 revoke all on table public.institutional_announcement_recipients from public, anon, authenticated;
-grant select on table public.institutional_announcements to authenticated;
-grant select on table public.institutional_announcement_recipients to authenticated;
 
-drop policy if exists institutional_announcements_select on public.institutional_announcements;
-create policy institutional_announcements_select
-on public.institutional_announcements
-for select
-to authenticated
-using (
-  museum_id = public.current_user_museum_id()
-  and (
-    public.has_permission('announcements.publish')
-    or exists (
-      select 1
-      from public.institutional_announcement_recipients r
-      where r.announcement_id = institutional_announcements.id
-        and r.museum_id = institutional_announcements.museum_id
-        and r.recipient_user_id = auth.uid()
-    )
-  )
-);
+-- ---------------------------------------------------------------------------
+-- Internal helpers (SECURITY DEFINER, empty search_path, EXECUTE revoked)
+-- Relies on public.employee_status_is_active() from usher migration (fail-closed).
+-- ---------------------------------------------------------------------------
 
-drop policy if exists institutional_announcement_recipients_select on public.institutional_announcement_recipients;
-create policy institutional_announcement_recipients_select
-on public.institutional_announcement_recipients
-for select
-to authenticated
-using (
-  museum_id = public.current_user_museum_id()
-  and (
-    recipient_user_id = auth.uid()
-    or public.has_permission('announcements.publish')
-  )
-);
+create or replace function public.profile_has_nonactive_linked_employee(
+  p_profile_id uuid,
+  p_museum_id uuid
+) returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  -- True when any same-museum employee link for this auth/profile is not explicitly active.
+  select exists (
+    select 1
+    from public.employees e
+    where e.museum_id = p_museum_id
+      and p_profile_id is not null
+      and (e.auth_user_id = p_profile_id or e.profile_id = p_profile_id)
+      and not public.employee_status_is_active(e.status)
+  );
+$$;
 
--- No direct INSERT/UPDATE/DELETE policies for authenticated (RPC-only mutations).
+create or replace function public.profile_has_active_auth_linked_employee(
+  p_profile_id uuid,
+  p_museum_id uuid
+) returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  -- Active employee with a real Auth link (auth_user_id set and matching the profile).
+  select exists (
+    select 1
+    from public.employees e
+    where e.museum_id = p_museum_id
+      and p_profile_id is not null
+      and e.auth_user_id = p_profile_id
+      and (e.profile_id is null or e.profile_id = p_profile_id)
+      and public.employee_status_is_active(e.status)
+  );
+$$;
+
+create or replace function public.linked_employee_blocks_announcements()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  -- Fail-closed: any linked employee that is not explicitly active blocks all announcement privileges,
+  -- including Administrador / Ejecutivo / announcements.publish.
+  select public.profile_has_nonactive_linked_employee(
+    auth.uid(),
+    public.current_user_museum_id()
+  );
+$$;
 
 create or replace function public.is_admin_or_executive_profile()
 returns boolean
@@ -131,20 +156,33 @@ as $$
     );
 $$;
 
-create or replace function public.linked_employee_blocks_announcements()
-returns boolean
+create or replace function public.profile_is_admin_or_executive(
+  p_profile_id uuid,
+  p_museum_id uuid
+) returns boolean
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  -- Fail-closed: a linked non-active employee blocks publish/read for that account.
   select exists (
     select 1
-    from public.employees e
-    where (e.auth_user_id = auth.uid() or e.profile_id = auth.uid())
-      and e.museum_id = public.current_user_museum_id()
-      and e.status is distinct from 'activo'
+    from public.profiles p
+    where p.id = p_profile_id
+      and p.museum_id = p_museum_id
+      and p.status = 'active'
+      and (
+        p.role in ('administrador', 'ejecutivo')
+        or exists (
+          select 1
+          from public.user_roles ur
+          join public.roles r on r.id = ur.role_id
+          where ur.user_id = p.id
+            and ur.museum_id = p_museum_id
+            and r.code in ('administrador', 'ejecutivo')
+            and (ur.valid_until is null or ur.valid_until > now())
+        )
+      )
   );
 $$;
 
@@ -187,30 +225,51 @@ stable
 security definer
 set search_path = ''
 as $$
+  -- Non-active linked employees are excluded BEFORE any role-based eligibility.
   select distinct p.id
   from public.profiles p
   where p.museum_id = p_museum_id
     and p.status = 'active'
+    and not public.profile_has_nonactive_linked_employee(p.id, p_museum_id)
     and (
-      exists (
-        select 1
-        from public.employees e
-        where e.museum_id = p_museum_id
-          and e.status = 'activo'
-          and (e.auth_user_id = p.id or e.profile_id = p.id)
-      )
-      or p.role in ('administrador', 'ejecutivo')
-      or exists (
-        select 1
-        from public.user_roles ur
-        join public.roles r on r.id = ur.role_id
-        where ur.user_id = p.id
-          and ur.museum_id = p_museum_id
-          and r.code in ('administrador', 'ejecutivo')
-          and (ur.valid_until is null or ur.valid_until > now())
-      )
+      public.profile_has_active_auth_linked_employee(p.id, p_museum_id)
+      or public.profile_is_admin_or_executive(p.id, p_museum_id)
     );
 $$;
+
+-- Defense-in-depth RLS (tables have no SELECT grant for authenticated; RPCs are the path).
+drop policy if exists institutional_announcements_select on public.institutional_announcements;
+create policy institutional_announcements_select
+on public.institutional_announcements
+for select
+to authenticated
+using (
+  museum_id = public.current_user_museum_id()
+  and not public.linked_employee_blocks_announcements()
+  and (
+    public.can_publish_institutional_announcement()
+    or exists (
+      select 1
+      from public.institutional_announcement_recipients r
+      where r.announcement_id = institutional_announcements.id
+        and r.museum_id = institutional_announcements.museum_id
+        and r.recipient_user_id = auth.uid()
+    )
+  )
+);
+
+drop policy if exists institutional_announcement_recipients_select on public.institutional_announcement_recipients;
+create policy institutional_announcement_recipients_select
+on public.institutional_announcement_recipients
+for select
+to authenticated
+using (
+  museum_id = public.current_user_museum_id()
+  and not public.linked_employee_blocks_announcements()
+  and recipient_user_id = auth.uid()
+);
+
+-- No direct INSERT/UPDATE/DELETE policies for authenticated (RPC-only mutations).
 
 create or replace function public.write_institutional_announcement_audit(
   p_museum_id uuid,
@@ -315,9 +374,6 @@ begin
   );
 
   return saved;
-exception
-  when others then
-    raise;
 end;
 $$;
 
@@ -343,6 +399,7 @@ set search_path = ''
 as $$
 declare
   mid uuid := public.current_user_museum_id();
+  publisher boolean := public.can_publish_institutional_announcement();
 begin
   if auth.uid() is null or mid is null then
     raise exception 'UNAUTHORIZED' using errcode = '42501';
@@ -362,7 +419,7 @@ begin
     a.published_at,
     a.status,
     r.read_at,
-    public.can_publish_institutional_announcement() as can_archive
+    publisher as can_archive
   from public.institutional_announcements a
   left join public.profiles p on p.id = a.published_by
   left join public.institutional_announcement_recipients r
@@ -371,10 +428,10 @@ begin
    and r.museum_id = a.museum_id
   where a.museum_id = mid
     and (
-      public.has_permission('announcements.publish')
+      publisher
       or r.recipient_user_id is not null
     )
-    and (p_include_archived or a.status = 'published' or public.has_permission('announcements.publish'))
+    and (p_include_archived or a.status = 'published' or publisher)
   order by a.published_at desc, a.created_at desc;
 end;
 $$;
@@ -496,7 +553,6 @@ begin
     then
       if current_setting('role', true) is distinct from 'service_role'
          and pg_catalog.session_user not in ('postgres', 'supabase_admin') then
-        -- Allow SECURITY DEFINER archive path only for status/updated_at.
         if new.status is distinct from old.status
           and new.title is not distinct from old.title
           and new.body is not distinct from old.body
@@ -524,8 +580,11 @@ declare
   fn text;
 begin
   foreach fn in array array[
-    'is_admin_or_executive_profile()',
+    'profile_has_nonactive_linked_employee(uuid,uuid)',
+    'profile_has_active_auth_linked_employee(uuid,uuid)',
     'linked_employee_blocks_announcements()',
+    'is_admin_or_executive_profile()',
+    'profile_is_admin_or_executive(uuid,uuid)',
     'can_publish_institutional_announcement()',
     'can_read_institutional_announcements()',
     'eligible_institutional_announcement_recipients(uuid)',
