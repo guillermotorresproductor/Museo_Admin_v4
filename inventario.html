@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Inventario</title>
-  <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
+  <link rel="stylesheet" href="css/main.css?v=inventory-v1-20260901">
 </head>
 <body>
   <div class="app-shell">
@@ -25,7 +25,7 @@
           <div class="inventory-controls">
             <label class="field" for="inventory-search">
               <span>Buscar</span>
-              <input id="inventory-search" type="search" placeholder="Nombre, sello, descripción, ubicación, donante o estado" data-inventory-search>
+              <input id="inventory-search" type="search" placeholder="Nombre, sello, serie, marca, modelo o responsable" data-inventory-search>
             </label>
 
             <label class="field" for="inventory-filter-location">
@@ -41,26 +41,29 @@
                 <option value="">Todos los estados</option>
               </select>
             </label>
+
+            <label class="inventory-archive-filter" for="inventory-show-archived">
+              <input id="inventory-show-archived" type="checkbox" data-inventory-show-archived>
+              <span>Mostrar equipos archivados</span>
+            </label>
           </div>
 
           <div class="table-wrap">
             <table class="data-table inventory-table">
               <thead>
                 <tr>
-                  <th><button type="button" data-inventory-sort="tipo">Tipo</button></th>
-                  <th><button type="button" data-inventory-sort="nombre">Nombre</button></th>
-                  <th><button type="button" data-inventory-sort="descripcion">Descripción</button></th>
-                  <th><button type="button" data-inventory-sort="sello">Número de sello</button></th>
-                  <th><button type="button" data-inventory-sort="ubicacion">Ubicación</button></th>
-                  <th><button type="button" data-inventory-sort="estado">Estado</button></th>
-                  <th><button type="button" data-inventory-sort="contacto">Persona de contacto / Donante</button></th>
-                  <th><button type="button" data-inventory-sort="fecha">Fecha de registro</button></th>
+                  <th>Foto</th>
+                  <th><button type="button" data-inventory-sort="name">Equipo</button></th>
+                  <th><button type="button" data-inventory-sort="asset_tag">Sello / Serie</button></th>
+                  <th><button type="button" data-inventory-sort="location">Ubicación / Responsable</button></th>
+                  <th><button type="button" data-inventory-sort="condition">Condición / Estado</button></th>
+                  <th><button type="button" data-inventory-sort="updated_at">Actualizado</button></th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody data-inventory-list>
                 <tr>
-                  <td colspan="9">No hay artículos registrados.</td>
+                  <td colspan="7">No hay equipos registrados.</td>
                 </tr>
               </tbody>
             </table>
@@ -72,39 +75,91 @@
             <div>
               <p class="page-kicker">Entrada de Inventario</p>
               <h3 data-inventory-form-title>Registro de Equipos</h3>
-              <p>Seleccione el tipo de entrada antes de completar el formulario.</p>
-            </div>
-            <div class="inventory-type-tabs" role="tablist" aria-label="Tipo de inventario">
-              <button class="button submit-button is-active" type="button" data-inventory-type="Equipo">Equipos</button>
-              <button class="button secondary" type="button" data-inventory-type="Obra de Arte">Obra de Arte</button>
+              <p>Un registro corresponde a un solo equipo físico.</p>
             </div>
           </div>
 
           <form id="inventory-form" class="application-form" novalidate>
             <input type="hidden" id="inventory-id" name="id">
-            <input type="hidden" id="inventory-type" name="tipo" value="Equipo">
+            <input type="hidden" id="inventory-version" name="version">
 
             <div class="form-row">
               <label class="field" for="inventory-name">
                 <span>Nombre del artículo</span>
-                <input id="inventory-name" name="nombre" type="text" required>
+                <input id="inventory-name" name="name" type="text" maxlength="160" required>
               </label>
 
               <label class="field" for="inventory-tag">
                 <span>Número de sello (Asset Tag)</span>
-                <input id="inventory-tag" name="sello" type="text" required>
+                <input id="inventory-tag" name="asset_tag" type="text" maxlength="80" required>
               </label>
             </div>
 
             <label class="field" for="inventory-description">
               <span>Descripción</span>
-              <textarea id="inventory-description" name="descripcion" rows="4" required></textarea>
+              <textarea id="inventory-description" name="description" rows="3" maxlength="2000" required></textarea>
             </label>
 
             <div class="form-row">
+              <label class="field" for="inventory-category">
+                <span>Categoría</span>
+                <input id="inventory-category" name="category" type="text" maxlength="100" required>
+              </label>
+              <label class="field" for="inventory-serial">
+                <span>Número de serie</span>
+                <input id="inventory-serial" name="serial_number" type="text" maxlength="120">
+              </label>
+            </div>
+
+            <div class="form-row form-row-three">
+              <label class="field" for="inventory-brand">
+                <span>Marca</span>
+                <input id="inventory-brand" name="brand" type="text" maxlength="100">
+              </label>
+              <label class="field" for="inventory-model">
+                <span>Modelo</span>
+                <input id="inventory-model" name="model" type="text" maxlength="100">
+              </label>
+              <label class="field" for="inventory-quantity">
+                <span>Cantidad</span>
+                <input id="inventory-quantity" name="quantity" type="number" value="1" min="1" max="1" readonly>
+              </label>
+            </div>
+
+            <div class="form-row form-row-three">
+              <label class="field" for="inventory-purchase-order">
+                <span>Orden de compra</span>
+                <input id="inventory-purchase-order" name="purchase_order" type="text" maxlength="100">
+              </label>
+              <label class="field" for="inventory-supplier">
+                <span>Suplidor</span>
+                <input id="inventory-supplier" name="supplier" type="text" maxlength="160">
+              </label>
+              <label class="field" for="inventory-received-date">
+                <span>Fecha recibida</span>
+                <input id="inventory-received-date" name="received_date" type="date">
+              </label>
+            </div>
+
+            <div class="form-row form-row-three">
+              <label class="field" for="inventory-cost">
+                <span>Costo</span>
+                <input id="inventory-cost" name="cost" type="number" min="0" step="0.01" inputmode="decimal">
+              </label>
+              <label class="field" for="inventory-condition">
+                <span>Condición</span>
+                <select id="inventory-condition" name="condition" required>
+                  <option value="">Seleccione...</option>
+                  <option value="excelente">Excelente</option>
+                  <option value="buena">Buena</option>
+                  <option value="regular">Regular</option>
+                  <option value="necesita_reparacion">Necesita reparación</option>
+                  <option value="fuera_de_servicio">Fuera de servicio</option>
+                </select>
+              </label>
               <label class="field" for="inventory-location">
                 <span>Ubicación</span>
-                <select id="inventory-location" name="ubicacion" required>
+                <select id="inventory-location" name="location" required>
                   <option value="">Seleccione una ubicación...</option>
                   <option>Almacén 1</option>
                   <option>Almacén 2</option>
@@ -126,103 +181,59 @@
                 </select>
               </label>
 
+            </div>
+
+            <div class="form-row form-row-three">
+              <label class="field" for="inventory-responsible">
+                <span>Responsable</span>
+                <input id="inventory-responsible" name="responsible" type="text" maxlength="160">
+              </label>
               <label class="field" for="inventory-status">
                 <span>Estado</span>
-                <select id="inventory-status" name="estado" required>
+                <select id="inventory-status" name="status" required>
                   <option value="">Seleccione un estado...</option>
-                  <option>Excelente</option>
-                  <option>Bueno</option>
-                  <option>Regular</option>
-                  <option>Necesita reparación</option>
-                  <option>En restauración</option>
-                  <option>Fuera de servicio</option>
+                  <option value="activo">Activo</option>
+                  <option value="en_reparacion">En reparación</option>
+                  <option value="prestado">Prestado</option>
+                  <option value="retirado">Retirado</option>
                 </select>
+              </label>
+              <label class="field" for="inventory-warranty">
+                <span>Garantía</span>
+                <input id="inventory-warranty" name="warranty" type="text" maxlength="300" placeholder="Vigencia o detalles">
               </label>
             </div>
 
-            <label class="field" for="inventory-contact">
-              <span>Persona de contacto / Donante</span>
-              <input id="inventory-contact" name="contacto" type="text">
-            </label>
-
-            <div class="artwork-fields" data-artwork-fields hidden>
-              <div class="form-row">
-                <label class="field" for="art-lender">
-                  <span>Nombre del prestamista</span>
-                  <input id="art-lender" name="prestamista" type="text" disabled>
-                </label>
-                <label class="field" for="art-email">
-                  <span>Correo electrónico</span>
-                  <input id="art-email" name="correo" type="email" disabled>
-                </label>
-              </div>
-              <div class="form-row">
-                <label class="field" for="art-phone">
-                  <span>Teléfono</span>
-                  <input id="art-phone" name="telefono" type="tel" disabled>
-                </label>
-                <label class="field" for="art-received-date">
-                  <span>Fecha de recibo</span>
-                  <input id="art-received-date" name="fechaRecibo" type="date" disabled>
-                </label>
-              </div>
-              <label class="field" for="art-address">
-                <span>Dirección postal</span>
-                <input id="art-address" name="direccion" type="text" disabled>
+            <div class="inventory-photo-field">
+              <label class="field" for="inventory-photo">
+                <span>Fotografía del equipo</span>
+                <input id="inventory-photo" name="photo" type="file" accept=".jpg,.jpeg,.png,.heic,.heif,.webp,image/jpeg,image/png,image/heic,image/heif,image/webp">
+                <small>JPG, PNG, HEIC o WebP; máximo 10 MB y mínimo 800×600. Se guardará como WebP de 500 KB o menos.</small>
               </label>
-              <div class="form-row">
-                <label class="field" for="art-category">
-                  <span>Categoría</span>
-                  <select id="art-category" name="categoria" disabled>
-                    <option value="">Seleccione...</option>
-                    <option>Instrumento musical</option>
-                    <option>Fotografía</option>
-                    <option>Documento</option>
-                    <option>Vestuario</option>
-                    <option>Memorabilia</option>
-                    <option>Equipo electrónico</option>
-                    <option>Otro</option>
-                  </select>
-                </label>
-                <label class="field" for="art-value">
-                  <span>Valor estimado</span>
-                  <input id="art-value" name="valor" type="text" disabled>
-                </label>
+              <div class="inventory-photo-preview" data-inventory-photo-preview>
+                <span>Sin fotografía seleccionada</span>
               </div>
-              <div class="form-row">
-                <label class="field" for="art-loan-start">
-                  <span>Fecha de inicio del préstamo</span>
-                  <input id="art-loan-start" name="inicio" type="date" disabled>
-                </label>
-                <label class="field" for="art-loan-end">
-                  <span>Fecha estimada de devolución</span>
-                  <input id="art-loan-end" name="devolucion" type="date" disabled>
-                </label>
-              </div>
-              <label class="field" for="art-purpose">
-                <span>Propósito del préstamo</span>
-                <textarea id="art-purpose" name="proposito" rows="4" disabled></textarea>
-              </label>
-              <label class="field" for="art-notes">
-                <span>Observaciones adicionales</span>
-                <textarea id="art-notes" name="observaciones" rows="4" disabled></textarea>
-              </label>
             </div>
 
             <div class="inventory-actions">
-              <button class="button submit-button" type="submit" data-inventory-submit>Guardar Registro</button>
+              <button class="button submit-button" type="submit" data-inventory-submit>Registrar equipo</button>
               <button class="button secondary" type="button" data-inventory-cancel hidden>Cancelar edición</button>
             </div>
             <p class="form-message" data-inventory-message></p>
           </form>
         </section>
       </main>
+      <dialog class="inventory-detail-dialog" data-inventory-detail-dialog>
+        <div data-inventory-detail></div>
+        <div class="inventory-actions"><button class="button secondary" type="button" data-inventory-detail-close>Cerrar</button></div>
+      </dialog>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=employee-sensitive-20260721"></script>
+  <script src="js/inventory-image.js?v=inventory-v1-20260901"></script>
+  <script src="js/services/supabase.js?v=inventory-v1-20260901"></script>
+  <script src="js/app.js?v=inventory-v1-20260901"></script>
 </body>
 </html>
 

@@ -279,3 +279,104 @@ async function saveSupabaseEmployeeSensitiveDetails(employeeId, compensation, em
     emergency_contact: emergencyContact
   });
 }
+
+const supabaseInventoryPhotosBucket = "inventory-photos";
+
+function inventoryServiceError(data, fallback) {
+  const message = String(data?.message || data?.error || fallback || "No se pudo completar la operación.");
+  const lower = message.toLowerCase();
+  if (data?.code === "23505" || lower.includes("duplicate key")) {
+    return new Error("El número de sello o la serie ya existe en este museo.");
+  }
+  if (data?.code === "40001" || lower.includes("another user")) {
+    const error = new Error("Otra persona modificó este equipo. Recargue el listado antes de intentar nuevamente.");
+    error.code = "INVENTORY_CONFLICT";
+    return error;
+  }
+  if (data?.code === "42501" || lower.includes("authorized") || lower.includes("permission")) {
+    return new Error("Su cuenta no tiene permiso para administrar Inventario.");
+  }
+  return new Error(message);
+}
+
+async function inventoryRpc(functionName, body) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${functionName}`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify(body)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw inventoryServiceError(data, "No se pudo guardar el equipo.");
+  return data;
+}
+
+async function fetchSupabaseInventoryItems({ includeArchived = false } = {}) {
+  const archivedFilter = includeArchived ? "" : "&archived_at=is.null";
+  return supabaseGet(`/rest/v1/inventory_items?select=*&order=updated_at.desc${archivedFilter}`);
+}
+
+async function createSupabaseInventoryItem(item) {
+  return inventoryRpc("inventory_create", { p_item: item });
+}
+
+async function updateSupabaseInventoryItem(id, expectedVersion, item) {
+  return inventoryRpc("inventory_update", {
+    p_id: id,
+    p_expected_version: expectedVersion,
+    p_item: item
+  });
+}
+
+async function archiveSupabaseInventoryItem(id, expectedVersion) {
+  return inventoryRpc("inventory_archive", { p_id: id, p_expected_version: expectedVersion });
+}
+
+function inventoryPhotoPath(item) {
+  return `${item.museum_id}/${item.id}/main.webp`;
+}
+
+async function uploadSupabaseInventoryPhoto(item, webpBlob) {
+  const path = inventoryPhotoPath(item);
+  const response = await fetch(`${supabaseUrl}/storage/v1/object/${supabaseInventoryPhotosBucket}/${path}`, {
+    method: "POST",
+    headers: {
+      ...(await supabaseAuthHeaders()),
+      "Content-Type": "image/webp",
+      "x-upsert": "true"
+    },
+    body: webpBlob
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw inventoryServiceError(data, "No se pudo guardar la fotografía.");
+  try {
+    return await inventoryRpc("inventory_set_photo", { p_id: item.id, p_expected_version: item.version });
+  } catch (error) {
+    // Una creación fallida no debe dejar un objeto sin referencia en la base de datos.
+    if (!item.photo_path) await deleteSupabaseInventoryPhoto(path).catch(() => {});
+    throw error;
+  }
+}
+
+async function deleteSupabaseInventoryPhoto(path) {
+  const response = await fetch(`${supabaseUrl}/storage/v1/object/${supabaseInventoryPhotosBucket}/${path}`, {
+    method: "DELETE",
+    headers: await supabaseAuthHeaders()
+  });
+  if (!response.ok && response.status !== 404) {
+    const data = await response.json().catch(() => ({}));
+    throw inventoryServiceError(data, "No se pudo limpiar la fotografía incompleta.");
+  }
+}
+
+async function signSupabaseInventoryPhoto(path, expiresIn = 900) {
+  if (!path) return "";
+  const response = await fetch(`${supabaseUrl}/storage/v1/object/sign/${supabaseInventoryPhotosBucket}/${path}`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify({ expiresIn })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw inventoryServiceError(data, "No se pudo mostrar la fotografía.");
+  const signedPath = data.signedURL || data.signedUrl || data.signed_url;
+  return signedPath ? `${supabaseUrl}/storage/v1${signedPath.startsWith("/") ? "" : "/"}${signedPath}` : "";
+}

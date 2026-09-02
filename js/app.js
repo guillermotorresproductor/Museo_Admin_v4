@@ -2770,57 +2770,35 @@ function bindInventoryModule() {
   if (!form) return;
 
   const entryPanel = document.querySelector("[data-inventory-entry-panel]");
-  const typeButtons = document.querySelectorAll("[data-inventory-type]");
-  const typeField = document.querySelector("#inventory-type");
-  const formTitle = document.querySelector("[data-inventory-form-title]");
-  const artworkFields = document.querySelector("[data-artwork-fields]");
   const list = document.querySelector("[data-inventory-list]");
   const message = document.querySelector("[data-inventory-message]");
   const search = document.querySelector("[data-inventory-search]");
   const locationFilter = document.querySelector("[data-inventory-filter-location]");
   const statusFilter = document.querySelector("[data-inventory-filter-status]");
+  const showArchived = document.querySelector("[data-inventory-show-archived]");
   const total = document.querySelector("[data-inventory-total]");
   const submitButton = document.querySelector("[data-inventory-submit]");
   const cancelButton = document.querySelector("[data-inventory-cancel]");
   const idField = document.querySelector("#inventory-id");
-  const locations = Array.from(document.querySelectorAll("#inventory-location option")).map((option) => option.value).filter(Boolean);
-  const statuses = Array.from(document.querySelectorAll("#inventory-status option")).map((option) => option.value).filter(Boolean);
+  const versionField = document.querySelector("#inventory-version");
+  const photoInput = document.querySelector("#inventory-photo");
+  const photoPreview = document.querySelector("[data-inventory-photo-preview]");
+  const detailDialog = document.querySelector("[data-inventory-detail-dialog]");
+  const detail = document.querySelector("[data-inventory-detail]");
   let records = [];
-  let sortKey = "fecha";
+  let processedPhoto = null;
+  let photoProcessing = null;
+  let photoError = null;
+  let previewObjectUrl = "";
+  let sortKey = "updated_at";
   let sortDirection = "desc";
 
   const canEditInventory = () => hasPermission("inventory.manage");
-  const saveRecords = async () => saveSystemCollection("inventario", "records", records);
   const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;"
-  })[character]);
-  const createId = () => {
-    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
-    return `inventory-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  };
-
-  const artworkFieldControls = () => Array.from(artworkFields?.querySelectorAll("input, select, textarea") || []);
-
-  const setInventoryType = (type) => {
-    const isArtwork = type === "Obra de Arte";
-    if (typeField) typeField.value = type;
-    if (formTitle) formTitle.textContent = isArtwork ? "Registro de Obra de Arte" : "Registro de Equipos";
-    if (artworkFields) artworkFields.hidden = !isArtwork;
-    artworkFieldControls().forEach((field) => {
-      field.disabled = !isArtwork;
-    });
-    typeButtons.forEach((button) => {
-      const active = button.dataset.inventoryType === type;
-      button.classList.toggle("is-active", active);
-      button.classList.toggle("submit-button", active);
-      button.classList.toggle("secondary", !active);
-    });
-  };
+  const escapeHtml = (value) => safeHtml(String(value ?? ""));
+  const label = (value) => String(value || "").replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
+  const formatDate = (value) => value ? new Intl.DateTimeFormat("es-PR", { dateStyle: "medium" }).format(new Date(value)) : "—";
+  const formatMoney = (value) => value === null || value === "" ? "—" : new Intl.NumberFormat("es-PR", { style: "currency", currency: "USD" }).format(Number(value));
 
   const setMessage = (text, type = "") => {
     if (!message) return;
@@ -2829,12 +2807,16 @@ function bindInventoryModule() {
   };
 
   const populateFilters = () => {
-    if (locationFilter && locationFilter.options.length === 1) {
-      locations.forEach((location) => locationFilter.add(new Option(location, location)));
-    }
-    if (statusFilter && statusFilter.options.length === 1) {
-      statuses.forEach((status) => statusFilter.add(new Option(status, status)));
-    }
+    const currentLocation = locationFilter?.value || "";
+    const currentStatus = statusFilter?.value || "";
+    const resetOptions = (select, firstText, values, selected) => {
+      if (!select) return;
+      select.replaceChildren(new Option(firstText, ""));
+      [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")).forEach((value) => select.add(new Option(label(value), value)));
+      select.value = selected;
+    };
+    resetOptions(locationFilter, "Todas las ubicaciones", records.map((item) => item.location), currentLocation);
+    resetOptions(statusFilter, "Todos los estados", records.map((item) => item.status), currentStatus);
   };
 
   const getFilteredRecords = () => {
@@ -2846,17 +2828,21 @@ function bindInventoryModule() {
       .filter((record) => {
         const matchesSearch = !term || [
           record.tipo,
-          record.nombre,
-          record.descripcion,
-          record.sello,
-          record.ubicacion,
-          record.estado,
-          record.contacto
+          record.name,
+          record.description,
+          record.asset_tag,
+          record.serial_number,
+          record.category,
+          record.brand,
+          record.model,
+          record.location,
+          record.responsible,
+          record.status
         ].some((value) => normalize(value).includes(term));
 
         return matchesSearch &&
-          (!selectedLocation || record.ubicacion === selectedLocation) &&
-          (!selectedStatus || record.estado === selectedStatus);
+          (!selectedLocation || record.location === selectedLocation) &&
+          (!selectedStatus || record.status === selectedStatus);
       })
       .sort((a, b) => {
         const first = normalize(a[sortKey]);
@@ -2867,42 +2853,78 @@ function bindInventoryModule() {
   };
 
   const renderRecords = () => {
-    if (total) total.textContent = records.length;
+    if (total) total.textContent = records.filter((record) => !record.archived_at).length;
     if (!list) return;
 
     const filteredRecords = getFilteredRecords();
     if (filteredRecords.length === 0) {
-      list.innerHTML = `<tr><td colspan="9">No hay artículos registrados.</td></tr>`;
+      list.innerHTML = `<tr><td colspan="7">No hay equipos que coincidan con la búsqueda.</td></tr>`;
       return;
     }
 
     list.innerHTML = filteredRecords.map((record) => `
-      <tr>
-        <td>${escapeHtml(record.tipo || "Equipo")}</td>
-        <td>${escapeHtml(record.nombre)}</td>
-        <td>${escapeHtml(record.descripcion)}</td>
-        <td>${escapeHtml(record.sello)}</td>
-        <td>${escapeHtml(record.ubicacion)}</td>
-        <td>${escapeHtml(record.estado)}</td>
-        <td>${escapeHtml(record.contacto || "N/A")}</td>
-        <td>${escapeHtml(record.fecha)}</td>
+      <tr${record.archived_at ? ' class="is-archived"' : ""}>
+        <td><div class="inventory-photo-thumb" data-inventory-photo-for="${record.id}"><span>Sin foto</span></div></td>
+        <td><strong>${escapeHtml(record.name)}</strong><small>${escapeHtml([record.brand, record.model].filter(Boolean).join(" · ") || record.category)}</small></td>
+        <td><strong>${escapeHtml(record.asset_tag)}</strong><small>${escapeHtml(record.serial_number || "Sin serie")}</small></td>
+        <td>${escapeHtml(record.location)}<small>${escapeHtml(record.responsible || "Sin responsable")}</small></td>
+        <td>${escapeHtml(label(record.condition))}<small>${record.archived_at ? "Archivado" : escapeHtml(label(record.status))}</small></td>
+        <td>${escapeHtml(formatDate(record.updated_at))}<small>v${Number(record.version)}</small></td>
         <td>
-          <div class="table-actions"${canEditInventory() ? "" : " hidden"}>
-            <button type="button" data-inventory-edit="${record.id}">Editar</button>
-            <button type="button" data-inventory-delete="${record.id}">Eliminar</button>
+          <div class="table-actions">
+            <button type="button" data-inventory-view="${record.id}">Ver</button>
+            ${canEditInventory() && !record.archived_at ? `<button type="button" data-inventory-edit="${record.id}">Editar</button><button type="button" data-inventory-archive="${record.id}">Archivar</button>` : ""}
           </div>
         </td>
       </tr>
     `).join("");
+
+    filteredRecords.filter((record) => record.photo_path).forEach(async (record) => {
+      try {
+        const signedUrl = await signSupabaseInventoryPhoto(record.photo_path);
+        const target = list.querySelector(`[data-inventory-photo-for="${record.id}"]`);
+        if (target && signedUrl) target.innerHTML = `<img src="${escapeHtml(signedUrl)}" alt="Fotografía de ${escapeHtml(record.name)}">`;
+      } catch {
+        // El equipo continúa disponible aunque una URL firmada individual expire o falle.
+      }
+    });
   };
 
   const resetForm = () => {
     form.reset();
     if (idField) idField.value = "";
-    setInventoryType(typeField?.value || "Equipo");
-    if (submitButton) submitButton.textContent = "Guardar Registro";
+    if (versionField) versionField.value = "";
+    form.elements.quantity.value = "1";
+    form.elements.status.value = "activo";
+    processedPhoto = null;
+    photoProcessing = null;
+    photoError = null;
+    if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    previewObjectUrl = "";
+    if (photoPreview) photoPreview.innerHTML = "<span>Sin fotografía seleccionada</span>";
+    if (submitButton) submitButton.textContent = "Registrar equipo";
     if (cancelButton) cancelButton.hidden = true;
   };
+
+  const payloadFromForm = (data) => ({
+    asset_tag: String(data.get("asset_tag") || "").trim(),
+    serial_number: String(data.get("serial_number") || "").trim(),
+    name: String(data.get("name") || "").trim(),
+    description: String(data.get("description") || "").trim(),
+    category: String(data.get("category") || "").trim(),
+    brand: String(data.get("brand") || "").trim(),
+    model: String(data.get("model") || "").trim(),
+    quantity: 1,
+    purchase_order: String(data.get("purchase_order") || "").trim(),
+    supplier: String(data.get("supplier") || "").trim(),
+    received_date: String(data.get("received_date") || ""),
+    cost: String(data.get("cost") || ""),
+    condition: String(data.get("condition") || ""),
+    location: String(data.get("location") || "").trim(),
+    responsible: String(data.get("responsible") || "").trim(),
+    status: String(data.get("status") || ""),
+    warranty: String(data.get("warranty") || "").trim()
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -2910,77 +2932,94 @@ function bindInventoryModule() {
       setMessage("Solo Ejecutivos y Administradores pueden crear o editar inventario.", "error");
       return;
     }
-    const data = new FormData(form);
-    const id = data.get("id");
-    const tipo = data.get("tipo") || "Equipo";
-    const record = {
-      id: id || createId(),
-      tipo,
-      nombre: data.get("nombre").trim(),
-      descripcion: data.get("descripcion").trim(),
-      sello: data.get("sello").trim(),
-      ubicacion: data.get("ubicacion"),
-      estado: data.get("estado"),
-      contacto: data.get("contacto").trim(),
-      fecha: id ? records.find((item) => item.id === id)?.fecha : new Date().toLocaleDateString("es-PR"),
-      prestamista: data.get("prestamista")?.trim() || "",
-      correo: data.get("correo")?.trim() || "",
-      telefono: data.get("telefono")?.trim() || "",
-      fechaRecibo: data.get("fechaRecibo") || "",
-      direccion: data.get("direccion")?.trim() || "",
-      categoria: data.get("categoria") || "",
-      valor: data.get("valor")?.trim() || "",
-      inicio: data.get("inicio") || "",
-      devolucion: data.get("devolucion") || "",
-      proposito: data.get("proposito")?.trim() || "",
-      observaciones: data.get("observaciones")?.trim() || ""
-    };
-
-    if (!record.nombre || !record.descripcion || !record.sello || !record.ubicacion || !record.estado) {
+    if (!form.reportValidity()) {
       setMessage("Complete todos los campos requeridos antes de guardar.", "error");
       return;
     }
-
-    const duplicate = records.some((item) => normalize(item.sello) === normalize(record.sello) && item.id !== id);
-    if (duplicate) {
-      setMessage("El número de sello ya existe. Use un número único.", "error");
-      return;
-    }
-
-    const nextRecords = id ? records.map((item) => item.id === id ? record : item) : [record, ...records];
-    const previousRecords = records;
+    const data = new FormData(form);
+    const id = String(data.get("id") || "");
+    const version = Number(data.get("version") || 0);
+    const payload = payloadFromForm(data);
+    submitButton.disabled = true;
+    setMessage("Guardando equipo...", "");
     try {
-      records = nextRecords;
-      await saveRecords();
+      if (photoProcessing) await photoProcessing;
+      if (photoError) throw photoError;
+      let saved = id
+        ? await updateSupabaseInventoryItem(id, version, payload)
+        : await createSupabaseInventoryItem(payload);
+      if (processedPhoto?.blob) saved = await uploadSupabaseInventoryPhoto(saved, processedPhoto.blob);
       resetForm();
-      setMessage(id ? "Registro actualizado en Supabase." : "Registro guardado en Supabase.", "success");
-      renderRecords();
+      setMessage(id ? "Equipo actualizado correctamente." : "Equipo registrado correctamente.", "success");
+      await loadInventoryRecords();
     } catch (error) {
-      records = previousRecords;
-      setMessage(`No se pudo guardar en Supabase: ${error.message}`, "error");
+      setMessage(error.message || "No se pudo guardar el equipo.", "error");
+      if (error.code === "INVENTORY_CONFLICT") await loadInventoryRecords();
+    } finally {
+      submitButton.disabled = false;
     }
   });
 
   document.addEventListener("click", async (event) => {
     const editButton = event.target.closest("[data-inventory-edit]");
-    const deleteButton = event.target.closest("[data-inventory-delete]");
+    const viewButton = event.target.closest("[data-inventory-view]");
+    const archiveButton = event.target.closest("[data-inventory-archive]");
     const sortButton = event.target.closest("[data-inventory-sort]");
 
     if (editButton) {
       if (!canEditInventory()) return;
       const record = records.find((item) => item.id === editButton.dataset.inventoryEdit);
       if (!record) return;
-      setInventoryType(record.tipo || "Equipo");
       Object.entries(record).forEach(([key, value]) => {
         const field = form.elements[key];
-        if (field) field.value = value;
+        if (field && key !== "photo") field.value = value ?? "";
       });
-      if (submitButton) submitButton.textContent = "Actualizar Registro";
+      idField.value = record.id;
+      versionField.value = record.version;
+      if (photoPreview) photoPreview.innerHTML = record.photo_path ? "<span>Fotografía actual; seleccione otra para reemplazarla.</span>" : "<span>Sin fotografía actual.</span>";
+      if (submitButton) submitButton.textContent = "Actualizar equipo";
       if (cancelButton) cancelButton.hidden = false;
-      setMessage("Editando registro seleccionado.", "");
+      setMessage("Editando equipo. La versión se comprobará al guardar.", "");
       form.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-
+    if (viewButton) {
+      const record = records.find((item) => item.id === viewButton.dataset.inventoryView);
+      if (!record || !detail) return;
+      let photo = "<div class=\"inventory-detail-photo\"><span>Sin fotografía</span></div>";
+      if (record.photo_path) {
+        try {
+          const url = await signSupabaseInventoryPhoto(record.photo_path);
+          photo = `<div class="inventory-detail-photo"><img src="${escapeHtml(url)}" alt="Fotografía de ${escapeHtml(record.name)}"></div>`;
+        } catch { /* Mostrar la ficha aunque la foto no esté disponible. */ }
+      }
+      detail.innerHTML = `${photo}<h3>${escapeHtml(record.name)}</h3><dl class="inventory-detail-grid">
+        <div><dt>Sello</dt><dd>${escapeHtml(record.asset_tag)}</dd></div><div><dt>Serie</dt><dd>${escapeHtml(record.serial_number || "—")}</dd></div>
+        <div><dt>Categoría</dt><dd>${escapeHtml(record.category)}</dd></div><div><dt>Marca / modelo</dt><dd>${escapeHtml([record.brand, record.model].filter(Boolean).join(" · ") || "—")}</dd></div>
+        <div><dt>Ubicación</dt><dd>${escapeHtml(record.location)}</dd></div><div><dt>Responsable</dt><dd>${escapeHtml(record.responsible || "—")}</dd></div>
+        <div><dt>Condición</dt><dd>${escapeHtml(label(record.condition))}</dd></div><div><dt>Estado</dt><dd>${escapeHtml(record.archived_at ? "Archivado" : label(record.status))}</dd></div>
+        <div><dt>Orden / suplidor</dt><dd>${escapeHtml([record.purchase_order, record.supplier].filter(Boolean).join(" · ") || "—")}</dd></div><div><dt>Recibido / costo</dt><dd>${escapeHtml(formatDate(record.received_date))} · ${escapeHtml(formatMoney(record.cost))}</dd></div>
+        <div><dt>Garantía</dt><dd>${escapeHtml(record.warranty || "—")}</dd></div><div><dt>Versión</dt><dd>${Number(record.version)}</dd></div>
+      </dl><p>${escapeHtml(record.description)}</p>`;
+      detailDialog?.showModal();
+    }
+    if (archiveButton) {
+      if (!canEditInventory()) return;
+      const record = records.find((item) => item.id === archiveButton.dataset.inventoryArchive);
+      if (!record || !window.confirm(`¿Archivar el equipo “${record.name}”? Permanecerá en el historial.`)) return;
+      try {
+        await archiveSupabaseInventoryItem(record.id, record.version);
+        setMessage("Equipo archivado; no se eliminó su historial.", "success");
+        await loadInventoryRecords();
+      } catch (error) {
+        setMessage(error.message || "No se pudo archivar el equipo.", "error");
+      }
+    }
+    if (sortButton) {
+      const nextKey = sortButton.dataset.inventorySort;
+      sortDirection = sortKey === nextKey && sortDirection === "asc" ? "desc" : "asc";
+      sortKey = nextKey;
+      renderRecords();
+    }
   });
 
   if (cancelButton) {
@@ -2990,33 +3029,48 @@ function bindInventoryModule() {
     });
   }
 
-  typeButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      resetForm();
-      setInventoryType(button.dataset.inventoryType);
-      setMessage("");
-    });
-  });
-
   [search, locationFilter, statusFilter].forEach((control) => {
     if (control) control.addEventListener("input", renderRecords);
+  });
+  showArchived?.addEventListener("change", loadInventoryRecords);
+  document.querySelector("[data-inventory-detail-close]")?.addEventListener("click", () => detailDialog?.close());
+  photoInput?.addEventListener("change", () => {
+    processedPhoto = null;
+    photoError = null;
+    const file = photoInput.files?.[0];
+    if (!file) return;
+    setMessage("Procesando fotografía...", "");
+    photoProcessing = InventoryImage.process(file).then((result) => {
+      processedPhoto = result;
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+      previewObjectUrl = URL.createObjectURL(result.blob);
+      photoPreview.innerHTML = `<img src="${previewObjectUrl}" alt="Previsualización"><span>${result.width}×${result.height} · ${Math.ceil(result.bytes / 1024)} KB · WebP</span>`;
+      setMessage("Fotografía lista. Se eliminaron los metadatos EXIF.", "success");
+      return result;
+    }).catch((error) => {
+      photoError = error;
+      photoInput.value = "";
+      setMessage(error.message, "error");
+      return null;
+    });
   });
 
   if (!canEditInventory() && entryPanel) {
     entryPanel.hidden = true;
   }
-  const loadInventoryRecords = async () => {
+  async function loadInventoryRecords() {
     try {
-      records = await fetchSystemCollection("inventario", "records", []);
-      setMessage("Inventario cargado desde Supabase.", "success");
+      records = await fetchSupabaseInventoryItems({ includeArchived: Boolean(showArchived?.checked) });
+      populateFilters();
+      renderRecords();
     } catch (error) {
-      setMessage(`No se pudo cargar Inventario desde Supabase: ${error.message}`, "error");
+      records = [];
+      renderRecords();
+      setMessage(`No se pudo cargar Inventario: ${error.message}`, "error");
     }
-    setInventoryType("Equipo");
-    populateFilters();
-    renderRecords();
-  };
+  }
 
+  resetForm();
   loadInventoryRecords();
 }
 
