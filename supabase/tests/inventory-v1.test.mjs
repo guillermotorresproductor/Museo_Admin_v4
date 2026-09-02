@@ -6,6 +6,7 @@ import vm from "node:vm";
 const root = new URL("../../", import.meta.url);
 const imageSource = fs.readFileSync(new URL("js/inventory-image.js", root), "utf8");
 const migration = fs.readFileSync(new URL("supabase/migrations/202609010001_inventory_items.sql", root), "utf8");
+const photoRlsFix = fs.readFileSync(new URL("supabase/migrations/202609010002_inventory_photo_rls_fix.sql", root), "utf8");
 const html = fs.readFileSync(new URL("inventario.html", root), "utf8");
 const service = fs.readFileSync(new URL("js/services/supabase.js", root), "utf8");
 
@@ -62,4 +63,12 @@ test("la página mantiene el módulo aislado y carga el procesador WebP", () => 
   assert.match(html, /js\/inventory-image\.js/);
   assert.match(html, /data-inventory-show-archived/);
   assert.doesNotMatch(html, /Instituva_App/i);
+});
+
+test("la corrección RLS usa el nombre del objeto y privilegio mínimo", () => {
+  assert.match(photoRlsFix, /can_manage_inventory_photo\(object_name text\)/i);
+  assert.match(photoRlsFix, /storage\.foldername\(object_name\)/i);
+  assert.doesNotMatch(photoRlsFix, /storage\.foldername\(name\)/i);
+  assert.match(photoRlsFix, /revoke execute on function public\.inventory_create\(jsonb\) from anon/i);
+  assert.doesNotMatch(photoRlsFix, /grant\s+(insert|update|delete).*storage\.objects/i);
 });

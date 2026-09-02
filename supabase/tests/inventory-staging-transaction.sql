@@ -49,6 +49,64 @@ from public.inventory_create(jsonb_build_object(
   'warranty', 'No aplica'
 )) created;
 
+-- Reproduce the row that the Storage API creates after receiving main.webp.
+insert into storage.objects(bucket_id, name, owner_id, metadata)
+select
+  'inventory-photos',
+  public.current_user_museum_id()::text || '/' || id::text || '/main.webp',
+  auth.uid()::text,
+  jsonb_build_object('mimetype', 'image/webp', 'size', 131072)
+from inventory_test_state;
+
+do $$
+declare
+  v_id uuid;
+  v_version bigint;
+  v_photo public.inventory_items;
+begin
+  select id, version into v_id, v_version from inventory_test_state;
+  v_photo := public.inventory_set_photo(v_id, v_version);
+  update inventory_test_state set version = v_photo.version where id = v_id;
+end;
+$$;
+
+-- Replacing a photo is an UPDATE of the same object, never a second path.
+update storage.objects o
+set metadata = coalesce(o.metadata, '{}'::jsonb) || jsonb_build_object('size', 122880, 'replacement', true),
+    updated_at = now()
+from inventory_test_state s
+where o.bucket_id = 'inventory-photos'
+  and o.name = public.current_user_museum_id()::text || '/' || s.id::text || '/main.webp';
+
+do $$
+declare
+  v_id uuid;
+  v_object_count integer;
+  v_replacement boolean;
+  v_orphan_count integer;
+begin
+  select id into v_id from inventory_test_state;
+  select count(*), coalesce(bool_or((metadata->>'replacement')::boolean), false)
+  into v_object_count, v_replacement
+  from storage.objects
+  where bucket_id = 'inventory-photos'
+    and name = public.current_user_museum_id()::text || '/' || v_id::text || '/main.webp';
+  if v_object_count <> 1 or not v_replacement then
+    raise exception 'Photo replacement did not preserve a single main.webp object';
+  end if;
+
+  select count(*) into v_orphan_count
+  from storage.objects o
+  left join public.inventory_items i
+    on i.museum_id::text = (storage.foldername(o.name))[1]
+   and i.id::text = (storage.foldername(o.name))[2]
+  where o.bucket_id = 'inventory-photos' and i.id is null;
+  if v_orphan_count <> 0 then
+    raise exception 'Inventory photo orphan detected';
+  end if;
+end;
+$$;
+
 do $$
 declare
   v_id uuid;
