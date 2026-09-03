@@ -83,7 +83,7 @@ set search_path = ''
 as $$
 begin
   insert into public.audit_logs (
-    museum_id, actor_user_id, action, table_name, record_id, old_value, new_value
+    museum_id, user_id, action, table_name, record_id, old_value, new_value
   ) values (
     coalesce(new.museum_id, old.museum_id),
     auth.uid(),
