@@ -3208,7 +3208,7 @@ function bindCalendarModules() {
     const employees = getEmployeeRecords().filter((employee) => employee.estado !== "Inactivo");
     const options = employees.map((employee) => {
       const name = employeeDisplayName(employee);
-      return `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+      return `<option value="${escapeHtml(isGeneral ? employee.id : name)}">${escapeHtml(name)}</option>`;
     }).join("");
     employeeSelect.innerHTML = `<option value="">Seleccione un empleado...</option>${options}`;
   };
@@ -3269,7 +3269,7 @@ function bindCalendarModules() {
             : `<strong>${escapeHtml(record.titulo)}</strong><span>${escapeHtml(record.clasificacion || "Sin clasificación")}</span><small>${escapeHtml(record.area || "Sin área")}</small>`;
         const theme = isGeneral ? activityClassificationThemes[record.clasificacion] || "theme-slate" : "";
         const actions = canEdit()
-          ? `<div class="calendar-item-actions"><button type="button" data-calendar-edit="${record.id}">Editar</button><button type="button" data-calendar-delete="${record.id}">Eliminar</button></div>`
+          ? `<div class="calendar-item-actions"><button type="button" data-calendar-edit="${record.id}">Editar</button><button type="button" data-calendar-delete="${record.id}">${isGeneral ? "Archivar" : "Eliminar"}</button></div>`
           : "";
         return `<article class="calendar-item ${theme}" data-calendar-view="${record.id}">${body}${actions}</article>`;
       }).join("");
@@ -3347,8 +3347,31 @@ function bindCalendarModules() {
     const nextRecords = id ? records.map((item) => item.id === id ? record : item) : [...records, record];
     const previousRecords = records;
     try {
-      records = nextRecords;
-      await saveRecords();
+      if (isGeneral) {
+        const saved = await saveSupabaseCalendarEvent({
+          calendar_type: "general",
+          title: record.titulo,
+          classification: record.clasificacion,
+          description: record.descripcion || null,
+          event_date: record.fecha,
+          location: record.area,
+          assigned_employee_id: record.empleado,
+          status: "programado"
+        }, id);
+        const normalized = {
+          id: saved.id,
+          fecha: saved.event_date,
+          empleado: saved.assigned_employee_id || "",
+          titulo: saved.title,
+          clasificacion: saved.classification || "",
+          area: saved.location || "",
+          descripcion: saved.description || ""
+        };
+        records = id ? records.map((item) => item.id === id ? normalized : item) : [...records, normalized];
+      } else {
+        records = nextRecords;
+        await saveRecords();
+      }
       activeDate = new Date(`${record.fecha}T12:00:00`);
       resetForm();
       setMessage(id ? "Registro actualizado en Supabase." : "Registro guardado en Supabase.", "success");
@@ -3390,6 +3413,19 @@ function bindCalendarModules() {
       form.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
+    if (deleteButton && isGeneral) {
+      if (!canEdit()) return;
+      const id = deleteButton.dataset.calendarDelete;
+      try {
+        await archiveSupabaseCalendarEvent(id);
+        records = records.filter((item) => item.id !== id);
+        setMessage("Evento archivado en Supabase.", "success");
+        renderCalendar();
+      } catch (error) {
+        setMessage(`No se pudo archivar el evento: ${error.message}`, "error");
+      }
+    }
+
   });
 
   panel.querySelector("[data-calendar-prev]")?.addEventListener("click", () => {
@@ -3417,7 +3453,19 @@ function bindCalendarModules() {
   });
   const loadCalendarRecords = async () => {
     try {
-      records = await fetchSystemCollection(moduleKey, "records", []);
+      if (isGeneral) {
+        records = (await fetchSupabaseCalendarEvents("general")).map((row) => ({
+          id: row.id,
+          fecha: row.event_date,
+          empleado: row.assigned_employee_id || "",
+          titulo: row.title,
+          clasificacion: row.classification || "",
+          area: row.location || "",
+          descripcion: row.description || ""
+        }));
+      } else {
+        records = await fetchSystemCollection(moduleKey, "records", []);
+      }
       setMessage("Calendario cargado desde Supabase.", "success");
     } catch (error) {
       setMessage(`No se pudo cargar este calendario desde Supabase: ${error.message}`, "error");
