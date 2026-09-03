@@ -81,6 +81,12 @@ body:not(.login-page):not(.app-ready) {
   object-fit: contain;
 }
 
+@media (min-width: 621px) {
+  .private-login-logo {
+    width: min(100%, 300px);
+  }
+}
+
 .login-page .app-shell {
   width: min(100%, 430px);
   min-height: auto;
