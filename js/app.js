@@ -5133,6 +5133,9 @@ function bindFinanceModule() {
   };
 
   async function refresh() {
+    if (typeof isInstitutionalDataBackendEnabled !== "function" || !isInstitutionalDataBackendEnabled()) {
+      throw new Error("Finanzas v1 está habilitado únicamente en el preview conectado a Development.");
+    }
     setSync("checking", "Consultando Instituva", "Cargando el presupuesto oficial.");
     snapshot = await bridge("finance_budget_snapshot", { p_budget_version_id: null }) || { versions: [] };
     setSync("connected", "Instituva Development conectado", "Fuente oficial de Finanzas v1.");
