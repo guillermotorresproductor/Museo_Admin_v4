@@ -296,6 +296,9 @@ function loginUrlWithReturn(page) {
 }
 
 function resolvePostLoginDestination() {
+  if (typeof isMuseumProductionHost === "function" && isMuseumProductionHost()) {
+    return postLoginDestination();
+  }
   const next = new URLSearchParams(window.location.search).get("next");
   if (next && !next.includes("..") && !next.includes("://")) {
     return next.endsWith(".html") ? next : `${next}.html`;
@@ -1202,17 +1205,8 @@ function iconSvg(name) {
 
 function getCurrentPage() {
   const segment = window.location.pathname.split("/").pop() || "index.html";
-  const barePageNames = {
-    login: "login.html",
-    finanzas: "finanzas.html",
-    "direccion-ejecutiva": "direccion-ejecutiva.html",
-    reportes: "reportes.html",
-    administracion: "administracion.html",
-    membresias: "membresias.html",
-    "renta-espacios": "renta-espacios.html",
-    "renta-espacio": "renta-espacio.html"
-  };
-  return barePageNames[segment] || segment;
+  if (segment.includes(".")) return segment;
+  return `${segment}.html`;
 }
 
 function isLoginPage() {
