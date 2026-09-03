@@ -2830,7 +2830,7 @@ function bindInventoryModule() {
     return records
       .filter((record) => {
         const matchesSearch = !term || [
-          record.tipo,
+          record.record_type,
           record.name,
           record.description,
           record.asset_tag,
