@@ -45,3 +45,9 @@ test("mmdpr.org no agrega environment al login ni a recuperación", () => {
   assert.match(app, /isMuseumProductionHost/);
   assert.match(service, /isMuseumProductionHost/);
 });
+
+test("las rutas sin extensión se normalizan y mmdpr abre el Dashboard", () => {
+  assert.match(app, /if \(segment\.includes\("\."\)\) return segment;/);
+  assert.match(app, /return `\$\{segment\}\.html`;/);
+  assert.match(app, /isMuseumProductionHost\(\)\) \{\s*return postLoginDestination\(\);/);
+});
