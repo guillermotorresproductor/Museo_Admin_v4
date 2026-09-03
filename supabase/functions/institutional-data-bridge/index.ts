@@ -7,6 +7,20 @@ const RENTAL_RPC: Record<string, string> = {
   log_rental_blocked_event: "service_bridge_log_rental_blocked_event",
 };
 
+const FINANCE_RPC: Record<string, { rpc: string; permission: "finance.read" | "finance.write" }> = {
+  finance_budget_snapshot: { rpc: "service_bridge_finance_budget_snapshot", permission: "finance.read" },
+  finance_create_budget_draft: { rpc: "service_bridge_finance_create_budget_draft", permission: "finance.write" },
+  finance_upsert_budget_line: { rpc: "service_bridge_finance_upsert_budget_line", permission: "finance.write" },
+  finance_set_budget_amount: { rpc: "service_bridge_finance_set_budget_amount", permission: "finance.write" },
+};
+
+function currentMuseoProjectRef() {
+  const explicit = Deno.env.get("MUSEO_PROJECT_REF");
+  if (explicit) return explicit;
+  const url = new URL(Deno.env.get("SUPABASE_URL") || "https://invalid.local");
+  return url.hostname.split(".")[0];
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Método no permitido." }, 405);
@@ -19,7 +33,48 @@ Deno.serve(async (req) => {
     const instituvaServiceKey =
       Deno.env.get("INSTITUVA_SERVICE_ROLE_KEY") || Deno.env.get("INSTITUVA_SECRET_KEY");
     const organizationId = Deno.env.get("INSTITUVA_ORGANIZATION_ID");
-    if (!instituvaUrl || !instituvaServiceKey || !organizationId) {
+    if (!instituvaUrl || !instituvaServiceKey) {
+      return json({ error: "Puente Instituva no configurado en el servidor." }, 503);
+    }
+
+    const financeAction = FINANCE_RPC[kind];
+    if (financeAction) {
+      const { profile, user } = await requirePermission(req, financeAction.permission);
+      const instituva = createClient(instituvaUrl, instituvaServiceKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const payload = body.payload && typeof body.payload === "object" ? body.payload : {};
+      const args: Record<string, unknown> = {
+        p_museo_project_ref: currentMuseoProjectRef(),
+        p_museum_id: profile.museum_id,
+        p_museo_user_id: user.id,
+      };
+      if (kind === "finance_budget_snapshot") {
+        args.p_budget_version_id = payload.p_budget_version_id ?? null;
+      } else if (kind === "finance_create_budget_draft") {
+        args.p_request_key = payload.p_request_key;
+        args.p_title = payload.p_title;
+      } else if (kind === "finance_upsert_budget_line") {
+        args.p_budget_version_id = payload.p_budget_version_id;
+        args.p_request_key = payload.p_request_key;
+        args.p_line_id = payload.p_line_id ?? null;
+        args.p_line_code = payload.p_line_code;
+        args.p_label = payload.p_label;
+        args.p_line_type = payload.p_line_type;
+        args.p_display_order = payload.p_display_order ?? 0;
+      } else if (kind === "finance_set_budget_amount") {
+        args.p_budget_version_id = payload.p_budget_version_id;
+        args.p_budget_line_id = payload.p_budget_line_id;
+        args.p_request_key = payload.p_request_key;
+        args.p_period_start = payload.p_period_start;
+        args.p_amount = payload.p_amount;
+      }
+      const { data, error } = await instituva.rpc(financeAction.rpc, args);
+      if (error) return json({ error: error.message || "Instituva rechazó la operación." }, 400);
+      return json(data);
+    }
+
+    if (!organizationId) {
       return json({ error: "Puente Instituva no configurado en el servidor." }, 503);
     }
 
