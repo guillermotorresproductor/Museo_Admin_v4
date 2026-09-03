@@ -12,6 +12,7 @@ const appPages = {
   "renta-espacios.html": { title: "Renta de Espacios", subtitle: "Solicitud de áreas y tarifas oficiales." },
   "renta-espacio.html": { title: "Renta de Espacios", subtitle: "Ficha, fotografías y condiciones del espacio." },
   "membresias.html": { title: "Membresías", subtitle: "Socios, beneficios, renovaciones y participación." },
+  "departamento-museologico.html": { title: "Departamento Museológico", subtitle: "Museología, salas, colecciones y formularios museográficos." },
   "administracion.html": { title: "Administración", subtitle: "Dirección ejecutiva, recursos humanos, notificaciones, reportes y finanzas." },
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
   "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
@@ -54,6 +55,7 @@ const navigationGroups = [
     label: "Menu",
     items: [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
+      { href: "departamento-museologico.html", label: "Departamento Museológico", icon: "building", activePages: ["recibo-prestamo.html"] },
       { href: "calendario.html", label: "Calendario de Eventos del Museo", icon: "calendar" },
       { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building", activePages: ["renta-espacio.html"] },
       { href: "membresias.html", label: "Membresías", icon: "users" },
@@ -285,6 +287,19 @@ const SENSITIVE_MODULE_ACCESS = {
   "reportes.html": () => hasPermission("reports.read") || hasPermission("system.configure")
 };
 
+const moduleAccessChecks = {
+  "departamento-museologico.html": () => hasAdministrativeWorkspaceAccess(),
+  "calendario.html": () => hasPermission("calendar.manage") || hasPermission("schedules.read.team"),
+  "renta-espacios.html": () => hasPermission("rentals.manage"),
+  "membresias.html": () => hasPermission("memberships.manage"),
+  "ujieres.html": () => hasPermission("usher.schedule.read.own") || hasPermission("usher.schedule.read.all") || hasPermission("usher.schedule.manage"),
+  "mantenimiento.html": () => hasAdministrativeWorkspaceAccess(),
+  "documentos.html": () => hasAdministrativeWorkspaceAccess(),
+  "administracion.html": () => canAccessAdministrationHub(),
+  "boletin.html": () => hasPermission("announcements.read") || hasPermission("announcements.publish"),
+  "inventario.html": () => hasPermission("inventory.manage")
+};
+
 function loginUrlWithReturn(page) {
   const params = new URLSearchParams();
   if (typeof isMuseumProductionHost !== "function" || !isMuseumProductionHost()) {
@@ -389,6 +404,8 @@ function enforceAuthenticatedPageAccess() {
   const allowedPages = new Map([
     ["recursos-humanos.html", () => hasPermission("employees.read.all")],
     ["calendario.html", () => hasPermission("calendar.manage") || hasPermission("schedules.read.team")],
+    ["ujieres.html", moduleAccessChecks["ujieres.html"]],
+    ["boletin.html", moduleAccessChecks["boletin.html"]],
     ["inventario.html", () => hasPermission("inventory.manage")]
   ]);
   if (allowedPages.get(page)?.()) return false;
@@ -1311,14 +1328,7 @@ function renderSidebar() {
     const links = group.items.filter((item) => {
       if (item.href === "dashboard.html" || item.href === "login.html") return true;
       if (hasAdministrativeWorkspaceAccess()) return true;
-      const checks = {
-        "calendario.html": () => hasPermission("calendar.manage") || hasPermission("schedules.read.team"),
-        "renta-espacios.html": () => hasPermission("rentals.manage"),
-        "membresias.html": () => hasPermission("memberships.manage"),
-        "administracion.html": () => canAccessAdministrationHub(),
-        "inventario.html": () => hasPermission("inventory.manage")
-      };
-      return Boolean(checks[item.href]?.());
+      return Boolean(moduleAccessChecks[item.href]?.());
     }).map((item) => {
       const isActive = item.href === currentPage || (item.activePages || []).includes(currentPage) || (currentPage === "index.html" && item.href === "dashboard.html");
       return `
@@ -1362,16 +1372,9 @@ function renderSidebar() {
 
 function filterDashboardModules() {
   if (!["dashboard.html", "index.html"].includes(getCurrentPage()) || hasAdministrativeWorkspaceAccess()) return;
-  const checks = {
-    "calendario.html": () => hasPermission("calendar.manage") || hasPermission("schedules.read.team"),
-    "renta-espacios.html": () => hasPermission("rentals.manage"),
-    "membresias.html": () => hasPermission("memberships.manage"),
-    "administracion.html": () => canAccessAdministrationHub(),
-    "inventario.html": () => hasPermission("inventory.manage")
-  };
   document.querySelectorAll(".module-grid .module-card[href]").forEach((card) => {
     const href = card.getAttribute("href");
-    card.hidden = !Boolean(checks[href]?.());
+    card.hidden = !Boolean(moduleAccessChecks[href]?.());
   });
 }
 
