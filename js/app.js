@@ -23,9 +23,9 @@ const appPages = {
   "reglamento.html": { title: "Reglamento del Museo", subtitle: "Normas oficiales, impresión y descarga." },
   "documentos.html": { title: "Formularios y Papelería", subtitle: "Stationary, reglamento, solicitud de empleo y formularios oficiales." },
   "deposito-artes.html": { title: "Depósito de Artes", subtitle: "Logos oficiales, artes y guías de marca del Museo." },
-  "recibo-prestamo.html": { title: "Formularios Museográficos", subtitle: "Formularios digitales para artículos de colección y procesos museográficos." },
+  "recibo-prestamo.html": { title: "Formulario de Préstamo a Colección", subtitle: "Formulario digital para artículos de colección recibidos mediante préstamo." },
   "boletin.html": { title: "Boletín Board", subtitle: "Publicaciones, anuncios y comunicaciones internas." },
-  "inventario.html": { title: "Inventario de Equipos y Obras de Arte", subtitle: "Registro, consulta y localización de artículos del museo." }
+  "inventario.html": { title: "Inventario de equipos", subtitle: "Registro, consulta y localización de artículos del museo." }
 };
 
 const iconPaths = {
@@ -61,10 +61,10 @@ const navigationGroups = [
       { href: "membresias.html", label: "Membresías", icon: "users" },
       { href: "ujieres.html", label: "Ujieres", icon: "users" },
       { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"] },
-      { href: "documentos.html", label: "Formularios y Papelería", icon: "file", activePages: ["deposito-artes.html", "empleados.html", "recibo-prestamo.html", "reglamento.html"] },
+      { href: "documentos.html", label: "Formularios y Papelería", icon: "file", activePages: ["deposito-artes.html", "empleados.html", "reglamento.html"] },
       { href: "administracion.html", label: "Administración", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html", "direccion-ejecutiva.html"] },
       { href: "boletin.html", label: "Boletín Board", icon: "megaphone" },
-      { href: "inventario.html", label: "Inventario de Equipos y Obras de Arte", icon: "briefcase" },
+      { href: "inventario.html", label: appPages["inventario.html"].title, icon: "briefcase" },
       { href: "login.html", label: "Mi cuenta", icon: "logout" }
     ]
   }
@@ -80,12 +80,11 @@ const moduleShortcutGroups = [
     ]
   },
   {
-    pages: ["documentos.html", "deposito-artes.html", "reglamento.html", "recibo-prestamo.html", "empleados.html"],
+    pages: ["documentos.html", "deposito-artes.html", "reglamento.html", "empleados.html"],
     links: [
       { href: "documentos.html", label: "Formularios y Papelería", icon: "file" },
       { href: "deposito-artes.html", label: "Depósito de Artes", icon: "image" },
       { href: "reglamento.html", label: "Reglamento", icon: "book" },
-      { href: "recibo-prestamo.html", label: "Formularios Museográficos", icon: "file" },
       { href: "empleados.html", label: "Solicitud de Empleo", icon: "users" }
     ]
   },
