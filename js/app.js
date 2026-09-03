@@ -305,7 +305,10 @@ const moduleAccessChecks = {
   "renta-espacios.html": () => hasPermission("rentals.manage"),
   "membresias.html": () => hasPermission("memberships.manage"),
   "ujieres.html": () => hasPermission("usher.schedule.read.own") || hasPermission("usher.schedule.read.all") || hasPermission("usher.schedule.manage"),
-  "mantenimiento.html": () => hasAdministrativeWorkspaceAccess(),
+  "mantenimiento.html": () => hasPermission("maintenance.manage") || hasAdministrativeWorkspaceAccess(),
+  "calendario-obras.html": () => hasPermission("maintenance.manage") || hasAdministrativeWorkspaceAccess(),
+  "solicitud-materiales.html": () => hasPermission("maintenance.manage") || hasAdministrativeWorkspaceAccess(),
+  "ruta-digital.html": () => hasPermission("maintenance.manage") || hasAdministrativeWorkspaceAccess(),
   "documentos.html": () => hasAdministrativeWorkspaceAccess(),
   "administracion.html": () => canAccessAdministrationHub(),
   "boletin.html": () => hasPermission("announcements.read") || hasPermission("announcements.publish"),
@@ -418,7 +421,10 @@ function enforceAuthenticatedPageAccess() {
     ["calendario.html", () => hasPermission("calendar.manage") || hasPermission("schedules.read.team")],
     ["ujieres.html", moduleAccessChecks["ujieres.html"]],
     ["boletin.html", moduleAccessChecks["boletin.html"]],
-    ["inventario.html", () => hasPermission("inventory.manage")]
+    ["inventario.html", () => hasPermission("inventory.manage")],
+    ["calendario-obras.html", moduleAccessChecks["calendario-obras.html"]],
+    ["solicitud-materiales.html", moduleAccessChecks["solicitud-materiales.html"]],
+    ["ruta-digital.html", moduleAccessChecks["ruta-digital.html"]]
   ]);
   if (allowedPages.get(page)?.()) return false;
   window.location.replace("employee-portal.html");
@@ -3163,7 +3169,10 @@ function bindCalendarModules() {
   let records = [];
 
   const saveRecords = async () => saveSystemCollection(moduleKey, "records", records);
-  const canEdit = () => hasPermission("calendar.manage");
+  const canEdit = () => isMaintenance
+    ? hasPermission("maintenance.manage") || hasAdministrativeWorkspaceAccess()
+    : hasPermission("calendar.manage");
+  const employeeName = (idOrName) => employeeDisplayName(getEmployeeRecords().find((employee) => employee.id === idOrName) || { nombreCompleto: idOrName });
   const createId = () => {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
     return `calendar-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -3208,7 +3217,7 @@ function bindCalendarModules() {
     const employees = getEmployeeRecords().filter((employee) => employee.estado !== "Inactivo");
     const options = employees.map((employee) => {
       const name = employeeDisplayName(employee);
-      return `<option value="${escapeHtml(isGeneral ? employee.id : name)}">${escapeHtml(name)}</option>`;
+      return `<option value="${escapeHtml(isGeneral || isMaintenance ? employee.id : name)}">${escapeHtml(name)}</option>`;
     }).join("");
     employeeSelect.innerHTML = `<option value="">Seleccione un empleado...</option>${options}`;
   };
@@ -3221,7 +3230,7 @@ function bindCalendarModules() {
 
   const describeRecord = (record) => {
     if (isMaintenance) {
-      return `Empleado: ${record.empleado}\nTarea: ${record.tarea}\nÁrea: ${record.area || "Sin área"}\nEstado: ${record.estado || "Pendiente"}\nFecha: ${record.fecha}`;
+      return `Empleado: ${employeeName(record.empleado)}\nTarea: ${record.tarea}\nÁrea: ${record.area || "Sin área"}\nEstado: ${record.estado || "Pendiente"}\nFecha: ${record.fecha}`;
     }
     if (isUshers) {
       return `Ujier: ${record.ujier}\nHorario: ${record.horario}\nÁrea: ${record.area}\nFecha: ${record.fecha}`;
@@ -3263,13 +3272,13 @@ function bindCalendarModules() {
       const dayRecords = records.filter((record) => record.fecha === date);
       const items = dayRecords.map((record) => {
         const body = isMaintenance
-          ? `<strong>${escapeHtml(record.empleado)}</strong><span>${escapeHtml(record.tarea)}</span><small>${escapeHtml(record.area || "Sin área")} · ${escapeHtml(record.estado || "Pendiente")}</small>`
+          ? `<strong>${escapeHtml(employeeName(record.empleado))}</strong><span>${escapeHtml(record.tarea)}</span><small>${escapeHtml(record.area || "Sin área")} · ${escapeHtml(record.estado || "Pendiente")}</small>`
           : isUshers
             ? `<strong>${escapeHtml(record.ujier)}</strong><span>${escapeHtml(record.horario)}</span><small>${escapeHtml(record.area)}</small>`
             : `<strong>${escapeHtml(record.titulo)}</strong><span>${escapeHtml(record.clasificacion || "Sin clasificación")}</span><small>${escapeHtml(record.area || "Sin área")}</small>`;
         const theme = isGeneral ? activityClassificationThemes[record.clasificacion] || "theme-slate" : "";
         const actions = canEdit()
-          ? `<div class="calendar-item-actions"><button type="button" data-calendar-edit="${record.id}">Editar</button><button type="button" data-calendar-delete="${record.id}">${isGeneral ? "Archivar" : "Eliminar"}</button></div>`
+          ? `<div class="calendar-item-actions"><button type="button" data-calendar-edit="${record.id}">Editar</button><button type="button" data-calendar-delete="${record.id}">${isGeneral || isMaintenance ? "Archivar" : "Eliminar"}</button></div>`
           : "";
         return `<article class="calendar-item ${theme}" data-calendar-view="${record.id}">${body}${actions}</article>`;
       }).join("");
@@ -3368,6 +3377,18 @@ function bindCalendarModules() {
           descripcion: saved.description || ""
         };
         records = id ? records.map((item) => item.id === id ? normalized : item) : [...records, normalized];
+      } else if (isMaintenance) {
+        const saved = await saveSupabaseMaintenanceTask({
+          record_type: "work",
+          employee_id: record.empleado,
+          area: record.area || null,
+          task: record.tarea,
+          task_date: record.fecha,
+          status: record.estado,
+          details: {}
+        }, id);
+        const normalized = { id: saved.id,fecha: saved.task_date,empleado: saved.employee_id || "",tarea: saved.task,area: saved.area || "",estado: saved.status || "pendiente" };
+        records = id ? records.map((item) => item.id === id ? normalized : item) : [...records, normalized];
       } else {
         records = nextRecords;
         await saveRecords();
@@ -3413,13 +3434,14 @@ function bindCalendarModules() {
       form.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
-    if (deleteButton && isGeneral) {
+    if (deleteButton && (isGeneral || isMaintenance)) {
       if (!canEdit()) return;
       const id = deleteButton.dataset.calendarDelete;
       try {
-        await archiveSupabaseCalendarEvent(id);
+        if (isGeneral) await archiveSupabaseCalendarEvent(id);
+        else await archiveSupabaseMaintenanceTask(id);
         records = records.filter((item) => item.id !== id);
-        setMessage("Evento archivado en Supabase.", "success");
+        setMessage(isGeneral ? "Evento archivado en Supabase." : "Tarea archivada en Supabase.", "success");
         renderCalendar();
       } catch (error) {
         setMessage(`No se pudo archivar el evento: ${error.message}`, "error");
@@ -3463,6 +3485,8 @@ function bindCalendarModules() {
           area: row.location || "",
           descripcion: row.description || ""
         }));
+      } else if (isMaintenance) {
+        records = (await fetchSupabaseMaintenanceTasks("work")).map((row) => ({ id:row.id,fecha:row.task_date,empleado:row.employee_id || "",tarea:row.task,area:row.area || "",estado:row.status || "pendiente" }));
       } else {
         records = await fetchSystemCollection(moduleKey, "records", []);
       }
@@ -3517,7 +3541,7 @@ function bindMaterialsRequestModule() {
   };
   const nextSequence = () => requests.reduce((highest, request) => Math.max(highest, Number(request.sequence || 0)), 0) + 1;
   const formatOrder = (sequence) => `Pedido ${String(sequence).padStart(5, "0")}`;
-  const saveRequests = async () => saveSystemCollection("solicitud_materiales", "requests", requests);
+  const employeeName = (id) => employeeDisplayName(getEmployeeRecords().find((employee) => employee.id === id) || { nombreCompleto: id });
   const setMessage = (text, type = "") => {
     if (!message) return;
     message.textContent = text;
@@ -3546,9 +3570,10 @@ function bindMaterialsRequestModule() {
           <strong>${safeHtml(request.order)}</strong>
           <span>${safeHtml(displayDate(request.date))}</span>
         </div>
-        <p><strong>Empleado:</strong> ${safeHtml(request.employee)}</p>
+        <p><strong>Empleado:</strong> ${safeHtml(employeeName(request.employee))}</p>
         <p><strong>Materiales:</strong> ${safeHtml(request.materials.join(", "))}</p>
         ${request.other ? `<p><strong>Otros:</strong> ${safeHtml(request.other)}</p>` : ""}
+        <div class="inventory-actions"><button class="button secondary" type="button" data-material-edit="${request.id}">Editar</button><button class="button secondary" type="button" data-material-archive="${request.id}">Archivar</button></div>
       </article>
     `).join("");
   };
@@ -3560,6 +3585,7 @@ function bindMaterialsRequestModule() {
       return;
     }
     const data = new FormData(form);
+    const id = String(data.get("id") || "");
     const employee = String(data.get("empleado") || "").trim();
     const materials = data.getAll("materiales").map((item) => String(item).trim()).filter(Boolean);
     const other = String(data.get("otros") || "").trim();
@@ -3573,26 +3599,22 @@ function bindMaterialsRequestModule() {
       return;
     }
 
-    const sequence = nextSequence();
+    const existing = requests.find((item) => item.id === id);
+    const sequence = existing?.sequence || nextSequence();
     const request = {
-      id: `material-${Date.now()}`,
+      id,
       sequence,
       order: formatOrder(sequence),
-      date: today(),
+      date: existing?.date || today(),
       employee,
       materials,
       other
     };
 
     try {
-      const previousRequests = requests;
-      requests = [...requests, request];
-      try {
-        await saveRequests();
-      } catch (error) {
-        requests = previousRequests;
-        throw error;
-      }
+      const saved = await saveSupabaseMaintenanceTask({ record_type:"material_request",employee_id:employee,task:request.order,task_date:request.date,status:"pendiente",observations:other || null,details:{ sequence,order:request.order,materials } }, id);
+      const normalized = { ...request,id:saved.id };
+      requests = id ? requests.map((item) => item.id === id ? normalized : item) : [...requests,normalized];
       form.reset();
       refreshMeta();
       renderLog();
@@ -3602,9 +3624,25 @@ function bindMaterialsRequestModule() {
     }
   });
 
+  log?.addEventListener("click", async (event) => {
+    const edit = event.target.closest("[data-material-edit]");
+    const archive = event.target.closest("[data-material-archive]");
+    if (edit) {
+      const request = requests.find((item) => item.id === edit.dataset.materialEdit);
+      if (!request) return;
+      form.elements.id.value=request.id; form.elements.empleado.value=request.employee; form.elements.otros.value=request.other || "";
+      form.querySelectorAll('[name="materiales"]').forEach((box) => { box.checked=request.materials.includes(box.value); });
+      form.scrollIntoView({ behavior:"smooth",block:"start" });
+    }
+    if (archive) {
+      try { await archiveSupabaseMaintenanceTask(archive.dataset.materialArchive); requests=requests.filter((item)=>item.id!==archive.dataset.materialArchive); renderLog(); refreshMeta(); setMessage("Solicitud archivada en Supabase.","success"); }
+      catch(error){ setMessage(friendlyMaterialsError(error,"archivar"),"error"); }
+    }
+  });
+
   const loadMaterialRequests = async () => {
     try {
-      requests = await fetchSystemCollection("solicitud_materiales", "requests", []);
+      requests = (await fetchSupabaseMaintenanceTasks("material_request")).map((row) => ({ id:row.id,sequence:Number(row.details?.sequence || 0),order:row.details?.order || row.task,date:row.task_date,employee:row.employee_id || "",materials:Array.isArray(row.details?.materials) ? row.details.materials : [],other:row.observations || "" }));
       setMessage("Solicitudes cargadas correctamente.", "success");
     } catch (error) {
       setMessage(friendlyMaterialsError(error, "cargar"), "error");
@@ -3614,6 +3652,36 @@ function bindMaterialsRequestModule() {
   };
 
   loadMaterialRequests();
+}
+
+function bindDigitalRouteModule() {
+  const module = document.querySelector("[data-route-module]");
+  if (!module) return;
+  const form = module.querySelector("[data-route-form]");
+  const message = module.querySelector("[data-route-message]");
+  const history = document.querySelector("[data-route-history]");
+  let records = [];
+  const employeeName = (id) => employeeDisplayName(getEmployeeRecords().find((employee) => employee.id === id) || { nombreCompleto:id });
+  const setMessage = (text,type="") => { message.textContent=text; message.className=`form-message ${type}`.trim(); };
+  const render = () => {
+    if (!records.length) { history.innerHTML='<tr><td colspan="5" class="empty-state">No hay inspecciones registradas.</td></tr>'; return; }
+    history.innerHTML=records.slice().reverse().map((record) => {
+      const instant=new Date(record.created_at);
+      return `<tr><td>${safeHtml(record.task_date || "")}</td><td>${safeHtml(instant.toLocaleTimeString("es-PR",{hour:"numeric",minute:"2-digit"}))}</td><td>${safeHtml(employeeName(record.employee_id))}</td><td>${safeHtml(record.area || "")}</td><td><span class="status-dot green"></span> ${safeHtml(record.status === "completado" ? "Completado" : record.status)}<div class="calendar-item-actions"><button type="button" data-route-edit="${record.id}">Editar</button><button type="button" data-route-archive="${record.id}">Archivar</button></div></td></tr>`;
+    }).join("");
+  };
+  form.addEventListener("submit",async(event)=>{
+    event.preventDefault(); const data=new FormData(form); const id=String(data.get("id")||""); const checks=data.getAll("ruta").map(String);
+    if (!data.get("empleado") || !data.get("area") || checks.length!==form.querySelectorAll('[name="ruta"]').length) { setMessage("Seleccione el empleado, el área y complete toda la lista de verificación.","error"); return; }
+    try { const saved=await saveSupabaseMaintenanceTask({record_type:"route_inspection",employee_id:data.get("empleado"),area:data.get("area"),task:"Inspección de ruta",task_date:new Date().toISOString().slice(0,10),status:"completado",observations:String(data.get("observaciones")||"").trim()||null,details:{checks}},id); records=id?records.map((item)=>item.id===id?saved:item):[...records,saved]; form.reset(); form.elements.id.value=""; render(); setMessage(id?"Inspección actualizada en Supabase.":"Inspección registrada en Supabase.","success"); }
+    catch(error){ setMessage(error.message || "No se pudo guardar la inspección.","error"); }
+  });
+  history.addEventListener("click",async(event)=>{
+    const edit=event.target.closest("[data-route-edit]"); const archive=event.target.closest("[data-route-archive]");
+    if(edit){const record=records.find((item)=>item.id===edit.dataset.routeEdit);if(!record)return;form.elements.id.value=record.id;form.elements.empleado.value=record.employee_id||"";form.elements.area.value=record.area||"";form.elements.observaciones.value=record.observations||"";form.querySelectorAll('[name="ruta"]').forEach((box)=>{box.checked=(record.details?.checks||[]).includes(box.value);});form.scrollIntoView({behavior:"smooth",block:"start"});}
+    if(archive){try{await archiveSupabaseMaintenanceTask(archive.dataset.routeArchive);records=records.filter((item)=>item.id!==archive.dataset.routeArchive);render();setMessage("Inspección archivada en Supabase.","success");}catch(error){setMessage(error.message||"No se pudo archivar la inspección.","error");}}
+  });
+  (async()=>{try{records=await fetchSupabaseMaintenanceTasks("route_inspection");setMessage("Ruta Digital sincronizada con Supabase.","success");}catch(error){records=[];setMessage(error.message||"No se pudo cargar Ruta Digital.","error");}render();})();
 }
 
 function bindAttendanceScheduleAdmin(module, employeeMap) {
@@ -4111,7 +4179,7 @@ function populateSystemDataSelects() {
     });
     const options = employees.map((employee) => {
       const name = employeeDisplayName(employee);
-      return `<option value="${safeHtml(name)}">${safeHtml(name)}</option>`;
+      return `<option value="${safeHtml(select.dataset.employeeValue === "id" ? employee.id : name)}">${safeHtml(name)}</option>`;
     }).join("");
     select.innerHTML = `<option value="">Seleccione un empleado...</option>${options}`;
   });
@@ -6112,6 +6180,7 @@ async function initApp() {
   bindHeaderActions();
   populateSystemDataSelects();
   bindMaterialsRequestModule();
+  bindDigitalRouteModule();
   bindHumanResourcesModule();
   bindNotificationsModule();
   bindFinanceModule();
