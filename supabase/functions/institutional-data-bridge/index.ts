@@ -23,7 +23,9 @@ Deno.serve(async (req) => {
       return json({ error: "Puente Instituva no configurado en el servidor." }, 503);
     }
 
-    const permission = "rentals.manage";
+    const permission = ["executive_snapshot", "executive_action"].includes(kind)
+      ? "executive.case.read"
+      : "rentals.manage";
     const { profile, user } = await requirePermission(req, permission);
     const email = profile.email || user.email;
     if (!email) return json({ error: "La cuenta no tiene correo para vincular con Instituva." }, 403);
@@ -44,6 +46,39 @@ Deno.serve(async (req) => {
         },
         403,
       );
+    }
+
+    if (kind === "executive_snapshot") {
+      const { data, error } = await instituva.rpc("service_bridge_executive_snapshot", {
+        p_organization_id: organizationId,
+        p_actor_user_id: actorId,
+      });
+      if (error) throw error;
+      return json(data);
+    }
+
+    if (kind === "executive_action") {
+      const caseId = String(body.caseId || "");
+      const action = String(body.action || "");
+      const reason = typeof body.reason === "string" ? body.reason.trim() || null : null;
+      if (!/^[0-9a-f-]{36}$/i.test(caseId)) {
+        return json({ error: "El asunto ejecutivo no es válido." }, 400);
+      }
+      if (!["ready", "resubmit", "approve", "reject", "return"].includes(action)) {
+        return json({ error: "La acción ejecutiva no es válida." }, 400);
+      }
+      if (["reject", "return"].includes(action) && !reason) {
+        return json({ error: "La decisión requiere un motivo." }, 400);
+      }
+      const { data, error } = await instituva.rpc("service_bridge_execute_executive_action", {
+        p_organization_id: organizationId,
+        p_actor_user_id: actorId,
+        p_case_id: caseId,
+        p_action: action,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      return json({ success: Boolean(data) });
     }
 
     if (kind === "membership_list") {

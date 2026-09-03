@@ -1,14 +1,14 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Dirección Ejecutiva</title>
-  <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
+  <link rel="stylesheet" href="css/main.css?v=executive-website-20260729">
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar" data-sidebar></aside>
+    <aside class="sidebar" data-sidebar aria-label="Navegación principal"></aside>
     <div class="sidebar-backdrop" data-sidebar-backdrop></div>
     <div class="main-area">
       <header class="site-header" data-header></header>
@@ -31,18 +31,98 @@
           <a class="button submit-button" data-executive-login-fallback href="login.html">Entrar a mi cuenta</a>
         </section>
 
-        <section class="card panel" data-executive-launch hidden>
-          <p class="page-kicker">Administración</p>
-          <h2>Dirección Ejecutiva</h2>
-          <p>Bandeja central de revisión y decisiones administrativas. La bandeja se abre en INSTITUVA con la misma cuenta autorizada.</p>
-          <a class="button submit-button" href="#" data-executive-instituva-launch>Ir al módulo</a>
+        <section class="executive-workspace" data-executive-module hidden>
+          <div class="executive-page-heading">
+            <div>
+              <p class="page-kicker">Administración</p>
+              <h2>Dirección Ejecutiva</h2>
+              <p>Estado de aprobaciones, revisiones y decisiones administrativas del Museo.</p>
+            </div>
+            <button class="button executive-refresh-button" type="button" data-executive-refresh>
+              Actualizar
+            </button>
+          </div>
+
+          <p class="form-message executive-system-message" data-executive-message aria-live="polite"></p>
+
+          <section class="executive-summary-grid" aria-label="Resumen de asuntos">
+            <button type="button" data-executive-summary="in_review">
+              <span>En revisión</span>
+              <strong data-executive-count="in_review">0</strong>
+            </button>
+            <button type="button" data-executive-summary="ready_for_approval">
+              <span>Para aprobar</span>
+              <strong data-executive-count="ready_for_approval">0</strong>
+            </button>
+            <button type="button" data-executive-summary="returned">
+              <span>Devueltos</span>
+              <strong data-executive-count="returned">0</strong>
+            </button>
+            <button type="button" data-executive-summary="urgent">
+              <span>Urgentes o vencidos</span>
+              <strong data-executive-count="urgent">0</strong>
+            </button>
+            <button type="button" data-executive-summary="resolved">
+              <span>Decididos</span>
+              <strong data-executive-count="resolved">0</strong>
+            </button>
+          </section>
+
+          <section class="executive-filter-bar" aria-label="Filtros de Dirección Ejecutiva">
+            <label>
+              <span>Área</span>
+              <select data-executive-filter="area">
+                <option value="">Todas las áreas</option>
+              </select>
+            </label>
+            <label>
+              <span>Tipo</span>
+              <select data-executive-filter="type">
+                <option value="">Todos los tipos</option>
+              </select>
+            </label>
+            <label>
+              <span>Estado</span>
+              <select data-executive-filter="status">
+                <option value="">Todos los estados</option>
+                <option value="in_review">En revisión</option>
+                <option value="ready_for_approval">Para aprobar</option>
+                <option value="returned">Devueltos</option>
+                <option value="approved">Aprobados</option>
+                <option value="rejected">Rechazados</option>
+              </select>
+            </label>
+            <label>
+              <span>Prioridad</span>
+              <select data-executive-filter="priority">
+                <option value="">Todas las prioridades</option>
+                <option value="normal">Normal</option>
+                <option value="high">Alta</option>
+                <option value="urgent">Urgente</option>
+                <option value="critical">Crítica</option>
+              </select>
+            </label>
+            <label>
+              <span>Fecha</span>
+              <input type="date" data-executive-filter="date">
+            </label>
+          </section>
+
+          <section class="executive-board">
+            <div class="executive-case-list" data-executive-cases aria-live="polite">
+              <div class="executive-empty-state">Cargando asuntos…</div>
+            </div>
+            <aside class="executive-case-detail" data-executive-detail aria-label="Detalle del asunto seleccionado">
+              <div class="executive-empty-state">Seleccione un asunto para revisar su detalle.</div>
+            </aside>
+          </section>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/config.js"></script>
+  <script src="js/config.js?v=executive-direct-20260730"></script>
   <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=access-policy-20260728"></script>
+  <script src="js/app.js?v=executive-direct-20260730"></script>
 </body>
 </html>

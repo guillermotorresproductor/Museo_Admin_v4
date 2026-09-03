@@ -12,6 +12,7 @@ const appPages = {
   "renta-espacios.html": { title: "Renta de Espacios", subtitle: "Solicitud de áreas y tarifas oficiales." },
   "renta-espacio.html": { title: "Renta de Espacios", subtitle: "Ficha, fotografías y condiciones del espacio." },
   "membresias.html": { title: "Membresías", subtitle: "Socios, beneficios, renovaciones y participación." },
+  "departamento-museologico.html": { title: "Departamento Museológico", subtitle: "Museología, salas, colecciones y formularios museográficos." },
   "administracion.html": { title: "Administración", subtitle: "Dirección ejecutiva, recursos humanos, notificaciones, reportes y finanzas." },
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
   "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
@@ -20,11 +21,11 @@ const appPages = {
   "finanzas.html": { title: "Finanzas", subtitle: "Acceso restringido pendiente para firewall." },
   "direccion-ejecutiva.html": { title: "Dirección Ejecutiva", subtitle: "Aprobaciones, seguimientos y supervisión operacional (INSTITUVA)." },
   "reglamento.html": { title: "Reglamento del Museo", subtitle: "Normas oficiales, impresión y descarga." },
-  "documentos.html": { title: "Formularios y Papelería", subtitle: "Stationary, reglamento, solicitud de empleo y formularios oficiales." },
+  "documentos.html": { title: "Formularios y papelería", subtitle: "Documentos, papelería institucional y más." },
   "deposito-artes.html": { title: "Depósito de Artes", subtitle: "Logos oficiales, artes y guías de marca del Museo." },
   "recibo-prestamo.html": { title: "Formularios Museográficos", subtitle: "Formularios digitales para artículos de colección y procesos museográficos." },
-  "boletin.html": { title: "Boletín Board", subtitle: "Publicaciones, anuncios y comunicaciones internas." },
-  "inventario.html": { title: "Inventario de Equipos y Obras de Arte", subtitle: "Registro, consulta y localización de artículos del museo." }
+  "boletin.html": { title: "Boletín institucional", subtitle: "Publicaciones, anuncios y comunicaciones." },
+  "inventario.html": { title: "Inventario de equipos", subtitle: "Registro, consulta y localización de equipos." }
 };
 
 const iconPaths = {
@@ -54,15 +55,16 @@ const navigationGroups = [
     label: "Menu",
     items: [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
+      { href: "departamento-museologico.html", label: "Departamento Museológico", icon: "building", activePages: ["recibo-prestamo.html"] },
       { href: "calendario.html", label: "Calendario de Eventos del Museo", icon: "calendar" },
       { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building", activePages: ["renta-espacio.html"] },
       { href: "membresias.html", label: "Membresías", icon: "users" },
       { href: "ujieres.html", label: "Ujieres", icon: "users" },
       { href: "mantenimiento.html", label: "Mantenimiento", icon: "wrench", activePages: ["calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"] },
-      { href: "documentos.html", label: "Formularios y Papelería", icon: "file", activePages: ["deposito-artes.html", "empleados.html", "recibo-prestamo.html", "reglamento.html"] },
+      { href: "documentos.html", label: "Formularios y papelería", icon: "file", activePages: ["deposito-artes.html", "empleados.html", "reglamento.html"] },
       { href: "administracion.html", label: "Administración", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html", "direccion-ejecutiva.html"] },
-      { href: "boletin.html", label: "Boletín Board", icon: "megaphone" },
-      { href: "inventario.html", label: "Inventario de Equipos y Obras de Arte", icon: "briefcase" },
+      { href: "boletin.html", label: "Boletín institucional", icon: "megaphone" },
+      { href: "inventario.html", label: "Inventario de equipos", icon: "briefcase" },
       { href: "login.html", label: "Mi cuenta", icon: "logout" }
     ]
   }
@@ -78,13 +80,19 @@ const moduleShortcutGroups = [
     ]
   },
   {
-    pages: ["documentos.html", "deposito-artes.html", "reglamento.html", "recibo-prestamo.html", "empleados.html"],
+    pages: ["documentos.html", "deposito-artes.html", "reglamento.html", "empleados.html"],
     links: [
-      { href: "documentos.html", label: "Formularios y Papelería", icon: "file" },
+      { href: "documentos.html", label: "Formularios y papelería", icon: "file" },
       { href: "deposito-artes.html", label: "Depósito de Artes", icon: "image" },
       { href: "reglamento.html", label: "Reglamento", icon: "book" },
-      { href: "recibo-prestamo.html", label: "Formularios Museográficos", icon: "file" },
       { href: "empleados.html", label: "Solicitud de Empleo", icon: "users" }
+    ]
+  },
+  {
+    pages: ["departamento-museologico.html", "recibo-prestamo.html"],
+    links: [
+      { href: "departamento-museologico.html", label: "Departamento Museológico", icon: "building" },
+      { href: "recibo-prestamo.html", label: "Formularios Museográficos", icon: "file" }
     ]
   },
   {
@@ -146,109 +154,6 @@ const activityClassificationThemes = {
   "Colaboraciones con entidades públicas o privadas": "theme-slate"
 };
 
-const defaultEmployeeProfiles = {
-  "guillermo-torres": {
-    id: "guillermo-torres",
-    avatar: "GT",
-    nombre: "Guillermo",
-    apellidos: "Torres",
-    nombreCompleto: "Guillermo Torres",
-    direccion: "Guaynabo, Puerto Rico",
-    telefono: "787-000-0000",
-    correo: "guillermotorrespr@gmail.com",
-    educacion: "Graduado",
-    condicion: "Ninguna registrada",
-    posicion: "Administrador",
-    departamento: "Administración",
-    horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
-    notificaciones: "Recibe notificaciones administrativas, cambios de horario y alertas internas.",
-    acceso: "Administrador",
-    fechaContratacion: "2026-07-01",
-    estado: "Activo",
-    foto: ""
-  },
-  "juan-perez": {
-    id: "juan-perez",
-    avatar: "JP",
-    nombre: "Juan",
-    apellidos: "Pérez",
-    nombreCompleto: "Juan Pérez",
-    direccion: "Guaynabo, Puerto Rico",
-    telefono: "787-000-0000",
-    correo: "juan.perez@museodelamusica.pr",
-    educacion: "Graduado",
-    condicion: "Ninguna registrada",
-    posicion: "Mantenimiento",
-    departamento: "Mantenimiento",
-    horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
-    notificaciones: "Recibe avisos de ruta digital, materiales y calendario de obras.",
-    acceso: "Empleado",
-    fechaContratacion: "2026-07-01",
-    estado: "Activo",
-    foto: ""
-  },
-  "dora-ortiz": {
-    id: "dora-ortiz",
-    avatar: "DO",
-    nombre: "Dora",
-    apellidos: "Ortiz",
-    nombreCompleto: "Dora Ortiz",
-    direccion: "Guaynabo, Puerto Rico",
-    telefono: "787-000-0000",
-    correo: "dora.ortiz@museodelamusica.pr",
-    educacion: "Estudiante",
-    condicion: "Ninguna registrada",
-    posicion: "Mantenimiento",
-    departamento: "Mantenimiento",
-    horario: "Martes a sábado, 8:00 AM - 4:00 PM",
-    notificaciones: "Recibe avisos de inspección, mantenimiento preventivo y tareas asignadas.",
-    acceso: "Empleado",
-    fechaContratacion: "2026-07-01",
-    estado: "Activo",
-    foto: ""
-  },
-  "ana-rivera": {
-    id: "ana-rivera",
-    avatar: "AR",
-    nombre: "Ana",
-    apellidos: "Rivera",
-    nombreCompleto: "Ana Rivera",
-    direccion: "Guaynabo, Puerto Rico",
-    telefono: "787-000-0000",
-    correo: "ana.rivera@museodelamusica.pr",
-    educacion: "Graduado",
-    condicion: "Ninguna registrada",
-    posicion: "Ujier",
-    departamento: "Operaciones",
-    horario: "Según calendario de eventos",
-    notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
-    acceso: "Empleado",
-    fechaContratacion: "2026-07-01",
-    estado: "Activo",
-    foto: ""
-  },
-  "carlos-mendez": {
-    id: "carlos-mendez",
-    avatar: "CM",
-    nombre: "Carlos",
-    apellidos: "Méndez",
-    nombreCompleto: "Carlos Méndez",
-    direccion: "Guaynabo, Puerto Rico",
-    telefono: "787-000-0000",
-    correo: "carlos.mendez@museodelamusica.pr",
-    educacion: "Estudiante",
-    condicion: "Ninguna registrada",
-    posicion: "Ujier",
-    departamento: "Operaciones",
-    horario: "Según calendario de eventos",
-    notificaciones: "Recibe asignaciones de ujieres, cambios de horario y áreas asignadas.",
-    acceso: "Empleado",
-    fechaContratacion: "2026-07-01",
-    estado: "Activo",
-    foto: ""
-  }
-};
-
 const supabaseUrl = museoEnvironment.supabaseUrl;
 const supabasePublishableKey = museoEnvironment.supabasePublishableKey;
 const supabaseSessionKey = `museo-admin-supabase-session-${museoEnvironment.name}`;
@@ -260,7 +165,7 @@ const currentAccessLevelKey = "museo-admin-access-level";
 const currentAccessLevel = () => localStorage.getItem(currentAccessLevelKey) || "Empleado";
 const SUPABASE_REFRESH_MARGIN_SECONDS = 60;
 const SESSION_IDLE_MS = 5 * 60 * 1000;
-let employeeRecords = Object.values(defaultEmployeeProfiles);
+let employeeRecords = [];
 let currentPermissions = new Set();
 let currentPermissionsLoaded = false;
 const hasPermission = (permission) => currentPermissions.has(permission);
@@ -289,11 +194,17 @@ const SENSITIVE_MODULE_ACCESS = {
   "reportes.html": () => hasPermission("reports.read") || hasPermission("system.configure")
 };
 
-function loginUrlWithReturn(page) {
+function localAwarePageUrl(page) {
+  const isLocal = typeof isLocalMuseoHost === "function" && isLocalMuseoHost();
+  return isLocal ? String(page || "").replace(/\.html$/, "") : page;
+}
+
+function loginUrlWithReturn(page, reason = "") {
   const params = new URLSearchParams();
   params.set("environment", museoEnvironment.name);
   if (page) params.set("next", page);
-  return `login.html?${params.toString()}`;
+  if (reason) params.set("reason", reason);
+  return `${localAwarePageUrl("login.html")}?${params.toString()}`;
 }
 
 function resolvePostLoginDestination() {
@@ -420,10 +331,7 @@ function clearLoginState(redirect = true, reason = "") {
   localStorage.removeItem(currentUserPhotoKey);
   localStorage.removeItem(currentAccessLevelKey);
   if (redirect && !isLoginPage()) {
-    const params = new URLSearchParams();
-    params.set("environment", museoEnvironment.name);
-    if (reason) params.set("reason", reason);
-    window.location.href = `login.html?${params.toString()}`;
+    window.location.href = loginUrlWithReturn("", reason);
   }
 }
 
@@ -884,7 +792,8 @@ function employeeDisplayName(employee) {
 
 function updateCurrentUserFromEmployeeCache() {
   const userName = localStorage.getItem(currentUserKey);
-  const sessionEmail = getSupabaseSession()?.user?.email || "";
+  const sessionUser = getSupabaseSession()?.user;
+  const sessionEmail = sessionUser?.email || "";
   if (!userName && !sessionEmail) return;
   const normalizedName = String(userName || "").trim().toLowerCase();
   const normalizedEmail = String(sessionEmail || "").trim().toLowerCase();
@@ -892,9 +801,13 @@ function updateCurrentUserFromEmployeeCache() {
     String(record.correo || "").trim().toLowerCase() === normalizedEmail ||
     employeeDisplayName(record).trim().toLowerCase() === normalizedName
   );
-  if (!employee) return;
-  localStorage.setItem(currentUserKey, employeeDisplayName(employee));
-  if (employee.foto) {
+  const storedName = String(userName || "").trim();
+  const metadataName = String(sessionUser?.user_metadata?.full_name || "").trim();
+  const displayName = employee
+    ? employeeDisplayName(employee)
+    : metadataName || (!storedName.includes("@") ? storedName : "") || "Usuario institucional";
+  localStorage.setItem(currentUserKey, displayName);
+  if (employee?.foto) {
     localStorage.setItem(currentUserPhotoKey, employee.foto);
   } else {
     localStorage.removeItem(currentUserPhotoKey);
@@ -1198,17 +1111,7 @@ function iconSvg(name) {
 
 function getCurrentPage() {
   const segment = window.location.pathname.split("/").pop() || "index.html";
-  const barePageNames = {
-    login: "login.html",
-    finanzas: "finanzas.html",
-    "direccion-ejecutiva": "direccion-ejecutiva.html",
-    reportes: "reportes.html",
-    administracion: "administracion.html",
-    membresias: "membresias.html",
-    "renta-espacios": "renta-espacios.html",
-    "renta-espacio": "renta-espacio.html"
-  };
-  return barePageNames[segment] || segment;
+  return segment.includes(".") ? segment : `${segment}.html`;
 }
 
 function isLoginPage() {
@@ -1255,7 +1158,12 @@ function resolvePageMeta() {
   const currentPage = getCurrentPage();
   const meta = appPages[currentPage] || appPages["dashboard.html"];
   if (currentPage === "dashboard.html" || currentPage === "index.html") {
-    const loggedUser = localStorage.getItem(currentUserKey);
+    const storedUser = localStorage.getItem(currentUserKey) || "";
+    const loggedUser = storedUser && !storedUser.includes("@")
+      ? storedUser
+      : getSupabaseSession()?.access_token
+        ? "Usuario institucional"
+        : "";
     return {
       ...meta,
       subtitle: loggedUser ? `Bienvenido, ${loggedUser}` : "Panel principal del sistema."
@@ -1312,9 +1220,10 @@ function renderSidebar() {
   const groupsMarkup = navigationGroups.map((group) => {
     const links = group.items.map((item) => {
       const isActive = item.href === currentPage || (item.activePages || []).includes(currentPage) || (currentPage === "index.html" && item.href === "dashboard.html");
+      const href = item.href === "login.html" ? loginUrlWithReturn("") : item.href;
       return `
         <li>
-          <a class="nav-link${isActive ? " is-active" : ""}" href="${item.href}" aria-current="${isActive ? "page" : "false"}">
+          <a class="nav-link${isActive ? " is-active" : ""}" href="${href}" aria-current="${isActive ? "page" : "false"}">
             <span class="nav-icon">${iconSvg(item.icon)}</span>
             <span>${item.label}</span>
           </a>
@@ -1358,10 +1267,20 @@ function renderHeader() {
   const meta = resolvePageMeta();
   const loggedUser = localStorage.getItem(currentUserKey);
   const loggedUserPhoto = localStorage.getItem(currentUserPhotoKey);
-  const accountLabel = loggedUser || "Entrar a mi cuenta";
+  const accountLabel = loggedUser && !loggedUser.includes("@") ? loggedUser : "Usuario institucional";
+  const accountInitials = accountLabel
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase() || "UI";
   const accountVisual = loggedUserPhoto
     ? `<img class="account-photo" src="${loggedUserPhoto}" alt="Foto de ${safeHtml(accountLabel)}">`
-    : iconSvg("users");
+    : `<span class="account-initials" aria-hidden="true">${safeHtml(accountInitials)}</span>`;
+  const environmentBadge = museoEnvironment.name === "staging"
+    ? `<span class="environment-badge" aria-label="Entorno de pruebas">STAGING</span>`
+    : "";
   const accountControl = loggedUser
     ? `
       <div class="account-menu-wrap">
@@ -1377,7 +1296,7 @@ function renderHeader() {
       </div>
     `
     : `
-      <a class="account-button" href="login.html">
+      <a class="account-button" href="${loginUrlWithReturn("")}">
         ${iconSvg("users")}
         <span>${safeHtml(accountLabel)}</span>
         ${iconSvg("chevron")}
@@ -1395,6 +1314,7 @@ function renderHeader() {
       </div>
     </div>
     <div class="header-right">
+      ${environmentBadge}
       <button class="notification-button" type="button" aria-label="Notificaciones" data-notification-menu-button aria-expanded="false">
         ${iconSvg("bell")}
         <span class="notification-badge">3</span>
@@ -1716,7 +1636,7 @@ function bindLoginDemo() {
       }
 
       saveSupabaseSession({ ...session, user });
-      localStorage.setItem(currentUserKey, user.user_metadata?.full_name || user.email || "Empleado");
+      localStorage.setItem(currentUserKey, user.user_metadata?.full_name || "Usuario institucional");
       const profile = await fetchSupabaseProfile().catch(() => null);
       localStorage.setItem(
         currentAccessLevelKey,
@@ -1749,7 +1669,10 @@ function bindLoginDemo() {
         }
         const session = await signInWithSupabase(username, password);
         const profile = await fetchSupabaseProfile();
-        localStorage.setItem(currentUserKey, profile?.full_name || session.user.email || username);
+        localStorage.setItem(
+          currentUserKey,
+          profile?.full_name || session.user?.user_metadata?.full_name || "Usuario institucional"
+        );
         localStorage.setItem(currentAccessLevelKey, profile?.role === "administrador" ? "Administrador" : profile?.role === "ejecutivo" ? "Ejecutivo" : "Empleado");
         localStorage.removeItem(currentUserPhotoKey);
         await refreshCurrentPermissions();
@@ -2681,33 +2604,6 @@ function bindLoanReceiptForm() {
     const sequence = nextSequence();
     const internalNumber = formatArticleNumber(sequence);
     const emissionDate = today();
-    const body = [
-      "Formulario de Recibo de Artículos de Colección Mediante Préstamo",
-      `Número interno: ${internalNumber}`,
-      `Fecha de emisión: ${displayDate(emissionDate)}`,
-      "",
-      `Prestamista: ${data.get("prestamista")}`,
-      `Correo electrónico: ${data.get("correo")}`,
-      `Teléfono: ${data.get("telefono")}`,
-      `Dirección postal: ${data.get("direccion")}`,
-      `Fecha de recibo: ${data.get("fecha")}`,
-      "",
-      "Articulo",
-      `Nombre o titulo: ${data.get("articulo")}`,
-      `Categoria: ${data.get("categoria")}`,
-      `Descripcion: ${data.get("descripcion")}`,
-      `Condicion: ${data.get("condicion")}`,
-      `Valor estimado: ${data.get("valor")}`,
-      "",
-      "Préstamo",
-      `Fecha de inicio: ${data.get("inicio")}`,
-      `Fecha estimada de devolucion: ${data.get("devolucion")}`,
-      `Propósito: ${data.get("proposito")}`,
-      "",
-      `Observaciones: ${data.get("observaciones") || "N/A"}`,
-      "",
-      "El prestamista certifica que la información suministrada es correcta."
-    ].join("\n");
 
     const nextReceipts = [...receipts, {
       id: `loan-${Date.now()}`,
@@ -2715,8 +2611,20 @@ function bindLoanReceiptForm() {
       numeroArticulo: internalNumber,
       fechaEmision: emissionDate,
       prestamista: data.get("prestamista"),
+      correo: data.get("correo"),
+      telefono: data.get("telefono"),
+      direccion: data.get("direccion"),
+      fechaRecibo: data.get("fecha"),
       articulo: data.get("articulo"),
-      categoria: data.get("categoria")
+      categoria: data.get("categoria"),
+      descripcion: data.get("descripcion"),
+      condicion: data.get("condicion"),
+      valorEstimado: data.get("valor"),
+      fechaInicio: data.get("inicio"),
+      fechaDevolucionEstimada: data.get("devolucion"),
+      proposito: data.get("proposito"),
+      observaciones: data.get("observaciones") || "",
+      certificacionAceptada: true
     }];
 
     try {
@@ -2737,16 +2645,10 @@ function bindLoanReceiptForm() {
       return;
     }
 
-    const mailto = new URL("mailto:guillermotorrespr@gmail.com");
-    mailto.searchParams.set("subject", `${internalNumber} - Recibo de préstamo - ${data.get("articulo")}`);
-    mailto.searchParams.set("body", body);
-
     if (message) {
-      message.textContent = "Formulario validado. Se abrira el correo para enviar la información al administrador.";
+      message.textContent = "Formulario validado y registrado correctamente en el sistema central.";
       message.className = "form-message success";
     }
-
-    window.location.href = mailto.toString();
   });
 
   const loadReceipts = async () => {
@@ -3625,7 +3527,7 @@ function bindHrAttendanceView() {
     const employees = new Set(entries.map((entry) => entry.employee_id)).size;
     summary.innerHTML = [
       ["Registros", entries.length],
-      ["Empleados", employees],
+      ["Empleados con actividad", employees],
       ["Horas completadas", totalHours.toLocaleString("es-PR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
       ["Ponches abiertos", open]
     ].map(([label, value]) => `<article><span>${label}</span><strong>${value}</strong></article>`).join("");
@@ -3734,6 +3636,14 @@ function bindHumanResourcesModule() {
 
   const renderDirectory = () => {
     const records = getEmployeeRecords();
+    if (!records.length) {
+      directory.innerHTML = `
+        <p class="employee-directory-empty">
+          No hay empleados registrados para mostrar.
+        </p>
+      `;
+      return;
+    }
     directory.innerHTML = records.map((employee) => {
       const isInactive = employee.estado === "Inactivo";
       const profileLink = canManageEmployees()
@@ -3776,15 +3686,18 @@ function bindHumanResourcesModule() {
       setMessage("SINCRONIZANDO DIRECTORIO DE EMPLEADOS...");
       supabaseProfile = await fetchSupabaseProfile();
       const records = await fetchSupabaseEmployees();
-      if (records.length) {
-        saveEmployeeRecords(records);
-        renderDirectory();
-        setMessage("DIRECTORIO SINCRONIZADO.", "success");
-      } else {
-        setMessage("DIRECTORIO CONECTADO. AUN NO HAY EMPLEADOS REGISTRADOS.", "success");
-      }
+      saveEmployeeRecords(records);
+      renderDirectory();
+      setMessage(
+        records.length
+          ? `DIRECTORIO SINCRONIZADO. ${records.length} EMPLEADO${records.length === 1 ? "" : "S"}.`
+          : "DIRECTORIO CONECTADO. AUN NO HAY EMPLEADOS REGISTRADOS.",
+        "success"
+      );
     } catch (error) {
-      setMessage("NO SE PUDO SINCRONIZAR. SE MUESTRA EL DIRECTORIO LOCAL.", "error");
+      saveEmployeeRecords([]);
+      renderDirectory();
+      setMessage("NO SE PUDO SINCRONIZAR EL DIRECTORIO. NO SE MOSTRARAN EMPLEADOS DE EJEMPLO.", "error");
     }
   };
 
@@ -4443,22 +4356,13 @@ function bindFinanceModule() {
     const saved = await saveResponse.json();
     if (!saveResponse.ok) throw new Error(saved.message || "No se pudo guardar el cambio financiero.");
 
-    await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
-      method: "POST",
-      headers: {
-        ...(await supabaseAuthHeaders()),
-        Prefer: "return=minimal"
-      },
-      body: JSON.stringify({
-        museum_id: currentProfile.museum_id,
-        user_id: currentProfile.id,
-        action: "update_finance_record",
-        table_name: "finance_records",
-        record_id: saved[0]?.id || recordId || null,
-        old_value: { amount: Number(previousValue || 0), month: financeMonths[monthIndex], concept: row.concept },
-        new_value: { amount: Number(nextValue || 0), month: financeMonths[monthIndex], concept: row.concept }
-      })
-    }).catch(() => null);
+    await recordSecurityAuditEvent("UPDATE_FINANCE_RECORD", "finance", "success", {
+      record_id: saved[0]?.id || recordId || null,
+      concept: row.concept,
+      month: financeMonths[monthIndex],
+      previous_amount: Number(previousValue || 0),
+      next_amount: Number(nextValue || 0)
+    });
 
     setSyncStatus("connected", "Guardado en Supabase", `Última confirmación: ${syncTime()} · ${currentUser}`);
     return true;
@@ -4856,28 +4760,287 @@ function bindFinanceModule() {
 
 function bindExecutiveDirectionModule() {
   const gate = document.querySelector("[data-executive-gate]");
-  const launch = document.querySelector("[data-executive-launch]");
-  const loginForm = document.querySelector("[data-executive-login]");
-  const loginMessage = document.querySelector("[data-executive-gate-message]");
-  const launchLink = document.querySelector("[data-executive-instituva-launch]");
-  const loginFallback = document.querySelector("[data-executive-login-fallback]");
-  if (!gate || !launch) return;
+  const module = document.querySelector("[data-executive-module]");
+  const message = document.querySelector("[data-executive-message]");
+  const caseList = document.querySelector("[data-executive-cases]");
+  const detail = document.querySelector("[data-executive-detail]");
+  const refreshButton = document.querySelector("[data-executive-refresh]");
+  if (!gate || !module || !caseList || !detail) return;
 
-  bindSensitiveModuleGate({
-    moduleId: "executive_direction",
-    permission: "executive.case.read",
-    gate,
-    content: launch,
-    loginForm,
-    loginMessage,
-    loginFallbackLink: loginFallback,
-    async onUnlock() {
-      if (launchLink && typeof instituvaAppUrl === "function") {
-        launchLink.setAttribute("href", instituvaAppUrl("/administracion/direccion-ejecutiva"));
-        launchLink.setAttribute("rel", "noopener noreferrer");
-      }
+  const statusLabels = {
+    draft: "Borrador",
+    in_review: "En revisión",
+    ready_for_approval: "Para aprobar",
+    returned: "Devuelto",
+    approved: "Aprobado",
+    rejected: "Rechazado",
+    cancelled: "Cancelado",
+    in_municipal_process: "En trámite municipal",
+    completed: "Completado"
+  };
+  const priorityLabels = {
+    normal: "Normal",
+    high: "Alta",
+    urgent: "Urgente",
+    critical: "Crítica"
+  };
+  const areaLabels = {
+    administration: "Administración",
+    collections: "Colecciones",
+    communications: "Comunicaciones",
+    finance: "Finanzas",
+    human_resources: "Recursos Humanos",
+    memberships: "Membresías",
+    operations: "Operaciones",
+    spaces: "Renta de espacios",
+    system_health: "Soporte técnico"
+  };
+  const filters = { area: "", type: "", status: "", priority: "", date: "", urgent: false, resolved: false };
+  let snapshot = { cases: [], decisions: [], permissions: {} };
+  let selectedId = "";
+
+  const setMessage = (text, type = "") => {
+    if (!message) return;
+    message.textContent = text || "";
+    message.className = `form-message executive-system-message${type ? ` ${type}` : ""}`;
+  };
+  const isOverdue = (item) => Boolean(
+    item.dueAt &&
+    new Date(item.dueAt).getTime() < Date.now() &&
+    !["approved", "rejected", "cancelled", "completed"].includes(item.status)
+  );
+  const formatDate = (value) => {
+    if (!value) return "Sin fecha";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime())
+      ? "Sin fecha"
+      : new Intl.DateTimeFormat("es-PR", { dateStyle: "medium" }).format(parsed);
+  };
+  const visibleCases = () => snapshot.cases.filter((item) => (
+    (!filters.area || item.area === filters.area) &&
+    (!filters.type || item.caseTypeCode === filters.type) &&
+    (!filters.status || item.status === filters.status) &&
+    (!filters.priority || item.priority === filters.priority) &&
+    (!filters.date || String(item.createdAt || "").slice(0, 10) === filters.date) &&
+    (!filters.urgent || ["urgent", "critical"].includes(item.priority) || isOverdue(item)) &&
+    (!filters.resolved || ["approved", "rejected", "completed"].includes(item.status))
+  ));
+
+  const renderCounts = () => {
+    const counts = {
+      in_review: snapshot.cases.filter((item) => item.status === "in_review").length,
+      ready_for_approval: snapshot.cases.filter((item) => item.status === "ready_for_approval").length,
+      returned: snapshot.cases.filter((item) => item.status === "returned").length,
+      urgent: snapshot.cases.filter((item) => ["urgent", "critical"].includes(item.priority) || isOverdue(item)).length,
+      resolved: snapshot.cases.filter((item) => ["approved", "rejected", "completed"].includes(item.status)).length
+    };
+    Object.entries(counts).forEach(([name, value]) => {
+      const target = document.querySelector(`[data-executive-count="${name}"]`);
+      if (target) target.textContent = String(value);
+    });
+  };
+
+  const populateFilter = (name, entries) => {
+    const select = document.querySelector(`[data-executive-filter="${name}"]`);
+    if (!select) return;
+    const firstOption = select.options[0]?.outerHTML || "<option value=\"\">Todos</option>";
+    select.innerHTML = firstOption + entries
+      .map(([value, label]) => `<option value="${safeHtml(value)}">${safeHtml(label)}</option>`)
+      .join("");
+    select.value = filters[name] || "";
+  };
+
+  const renderFilters = () => {
+    const areas = [...new Set(snapshot.cases.map((item) => item.area).filter(Boolean))]
+      .map((value) => [value, areaLabels[value] || value]);
+    const types = [...new Map(snapshot.cases
+      .filter((item) => item.caseTypeCode)
+      .map((item) => [item.caseTypeCode, item.caseTypeLabel || item.caseTypeCode])).entries()];
+    populateFilter("area", areas);
+    populateFilter("type", types);
+  };
+
+  const renderDetail = () => {
+    const selected = snapshot.cases.find((item) => item.id === selectedId);
+    if (!selected) {
+      detail.innerHTML = '<div class="executive-empty-state">Seleccione un asunto para revisar su detalle.</div>';
+      return;
     }
-  }).init();
+    const decisions = snapshot.decisions.filter((item) => item.executiveCaseId === selected.id);
+    const canReview = Boolean(snapshot.permissions?.review);
+    const canDecide = Boolean(snapshot.permissions?.decide);
+    const actions = [
+      canReview && selected.status === "in_review"
+        ? '<button type="button" data-executive-action="ready">Marcar listo para aprobación</button>'
+        : "",
+      selected.status === "returned"
+        ? '<button type="button" data-executive-action="resubmit">Reenviar a revisión</button>'
+        : "",
+      canDecide && selected.status === "ready_for_approval"
+        ? '<button class="approve" type="button" data-executive-action="approve">Aprobar</button><button type="button" data-executive-action="return">Devolver</button><button class="reject" type="button" data-executive-action="reject">Rechazar</button>'
+        : ""
+    ].join("");
+    detail.innerHTML = `
+      <div class="executive-detail-heading">
+        <div>
+          <span>${safeHtml(selected.caseTypeLabel || selected.caseTypeCode || "Asunto")}</span>
+          <h3>${safeHtml(selected.title || "Asunto sin título")}</h3>
+        </div>
+        <strong class="executive-status status-${safeHtml(selected.status || "")}">
+          ${safeHtml(isOverdue(selected) ? "Vencido" : (statusLabels[selected.status] || selected.status))}
+        </strong>
+      </div>
+      <p class="executive-detail-summary">${safeHtml(selected.summary || "No se registró una descripción adicional.")}</p>
+      <dl class="executive-detail-facts">
+        <div><dt>Solicitante</dt><dd>${safeHtml(selected.requestedByName || "Solicitante autorizado")}</dd></div>
+        <div><dt>Área</dt><dd>${safeHtml(areaLabels[selected.area] || selected.area || "Administración")}</dd></div>
+        <div><dt>Prioridad</dt><dd>${safeHtml(priorityLabels[selected.priority] || selected.priority || "Normal")}</dd></div>
+        <div><dt>Creado</dt><dd>${safeHtml(formatDate(selected.createdAt))}</dd></div>
+        <div><dt>Vencimiento</dt><dd>${safeHtml(selected.dueAt ? formatDate(selected.dueAt) : "Sin vencimiento")}</dd></div>
+        <div><dt>Referencia</dt><dd>${safeHtml(selected.sourceResourceType || "expediente")}${selected.sourceResourceId ? ` · ${safeHtml(selected.sourceResourceId)}` : ""}</dd></div>
+      </dl>
+      <section class="executive-evidence">
+        <h4>Expediente de origen</h4>
+        <p>Los documentos, recibos municipales, cantidades y evidencia permanecen en su módulo correspondiente. Esta bandeja conserva la referencia oficial.</p>
+      </section>
+      <section class="executive-decision-history">
+        <h4>Historial de decisiones</h4>
+        ${decisions.length ? `
+          <ol>${decisions.map((decision) => `
+            <li>
+              <strong>${safeHtml(decision.action === "approve" ? "Aprobado" : decision.action === "reject" ? "Rechazado" : "Devuelto")}</strong>
+              <span>${safeHtml(decision.actorName || "Autoridad autorizada")} · ${safeHtml(formatDate(decision.createdAt))}</span>
+              ${decision.reason ? `<p>${safeHtml(decision.reason)}</p>` : ""}
+            </li>
+          `).join("")}</ol>
+        ` : "<p>Todavía no hay decisiones registradas.</p>"}
+      </section>
+      ${actions ? `<div class="executive-detail-actions">${actions}</div>` : ""}
+    `;
+  };
+
+  const renderCases = () => {
+    const rows = visibleCases();
+    if (!rows.length) {
+      caseList.innerHTML = '<div class="executive-empty-state">No hay asuntos para los filtros seleccionados.</div>';
+      renderDetail();
+      return;
+    }
+    if (!rows.some((item) => item.id === selectedId)) selectedId = rows[0].id;
+    caseList.innerHTML = rows.map((item) => `
+      <button class="executive-case-row${item.id === selectedId ? " is-selected" : ""}" type="button" data-executive-case="${safeHtml(item.id)}">
+        <span class="executive-priority priority-${safeHtml(item.priority || "normal")}"></span>
+        <span class="executive-case-copy">
+          <small>${safeHtml(item.caseTypeLabel || item.caseTypeCode || "Asunto")} · ${safeHtml(areaLabels[item.area] || item.area || "Administración")}</small>
+          <strong>${safeHtml(item.title || "Asunto sin título")}</strong>
+          <em>${safeHtml(item.summary || "Sin resumen adicional")}</em>
+        </span>
+        <span class="executive-status status-${safeHtml(item.status || "")}">
+          ${safeHtml(isOverdue(item) ? "Vencido" : (statusLabels[item.status] || item.status))}
+        </span>
+      </button>
+    `).join("");
+    renderDetail();
+  };
+
+  const render = () => {
+    renderCounts();
+    renderFilters();
+    renderCases();
+  };
+
+  const loadExecutiveDirection = async () => {
+    refreshButton?.setAttribute("disabled", "disabled");
+    setMessage("Actualizando la bandeja…");
+    try {
+      const result = await callInstitutionalDataBridge({ kind: "executive_snapshot" });
+      snapshot = {
+        cases: Array.isArray(result?.cases) ? result.cases : [],
+        decisions: Array.isArray(result?.decisions) ? result.decisions : [],
+        permissions: result?.permissions || {}
+      };
+      render();
+      setMessage(`Bandeja sincronizada. ${snapshot.cases.length} asunto${snapshot.cases.length === 1 ? "" : "s"}.`, "success");
+    } catch (error) {
+      setMessage(`No se pudo cargar Dirección Ejecutiva: ${error.message || "revise su conexión"}.`, "error");
+      caseList.innerHTML = '<div class="executive-empty-state">La bandeja no está disponible en este momento.</div>';
+    } finally {
+      refreshButton?.removeAttribute("disabled");
+    }
+  };
+
+  const runExecutiveAction = async (action) => {
+    const selected = snapshot.cases.find((item) => item.id === selectedId);
+    if (!selected) return;
+    let reason = null;
+    if (action === "return" || action === "reject") {
+      reason = window.prompt(action === "reject" ? "Indique el motivo del rechazo:" : "Indique las correcciones requeridas:");
+      if (!reason?.trim()) return;
+    } else if (action === "approve") {
+      const confirmed = window.confirm(`¿Confirma la aprobación de “${selected.title}”?`);
+      if (!confirmed) return;
+    }
+    detail.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+    setMessage("Registrando la decisión…");
+    try {
+      await callInstitutionalDataBridge({
+        kind: "executive_action",
+        caseId: selected.id,
+        action,
+        reason: reason?.trim() || null
+      });
+      await loadExecutiveDirection();
+      setMessage("La decisión se registró correctamente.", "success");
+    } catch (error) {
+      setMessage(`No se pudo registrar la acción: ${error.message || "revise sus permisos"}.`, "error");
+      renderDetail();
+    }
+  };
+
+  refreshButton?.addEventListener("click", () => void loadExecutiveDirection());
+  document.querySelectorAll("[data-executive-filter]").forEach((control) => {
+    control.addEventListener("change", () => {
+      filters[control.dataset.executiveFilter] = control.value;
+      filters.urgent = false;
+      filters.resolved = false;
+      renderCases();
+    });
+  });
+  document.querySelectorAll("[data-executive-summary]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = button.dataset.executiveSummary;
+      filters.status = ["in_review", "ready_for_approval", "returned"].includes(target) ? target : "";
+      filters.urgent = target === "urgent";
+      filters.resolved = target === "resolved";
+      const statusSelect = document.querySelector('[data-executive-filter="status"]');
+      if (statusSelect) statusSelect.value = filters.status;
+      renderCases();
+    });
+  });
+  caseList.addEventListener("click", (event) => {
+    const row = event.target.closest("[data-executive-case]");
+    if (!row) return;
+    selectedId = row.dataset.executiveCase;
+    renderCases();
+  });
+  detail.addEventListener("click", (event) => {
+    const actionButton = event.target.closest("[data-executive-action]");
+    if (actionButton) void runExecutiveAction(actionButton.dataset.executiveAction);
+  });
+
+  // La protección de ruta ya exige sesión activa y executive.case.read.
+  // No se solicita una segunda contraseña dentro del mismo sitio.
+  gate.hidden = true;
+  gate.style.display = "none";
+  module.hidden = false;
+  module.style.display = "";
+  void recordSecurityAuditEvent(
+    "SENSITIVE_MODULE_ENTER",
+    "executive_direction",
+    "allowed",
+    { permission: "executive.case.read", authentication: "active_session" }
+  );
+  void loadExecutiveDirection();
 }
 
 function bindReportsModule() {
@@ -4920,6 +5083,18 @@ function bindEmployeeProfile() {
   const params = new URLSearchParams(window.location.search);
   const id = params.get("empleado") || "guillermo-torres";
   let profile = getEmployeeById(id);
+  if (!profile) {
+    profileCard.innerHTML = `
+      <div class="module-placeholder">
+        <span class="module-icon theme-blue" data-icon="users"></span>
+        <h3>Empleado no disponible</h3>
+        <p>El directorio no devolvió un expediente para este empleado.</p>
+        <a class="button" href="recursos-humanos.html">Volver al directorio</a>
+      </div>
+    `;
+    renderInlineIcons();
+    return;
+  }
   let pendingPhoto = profile.foto || "";
 
   const avatar = document.querySelector("[data-profile-avatar]");
@@ -5846,7 +6021,7 @@ function bindPortalAttendanceCorrections() {
 async function bindEmployeePortal() {
   if (!document.querySelector("[data-employee-portal]")) return;
   const session = getSupabaseSession();
-  if (!session?.access_token) { window.location.replace(`login.html?environment=${encodeURIComponent(museoEnvironment.name)}`); return; }
+  if (!session?.access_token) { window.location.replace(loginUrlWithReturn("employee-portal.html")); return; }
   const profile = await fetchSupabaseProfile();
   const employee = getEmployeeRecords().find((record) => record.authUserId === session.user?.id);
   document.querySelector("[data-portal-name]").textContent = employee ? employeeDisplayName(employee) : (profile?.full_name || session.user?.email || "Usuario");
