@@ -98,9 +98,6 @@ end
 $$;
 
 drop trigger if exists employees_audit on public.employees;
-create trigger employees_audit
-after insert or update or delete on public.employees
-for each row execute function public.audit_employee_changes();
 
 drop policy if exists employee_private_read on storage.objects;
 create policy employee_private_read on storage.objects
@@ -123,6 +120,8 @@ using (
 do $$
 declare
   matching_employees integer;
+  employee_record_id uuid;
+  previous_position text;
 begin
   select count(*) into matching_employees
   from public.employees
@@ -135,12 +134,36 @@ begin
   end if;
 
   if matching_employees = 1 then
-    update public.employees
-    set position = 'Administrador General', updated_at = now()
+    select id, position into employee_record_id, previous_position
+    from public.employees
     where lower(first_name) = 'alberto'
       and lower(last_name) = 'soto'
-      and department = 'Administración'
+      and department = 'Administración';
+
+    update public.employees
+    set position = 'Administrador General', updated_at = now()
+    where id = employee_record_id
       and position is distinct from 'Administrador General';
+
+    if previous_position is distinct from 'Administrador General' then
+      insert into public.audit_logs (
+        museum_id, user_id, action, table_name, record_id, old_value, new_value
+      )
+      select
+        museum_id,
+        null,
+        'UPDATE',
+        'employees',
+        id,
+        jsonb_build_object('position', previous_position),
+        jsonb_build_object('position', 'Administrador General')
+      from public.employees
+      where id = employee_record_id;
+    end if;
   end if;
 end
 $$;
+
+create trigger employees_audit
+after insert or update or delete on public.employees
+for each row execute function public.audit_employee_changes();
