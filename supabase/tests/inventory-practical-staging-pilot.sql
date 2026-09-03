@@ -29,7 +29,7 @@ set local role authenticated;
 
 insert into pilot_items
 select id,asset_tag,record_type,quantity,version from public.inventory_create(
-  '{"record_type":"individual","quantity":1,"asset_tag":"CODEX-PRACTICAL-PILOT-I01","name":"Equipo sintético 1","description":"Piloto con rollback","category":"Prueba","condition":"excelente","location":"Almacén 1","status":"activo"}'::jsonb);
+  '{"record_type":"individual","quantity":1,"asset_tag":"CODEX-PRACTICAL-PILOT-I01","name":"Equipo sintético 1","description":"Piloto con rollback","category":"Prueba","condition":"por_verificar","location":"Almacén 1","status":"recibido"}'::jsonb);
 insert into pilot_items
 select id,asset_tag,record_type,quantity,version from public.inventory_create(
   '{"record_type":"individual","quantity":1,"asset_tag":"CODEX-PRACTICAL-PILOT-I02","name":"Equipo sintético 2","description":"Piloto con rollback","category":"Prueba","condition":"buena","location":"Almacén 1","status":"activo"}'::jsonb);
