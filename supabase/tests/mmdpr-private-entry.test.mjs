@@ -24,7 +24,7 @@ test("la raíz redirige al login sin renderizar el Dashboard", () => {
 
 test("el login inicial contiene solo la identidad y controles privados", () => {
   assert.match(login, /<body class="login-page">/);
-  assert.match(login, /images\/logo-horizontal\.jpg/);
+  assert.match(login, /assets\/brand\/mmpr-logo-login\.webp/);
   assert.match(login, /type="email"/);
   assert.match(login, />Entrar</);
   assert.match(login, />Olvidé mi contraseña</);

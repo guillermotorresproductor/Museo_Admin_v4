@@ -75,9 +75,9 @@ body:not(.login-page):not(.app-ready) {
 
 .private-login-logo {
   display: block;
-  width: min(100%, 320px);
-  max-height: 110px;
-  margin: 0 auto 30px;
+  width: min(100%, 230px);
+  height: auto;
+  margin: 0 auto 24px;
   object-fit: contain;
 }
 
