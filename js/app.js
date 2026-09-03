@@ -2777,11 +2777,14 @@ function bindInventoryModule() {
   const statusFilter = document.querySelector("[data-inventory-filter-status]");
   const showArchived = document.querySelector("[data-inventory-show-archived]");
   const total = document.querySelector("[data-inventory-total]");
+  const pieces = document.querySelector("[data-inventory-pieces]");
   const submitButton = document.querySelector("[data-inventory-submit]");
   const cancelButton = document.querySelector("[data-inventory-cancel]");
   const idField = document.querySelector("#inventory-id");
   const versionField = document.querySelector("#inventory-version");
   const photoInput = document.querySelector("#inventory-photo");
+  const recordTypeInput = document.querySelector("#inventory-record-type");
+  const quantityInput = document.querySelector("#inventory-quantity");
   const photoPreview = document.querySelector("[data-inventory-photo-preview]");
   const detailDialog = document.querySelector("[data-inventory-detail-dialog]");
   const detail = document.querySelector("[data-inventory-detail]");
@@ -2854,6 +2857,7 @@ function bindInventoryModule() {
 
   const renderRecords = () => {
     if (total) total.textContent = records.filter((record) => !record.archived_at).length;
+    if (pieces) pieces.textContent = records.filter((record) => !record.archived_at).reduce((sum, record) => sum + Number(record.quantity || 0), 0);
     if (!list) return;
 
     const filteredRecords = getFilteredRecords();
@@ -2865,7 +2869,7 @@ function bindInventoryModule() {
     list.innerHTML = filteredRecords.map((record) => `
       <tr${record.archived_at ? ' class="is-archived"' : ""}>
         <td><div class="inventory-photo-thumb" data-inventory-photo-for="${record.id}"><span>Sin foto</span></div></td>
-        <td><strong>${escapeHtml(record.name)}</strong><small>${escapeHtml([record.brand, record.model].filter(Boolean).join(" · ") || record.category)}</small></td>
+        <td><strong>${escapeHtml(record.name)}</strong><small>${escapeHtml(label(record.record_type || "individual"))} · ${Number(record.quantity || 1)} pieza(s) · ${escapeHtml([record.brand, record.model].filter(Boolean).join(" · ") || record.category)}</small></td>
         <td><strong>${escapeHtml(record.asset_tag)}</strong><small>${escapeHtml(record.serial_number || "Sin serie")}</small></td>
         <td>${escapeHtml(record.location)}<small>${escapeHtml(record.responsible || "Sin responsable")}</small></td>
         <td>${escapeHtml(label(record.condition))}<small>${record.archived_at ? "Archivado" : escapeHtml(label(record.status))}</small></td>
@@ -2895,6 +2899,8 @@ function bindInventoryModule() {
     if (idField) idField.value = "";
     if (versionField) versionField.value = "";
     form.elements.quantity.value = "1";
+    form.elements.record_type.value = "individual";
+    if (quantityInput) quantityInput.readOnly = true;
     form.elements.status.value = "activo";
     processedPhoto = null;
     photoProcessing = null;
@@ -2914,7 +2920,8 @@ function bindInventoryModule() {
     category: String(data.get("category") || "").trim(),
     brand: String(data.get("brand") || "").trim(),
     model: String(data.get("model") || "").trim(),
-    quantity: 1,
+    record_type: String(data.get("record_type") || "individual"),
+    quantity: Number(data.get("quantity") || 1),
     purchase_order: String(data.get("purchase_order") || "").trim(),
     supplier: String(data.get("supplier") || "").trim(),
     received_date: String(data.get("received_date") || ""),
@@ -2940,6 +2947,10 @@ function bindInventoryModule() {
     const id = String(data.get("id") || "");
     const version = Number(data.get("version") || 0);
     const payload = payloadFromForm(data);
+    if (!Number.isInteger(payload.quantity) || payload.quantity < 1 || (payload.record_type === "individual" && payload.quantity !== 1)) {
+      setMessage("La cantidad debe ser un entero mayor o igual a 1; un registro individual siempre contiene una pieza.", "error");
+      return;
+    }
     submitButton.disabled = true;
     setMessage("Guardando equipo...", "");
     try {
@@ -2976,6 +2987,7 @@ function bindInventoryModule() {
       });
       idField.value = record.id;
       versionField.value = record.version;
+      if (quantityInput) quantityInput.readOnly = record.record_type !== "lot";
       if (photoPreview) photoPreview.innerHTML = record.photo_path ? "<span>Fotografía actual; seleccione otra para reemplazarla.</span>" : "<span>Sin fotografía actual.</span>";
       if (submitButton) submitButton.textContent = "Actualizar equipo";
       if (cancelButton) cancelButton.hidden = false;
@@ -2993,7 +3005,7 @@ function bindInventoryModule() {
         } catch { /* Mostrar la ficha aunque la foto no esté disponible. */ }
       }
       detail.innerHTML = `${photo}<h3>${escapeHtml(record.name)}</h3><dl class="inventory-detail-grid">
-        <div><dt>Sello</dt><dd>${escapeHtml(record.asset_tag)}</dd></div><div><dt>Serie</dt><dd>${escapeHtml(record.serial_number || "—")}</dd></div>
+        <div><dt>Tipo / cantidad</dt><dd>${escapeHtml(label(record.record_type || "individual"))} · ${Number(record.quantity || 1)} pieza(s)</dd></div><div><dt>Sello</dt><dd>${escapeHtml(record.asset_tag)}</dd></div><div><dt>Serie</dt><dd>${escapeHtml(record.serial_number || "—")}</dd></div>
         <div><dt>Categoría</dt><dd>${escapeHtml(record.category)}</dd></div><div><dt>Marca / modelo</dt><dd>${escapeHtml([record.brand, record.model].filter(Boolean).join(" · ") || "—")}</dd></div>
         <div><dt>Ubicación</dt><dd>${escapeHtml(record.location)}</dd></div><div><dt>Responsable</dt><dd>${escapeHtml(record.responsible || "—")}</dd></div>
         <div><dt>Condición</dt><dd>${escapeHtml(label(record.condition))}</dd></div><div><dt>Estado</dt><dd>${escapeHtml(record.archived_at ? "Archivado" : label(record.status))}</dd></div>
@@ -3031,6 +3043,13 @@ function bindInventoryModule() {
 
   [search, locationFilter, statusFilter].forEach((control) => {
     if (control) control.addEventListener("input", renderRecords);
+  });
+  recordTypeInput?.addEventListener("change", () => {
+    const isLot = recordTypeInput.value === "lot";
+    if (quantityInput) {
+      quantityInput.readOnly = !isLot;
+      if (!isLot) quantityInput.value = "1";
+    }
   });
   showArchived?.addEventListener("change", loadInventoryRecords);
   document.querySelector("[data-inventory-detail-close]")?.addEventListener("click", () => detailDialog?.close());
