@@ -7,6 +7,8 @@ const invite = await readFile(new URL("../functions/invite-employee/index.ts", i
 const deactivate = await readFile(new URL("../functions/deactivate-user-access/index.ts", import.meta.url), "utf8");
 const migration = await readFile(new URL("../migrations/202609030006_employee_profile_identity_production.sql", import.meta.url), "utf8");
 const photoGuardMigration = await readFile(new URL("../migrations/202609030007_employee_legacy_photo_update_guard.sql", import.meta.url), "utf8");
+const hrPage = await readFile(new URL("../../recursos-humanos.html", import.meta.url), "utf8");
+const ushersPage = await readFile(new URL("../../ujieres.html", import.meta.url), "utf8");
 
 assert.match(app, /museoEnvironmentName === "staging"[\s\S]*source: "demo"/);
 assert.match(app, /No hay empleados registrados\./);
@@ -21,5 +23,7 @@ assert.match(migration, /museum_id, user_id, action, table_name/);
 assert.match(migration, /drop trigger if exists employees_audit[\s\S]*create trigger employees_audit/);
 assert.doesNotMatch(migration, /\b(insert|update|delete)\s+(into\s+|from\s+)?public\.employees\b/i);
 assert.match(photoGuardMigration, /new\.photo_url is distinct from old\.photo_url and new\.photo_url like 'data:%'/);
+assert.match(hrPage, /js\/app\.js\?v=hr-production-20260903/);
+assert.match(ushersPage, /js\/app\.js\?v=hr-production-20260903/);
 
 console.log("Production HR and ushers checks passed.");
