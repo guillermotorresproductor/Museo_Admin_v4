@@ -382,3 +382,40 @@ async function signSupabaseInventoryPhoto(path, expiresIn = 900) {
   const signedPath = data.signedURL || data.signedUrl || data.signed_url;
   return signedPath ? `${supabaseUrl}/storage/v1${signedPath.startsWith("/") ? "" : "/"}${signedPath}` : "";
 }
+
+async function fetchSupabaseCalendarEvents(calendarType = "general") {
+  return supabaseGet(`/rest/v1/calendar_events?select=id,calendar_type,title,classification,description,event_date,start_time,end_time,location,assigned_employee_id,status,created_at,updated_at&calendar_type=eq.${encodeURIComponent(calendarType)}&archived_at=is.null&order=event_date.asc,created_at.asc`);
+}
+
+async function saveSupabaseCalendarEvent(event, id = "") {
+  const profile = await currentMuseumContext();
+  const isUpdate = Boolean(id);
+  const payload = {
+    ...event,
+    museum_id: profile.museum_id,
+    updated_by: profile.id,
+    updated_at: new Date().toISOString()
+  };
+  if (!isUpdate) payload.created_by = profile.id;
+  const response = await fetch(`${supabaseUrl}/rest/v1/calendar_events${isUpdate ? `?id=eq.${encodeURIComponent(id)}` : ""}`, {
+    method: isUpdate ? "PATCH" : "POST",
+    headers: { ...(await supabaseAuthHeaders()), Prefer: "return=representation" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ([]));
+  if (!response.ok) throw new Error(data.message || "No se pudo guardar el evento.");
+  return data[0] || null;
+}
+
+async function archiveSupabaseCalendarEvent(id) {
+  const profile = await currentMuseumContext();
+  const response = await fetch(`${supabaseUrl}/rest/v1/calendar_events?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { ...(await supabaseAuthHeaders()), Prefer: "return=minimal" },
+    body: JSON.stringify({ archived_at: new Date().toISOString(), updated_by: profile.id, updated_at: new Date().toISOString() })
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || "No se pudo archivar el evento.");
+  }
+}
