@@ -5,6 +5,9 @@ import test from "node:test";
 const root = new URL("../../", import.meta.url);
 const app = fs.readFileSync(new URL("js/app.js", root), "utf8");
 const dashboard = fs.readFileSync(new URL("dashboard.html", root), "utf8");
+const museumDepartment = fs.readFileSync(new URL("departamento-museologico.html", root), "utf8");
+const collections = fs.readFileSync(new URL("colecciones-museograficas.html", root), "utf8");
+const documents = fs.readFileSync(new URL("documentos.html", root), "utf8");
 const migration = fs.readFileSync(
   new URL("supabase/migrations/202609030005_current_user_permissions_production_fix.sql", root),
   "utf8"
@@ -35,6 +38,15 @@ test("el filtrado usa una sola matriz RBAC para Dashboard y sidebar", () => {
   assert.match(app, /const moduleAccessChecks = \{/);
   assert.match(app, /moduleAccessChecks\[item\.href\]/);
   assert.match(app, /moduleAccessChecks\[href\]/);
+});
+
+test("Colecciones conserva un nivel propio antes del formulario", () => {
+  assert.match(museumDepartment, /href="colecciones-museograficas\.html"/);
+  assert.doesNotMatch(museumDepartment, /href="recibo-prestamo\.html"/);
+  assert.match(collections, /<h3>Formulario de Préstamo a Colección<\/h3>/);
+  assert.match(collections, /href="recibo-prestamo\.html"/);
+  assert.doesNotMatch(documents, /recibo-prestamo\.html|Formulario de Préstamo a Colección/);
+  assert.match(app, /"colecciones-museograficas\.html": \(\) => hasAdministrativeWorkspaceAccess\(\)/);
 });
 
 test("Dirección Ejecutiva y Finanzas conservan controles independientes", () => {

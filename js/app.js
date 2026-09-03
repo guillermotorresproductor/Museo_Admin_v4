@@ -13,6 +13,7 @@ const appPages = {
   "renta-espacio.html": { title: "Renta de Espacios", subtitle: "Ficha, fotografías y condiciones del espacio." },
   "membresias.html": { title: "Membresías", subtitle: "Socios, beneficios, renovaciones y participación." },
   "departamento-museologico.html": { title: "Departamento Museológico", subtitle: "Museología, salas, colecciones y formularios museográficos." },
+  "colecciones-museograficas.html": { title: "Colecciones museográficas", subtitle: "Registro, documentación, conservación y gestión de colecciones." },
   "administracion.html": { title: "Administración", subtitle: "Dirección ejecutiva, recursos humanos, notificaciones, reportes y finanzas." },
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
   "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
@@ -55,7 +56,7 @@ const navigationGroups = [
     label: "Menu",
     items: [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
-      { href: "departamento-museologico.html", label: "Departamento Museológico", icon: "building", activePages: ["recibo-prestamo.html"] },
+      { href: "departamento-museologico.html", label: "Departamento Museológico", icon: "building", activePages: ["colecciones-museograficas.html", "recibo-prestamo.html"] },
       { href: "calendario.html", label: "Calendario de Eventos del Museo", icon: "calendar" },
       { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building", activePages: ["renta-espacio.html"] },
       { href: "membresias.html", label: "Membresías", icon: "users" },
@@ -288,6 +289,7 @@ const SENSITIVE_MODULE_ACCESS = {
 
 const moduleAccessChecks = {
   "departamento-museologico.html": () => hasAdministrativeWorkspaceAccess(),
+  "colecciones-museograficas.html": () => hasAdministrativeWorkspaceAccess(),
   "calendario.html": () => hasPermission("calendar.manage") || hasPermission("schedules.read.team"),
   "renta-espacios.html": () => hasPermission("rentals.manage"),
   "membresias.html": () => hasPermission("memberships.manage"),
