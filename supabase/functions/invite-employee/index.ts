@@ -12,13 +12,13 @@ Deno.serve(async (req) => {
 
     const { data: employee, error: employeeError } = await admin
       .from("employees")
-      .select("id,email,first_name,last_name,auth_user_id")
+      .select("id,email,first_name,last_name,profile_id")
       .eq("id", employeeId)
       .eq("museum_id", profile.museum_id)
       .single();
 
     if (employeeError || !employee) return json({ error: "No se encontró el empleado." }, 404);
-    if (employee.auth_user_id) return json({ error: "Este empleado ya tiene una identidad vinculada." }, 409);
+    if (employee.profile_id) return json({ error: "Este empleado ya tiene una identidad vinculada." }, 409);
 
     const email = String(employee.email || "").trim().toLowerCase();
     const fullName = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
@@ -38,10 +38,10 @@ Deno.serve(async (req) => {
 
       const { data: linkedEmployee, error: linkError } = await admin
         .from("employees")
-        .update({ auth_user_id: invited.user.id, profile_id: invited.user.id })
+        .update({ profile_id: invited.user.id })
         .eq("id", employeeId)
         .eq("museum_id", profile.museum_id)
-        .is("auth_user_id", null)
+        .is("profile_id", null)
         .select("id")
         .single();
       if (linkError || !linkedEmployee) throw linkError || new Error("EMPLOYEE_LINK_FAILED");
