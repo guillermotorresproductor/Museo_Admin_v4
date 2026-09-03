@@ -34,5 +34,10 @@ export function errorResponse(error: unknown) {
   if (message === "FORBIDDEN") return json({ error: "No tiene permiso para esta operación." }, 403);
   if (message === "PROFILE_REQUIRED") return json({ error: "La cuenta no tiene un perfil válido." }, 403);
   if (message === "SERVER_CONFIGURATION") return json({ error: "El servicio no está configurado." }, 500);
+  if (message === "INVALID_EMPLOYEE" || message === "INVALID_REQUEST") return json({ error: "La solicitud no es válida." }, 400);
+  if (message === "EMPLOYEE_NOT_FOUND") return json({ error: "No se encontró el empleado." }, 404);
+  if (message === "INVALID_EMPLOYEE_EMAIL") return json({ error: "El expediente no tiene un correo válido." }, 400);
+  if (message === "IDENTITY_LINK_INVALID") return json({ error: "El vínculo de acceso requiere revisión administrativa." }, 409);
+  if (message === "RATE_LIMITED") return json({ error: "Espere un minuto antes de enviar otro correo." }, 429);
   return json({ error: "No se pudo completar la operación." }, 500);
 }

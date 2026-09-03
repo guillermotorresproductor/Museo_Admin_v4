@@ -118,9 +118,29 @@
               <textarea data-profile-field="notificaciones" rows="4"></textarea>
             </label>
           </div>
+
+          <section class="employee-access-card" data-employee-access hidden aria-labelledby="employee-access-title">
+            <div>
+              <p class="page-kicker">Acceso al sistema</p>
+              <h4 id="employee-access-title">Cuenta institucional</h4>
+            </div>
+            <dl class="employee-access-details">
+              <div><dt>Correo institucional</dt><dd data-access-email>—</dd></div>
+              <div><dt>Estado</dt><dd><span class="status-badge" data-access-status>Cargando…</span></dd></div>
+              <div><dt>Última invitación enviada</dt><dd data-access-last-invitation>—</dd></div>
+              <div><dt>Último acceso</dt><dd data-access-last-sign-in>—</dd></div>
+            </dl>
+            <div class="inventory-actions employee-access-actions">
+              <button class="button" type="button" data-access-invite hidden>Enviar invitación</button>
+              <button class="button" type="button" data-access-recovery hidden>Enviar enlace para cambiar contraseña</button>
+              <button class="button danger-button" type="button" data-access-deactivate hidden>Desactivar acceso</button>
+              <button class="button" type="button" data-access-reactivate hidden>Reactivar acceso</button>
+            </div>
+            <p class="form-message" data-access-message aria-live="polite"></p>
+          </section>
+
           <div class="inventory-actions">
             <button class="button submit-button" type="button" data-profile-save>Guardar cambios</button>
-            <button class="button" type="button" data-profile-invite hidden>Enviar invitación</button>
             <a class="button secondary" href="recursos-humanos.html">Volver al directorio</a>
           </div>
           <p class="form-message" data-profile-message></p>
@@ -130,8 +150,8 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=employee-sensitive-20260721"></script>
+  <script src="js/services/supabase.js?v=employee-access-20260903"></script>
+  <script src="js/app.js?v=employee-access-20260903"></script>
 </body>
 </html>
 

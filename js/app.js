@@ -5295,8 +5295,18 @@ function bindEmployeeProfile() {
   const photoRemove = document.querySelector("[data-employee-photo-remove]");
   const photoMessage = document.querySelector("[data-employee-photo-message]");
   const saveButton = document.querySelector("[data-profile-save]");
-  const inviteButton = document.querySelector("[data-profile-invite]");
   const profileMessage = document.querySelector("[data-profile-message]");
+  const accessCard = document.querySelector("[data-employee-access]");
+  const accessEmail = document.querySelector("[data-access-email]");
+  const accessStatus = document.querySelector("[data-access-status]");
+  const accessLastInvitation = document.querySelector("[data-access-last-invitation]");
+  const accessLastSignIn = document.querySelector("[data-access-last-sign-in]");
+  const accessMessage = document.querySelector("[data-access-message]");
+  const accessInviteButton = document.querySelector("[data-access-invite]");
+  const accessRecoveryButton = document.querySelector("[data-access-recovery]");
+  const accessDeactivateButton = document.querySelector("[data-access-deactivate]");
+  const accessReactivateButton = document.querySelector("[data-access-reactivate]");
+  let accessState = null;
 
   const setProfileMessage = (text, type = "") => {
     if (!profileMessage) return;
@@ -5304,18 +5314,72 @@ function bindEmployeeProfile() {
     profileMessage.className = `form-message ${type}`.trim();
   };
 
-  const updateInviteButton = () => {
-    if (!inviteButton) return;
+  const formatAccessDate = (value) => {
+    if (!value) return "No disponible";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "No disponible" : date.toLocaleString("es-PR", { dateStyle: "medium", timeStyle: "short" });
+  };
+
+  const setAccessMessage = (text, type = "") => {
+    if (!accessMessage) return;
+    accessMessage.textContent = text;
+    accessMessage.className = `form-message ${type}`.trim();
+  };
+
+  const renderAccessState = () => {
+    if (!accessCard) return;
     const canInvite = hasPermission("users.invite") && profile.source === "supabase";
-    inviteButton.hidden = !canInvite;
-    inviteButton.disabled = Boolean(profile.authUserId);
-    inviteButton.textContent = profile.authUserId ? "Acceso vinculado" : "Enviar invitación";
+    const canDeactivate = hasPermission("users.deactivate") && profile.source === "supabase";
+    accessCard.hidden = !(canInvite || canDeactivate);
+    if (accessCard.hidden) return;
+
+    const labels = {
+      no_account: "Sin cuenta",
+      invitation_pending: "Invitación pendiente",
+      active: "Activo",
+      deactivated: "Desactivado"
+    };
+    if (accessEmail) accessEmail.textContent = accessState?.email || profile.correo || "No disponible";
+    if (accessStatus) accessStatus.textContent = labels[accessState?.status] || "No disponible";
+    if (accessLastInvitation) accessLastInvitation.textContent = formatAccessDate(accessState?.last_invitation_at);
+    if (accessLastSignIn) accessLastSignIn.textContent = formatAccessDate(accessState?.last_sign_in_at);
+
+    [accessInviteButton, accessRecoveryButton, accessDeactivateButton, accessReactivateButton].forEach((button) => {
+      if (button) button.hidden = true;
+    });
+    if (!accessState) return;
+    if (accessState.status === "no_account" && canInvite && accessInviteButton) {
+      accessInviteButton.hidden = false;
+      accessInviteButton.textContent = "Enviar invitación";
+    } else if (accessState.status === "invitation_pending" && canInvite && accessInviteButton) {
+      accessInviteButton.hidden = false;
+      accessInviteButton.textContent = "Reenviar invitación";
+    } else if (accessState.status === "active") {
+      if (canInvite && accessRecoveryButton) accessRecoveryButton.hidden = false;
+      if (canDeactivate && accessDeactivateButton) accessDeactivateButton.hidden = false;
+    } else if (accessState.status === "deactivated" && canDeactivate && accessReactivateButton) {
+      accessReactivateButton.hidden = false;
+    }
+  };
+
+  const loadAccessState = async () => {
+    if (!accessCard || profile.source !== "supabase" || !(hasPermission("users.invite") || hasPermission("users.deactivate"))) return;
+    accessCard.hidden = false;
+    setAccessMessage("Consultando acceso seguro…");
+    try {
+      accessState = await fetchSupabaseEmployeeAccess(profile.id);
+      renderAccessState();
+      setAccessMessage("");
+    } catch (error) {
+      setAccessMessage(error.message || "No se pudo consultar el acceso.", "error");
+    }
   };
 
   if (avatar) avatar.textContent = profile.avatar || employeeInitials(profile);
   if (name) name.textContent = employeeDisplayName(profile);
   if (position) position.textContent = profile.posicion;
-  updateInviteButton();
+  renderAccessState();
+  loadAccessState();
 
   document.querySelectorAll("[data-profile-field]").forEach((field) => {
     const value = profile[field.dataset.profileField] || "";
@@ -5372,20 +5436,63 @@ function bindEmployeeProfile() {
     });
   }
 
-  inviteButton?.addEventListener("click", async () => {
-    if (profile.authUserId) return;
-    if (!window.confirm(`Se enviará una invitación al correo del expediente de ${employeeDisplayName(profile)}. ¿Desea continuar?`)) return;
-
-    inviteButton.disabled = true;
-    setProfileMessage("Enviando invitación segura...", "success");
+  accessInviteButton?.addEventListener("click", async () => {
+    const resend = accessState?.status === "invitation_pending";
+    if (!window.confirm(`${resend ? "Se reenviará" : "Se enviará"} una invitación al correo institucional de ${employeeDisplayName(profile)}. ¿Desea continuar?`)) return;
+    accessInviteButton.disabled = true;
+    setAccessMessage(resend ? "Reenviando invitación segura…" : "Enviando invitación segura…");
     try {
-      const result = await inviteSupabaseEmployee(profile.id);
-      profile = { ...profile, authUserId: result.user_id };
-      updateInviteButton();
-      setProfileMessage("Invitación enviada e identidad vinculada correctamente.", "success");
+      if (resend) await resendSupabaseEmployeeInvitation(profile.id);
+      else await inviteSupabaseEmployee(profile.id);
+      await loadAccessState();
+      setAccessMessage(resend ? "Invitación reenviada correctamente." : "Invitación enviada e identidad vinculada correctamente.", "success");
     } catch (error) {
-      updateInviteButton();
-      setProfileMessage(`No se pudo enviar la invitación: ${error.message}`, "error");
+      setAccessMessage(error.message || "No se pudo enviar la invitación.", "error");
+    } finally {
+      accessInviteButton.disabled = false;
+    }
+  });
+
+  accessRecoveryButton?.addEventListener("click", async () => {
+    accessRecoveryButton.disabled = true;
+    setAccessMessage("Enviando enlace seguro…");
+    try {
+      await requestSupabaseEmployeeRecovery(profile.id);
+      setAccessMessage("Enlace para cambiar contraseña enviado correctamente.", "success");
+    } catch (error) {
+      setAccessMessage(error.message || "No se pudo enviar el enlace.", "error");
+    } finally {
+      accessRecoveryButton.disabled = false;
+    }
+  });
+
+  accessDeactivateButton?.addEventListener("click", async () => {
+    if (!window.confirm(`Se desactivará exclusivamente el acceso al sistema de ${employeeDisplayName(profile)}. ¿Desea continuar?`)) return;
+    accessDeactivateButton.disabled = true;
+    setAccessMessage("Desactivando acceso…");
+    try {
+      await deactivateSupabaseEmployeeAccess(profile.id);
+      await loadAccessState();
+      setAccessMessage("Acceso desactivado. El expediente laboral no fue modificado.", "success");
+    } catch (error) {
+      setAccessMessage(error.message || "No se pudo desactivar el acceso.", "error");
+    } finally {
+      accessDeactivateButton.disabled = false;
+    }
+  });
+
+  accessReactivateButton?.addEventListener("click", async () => {
+    if (!window.confirm(`Se reactivará el acceso al sistema de ${employeeDisplayName(profile)}. ¿Desea continuar?`)) return;
+    accessReactivateButton.disabled = true;
+    setAccessMessage("Reactivando acceso…");
+    try {
+      await reactivateSupabaseEmployeeAccess(profile.id);
+      await loadAccessState();
+      setAccessMessage("Acceso reactivado correctamente.", "success");
+    } catch (error) {
+      setAccessMessage(error.message || "No se pudo reactivar el acceso.", "error");
+    } finally {
+      accessReactivateButton.disabled = false;
     }
   });
 
