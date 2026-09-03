@@ -164,9 +164,9 @@ async function clockSupabaseEmployeeTime(action, presence = {}) {
 }
 
 function passwordRecoveryRedirectUrl() {
-  const params = new URLSearchParams();
-  params.set("environment", museoEnvironment.name);
-  return `${window.location.origin}/login.html?${params.toString()}`;
+  const redirect = new URL("login.html", window.location.href);
+  redirect.searchParams.set("environment", museoEnvironment.name);
+  return redirect.href;
 }
 
 async function requestSupabasePasswordRecovery(email) {
