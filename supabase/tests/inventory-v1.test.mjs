@@ -9,6 +9,7 @@ const migration = fs.readFileSync(new URL("supabase/migrations/202609010001_inve
 const rbacPrerequisite = fs.readFileSync(new URL("supabase/migrations/202608312359_inventory_rbac_prerequisite.sql", root), "utf8");
 const legacyTransition = fs.readFileSync(new URL("supabase/migrations/202609010000_inventory_legacy_transition.sql", root), "utf8");
 const photoRlsFix = fs.readFileSync(new URL("supabase/migrations/202609010002_inventory_photo_rls_fix.sql", root), "utf8");
+const practicalMigration = fs.readFileSync(new URL("supabase/migrations/202609020003_inventory_practical_records.sql", root), "utf8");
 const html = fs.readFileSync(new URL("inventario.html", root), "utf8");
 const service = fs.readFileSync(new URL("js/services/supabase.js", root), "utf8");
 
@@ -31,12 +32,30 @@ test("expone los límites de procesamiento requeridos", () => {
   assert.equal(image.limits.MAX_OUTPUT_BYTES, 500 * 1024);
 });
 
-test("la migración impone unicidad, un equipo por fila y archivo lógico", () => {
+test("la migración base impone unicidad y archivo lógico", () => {
   assert.match(migration, /unique index inventory_items_museum_asset_tag_unique/i);
   assert.match(migration, /unique index inventory_items_museum_serial_unique/i);
   assert.match(migration, /quantity = 1/i);
   assert.match(migration, /cannot be deleted; archive/i);
   assert.match(migration, /inventory_archive\(p_id uuid, p_expected_version bigint\)/i);
+});
+
+test("inventario práctico permite lotes sin romper los RPC existentes", () => {
+  assert.match(practicalMigration, /add column record_type text not null default 'individual'/i);
+  assert.match(practicalMigration, /record_type in \('individual', 'lot'\)/i);
+  assert.match(practicalMigration, /check \(quantity >= 1\)/i);
+  assert.match(practicalMigration, /record_type <> 'individual' or quantity = 1/i);
+  assert.match(practicalMigration, /create or replace function public\.inventory_create\(p_item jsonb\)/i);
+  assert.match(practicalMigration, /create or replace function public\.inventory_update\(p_id uuid, p_expected_version bigint, p_item jsonb\)/i);
+  assert.match(practicalMigration, /museum_id = v_museum_id.*version = p_expected_version/is);
+  assert.match(practicalMigration, /has_permission\('inventory\.manage'\)/i);
+});
+
+test("la interfaz envía tipo y cantidad y presenta registros y piezas", () => {
+  assert.match(html, /name="record_type"/i);
+  assert.match(html, /name="quantity"[^>]*min="1"/i);
+  assert.match(html, /data-inventory-pieces/i);
+  assert.match(fs.readFileSync(new URL("js/app.js", root), "utf8"), /record_type:\s*String\(data\.get\("record_type"\)/i);
 });
 
 test("la transición legacy preserva únicamente una tabla vacía reconocida", () => {
