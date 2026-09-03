@@ -1,6 +1,5 @@
 -- Align employee identity policies with the existing profiles relation.
--- It does not create or delete employees. The only data correction is the
--- explicitly authorized position change for the uniquely matched Alberto Soto.
+-- It does not create, update, or delete employee records.
 
 do $$
 begin
@@ -116,53 +115,6 @@ using (
     )
   )
 );
-
-do $$
-declare
-  matching_employees integer;
-  employee_record_id uuid;
-  previous_position text;
-begin
-  select count(*) into matching_employees
-  from public.employees
-  where lower(first_name) = 'alberto'
-    and lower(last_name) = 'soto'
-    and department = 'Administración';
-
-  if matching_employees > 1 then
-    raise exception 'Alberto Soto is not unique; refusing to update employee data';
-  end if;
-
-  if matching_employees = 1 then
-    select id, position into employee_record_id, previous_position
-    from public.employees
-    where lower(first_name) = 'alberto'
-      and lower(last_name) = 'soto'
-      and department = 'Administración';
-
-    update public.employees
-    set position = 'Administrador General', updated_at = now()
-    where id = employee_record_id
-      and position is distinct from 'Administrador General';
-
-    if previous_position is distinct from 'Administrador General' then
-      insert into public.audit_logs (
-        museum_id, user_id, action, table_name, record_id, old_value, new_value
-      )
-      select
-        museum_id,
-        null,
-        'UPDATE',
-        'employees',
-        id,
-        jsonb_build_object('position', previous_position),
-        jsonb_build_object('position', 'Administrador General')
-      from public.employees
-      where id = employee_record_id;
-    end if;
-  end if;
-end
-$$;
 
 create trigger employees_audit
 after insert or update or delete on public.employees
