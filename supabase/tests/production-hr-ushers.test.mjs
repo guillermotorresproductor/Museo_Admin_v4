@@ -18,6 +18,7 @@ assert.match(deactivate, /\.eq\("profile_id", userId\)/);
 assert.match(migration, /profile_id = auth\.uid\(\)/);
 assert.match(migration, /museum_id, user_id, action, table_name/);
 assert.match(migration, /matching_employees = 1[\s\S]*position = 'Administrador General'/);
+assert.match(migration, /drop trigger if exists employees_audit[\s\S]*jsonb_build_object\('position', previous_position\)[\s\S]*create trigger employees_audit/);
 assert.doesNotMatch(migration, /\b(insert|delete)\s+(into\s+|from\s+)?public\.employees\b/i);
 
 console.log("Production HR and ushers checks passed.");
