@@ -419,3 +419,35 @@ async function archiveSupabaseCalendarEvent(id) {
     throw new Error(data.message || "No se pudo archivar el evento.");
   }
 }
+
+async function fetchSupabaseMaintenanceTasks(recordType) {
+  return supabaseGet(`/rest/v1/maintenance_tasks?select=id,employee_id,area,task,task_date,status,observations,record_type,details,created_at,updated_at&record_type=eq.${encodeURIComponent(recordType)}&archived_at=is.null&order=task_date.asc,created_at.asc`);
+}
+
+async function saveSupabaseMaintenanceTask(task, id = "") {
+  const profile = await currentMuseumContext();
+  const isUpdate = Boolean(id);
+  const payload = { ...task, museum_id: profile.museum_id, updated_by: profile.id, updated_at: new Date().toISOString() };
+  if (!isUpdate) payload.created_by = profile.id;
+  const response = await fetch(`${supabaseUrl}/rest/v1/maintenance_tasks${isUpdate ? `?id=eq.${encodeURIComponent(id)}` : ""}`, {
+    method: isUpdate ? "PATCH" : "POST",
+    headers: { ...(await supabaseAuthHeaders()), Prefer: "return=representation" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ([]));
+  if (!response.ok) throw new Error(data.message || "No se pudo guardar el registro de mantenimiento.");
+  return data[0] || null;
+}
+
+async function archiveSupabaseMaintenanceTask(id) {
+  const profile = await currentMuseumContext();
+  const response = await fetch(`${supabaseUrl}/rest/v1/maintenance_tasks?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { ...(await supabaseAuthHeaders()), Prefer: "return=minimal" },
+    body: JSON.stringify({ archived_at: new Date().toISOString(), updated_by: profile.id, updated_at: new Date().toISOString() })
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || "No se pudo archivar el registro de mantenimiento.");
+  }
+}

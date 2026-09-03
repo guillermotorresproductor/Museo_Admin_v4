@@ -13,13 +13,14 @@
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="card panel form-panel">
+        <section class="card panel form-panel" data-route-module>
           <h3>Ruta Digital de Mantenimiento</h3>
-          <form class="application-form" action="#" method="post">
+          <form class="application-form" action="#" method="post" data-route-form>
+            <input type="hidden" name="id">
             <div class="form-row">
               <div class="field">
                 <label for="empleado-ruta">Empleado de Mantenimiento</label>
-                <select id="empleado-ruta" name="empleado" data-employee-select data-employee-filter="Mantenimiento">
+                <select id="empleado-ruta" name="empleado" data-employee-select data-employee-filter="Mantenimiento" data-employee-value="id">
                   <option value="">Seleccione un empleado...</option>
                 </select>
               </div>
@@ -40,6 +41,7 @@
               <textarea id="observaciones-ruta" name="observaciones" rows="4"></textarea>
             </div>
             <button class="button submit-button pale-button" type="submit">Registrar Inspección</button>
+            <p class="form-message" data-route-message></p>
           </form>
         </section>
         <section class="card panel section-stack table-panel">
@@ -55,15 +57,7 @@
                   <th>Estado</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr>
-                  <td>01/07/2026</td>
-                  <td>8:35 AM</td>
-                  <td>Juan Pérez</td>
-                  <td>Lobby</td>
-                  <td><span class="status-dot green"></span> Completado</td>
-                </tr>
-              </tbody>
+              <tbody data-route-history></tbody>
             </table>
           </div>
         </section>
@@ -72,8 +66,8 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=employee-sensitive-20260721"></script>
+  <script src="js/services/supabase.js?v=block2-maintenance-20260903"></script>
+  <script src="js/app.js?v=block2-maintenance-20260903"></script>
 </body>
 </html>
 
