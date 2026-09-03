@@ -75,7 +75,7 @@ body:not(.login-page):not(.app-ready) {
 
 .private-login-logo {
   display: block;
-  width: min(100%, 230px);
+  width: min(100%, 299px);
   height: auto;
   margin: 0 auto 24px;
   object-fit: contain;
@@ -83,7 +83,7 @@ body:not(.login-page):not(.app-ready) {
 
 @media (min-width: 621px) {
   .private-login-logo {
-    width: min(100%, 300px);
+    width: min(100%, 390px);
   }
 }
 
