@@ -24,7 +24,7 @@ const appPages = {
   "reglamento.html": { title: "Reglamento del Museo", subtitle: "Normas oficiales, impresión y descarga." },
   "documentos.html": { title: "Formularios y Papelería", subtitle: "Stationary, reglamento, solicitud de empleo y formularios oficiales." },
   "deposito-artes.html": { title: "Depósito de Artes", subtitle: "Logos oficiales, artes y guías de marca del Museo." },
-  "recibo-prestamo.html": { title: "Formulario de Préstamo a Colección", subtitle: "Formulario digital para artículos de colección recibidos mediante préstamo." },
+  "recibo-prestamo.html": { title: "Formulario de Préstamo a Colección", subtitle: "Registro de artículos recibidos en préstamo para la colección del museo." },
   "boletin.html": { title: "Boletín Board", subtitle: "Publicaciones, anuncios y comunicaciones internas." },
   "inventario.html": { title: "Inventario de equipos", subtitle: "Registro, consulta y localización de artículos del museo." }
 };
@@ -72,6 +72,15 @@ const navigationGroups = [
 ];
 
 const moduleShortcutGroups = [
+  {
+    pages: ["recibo-prestamo.html"],
+    backHref: "colecciones-museograficas.html",
+    homeLabel: "Inicio",
+    links: [
+      { href: "departamento-museologico.html", label: "Departamento Museológico", icon: "building" },
+      { href: "colecciones-museograficas.html", label: "Colecciones museográficas", icon: "image" }
+    ]
+  },
   {
     pages: ["mantenimiento.html", "calendario-obras.html", "solicitud-materiales.html", "ruta-digital.html"],
     links: [
@@ -1291,8 +1300,10 @@ function renderPageShortcuts() {
   const utilityLinks = basePages.includes(currentPage)
     ? []
     : [
-        { type: "back", label: "Atrás", icon: "arrowLeft" },
-        { href: "dashboard.html", label: "Home", icon: "dashboard" }
+        group?.backHref
+          ? { href: group.backHref, label: "Atrás", icon: "arrowLeft" }
+          : { type: "back", label: "Atrás", icon: "arrowLeft" },
+        { href: "dashboard.html", label: group?.homeLabel || "Home", icon: "dashboard" }
       ];
   const groupLinks = group?.links || [];
   const links = [...utilityLinks, ...groupLinks];
