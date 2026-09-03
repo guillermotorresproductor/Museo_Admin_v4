@@ -55,9 +55,19 @@ Deno.serve(async (req) => {
         args.p_request_key = payload.p_request_key;
         args.p_title = payload.p_title;
       } else if (kind === "finance_upsert_budget_line") {
-        Object.assign(args, payload);
+        args.p_budget_version_id = payload.p_budget_version_id;
+        args.p_request_key = payload.p_request_key;
+        args.p_line_id = payload.p_line_id ?? null;
+        args.p_line_code = payload.p_line_code;
+        args.p_label = payload.p_label;
+        args.p_line_type = payload.p_line_type;
+        args.p_display_order = payload.p_display_order ?? 0;
       } else if (kind === "finance_set_budget_amount") {
-        Object.assign(args, payload);
+        args.p_budget_version_id = payload.p_budget_version_id;
+        args.p_budget_line_id = payload.p_budget_line_id;
+        args.p_request_key = payload.p_request_key;
+        args.p_period_start = payload.p_period_start;
+        args.p_amount = payload.p_amount;
       }
       const { data, error } = await instituva.rpc(financeAction.rpc, args);
       if (error) return json({ error: error.message || "Instituva rechazó la operación." }, 400);
