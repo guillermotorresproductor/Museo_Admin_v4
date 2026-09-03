@@ -3,17 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Login</title>
-  <link rel="stylesheet" href="css/main.css?v=password-recovery-20260721">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Acceso privado | Museo de la Música</title>
+  <link rel="stylesheet" href="css/main.css?v=private-login-20260903">
 </head>
-<body>
+<body class="login-page">
   <div class="app-shell">
     <aside class="sidebar" data-sidebar></aside>
     <div class="sidebar-backdrop" data-sidebar-backdrop></div>
     <div class="main-area">
       <header class="site-header" data-header></header>
       <main class="page-content">
-        <section class="page-hero">
+        <img class="private-login-logo" src="images/logo-horizontal.jpg" alt="Museo de la Música de Puerto Rico">
+        <section class="page-hero" hidden>
           <div>
             <p class="page-kicker">Acceso</p>
             <h2>Acceso Administrativo</h2>
@@ -26,15 +28,15 @@
           <form class="form-grid" data-login-form>
             <div class="field">
               <label for="username">Correo electrónico</label>
-              <input id="username" name="username" type="text" inputmode="email" autocomplete="username" placeholder="correo@ejemplo.com" required>
+              <input id="username" name="username" type="email" autocomplete="username" required>
             </div>
             <div class="field">
               <label for="password">Contraseña</label>
               <input id="password" name="password" type="password" autocomplete="current-password" required>
             </div>
             <button class="button" type="submit">Entrar</button>
-            <button class="login-recovery-link" type="button" data-recovery-toggle>¿Olvidaste tu contraseña?</button>
-            <p class="login-help" data-login-message>Acceso preparado para usuarios del Museo.</p>
+            <button class="login-recovery-link" type="button" data-recovery-toggle>Olvidé mi contraseña</button>
+            <p class="login-help" data-login-message></p>
           </form>
         </section>
         <section class="card panel login-card" data-recovery-card hidden>
@@ -72,9 +74,9 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/config.js?v=single-login-20260728"></script>
-  <script src="js/services/supabase.js?v=access-policy-20260728"></script>
-  <script src="js/app.js?v=single-login-20260728"></script>
+  <script src="js/config.js?v=private-login-20260903"></script>
+  <script src="js/services/supabase.js?v=private-login-20260903"></script>
+  <script src="js/app.js?v=private-login-20260903"></script>
 </body>
 </html>
 

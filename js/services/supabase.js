@@ -165,7 +165,9 @@ async function clockSupabaseEmployeeTime(action, presence = {}) {
 
 function passwordRecoveryRedirectUrl() {
   const redirect = new URL("login.html", window.location.href);
-  redirect.searchParams.set("environment", museoEnvironment.name);
+  if (typeof isMuseumProductionHost !== "function" || !isMuseumProductionHost()) {
+    redirect.searchParams.set("environment", museoEnvironment.name);
+  }
   return redirect.href;
 }
 

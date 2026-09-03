@@ -25,8 +25,25 @@ const requestedMuseoEnvironment = new URLSearchParams(window.location.search).ge
 const currentPathPage = (window.location.pathname.split("/").pop() || "").toLowerCase();
 const isLoginEntryPage = currentPathPage === "login.html" || currentPathPage === "login";
 
-if (requestedMuseoEnvironment === "production") {
-  // Forzar el entorno real del cliente.
+const museoHostEnvironments = Object.freeze({
+  "mmdpr.org": "production",
+  "www.mmdpr.org": "production",
+  "demo.instituva.com": "staging"
+});
+
+function lockedMuseoEnvironment(host = window.location.hostname) {
+  return museoHostEnvironments[String(host || "").toLowerCase()] || "";
+}
+
+function isMuseumProductionHost(host = window.location.hostname) {
+  return lockedMuseoEnvironment(host) === "production";
+}
+
+const hostEnvironment = lockedMuseoEnvironment();
+if (hostEnvironment) {
+  // Los dominios oficiales no aceptan cambios de ambiente por URL o sesión previa.
+  sessionStorage.removeItem("museo-admin-environment");
+} else if (requestedMuseoEnvironment === "production") {
   sessionStorage.removeItem("museo-admin-environment");
 } else if (requestedMuseoEnvironment && museoEnvironments[requestedMuseoEnvironment]) {
   sessionStorage.setItem("museo-admin-environment", requestedMuseoEnvironment);
@@ -35,7 +52,7 @@ if (requestedMuseoEnvironment === "production") {
   sessionStorage.removeItem("museo-admin-environment");
 }
 
-const museoEnvironmentName = sessionStorage.getItem("museo-admin-environment") || "production";
+const museoEnvironmentName = hostEnvironment || sessionStorage.getItem("museo-admin-environment") || "production";
 const museoEnvironment = museoEnvironments[museoEnvironmentName] || museoEnvironments.production;
 
 const institutionalDataQuery = new URLSearchParams(window.location.search).get("institutionalData");
