@@ -16,6 +16,7 @@ assert.doesNotMatch(service, /select=id,auth_user_id/);
 assert.match(invite, /\.is\("profile_id", null\)/);
 assert.match(deactivate, /\.eq\("profile_id", userId\)/);
 assert.match(migration, /profile_id = auth\.uid\(\)/);
+assert.match(migration, /museum_id, user_id, action, table_name/);
 assert.match(migration, /matching_employees = 1[\s\S]*position = 'Administrador General'/);
 assert.doesNotMatch(migration, /\b(insert|delete)\s+(into\s+|from\s+)?public\.employees\b/i);
 
