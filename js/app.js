@@ -268,11 +268,7 @@ const canManageEmployees = () => hasPermission("employees.create") || hasPermiss
 const hasAdministrativeWorkspaceAccess = () =>
   hasPermission("system.configure") || (hasPermission("audit.read") && hasPermission("notifications.manage"));
 const canAccessAdministrationHub = () => hasAdministrativeWorkspaceAccess();
-const postLoginDestination = () => {
-  if (hasAdministrativeWorkspaceAccess()) return "dashboard.html";
-  if (hasPermission("employees.read.all") && hasPermission("attendance.corrections.approve")) return "recursos-humanos.html";
-  return "employee-portal.html";
-};
+const postLoginDestination = () => "dashboard.html";
 
 const EXECUTIVE_MODULE_ACCESS = {
   "administracion.html": () => canAccessAdministrationHub(),
@@ -291,9 +287,12 @@ const SENSITIVE_MODULE_ACCESS = {
 
 function loginUrlWithReturn(page) {
   const params = new URLSearchParams();
-  params.set("environment", museoEnvironment.name);
+  if (typeof isMuseumProductionHost !== "function" || !isMuseumProductionHost()) {
+    params.set("environment", museoEnvironment.name);
+  }
   if (page) params.set("next", page);
-  return `login.html?${params.toString()}`;
+  const query = params.toString();
+  return `login.html${query ? `?${query}` : ""}`;
 }
 
 function resolvePostLoginDestination() {
@@ -334,9 +333,16 @@ async function recordSecurityAuditEvent(action, moduleId, result, details = {}) 
 
 function enforceAuthenticatedPageAccess() {
   const page = getCurrentPage();
-  if (page === "login.html" || page === "dashboard.html" || page === "index.html") return false;
+  if (page === "login.html") return false;
 
   const session = getSupabaseSession()?.access_token;
+  if (!session) {
+    window.location.replace(loginUrlWithReturn(page === "dashboard.html" || page === "index.html" ? "" : page));
+    return true;
+  }
+  if (!currentPermissionsLoaded) return true;
+  if (page === "dashboard.html" || page === "index.html") return false;
+
   const executiveChecker = EXECUTIVE_MODULE_ACCESS[page];
   const sensitiveChecker = SENSITIVE_MODULE_ACCESS[page];
   const protectedChecker = executiveChecker || sensitiveChecker;
@@ -374,8 +380,6 @@ function enforceAuthenticatedPageAccess() {
     }
     return false;
   }
-
-  if (!session || !currentPermissionsLoaded) return false;
 
   if (hasAdministrativeWorkspaceAccess()) return false;
 
@@ -1310,7 +1314,18 @@ function renderSidebar() {
 
   const currentPage = getCurrentPage();
   const groupsMarkup = navigationGroups.map((group) => {
-    const links = group.items.map((item) => {
+    const links = group.items.filter((item) => {
+      if (item.href === "dashboard.html" || item.href === "login.html") return true;
+      if (hasAdministrativeWorkspaceAccess()) return true;
+      const checks = {
+        "calendario.html": () => hasPermission("calendar.manage") || hasPermission("schedules.read.team"),
+        "renta-espacios.html": () => hasPermission("rentals.manage"),
+        "membresias.html": () => hasPermission("memberships.manage"),
+        "administracion.html": () => canAccessAdministrationHub(),
+        "inventario.html": () => hasPermission("inventory.manage")
+      };
+      return Boolean(checks[item.href]?.());
+    }).map((item) => {
       const isActive = item.href === currentPage || (item.activePages || []).includes(currentPage) || (currentPage === "index.html" && item.href === "dashboard.html");
       return `
         <li>
@@ -1349,6 +1364,21 @@ function renderSidebar() {
     logo.addEventListener("load", () => brand.classList.add("has-logo"));
     logo.addEventListener("error", () => brand.classList.remove("has-logo"));
   }
+}
+
+function filterDashboardModules() {
+  if (!["dashboard.html", "index.html"].includes(getCurrentPage()) || hasAdministrativeWorkspaceAccess()) return;
+  const checks = {
+    "calendario.html": () => hasPermission("calendar.manage") || hasPermission("schedules.read.team"),
+    "renta-espacios.html": () => hasPermission("rentals.manage"),
+    "membresias.html": () => hasPermission("memberships.manage"),
+    "administracion.html": () => canAccessAdministrationHub(),
+    "inventario.html": () => hasPermission("inventory.manage")
+  };
+  document.querySelectorAll(".module-grid .module-card[href]").forEach((card) => {
+    const href = card.getAttribute("href");
+    card.hidden = !Boolean(checks[href]?.());
+  });
 }
 
 function renderHeader() {
@@ -5986,21 +6016,29 @@ async function initApp() {
     return;
   }
   bindInstituvaAppLinks();
+  if (isLoginPage()) {
+    bindLoginDemo();
+    return;
+  }
+  if (!getSupabaseSession()?.access_token) {
+    window.location.replace(loginUrlWithReturn(getCurrentPage() === "dashboard.html" || getCurrentPage() === "index.html" ? "" : getCurrentPage()));
+    return;
+  }
+  try {
+    await refreshCurrentPermissions();
+  } catch {
+    clearLoginState(false);
+    window.location.replace(loginUrlWithReturn(""));
+    return;
+  }
+  if (enforceAuthenticatedPageAccess()) return;
   renderSidebar();
   renderHeader();
   renderFooter();
+  filterDashboardModules();
   renderInlineIcons();
   bindHeaderActions();
-  if (isLoginPage()) {
-    bindLoginDemo();
-    bindSidebarToggle();
-    return;
-  }
-  await refreshCurrentPermissions().catch(() => {
-    currentPermissions.clear();
-    currentPermissionsLoaded = Boolean(getSupabaseSession()?.access_token);
-  });
-  if (enforceAuthenticatedPageAccess()) return;
+  document.body.classList.add("app-ready");
   await syncEmployeeCacheFromSupabase().catch(() => null);
   updateCurrentUserFromEmployeeCache();
   renderHeader();
