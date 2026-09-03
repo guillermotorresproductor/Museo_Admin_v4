@@ -44,6 +44,31 @@ create unique index inventory_items_museum_serial_unique
 create index inventory_items_museum_active_idx
   on public.inventory_items (museum_id, archived_at, updated_at desc);
 
+create or replace function public.inventory_append_audit(
+  p_museum_id uuid, p_action text, p_record_id uuid, p_old_value jsonb, p_new_value jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_actor_column text;
+begin
+  select case
+    when exists (select 1 from information_schema.columns where table_schema='public' and table_name='audit_logs' and column_name='actor_user_id') then 'actor_user_id'
+    when exists (select 1 from information_schema.columns where table_schema='public' and table_name='audit_logs' and column_name='user_id') then 'user_id'
+  end into v_actor_column;
+  if v_actor_column is null then
+    raise exception 'Incompatible public.audit_logs: actor_user_id or user_id is required.' using errcode = '55000';
+  end if;
+  execute format(
+    'insert into public.audit_logs(museum_id,%I,action,table_name,record_id,old_value,new_value) values($1,$2,$3,''inventory_items'',$4,$5,$6)',
+    v_actor_column
+  ) using p_museum_id,auth.uid(),p_action,p_record_id,p_old_value,p_new_value;
+end;
+$$;
+
 create or replace function public.inventory_audit_changes()
 returns trigger
 language plpgsql
@@ -62,33 +87,27 @@ begin
   v_new := to_jsonb(new);
 
   if tg_op = 'INSERT' then
-    insert into public.audit_logs(museum_id, actor_user_id, action, table_name, record_id, old_value, new_value)
-    values (new.museum_id, auth.uid(), 'INVENTORY_CREATED', 'inventory_items', new.id, null, v_new);
+    perform public.inventory_append_audit(new.museum_id,'INVENTORY_CREATED',new.id,null,v_new);
     return new;
   end if;
 
-  insert into public.audit_logs(museum_id, actor_user_id, action, table_name, record_id, old_value, new_value)
-  values (new.museum_id, auth.uid(), 'INVENTORY_EDITED', 'inventory_items', new.id, v_old, v_new);
+  perform public.inventory_append_audit(new.museum_id,'INVENTORY_EDITED',new.id,v_old,v_new);
 
   if old.location is distinct from new.location then
-    insert into public.audit_logs(museum_id, actor_user_id, action, table_name, record_id, old_value, new_value)
-    values (new.museum_id, auth.uid(), 'INVENTORY_LOCATION_CHANGED', 'inventory_items', new.id,
-      jsonb_build_object('location', old.location), jsonb_build_object('location', new.location));
+    perform public.inventory_append_audit(new.museum_id,'INVENTORY_LOCATION_CHANGED',new.id,
+      jsonb_build_object('location',old.location),jsonb_build_object('location',new.location));
   end if;
   if old.responsible is distinct from new.responsible then
-    insert into public.audit_logs(museum_id, actor_user_id, action, table_name, record_id, old_value, new_value)
-    values (new.museum_id, auth.uid(), 'INVENTORY_RESPONSIBLE_CHANGED', 'inventory_items', new.id,
-      jsonb_build_object('responsible', old.responsible), jsonb_build_object('responsible', new.responsible));
+    perform public.inventory_append_audit(new.museum_id,'INVENTORY_RESPONSIBLE_CHANGED',new.id,
+      jsonb_build_object('responsible',old.responsible),jsonb_build_object('responsible',new.responsible));
   end if;
   if old.condition is distinct from new.condition then
-    insert into public.audit_logs(museum_id, actor_user_id, action, table_name, record_id, old_value, new_value)
-    values (new.museum_id, auth.uid(), 'INVENTORY_CONDITION_CHANGED', 'inventory_items', new.id,
-      jsonb_build_object('condition', old.condition), jsonb_build_object('condition', new.condition));
+    perform public.inventory_append_audit(new.museum_id,'INVENTORY_CONDITION_CHANGED',new.id,
+      jsonb_build_object('condition',old.condition),jsonb_build_object('condition',new.condition));
   end if;
   if old.archived_at is null and new.archived_at is not null then
-    insert into public.audit_logs(museum_id, actor_user_id, action, table_name, record_id, old_value, new_value)
-    values (new.museum_id, auth.uid(), 'INVENTORY_ARCHIVED', 'inventory_items', new.id,
-      jsonb_build_object('archived_at', null), jsonb_build_object('archived_at', new.archived_at));
+    perform public.inventory_append_audit(new.museum_id,'INVENTORY_ARCHIVED',new.id,
+      jsonb_build_object('archived_at',null),jsonb_build_object('archived_at',new.archived_at));
   end if;
   return new;
 end;
@@ -231,6 +250,7 @@ revoke all on function public.inventory_create(jsonb) from public;
 revoke all on function public.inventory_update(uuid,bigint,jsonb) from public;
 revoke all on function public.inventory_archive(uuid,bigint) from public;
 revoke all on function public.inventory_set_photo(uuid,bigint) from public;
+revoke all on function public.inventory_append_audit(uuid,text,uuid,jsonb,jsonb) from public,anon,authenticated;
 grant execute on function public.inventory_create(jsonb) to authenticated;
 grant execute on function public.inventory_update(uuid,bigint,jsonb) to authenticated;
 grant execute on function public.inventory_archive(uuid,bigint) to authenticated;

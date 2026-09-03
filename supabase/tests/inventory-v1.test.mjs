@@ -6,6 +6,7 @@ import vm from "node:vm";
 const root = new URL("../../", import.meta.url);
 const imageSource = fs.readFileSync(new URL("js/inventory-image.js", root), "utf8");
 const migration = fs.readFileSync(new URL("supabase/migrations/202609010001_inventory_items.sql", root), "utf8");
+const rbacPrerequisite = fs.readFileSync(new URL("supabase/migrations/202608312359_inventory_rbac_prerequisite.sql", root), "utf8");
 const legacyTransition = fs.readFileSync(new URL("supabase/migrations/202609010000_inventory_legacy_transition.sql", root), "utf8");
 const photoRlsFix = fs.readFileSync(new URL("supabase/migrations/202609010002_inventory_photo_rls_fix.sql", root), "utf8");
 const html = fs.readFileSync(new URL("inventario.html", root), "utf8");
@@ -50,6 +51,12 @@ test("la transición legacy preserva únicamente una tabla vacía reconocida", (
 });
 
 test("la migración exige museo, permiso y versión para escribir", () => {
+  assert.match(rbacPrerequisite, /create table if not exists public\.permissions/i);
+  assert.match(rbacPrerequisite, /create table if not exists public\.user_permissions/i);
+  assert.match(rbacPrerequisite, /to_regprocedure\('public\.has_permission\(text\)'\)/i);
+  assert.match(rbacPrerequisite, /pr\.role in \('administrador','ejecutivo'\)/i);
+  assert.doesNotMatch(rbacPrerequisite, /insert into public\.profiles/i);
+  assert.doesNotMatch(rbacPrerequisite, /auth\.users|password/i);
   assert.match(migration, /museum_id = public\.current_user_museum_id\(\)/i);
   assert.match(migration, /has_permission\('inventory\.manage'\)/i);
   assert.match(migration, /version = p_expected_version/i);
@@ -57,6 +64,9 @@ test("la migración exige museo, permiso y versión para escribir", () => {
 });
 
 test("la auditoría cubre los eventos solicitados", () => {
+  assert.match(migration, /column_name='actor_user_id'/i);
+  assert.match(migration, /column_name='user_id'/i);
+  assert.match(migration, /Incompatible public\.audit_logs/i);
   for (const action of ["INVENTORY_CREATED", "INVENTORY_EDITED", "INVENTORY_LOCATION_CHANGED", "INVENTORY_RESPONSIBLE_CHANGED", "INVENTORY_CONDITION_CHANGED", "INVENTORY_ARCHIVED"]) {
     assert.match(migration, new RegExp(action));
   }
