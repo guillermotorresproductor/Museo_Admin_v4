@@ -2494,6 +2494,18 @@ body {
   padding: 28px;
 }
 
+.finance-v1-panel { display: grid; gap: 20px; padding: 28px; }
+.finance-v1-heading,
+.finance-v1-line-form { display: flex; align-items: end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.finance-v1-heading h3,
+.finance-v1-empty h3 { margin: 4px 0; }
+.finance-v1-version-picker { min-width: min(100%, 352px); }
+.finance-v1-line-form { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
+.finance-v1-line-form .field:nth-child(2) { flex: 1 1 288px; }
+.finance-v1-table { min-width: 1180px; }
+.finance-v1-table th:first-child { min-width: 208px; }
+.finance-v1-table th small { display: block; margin-top: 4px; color: var(--muted); font-weight: 500; }
+
 .finance-export-panel {
   display: grid;
   gap: 16px;
