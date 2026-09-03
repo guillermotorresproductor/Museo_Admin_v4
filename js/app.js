@@ -157,7 +157,7 @@ const activityClassificationThemes = {
   "Colaboraciones con entidades públicas o privadas": "theme-slate"
 };
 
-const defaultEmployeeProfiles = {
+const demoEmployeeProfiles = {
   "guillermo-torres": {
     id: "guillermo-torres",
     avatar: "GT",
@@ -271,7 +271,9 @@ const currentAccessLevelKey = "museo-admin-access-level";
 const currentAccessLevel = () => localStorage.getItem(currentAccessLevelKey) || "Empleado";
 const SUPABASE_REFRESH_MARGIN_SECONDS = 60;
 const SESSION_IDLE_MS = 5 * 60 * 1000;
-let employeeRecords = Object.values(defaultEmployeeProfiles);
+let employeeRecords = museoEnvironmentName === "staging"
+  ? Object.values(demoEmployeeProfiles).map((employee) => ({ ...employee, source: "demo" }))
+  : [];
 let currentPermissions = new Set();
 let currentPermissionsLoaded = false;
 const hasPermission = (permission) => currentPermissions.has(permission);
@@ -3792,6 +3794,10 @@ function bindHumanResourcesModule() {
 
   const renderDirectory = () => {
     const records = getEmployeeRecords();
+    if (!records.length) {
+      directory.innerHTML = '<p class="empty-state">No hay empleados registrados.</p>';
+      return;
+    }
     directory.innerHTML = records.map((employee) => {
       const isInactive = employee.estado === "Inactivo";
       const profileLink = canManageEmployees()
@@ -3834,15 +3840,18 @@ function bindHumanResourcesModule() {
       setMessage("SINCRONIZANDO DIRECTORIO DE EMPLEADOS...");
       supabaseProfile = await fetchSupabaseProfile();
       const records = await fetchSupabaseEmployees();
-      if (records.length) {
-        saveEmployeeRecords(records);
-        renderDirectory();
-        setMessage("DIRECTORIO SINCRONIZADO.", "success");
-      } else {
-        setMessage("DIRECTORIO CONECTADO. AUN NO HAY EMPLEADOS REGISTRADOS.", "success");
-      }
+      saveEmployeeRecords(records);
+      renderDirectory();
+      setMessage(records.length
+        ? "DIRECTORIO SINCRONIZADO."
+        : "DIRECTORIO CONECTADO. AÚN NO HAY EMPLEADOS REGISTRADOS.", "success");
     } catch (error) {
-      setMessage("NO SE PUDO SINCRONIZAR. SE MUESTRA EL DIRECTORIO LOCAL.", "error");
+      if (museoEnvironmentName === "production") {
+        saveEmployeeRecords([]);
+        renderDirectory();
+      }
+      const suffix = museoEnvironmentName === "staging" ? " Se muestran datos DEMO de Staging." : " No se muestran datos locales.";
+      setMessage(`NO SE PUDO SINCRONIZAR: ${providerNeutralMessage(error, "Error del servicio de empleados.")}.${suffix}`, "error");
     }
   };
 

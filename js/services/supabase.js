@@ -33,7 +33,7 @@ async function supabaseGet(path) {
 function employeeFromSupabase(row) {
   return {
     id: row.id,
-    authUserId: row.auth_user_id || "",
+    authUserId: row.profile_id || "",
     avatar: employeeInitials({ nombre: row.first_name, apellidos: row.last_name }),
     nombre: row.first_name || "",
     apellidos: row.last_name || "",
@@ -76,7 +76,7 @@ function employeeToSupabasePayload(employee, museumId) {
 }
 
 async function fetchSupabaseEmployees() {
-  const data = await supabaseGet("/rest/v1/employees?select=id,auth_user_id,first_name,last_name,photo_url,position,department,email,phone,address,hire_date,work_schedule,education_level,status,created_at&order=created_at.asc");
+  const data = await supabaseGet("/rest/v1/employees?select=id,profile_id,first_name,last_name,photo_url,position,department,email,phone,address,hire_date,work_schedule,education_level,status,created_at&order=created_at.asc");
   return data.map(employeeFromSupabase);
 }
 async function saveSupabaseEmployee(employee, museumId, id) {

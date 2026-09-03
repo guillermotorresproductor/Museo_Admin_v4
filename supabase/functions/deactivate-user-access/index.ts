@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
     const { error: authError } = await admin.auth.admin.updateUserById(userId, { ban_duration: "876000h" });
     if (authError) throw authError;
     await admin.from("profiles").update({ status: "suspended" }).eq("id", userId);
-    await admin.from("employees").update({ status: "inactivo" }).eq("auth_user_id", userId).eq("museum_id", profile.museum_id);
+    await admin.from("employees").update({ status: "inactivo" }).eq("profile_id", userId).eq("museum_id", profile.museum_id);
     await admin.from("audit_logs").insert({ museum_id: profile.museum_id, actor_user_id: user.id, action: "USER_ACCESS_DEACTIVATED", table_name: "profiles", record_id: userId });
     return json({ deactivated: true });
   } catch (error) { return errorResponse(error); }
