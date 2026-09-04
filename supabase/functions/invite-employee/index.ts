@@ -1,4 +1,5 @@
 import { corsHeaders, errorResponse, json, requirePermission } from "../_shared/security.ts";
+import { cleanEmployeeId, cleanRequestId, EMPLOYEE_LOGIN_REDIRECT, enforceEmailCooldown, findAuthUserByEmail, findProcessedRequest, getEmployeeAccessTarget, recordAccessAudit } from "../_shared/employee-access.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -7,27 +8,41 @@ Deno.serve(async (req) => {
   try {
     const { admin, user, profile } = await requirePermission(req, "users.invite");
     const body = await req.json();
-    const employeeId = String(body.employee_id || "").trim();
-    if (!employeeId) return json({ error: "Debe indicar el expediente del empleado." }, 400);
-
-    const { data: employee, error: employeeError } = await admin
-      .from("employees")
-      .select("id,email,first_name,last_name,profile_id")
-      .eq("id", employeeId)
-      .eq("museum_id", profile.museum_id)
-      .single();
-
-    if (employeeError || !employee) return json({ error: "No se encontró el empleado." }, 404);
-    if (employee.profile_id) return json({ error: "Este empleado ya tiene una identidad vinculada." }, 409);
-
-    const email = String(employee.email || "").trim().toLowerCase();
+    const employeeId = cleanEmployeeId(body.employee_id);
+    const requestId = cleanRequestId(body.request_id);
+    const action = body.action === "resend" ? "resend" : "invite";
+    const target = await getEmployeeAccessTarget(admin, profile.museum_id, employeeId);
+    const { employee, email } = target;
     const fullName = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
-    if (!email || !email.includes("@")) return json({ error: "El expediente no tiene un correo válido." }, 400);
+
+    const auditAction = action === "resend" ? "USER_INVITATION_RESENT" : "USER_INVITED";
+    if (await findProcessedRequest(admin, profile.museum_id, employeeId, auditAction, requestId)) {
+      return json({ invited: true, replayed: true });
+    }
+    await enforceEmailCooldown(admin, profile.museum_id, employeeId, ["USER_INVITED", "USER_INVITATION_RESENT"]);
+
+    if (action === "resend") {
+      if (target.status !== "invitation_pending" || !target.authUser) return json({ error: "La cuenta no tiene una invitación pendiente." }, 409);
+      const { error: resendError } = await admin.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: EMPLOYEE_LOGIN_REDIRECT }
+      });
+      if (resendError) return json({ error: "No se pudo reenviar la invitación." }, 400);
+      await recordAccessAudit(admin, profile.museum_id, user.id, auditAction, employeeId, target.authUser.id, requestId);
+      return json({ invited: true, resent: true });
+    }
+
+    if (target.status !== "no_account") return json({ error: "Este empleado ya tiene una identidad vinculada." }, 409);
+    if (await findAuthUserByEmail(admin, email)) {
+      return json({ error: "Ya existe una cuenta sin vínculo oficial. Requiere conciliación administrativa." }, 409);
+    }
 
     const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-      data: { full_name: fullName }
+      data: { full_name: fullName },
+      redirectTo: EMPLOYEE_LOGIN_REDIRECT
     });
-    if (inviteError || !invited.user) return json({ error: inviteError?.message || "No se pudo invitar." }, 400);
+    if (inviteError || !invited.user) return json({ error: "No se pudo enviar la invitación." }, 400);
 
     try {
       const { error: profileUpdateError } = await admin
@@ -61,21 +76,13 @@ Deno.serve(async (req) => {
       });
       if (roleAssignmentError) throw roleAssignmentError;
 
-      const { error: auditError } = await admin.from("audit_logs").insert({
-        museum_id: profile.museum_id,
-        actor_user_id: user.id,
-        action: "USER_INVITED",
-        table_name: "profiles",
-        record_id: invited.user.id,
-        new_value: { employee_id: employeeId, role: "empleado" }
-      });
-      if (auditError) throw auditError;
+      await recordAccessAudit(admin, profile.museum_id, user.id, "USER_INVITED", employeeId, invited.user.id, requestId);
     } catch (error) {
       await admin.auth.admin.deleteUser(invited.user.id);
       throw error;
     }
 
-    return json({ user_id: invited.user.id, invited: true }, 201);
+    return json({ invited: true }, 201);
   } catch (error) {
     return errorResponse(error);
   }

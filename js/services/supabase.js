@@ -131,11 +131,42 @@ async function inviteSupabaseEmployee(employeeId) {
   const response = await fetch(`${supabaseUrl}/functions/v1/invite-employee`, {
     method: "POST",
     headers: await supabaseAuthHeaders(),
-    body: JSON.stringify({ employee_id: employeeId })
+    body: JSON.stringify({ employee_id: employeeId, action: "invite", request_id: crypto.randomUUID() })
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "No se pudo enviar la invitación.");
   return data;
+}
+
+async function callEmployeeAccessFunction(functionName, body) {
+  const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify(body)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "No se pudo completar la operación de acceso.");
+  return data;
+}
+
+async function resendSupabaseEmployeeInvitation(employeeId) {
+  return callEmployeeAccessFunction("invite-employee", { employee_id: employeeId, action: "resend", request_id: crypto.randomUUID() });
+}
+
+async function fetchSupabaseEmployeeAccess(employeeId) {
+  return callEmployeeAccessFunction("employee-access", { employee_id: employeeId, action: "status" });
+}
+
+async function requestSupabaseEmployeeRecovery(employeeId) {
+  return callEmployeeAccessFunction("employee-access", { employee_id: employeeId, action: "recovery", request_id: crypto.randomUUID() });
+}
+
+async function deactivateSupabaseEmployeeAccess(employeeId) {
+  return callEmployeeAccessFunction("deactivate-user-access", { employee_id: employeeId, confirmed: true, request_id: crypto.randomUUID() });
+}
+
+async function reactivateSupabaseEmployeeAccess(employeeId) {
+  return callEmployeeAccessFunction("employee-access", { employee_id: employeeId, action: "reactivate", confirmed: true, request_id: crypto.randomUUID() });
 }
 
 async function fetchOwnSupabaseTimeEntries(limit = 7) {
