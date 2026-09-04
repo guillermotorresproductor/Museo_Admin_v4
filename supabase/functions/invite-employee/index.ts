@@ -45,11 +45,20 @@ Deno.serve(async (req) => {
     if (inviteError || !invited.user) return json({ error: "No se pudo enviar la invitación." }, 400);
 
     try {
-      const { error: profileUpdateError } = await admin
+      const { error: profileUpsertError } = await admin
         .from("profiles")
-        .update({ museum_id: profile.museum_id, full_name: fullName, email, status: "active" })
-        .eq("id", invited.user.id);
-      if (profileUpdateError) throw profileUpdateError;
+        .upsert({
+          id: invited.user.id,
+          museum_id: profile.museum_id,
+          full_name: fullName,
+          email,
+          role: "empleado",
+          status: "active"
+        }, { onConflict: "id" });
+      if (profileUpsertError) {
+        console.error("invite-employee", { code: "PROFILE_PROVISION_FAILED" });
+        throw new Error("PROFILE_PROVISION_FAILED");
+      }
 
       const { data: linkedEmployee, error: linkError } = await admin
         .from("employees")
