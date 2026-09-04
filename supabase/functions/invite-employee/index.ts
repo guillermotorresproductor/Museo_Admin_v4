@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
           full_name: fullName,
           email,
           role: "empleado",
-          status: "active"
+          status: profile.status
         }, { onConflict: "id" });
       if (profileUpsertError) {
         console.error("invite-employee", { code: "PROFILE_PROVISION_FAILED" });

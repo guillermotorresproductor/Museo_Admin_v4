@@ -23,7 +23,7 @@ export async function requirePermission(req: Request, permission: string) {
   const { data: allowed, error: permissionError } = await caller.rpc("has_permission", { requested_permission: permission });
   if (permissionError || allowed !== true) throw new Error("FORBIDDEN");
   const admin = createClient(url, secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: profile, error: profileError } = await admin.from("profiles").select("id,museum_id,email").eq("id", userData.user.id).single();
+  const { data: profile, error: profileError } = await admin.from("profiles").select("id,museum_id,email,status").eq("id", userData.user.id).single();
   if (profileError || !profile) throw new Error("PROFILE_REQUIRED");
   return { admin, user: userData.user, profile };
 }

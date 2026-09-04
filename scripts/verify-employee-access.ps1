@@ -20,6 +20,8 @@ Require-Text 'supabase/functions/employee-access/index.ts' 'USER_PASSWORD_RECOVE
 Require-Text 'supabase/functions/employee-access/index.ts' 'USER_ACCESS_REACTIVATED'
 Require-Text 'supabase/functions/invite-employee/index.ts' '\.from\("profiles"\)\s*\.upsert\('
 Require-Text 'supabase/functions/invite-employee/index.ts' 'id:\s*invited\.user\.id'
+Require-Text 'supabase/functions/invite-employee/index.ts' 'status:\s*profile\.status'
+Require-Text 'supabase/functions/_shared/security.ts' 'id,museum_id,email,status'
 Require-Text 'supabase/functions/invite-employee/index.ts' 'PROFILE_PROVISION_FAILED'
 
 $inviteSource = Get-Content (Join-Path $root 'supabase/functions/invite-employee/index.ts') -Raw
