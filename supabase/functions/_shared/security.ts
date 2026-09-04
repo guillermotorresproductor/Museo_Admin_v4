@@ -39,5 +39,6 @@ export function errorResponse(error: unknown) {
   if (message === "INVALID_EMPLOYEE_EMAIL") return json({ error: "El expediente no tiene un correo válido." }, 400);
   if (message === "IDENTITY_LINK_INVALID") return json({ error: "El vínculo de acceso requiere revisión administrativa." }, 409);
   if (message === "RATE_LIMITED") return json({ error: "Espere un minuto antes de enviar otro correo." }, 429);
+  if (message === "PROFILE_PROVISION_FAILED") return json({ error: "No se pudo preparar el acceso del empleado." }, 500);
   return json({ error: "No se pudo completar la operación." }, 500);
 }

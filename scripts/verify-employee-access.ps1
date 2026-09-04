@@ -18,6 +18,14 @@ Require-Text 'supabase/functions/_shared/employee-access.ts' 'https://mmdpr\.org
 Require-Text 'supabase/functions/invite-employee/index.ts' 'USER_INVITATION_RESENT'
 Require-Text 'supabase/functions/employee-access/index.ts' 'USER_PASSWORD_RECOVERY_SENT'
 Require-Text 'supabase/functions/employee-access/index.ts' 'USER_ACCESS_REACTIVATED'
+Require-Text 'supabase/functions/invite-employee/index.ts' '\.from\("profiles"\)\s*\.upsert\('
+Require-Text 'supabase/functions/invite-employee/index.ts' 'id:\s*invited\.user\.id'
+Require-Text 'supabase/functions/invite-employee/index.ts' 'PROFILE_PROVISION_FAILED'
+
+$inviteSource = Get-Content (Join-Path $root 'supabase/functions/invite-employee/index.ts') -Raw
+if ($inviteSource -match '\.from\("profiles"\)\s*\.update\(') {
+  throw 'Regression: invite-employee vuelve a depender de un perfil preexistente.'
+}
 Require-Text 'supabase/functions/deactivate-user-access/index.ts' 'USER_ACCESS_DEACTIVATED'
 
 $browserCode = (Get-Content (Join-Path $root 'js/app.js') -Raw) + (Get-Content (Join-Path $root 'js/services/supabase.js') -Raw)
