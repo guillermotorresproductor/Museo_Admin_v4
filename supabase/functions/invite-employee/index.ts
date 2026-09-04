@@ -75,15 +75,22 @@ Deno.serve(async (req) => {
         .select("id")
         .eq("code", "empleado")
         .single();
-      if (roleError || !role) throw roleError || new Error("EMPLOYEE_ROLE_REQUIRED");
-
-      const { error: roleAssignmentError } = await admin.from("user_roles").upsert({
-        museum_id: profile.museum_id,
-        user_id: invited.user.id,
-        role_id: role.id,
-        assigned_by: user.id
-      });
-      if (roleAssignmentError) throw roleAssignmentError;
+      const usesLegacyRbac = roleError?.code === "PGRST205";
+      if (usesLegacyRbac) {
+        // Production's legacy RBAC reads profiles.role directly and has no
+        // normalized roles/user_roles tables. The profile upsert above is the
+        // complete role assignment for that supported schema.
+        console.info("invite-employee", { code: "LEGACY_RBAC_PROFILE_ROLE" });
+      } else {
+        if (roleError || !role) throw roleError || new Error("EMPLOYEE_ROLE_REQUIRED");
+        const { error: roleAssignmentError } = await admin.from("user_roles").upsert({
+          museum_id: profile.museum_id,
+          user_id: invited.user.id,
+          role_id: role.id,
+          assigned_by: user.id
+        });
+        if (roleAssignmentError) throw roleAssignmentError;
+      }
 
       await recordAccessAudit(admin, profile.museum_id, user.id, "USER_INVITED", employeeId, invited.user.id, requestId);
     } catch (error) {
