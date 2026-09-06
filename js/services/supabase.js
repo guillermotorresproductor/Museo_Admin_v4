@@ -76,7 +76,7 @@ function employeeToSupabasePayload(employee, museumId) {
 }
 
 async function fetchSupabaseEmployees() {
-  const data = await supabaseGet("/rest/v1/employees?select=id,profile_id,first_name,last_name,photo_url,position,department,email,phone,address,hire_date,work_schedule,education_level,status,created_at&order=created_at.asc");
+  const data = await supabaseGet("/rest/v1/employees?select=id,profile_id,access_level,first_name,last_name,photo_url,position,department,email,phone,address,hire_date,work_schedule,education_level,status,created_at&order=created_at.asc");
   return data.map(employeeFromSupabase);
 }
 async function saveSupabaseEmployee(employee, museumId, id) {
@@ -180,14 +180,14 @@ async function reactivateSupabaseEmployeeAccess(employeeId) {
   return callEmployeeAccessFunction("employee-access", { employee_id: employeeId, action: "reactivate", confirmed: true, request_id: crypto.randomUUID() });
 }
 
-async function fetchOwnSupabaseTimeEntries(limit = 7) {
+async function fetchOwnSupabaseTimeEntries(limit = 7, employeeId) {
   const safeLimit = Math.min(Math.max(Number(limit) || 7, 1), 30);
-  return supabaseGet(`/rest/v1/employee_time_entries?select=id,clock_in,clock_out,source,sync_status&order=clock_in.desc&limit=${safeLimit}`);
+  return supabaseGet(`/rest/v1/employee_time_entries?employee_id=eq.${encodeURIComponent(employeeId || (await fetchOwnSupabaseEmployee())?.id || "00000000-0000-0000-0000-000000000000")}&select=id,clock_in,clock_out,source,sync_status&order=clock_in.desc&limit=${safeLimit}`);
 }
 
-async function fetchOwnSupabaseAttendanceEvents(limit = 28) {
+async function fetchOwnSupabaseAttendanceEvents(limit = 28, employeeId) {
   const safeLimit = Math.min(Math.max(Number(limit) || 28, 1), 100);
-  return supabaseGet(`/rest/v1/attendance_events?select=id,shift_id,event_type,occurred_at,classification,supersedes_event_id,correction_request_id&order=occurred_at.desc&limit=${safeLimit}`);
+  return supabaseGet(`/rest/v1/attendance_events?employee_id=eq.${encodeURIComponent(employeeId || (await fetchOwnSupabaseEmployee())?.id || "00000000-0000-0000-0000-000000000000")}&select=id,shift_id,event_type,occurred_at,classification,supersedes_event_id,correction_request_id&order=occurred_at.desc&limit=${safeLimit}`);
 }
 
 async function clockSupabaseEmployeeTime(action, presence = {}) {
@@ -243,11 +243,11 @@ async function fetchOwnSupabaseCorrectionShifts(days = 45) {
   const safeDays = Math.min(Math.max(Number(days) || 45, 1), 180);
   const from = encodeURIComponent(new Date(Date.now() - safeDays * 86400000).toISOString());
   const to = encodeURIComponent(new Date(Date.now() + 86400000).toISOString());
-  return supabaseGet(`/rest/v1/employee_shifts?select=id,starts_at,ends_at,shift_type,status&starts_at=gte.${from}&starts_at=lte.${to}&order=starts_at.desc&limit=200`);
+  return supabaseGet(`/rest/v1/employee_shifts?employee_id=eq.${encodeURIComponent((await fetchOwnSupabaseEmployee())?.id || "00000000-0000-0000-0000-000000000000")}&select=id,starts_at,ends_at,shift_type,status&starts_at=gte.${from}&starts_at=lte.${to}&order=starts_at.desc&limit=200`);
 }
 
 async function fetchOwnSupabaseCorrectionRequests() {
-  return supabaseGet("/rest/v1/attendance_correction_requests?select=id,shift_id,original_event_id,requested_event_type,requested_occurred_at,reason,status,requested_at,decided_at,decision_reason,corrected_event_id&order=requested_at.desc&limit=100");
+  return supabaseGet(`/rest/v1/attendance_correction_requests?requested_by=eq.${encodeURIComponent((await supabaseGet("/auth/v1/user")).id)}&select=id,shift_id,original_event_id,requested_event_type,requested_occurred_at,reason,status,requested_at,decided_at,decision_reason,corrected_event_id&order=requested_at.desc&limit=100`);
 }
 
 async function fetchSupabasePendingCorrections() {
@@ -569,7 +569,7 @@ async function validateSupabasePasswordSetupSession(session, type) {
         String(employees[0].email).toLowerCase() !== String(user.email).toLowerCase()) throw passwordSetupError("invalid_employee");
     let usesLegacyRbac = false;
     try {
-      const roles = await passwordSetupRequest("/rest/v1/roles?select=id&code=eq.empleado", session);
+      const roles = await passwordSetupRequest(`/rest/v1/roles?select=id&code=eq.${encodeURIComponent(profile.role)}`, session);
       if (roles.length !== 1) throw passwordSetupError("invalid_role");
     } catch (error) {
       if (error.code !== "roles_unavailable") throw error;
@@ -579,11 +579,11 @@ async function validateSupabasePasswordSetupSession(session, type) {
         if (probeError.code !== "assignments_unavailable") throw probeError;
         usesLegacyRbac = true;
       }
-      if (!usesLegacyRbac || profile.role !== "empleado") throw passwordSetupError("invalid_role");
+      if (!usesLegacyRbac || !["empleado", "ejecutivo", "administrador"].includes(profile.role)) throw passwordSetupError("invalid_role");
     }
     if (!usesLegacyRbac) {
-      const roles = await passwordSetupRequest(`/rest/v1/user_roles?select=museum_id,valid_until,roles!inner(code)&user_id=eq.${encodeURIComponent(user.id)}&museum_id=eq.${encodeURIComponent(profile.museum_id)}&roles.code=eq.empleado`, session);
-      if (!roles.some(role => role.museum_id === profile.museum_id && role.roles?.code === "empleado" &&
+      const roles = await passwordSetupRequest(`/rest/v1/user_roles?select=museum_id,valid_until,roles!inner(code)&user_id=eq.${encodeURIComponent(user.id)}&museum_id=eq.${encodeURIComponent(profile.museum_id)}&roles.code=eq.${encodeURIComponent(profile.role)}`, session);
+      if (!roles.some(role => role.museum_id === profile.museum_id && role.roles?.code === profile.role &&
           (!role.valid_until || Date.parse(role.valid_until) > Date.now()))) throw passwordSetupError("invalid_role");
     }
   }
@@ -602,4 +602,17 @@ async function updateSupabaseSetupPassword(session, password) {
 }
 async function closeSupabasePasswordSetupSession(session) {
   await passwordSetupRequest("/auth/v1/logout?scope=local", session, { method: "POST" });
+}
+
+async function fetchOwnSupabaseEmployee() {
+  const user = await supabaseGet("/auth/v1/user");
+  const rows = await supabaseGet("/rest/v1/employees?select=id,profile_id,access_level,first_name,last_name,email,phone,work_schedule,position&profile_id=eq." + encodeURIComponent(user.id));
+  if (rows.length > 1) throw new Error("Vínculo personal ambiguo.");
+  return rows[0] ? employeeFromSupabase(rows[0]) : null;
+}
+async function fetchSupabaseEmployeeLevel(employeeId) {
+  return callEmployeeAccessFunction("assign-sensitive-role", { action: "read", employee_id: employeeId });
+}
+async function assignSupabaseEmployeeLevel(employeeId, role, expectedRole) {
+  return callEmployeeAccessFunction("assign-sensitive-role", { employee_id: employeeId, role_code: role, expected_role: expectedRole });
 }

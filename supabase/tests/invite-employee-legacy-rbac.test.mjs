@@ -9,11 +9,11 @@ assert.match(invite, /const usesLegacyRbac = roleError\?\.code === "PGRST205"/);
 assert.match(invite, /legacyProbe\.error\?\.code !== "PGRST205"/);
 assert.match(invite, /LEGACY_RBAC_PROFILE_ROLE/);
 assert.match(invite, /\.from\("profiles"\)[\s\S]*?\.upsert\(\{ id: userId/);
-assert.match(invite, /role: "empleado", status: profile\.status/);
+assert.match(invite, /role: roleCode, status: profile\.status/);
 assert.match(invite, /if \(!usesLegacyRbac\)[\s\S]*admin\.from\("user_roles"\)\.upsert/);
 assert.match(service, /roles_unavailable/);
 assert.match(service, /assignments_unavailable/);
-assert.match(service, /profile\.role !== "empleado"/);
+assert.match(service, /includes\(profile\.role\)/);
 assert.match(service, /\["active", "activo"\]/);
 
 // The conflict is resolved in favor of durable repair, never destructive rollback.

@@ -14,7 +14,7 @@ assert.match(app, /museoEnvironmentName === "staging"[\s\S]*source: "demo"/);
 assert.match(app, /No hay empleados registrados\./);
 assert.match(app, /No se muestran datos locales\./);
 assert.doesNotMatch(app, /SE MUESTRA EL DIRECTORIO LOCAL/);
-assert.match(service, /select=id,profile_id,first_name/);
+assert.match(service, /select=id,profile_id,access_level,first_name/);
 assert.doesNotMatch(service, /select=id,auth_user_id/);
 assert.match(invite, /\.is\("profile_id", null\)/);
 assert.match(invite, /roleError\?\.code === "PGRST205"/);

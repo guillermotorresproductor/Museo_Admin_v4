@@ -66,7 +66,7 @@ const navigationGroups = [
       { href: "administracion.html", label: "Administración", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html", "direccion-ejecutiva.html"] },
       { href: "boletin.html", label: "Boletín Board", icon: "megaphone" },
       { href: "inventario.html", label: appPages["inventario.html"].title, icon: "briefcase" },
-      { href: "login.html", label: "Mi cuenta", icon: "logout" }
+      { href: "employee-portal.html", label: "Mi cuenta", icon: "users" }
     ]
   }
 ];
@@ -282,6 +282,7 @@ const hasAdministrativeWorkspaceAccess = () =>
   hasPermission("system.configure") || (hasPermission("audit.read") && hasPermission("notifications.manage"));
 const canAccessAdministrationHub = () => hasAdministrativeWorkspaceAccess();
 const postLoginDestination = () => "dashboard.html";
+const canAccessPersonalSpace = () => ["profile.read.self", "employees.read.self", "schedules.read.self", "time.clock", "time.read.self"].some(hasPermission);
 
 const EXECUTIVE_MODULE_ACCESS = {
   "administracion.html": () => canAccessAdministrationHub(),
@@ -299,6 +300,7 @@ const SENSITIVE_MODULE_ACCESS = {
 };
 
 const moduleAccessChecks = {
+  "employee-portal.html": () => canAccessPersonalSpace(),
   "departamento-museologico.html": () => hasAdministrativeWorkspaceAccess(),
   "colecciones-museograficas.html": () => hasAdministrativeWorkspaceAccess(),
   "calendario.html": () => hasPermission("calendar.manage") || hasPermission("schedules.read.team"),
@@ -381,20 +383,9 @@ function enforceAuthenticatedPageAccess() {
   const protectedChecker = executiveChecker || sensitiveChecker;
 
   if (page === "employee-portal.html") {
-    if (!session) {
-      window.location.replace(loginUrlWithReturn(page));
-      return true;
-    }
-    if (!currentPermissionsLoaded) return false;
-    if (hasAdministrativeWorkspaceAccess()) {
-      window.location.replace("dashboard.html");
-      return true;
-    }
-    if (postLoginDestination() !== "employee-portal.html") {
-      window.location.replace(postLoginDestination());
-      return true;
-    }
-    return false;
+    if (canAccessPersonalSpace()) return false;
+    showProtectedAccessDenied("No tiene permisos personales disponibles.");
+    return true;
   }
 
   if (protectedChecker) {
@@ -418,6 +409,7 @@ function enforceAuthenticatedPageAccess() {
 
   const allowedPages = new Map([
     ["recursos-humanos.html", () => hasPermission("employees.read.all")],
+    ["perfil-empleado.html", () => hasPermission("roles.assign")],
     ["calendario.html", () => hasPermission("calendar.manage") || hasPermission("schedules.read.team")],
     ["ujieres.html", moduleAccessChecks["ujieres.html"]],
     ["boletin.html", moduleAccessChecks["boletin.html"]],
@@ -1422,7 +1414,7 @@ function renderHeader() {
           ${iconSvg("chevron")}
         </button>
         <div class="account-menu" data-account-menu hidden>
-          <a href="perfil-empleado.html">Mi perfil</a>
+          <a href="employee-portal.html">Mi cuenta</a>
           <button type="button" data-logout-button>Cerrar sesión</button>
         </div>
       </div>
@@ -5278,11 +5270,11 @@ function bindReportsModule() {
   }).init();
 }
 
-function bindEmployeeProfile() {
+async function bindEmployeeProfile() {
   const profileCard = document.querySelector(".employee-profile");
   if (!profileCard) return;
 
-  if (!canManageEmployees()) {
+  if (!canManageEmployees() && !hasPermission("roles.assign")) {
     profileCard.innerHTML = `
       <div class="module-placeholder">
         <span class="module-icon theme-red" data-icon="shield"></span>
@@ -5410,6 +5402,26 @@ function bindEmployeeProfile() {
     const value = profile[field.dataset.profileField] || "";
     field.value = value;
   });
+
+  const levelField = document.querySelector('[data-profile-field="acceso"]');
+  let serverLevel = null;
+  let serverLevelConflict = false;
+  if (levelField) levelField.disabled = true;
+  if (saveButton) saveButton.disabled = true;
+  try {
+    const level = await fetchSupabaseEmployeeLevel(profile.id);
+    serverLevel = level.role;
+    serverLevelConflict = level.conflicting;
+    profile.acceso = serverLevel ? serverLevel.charAt(0).toUpperCase() + serverLevel.slice(1) : "";
+    if (levelField) {
+      levelField.value = profile.acceso;
+      levelField.disabled = !hasPermission("roles.assign");
+    }
+    if (saveButton) saveButton.disabled = false;
+    if (level.conflicting) setProfileMessage("El servidor contiene varios niveles; seleccione el nivel que debe conservarse.", "error");
+  } catch (error) {
+    setProfileMessage("No se pudo verificar el nivel del servidor: " + error.message, "error");
+  }
 
   const showPhoto = (photoData) => {
     if (!photo || !avatar) return;
@@ -5564,7 +5576,17 @@ function bindEmployeeProfile() {
     if (session?.access_token && profile.source === "supabase") {
       try {
         const supabaseProfile = await fetchSupabaseProfile();
-        await updateSupabaseEmployee(profile.id, updatedProfile, supabaseProfile.museum_id);
+        if (!serverLevel) throw new Error("Nivel del servidor pendiente de verificar.");
+        const requestedLevel = String(updatedProfile.acceso || "").toLowerCase();
+        if (hasPermission("roles.assign") && (requestedLevel !== serverLevel || serverLevelConflict)) {
+          const assigned = await assignSupabaseEmployeeLevel(profile.id, requestedLevel, serverLevel);
+          if (!assigned.assigned || assigned.role !== requestedLevel) throw new Error("No se confirmó el cambio de nivel.");
+          serverLevel = assigned.role;
+          serverLevelConflict = false;
+        } else if (requestedLevel !== serverLevel) {
+          throw new Error("Solo roles.assign puede cambiar el nivel.");
+        }
+        if (canManageEmployees()) await updateSupabaseEmployee(profile.id, updatedProfile, supabaseProfile.museum_id);
 
         const records = getEmployeeRecords();
         saveEmployeeRecords(records.map((employee) => employee.id === profile.id ? updatedProfile : employee));
@@ -6376,7 +6398,7 @@ async function bindEmployeePortal() {
   const session = getSupabaseSession();
   if (!session?.access_token) { window.location.replace(`login.html?environment=${encodeURIComponent(museoEnvironment.name)}`); return; }
   const profile = await fetchSupabaseProfile();
-  const employee = getEmployeeRecords().find((record) => record.authUserId === session.user?.id);
+  const employee = await fetchOwnSupabaseEmployee();
   document.querySelector("[data-portal-name]").textContent = employee ? employeeDisplayName(employee) : (profile?.full_name || session.user?.email || "Usuario");
   document.querySelector("[data-portal-role]").textContent = employee?.posicion || (hasPermission("attendance.corrections.approve") ? "Recursos Humanos" : "Usuario autorizado");
   document.querySelector("[data-portal-schedule]").textContent = employee?.horario || "Sin jornada de empleado vinculada";
@@ -6385,6 +6407,14 @@ async function bindEmployeePortal() {
     document.querySelector("[data-portal-time-list]")?.closest(".portal-section")?.setAttribute("hidden", "");
     document.querySelector("[data-portal-corrections]")?.setAttribute("hidden", "");
   }
+  const personal = { clock: Boolean(employee && hasPermission("time.clock")), attendance: Boolean(employee && hasPermission("time.read.self")), schedule: Boolean(employee && hasPermission("schedules.read.self")) };
+  document.querySelector(".portal-clock-card").hidden = !personal.clock && !personal.schedule;
+  document.querySelector("[data-portal-corrections]").hidden = !employee || !hasPermission("attendance.corrections.request");
+  document.querySelector("[data-portal-notifications]").closest(".portal-section").hidden = !hasPermission("notifications.read.self");
+  document.querySelector("[data-portal-clock-button]").hidden = !personal.clock;
+  document.querySelector(".portal-schedule").hidden = !personal.schedule;
+  document.querySelector("[data-portal-time-list]").closest(".portal-section").hidden = !personal.attendance;
+  document.querySelector("[data-portal-account]").textContent = employee ? [employeeDisplayName(employee), employee.correo, employee.telefono].filter(Boolean).join(" · ") : (profile.full_name || profile.email || "Mi cuenta");
   document.querySelector("[data-portal-date]").textContent = formatPortalDate(new Date(), { weekday: "long", month: "long", day: "numeric" });
   const button = document.querySelector("[data-portal-clock-button]");
   const status = document.querySelector("[data-portal-clock-status]");
@@ -6408,7 +6438,7 @@ async function bindEmployeePortal() {
     );
   });
   const refresh = async () => {
-    const [entries, events] = await Promise.all([fetchOwnSupabaseTimeEntries(7), fetchOwnSupabaseAttendanceEvents(28)]);
+    const [entries, events] = await Promise.all([personal.attendance ? fetchOwnSupabaseTimeEntries(7, employee.id) : [], personal.attendance ? fetchOwnSupabaseAttendanceEvents(28, employee.id) : []]);
     renderPortalTimeEntries(entries);
     const action = nextAction(events);
     button.dataset.action = action;
@@ -6418,6 +6448,7 @@ async function bindEmployeePortal() {
     status.textContent = latest && action !== "clock_in" ? `Ultimo registro: ${formatPortalDate(latest.occurred_at, { hour: "numeric", minute: "2-digit" })}` : "Fuera de turno";
   };
   button.addEventListener("click", async () => {
+    if (!personal.clock) return;
     button.disabled = true;
     message.textContent = "Validando presencia fisica...";
     try {
@@ -6433,7 +6464,7 @@ async function bindEmployeePortal() {
   });
   document.querySelector("[data-portal-logout]")?.addEventListener("click", () => clearLoginState(true, "logout"));
   renderPortalTools();
-  await Promise.all([refresh(), fetchOwnSupabaseNotifications(5).then(renderPortalNotifications), bindPortalAttendanceCorrections()]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
+  await Promise.all([refresh(), hasPermission("notifications.read.self") ? fetchOwnSupabaseNotifications(5).then(renderPortalNotifications) : Promise.resolve(), employee && hasPermission("attendance.corrections.request") ? bindPortalAttendanceCorrections() : Promise.resolve()]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
 }
 function ensureEnvironmentOnLocalAuthCallback() {
   // Never guess or change the Auth environment while handling credentials.
@@ -6524,7 +6555,7 @@ async function initApp() {
   bindFinanceModule();
   bindExecutiveDirectionModule();
   bindReportsModule();
-  bindEmployeeProfile();
+  await bindEmployeeProfile();
   bindSidebarToggle();
   bindNotificationMenu();
   bindIdleLogout();
