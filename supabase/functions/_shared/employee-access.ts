@@ -99,3 +99,38 @@ export async function findAuthUserByEmail(admin: any, email: string) {
   }
   throw new Error("AUTH_DIRECTORY_LIMIT");
 }
+
+// Technical access levels only; department/position never authorize access.
+export const ACCESS_LEVELS = ["empleado", "ejecutivo", "administrador"];
+export function accessLevel(value: unknown) {
+  const role = String(value || "").trim().toLowerCase();
+  if (!ACCESS_LEVELS.includes(role)) throw new Error("INVALID_ACCESS_LEVEL");
+  return role;
+}
+export async function employeeLevelState(admin: any, museumId: string, employeeId: string) {
+  const employeeResult = await admin.from("employees").select("id,museum_id,profile_id,access_level")
+    .eq("id", employeeId).eq("museum_id", museumId).single();
+  if (employeeResult.error || !employeeResult.data) throw employeeResult.error || new Error("EMPLOYEE_NOT_FOUND");
+  const employee = employeeResult.data;
+  if (!employee.profile_id) return { employee, role: accessLevel(employee.access_level), conflicting: false, profile: null, roles: [], assignments: [], legacy: true };
+  const profileResult = await admin.from("profiles").select("id,museum_id,role,status")
+    .eq("id", employee.profile_id).eq("museum_id", museumId).single();
+  if (profileResult.error || !profileResult.data) throw profileResult.error || new Error("IDENTITY_LINK_INVALID");
+  const profile = profileResult.data;
+  const catalog = await admin.from("roles").select("id,code,active").in("code", ACCESS_LEVELS);
+  const assignments = await admin.from("user_roles").select("role_id,valid_until")
+    .eq("user_id", profile.id).eq("museum_id", museumId);
+  const legacy = catalog.error?.code === "PGRST205" && assignments.error?.code === "PGRST205";
+  if (!legacy && (catalog.error || assignments.error)) throw catalog.error || assignments.error;
+  const roles = legacy ? [] : catalog.data;
+  const assigned = legacy ? [] : assignments.data;
+  const codes = new Set([accessLevel(profile.role)]);
+  for (const assignment of assigned) {
+    if (assignment.valid_until && Date.parse(assignment.valid_until) <= Date.now()) continue;
+    const role = roles.find((r: any) => r.id === assignment.role_id);
+    if (role) codes.add(role.code);
+  }
+  // has_permission combines assigned grants and profiles.role, so report the highest level.
+  const role = [...ACCESS_LEVELS].reverse().find(code => codes.has(code))!;
+  return { employee, profile, roles, assignments: assigned, legacy, role, conflicting: codes.size > 1 };
+}

@@ -1,16 +1,30 @@
 import { corsHeaders, errorResponse, json, requirePermission } from "../_shared/security.ts";
+import { cleanEmployeeId, employeeLevelState } from "../_shared/employee-access.ts";
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Método no permitido." }, 405);
   try {
-    const { admin, user, profile } = await requirePermission(req, "roles.assign");
-    const { user_id: userId, role_code: roleCode } = await req.json();
-    const { data: target } = await admin.from("profiles").select("id,museum_id").eq("id", userId).single();
-    if (!target || target.museum_id !== profile.museum_id) return json({ error: "Usuario no encontrado." }, 404);
-    const { data: role } = await admin.from("roles").select("id,code").eq("code", roleCode).eq("active", true).single();
-    if (!role) return json({ error: "Rol inválido." }, 400);
-    await admin.from("user_roles").upsert({ museum_id: profile.museum_id, user_id: userId, role_id: role.id, assigned_by: user.id });
-    await admin.from("audit_logs").insert({ museum_id: profile.museum_id, actor_user_id: user.id, action: "ROLE_ASSIGNED", table_name: "user_roles", record_id: userId, new_value: { role: role.code } });
-    return json({ assigned: true, role: role.code });
-  } catch (error) { return errorResponse(error); }
+    const body = await req.json();
+    const employeeId = cleanEmployeeId(body.employee_id);
+    if (body.action === "read") {
+      let context;
+      try { context = await requirePermission(req, "roles.assign"); }
+      catch { context = await requirePermission(req, "employees.read.all"); }
+      const state = await employeeLevelState(context.admin, context.profile.museum_id, employeeId);
+      return json({ role: state.role, conflicting: state.conflicting, source: state.profile ? "server_roles" : "saved_employee_level" });
+    }
+    const { caller } = await requirePermission(req, "roles.assign");
+    // Use the caller JWT, never the service-role client: PostgreSQL derives auth.uid().
+    const { data, error } = await caller.rpc("replace_employee_access_level", {
+      p_employee_id: employeeId, p_role_code: body.role_code, p_expected_role: body.expected_role
+    });
+    if (error) {
+      const conflict = ["40001", "40P01", "22023"].includes(error.code);
+      return json({ error: "No se confirmó el cambio. Recargue el nivel del servidor antes de reintentar.", code: error.code }, error.code === "42501" ? 403 : conflict ? 409 : 500);
+    }
+    if (data?.assigned !== true) throw new Error("ROLE_ASSIGNMENT_INCOMPLETE");
+    return json(data);
+  } catch (error) {
+    return errorResponse(error);
+  }
 });

@@ -25,7 +25,7 @@ export async function requirePermission(req: Request, permission: string) {
   const admin = createClient(url, secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: profile, error: profileError } = await admin.from("profiles").select("id,museum_id,email,status").eq("id", userData.user.id).single();
   if (profileError || !profile) throw new Error("PROFILE_REQUIRED");
-  return { admin, user: userData.user, profile };
+  return { admin, caller, user: userData.user, profile };
 }
 
 export function errorResponse(error: unknown) {

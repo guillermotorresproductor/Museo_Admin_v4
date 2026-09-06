@@ -1,5 +1,5 @@
 import { corsHeaders, json, requirePermission } from "../_shared/security.ts";
-import { cleanEmployeeId, cleanRequestId, enforceEmailCooldown } from "../_shared/employee-access.ts";
+import { cleanEmployeeId, cleanRequestId, enforceEmailCooldown, accessLevel } from "../_shared/employee-access.ts";
 
 const messages = {
   invite_failed: "No se envió una invitación en esta operación. Revise los requisitos con Administración.",
@@ -60,9 +60,11 @@ Deno.serve(async (req) => {
     if (!profile.status || typeof profile.status !== "string") throw new Error("PROFILE_STATUS_REQUIRED");
     const redirectTo = invitationRedirect();
     const { data: employee, error: employeeError } = await admin.from("employees")
-      .select("id,email,first_name,last_name,profile_id,museum_id").eq("id", employeeId).eq("museum_id", profile.museum_id).single();
+      .select("id,email,first_name,last_name,profile_id,museum_id,access_level").eq("id", employeeId).eq("museum_id", profile.museum_id).single();
     if (employeeError) throw employeeError;
     if (!employee || employee.museum_id !== profile.museum_id) throw new Error("EMPLOYEE_REQUIRED");
+    const roleCode = accessLevel(employee.access_level);
+    if (roleCode !== "empleado") await requirePermission(req, "roles.assign");
     const email = String(employee.email || "").trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw new Error("INVALID_EMAIL");
     const pattern = email.replace(/[\\%_]/g, "\\$&");
@@ -70,7 +72,7 @@ Deno.serve(async (req) => {
     const { data: duplicates, error: duplicateError } = await admin.from("employees").select("id").ilike("email", pattern);
     if (duplicateError) throw duplicateError;
     if (duplicates?.length !== 1 || duplicates[0].id !== employeeId) throw new Error("EMAIL_CONFLICT");
-    const { data: role, error: roleError } = await admin.from("roles").select("id").eq("code", "empleado").single();
+    const { data: role, error: roleError } = await admin.from("roles").select("id").eq("code", roleCode).single();
     const usesLegacyRbac = roleError?.code === "PGRST205";
     if (usesLegacyRbac) {
       const legacyProbe = await admin.from("user_roles").select("user_id").limit(0);
@@ -99,7 +101,7 @@ Deno.serve(async (req) => {
       if (!account.invited_at) throw new Error("EXISTING_NON_INVITED_ACCOUNT");
       sent = true; // Auth records an earlier invitation; never send it again.
       const existing = profiles[0];
-      if (existing && (existing.museum_id !== profile.museum_id || existing.role !== "empleado" || existing.status !== profile.status)) throw new Error("INCOMPATIBLE_PROFILE");
+      if (existing && (existing.museum_id !== profile.museum_id || existing.role !== roleCode || existing.status !== profile.status)) throw new Error("INCOMPATIBLE_PROFILE");
       if (account.banned_until && Date.parse(account.banned_until) > Date.now()) throw new Error("ACCOUNT_DEACTIVATED");
       const { data: links, error: linksError } = await admin.from("employees").select("id").eq("profile_id", account.id);
       if (linksError) throw linksError;
@@ -154,7 +156,7 @@ Deno.serve(async (req) => {
     const { data: savedProfile, error: profileError } = await admin.from("profiles")
       .upsert({ id: userId, museum_id: profile.museum_id,
         full_name: [employee.first_name, employee.last_name].filter(Boolean).join(" "),
-        email, role: "empleado", status: profile.status }, { onConflict: "id" })
+        email, role: roleCode, status: profile.status }, { onConflict: "id" })
       .select("id,museum_id").single();
     if (profileError || !savedProfile || savedProfile.museum_id !== profile.museum_id) {
       logFailure("link", profileError || new Error("PROFILE_PROVISION_FAILED"));
@@ -170,6 +172,16 @@ Deno.serve(async (req) => {
       }
     }
     if (!usesLegacyRbac) {
+      const catalog = await admin.from("roles").select("id").in("code", ["empleado", "ejecutivo", "administrador"]);
+      if (catalog.error) throw catalog.error;
+      const incompatible = catalog.data.filter((r: any) => r.id !== role.id).map((r: any) => r.id);
+      if (incompatible.length) {
+        const previous = await admin.from("user_roles").select("role_id").eq("museum_id", profile.museum_id).eq("user_id", userId).in("role_id", incompatible);
+        if (previous.error) throw previous.error;
+        if (previous.data.length) await requirePermission(req, "roles.assign");
+        const removed = await admin.from("user_roles").delete().eq("museum_id", profile.museum_id).eq("user_id", userId).in("role_id", incompatible);
+        if (removed.error) throw removed.error;
+      }
       const assignment = await admin.from("user_roles").upsert({
         museum_id: profile.museum_id, user_id: userId, role_id: role.id, assigned_by: user.id
       }, { onConflict: "museum_id,user_id,role_id", ignoreDuplicates: true });
@@ -184,7 +196,7 @@ Deno.serve(async (req) => {
     stage = "audit";
     const id = await auditId(userId, employeeId);
     const audit = { id, museum_id: profile.museum_id, [actorColumn]: user.id, action: "USER_INVITED",
-      table_name: "profiles", record_id: userId, new_value: { employee_id: employeeId, role: "empleado", request_id: requestId } };
+      table_name: "profiles", record_id: userId, new_value: { employee_id: employeeId, role: roleCode, request_id: requestId } };
     const existingAudit = await admin.from("audit_logs").select("id,record_id,museum_id,action,new_value").eq("id", id).maybeSingle();
     if (existingAudit.error) throw existingAudit.error;
     if (!existingAudit.data) {

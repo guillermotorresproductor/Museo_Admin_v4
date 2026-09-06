@@ -35,8 +35,8 @@ function serviceContext(overrides={}) {
 }
 function server(options={}) {
   const state={failure:null,sent:0,resent:0,calls:[],logs:[],users:[],tables:{
-    employees:[{id:"11111111-1111-4111-8111-111111111111",museum_id:"m1",email:authUser.email,first_name:"Fixture",last_name:"User",profile_id:null}],
-    profiles:[],roles:[{id:"r1",code:"empleado"}],user_roles:[],audit_logs:[]
+    employees:[{id:"11111111-1111-4111-8111-111111111111",museum_id:"m1",email:authUser.email,first_name:"Fixture",last_name:"User",profile_id:null,access_level:options.level||"empleado"}],
+    profiles:[],roles:[{id:"r1",code:"empleado"},{id:"r2",code:"ejecutivo"},{id:"r3",code:"administrador"}],user_roles:[],audit_logs:[]
   }};
   Object.assign(state,options.state);
   let handler;
@@ -65,7 +65,7 @@ function server(options={}) {
         is(k,v){filters.push(row=>(row[k]??null)===v);return q;},limit(v){limit=v;return q;},
         single(){mode="one";return q;},maybeSingle(){mode="maybe";return q;},
         update(v){op="update";payload=v;return q;},upsert(v){op="upsert";payload=v;return q;},
-        insert(v){op="insert";payload=v;return q;},
+        delete(){op="delete";return q;},insert(v){op="insert";payload=v;return q;},
         then(resolve,reject){
           return Promise.resolve().then(()=>{
             state.calls.push({table,op,payload:clone(payload??null),selection});
@@ -82,6 +82,7 @@ function server(options={}) {
             if(table==="audit_logs"&&op==="insert"&&payload.action==="USER_INVITED"&&state.failure==="audit")return {error:dbError()};
             const rows=state.tables[table];
             let found=rows.filter(row=>filters.every(f=>f(row))).slice(0,limit);
+            if(op==="delete")state.tables[table]=rows.filter(row=>!found.includes(row));
             if(op==="update")found.forEach(row=>Object.assign(row,payload));
             if(op==="insert"){
               if(rows.some(row=>row.id===payload.id))return {error:dbError("duplicate id","23505")};
@@ -107,7 +108,7 @@ function server(options={}) {
   const context=vm.createContext({
     Response,URL,TextEncoder,crypto:webcrypto,console:{error:(...args)=>state.logs.push(args),info:(...args)=>state.logs.push(args)},corsHeaders:{},
     json:(data,status=200)=>response(data,status),
-    requirePermission:async()=>{if(options.denied)throw Error("FORBIDDEN");return {admin,user:{id:"admin"},profile:{museum_id:"m1",status:options.profileStatus||"active"}};},
+    requirePermission:async(req,permission)=>{if(options.denied || (options.noAssign && permission==="roles.assign"))throw Error("FORBIDDEN");return {admin,user:{id:"admin"},profile:{museum_id:"m1",status:options.profileStatus||"active"}};},
     Deno:{serve:fn=>{handler=fn;},env:{get:key=>key==="SUPABASE_URL"?(options.project??"https://kfokfjngozgcwjpzxcsu.supabase.co"):options.redirect}}
   });
   vm.runInContext(accessHelpers,context);
@@ -462,12 +463,29 @@ test("explicit resend retains cooldown, closed redirect and request idempotency"
 test("resend is never used by a repair request",async()=>{
   const s=server();await s.invoke();await s.invoke("repair");assert.equal(s.state.resent,0);
 });
-test("legacy acceptance refuses a non-employee profile role",async()=>{
+test("legacy acceptance refuses an unsupported profile role",async()=>{
   const {context}=serviceContext();const original=context.fetch;
   context.fetch=async(url,opts)=>{
     if(url.includes("/roles?")||url.includes("/user_roles?"))return response({code:"PGRST205"},404);
-    if(url.includes("/profiles?"))return response([{id:"u1",museum_id:"m1",email:authUser.email,role:"administrador",status:"activo"}]);
+    if(url.includes("/profiles?"))return response([{id:"u1",museum_id:"m1",email:authUser.email,role:"director",status:"activo"}]);
     return original(url,opts);
   };
   await assert.rejects(context.validateSupabasePasswordSetupSession(clone(session),"invite"),e=>e.code==="invalid_role");
+});
+
+for (const level of ["empleado", "ejecutivo", "administrador"]) test("invitation assigns saved " + level, async () => {
+ const s=server({level});
+ assert.equal((await s.invoke()).data.code,"invite_sent_linked");
+ assert.equal(s.state.tables.profiles[0].role,level);
+ assert.deepEqual(s.state.tables.user_roles.map(r=>r.role_id),[s.state.tables.roles.find(r=>r.code===level).id]);
+ assert.equal(s.state.tables.audit_logs.find(r=>r.action==="USER_INVITED").new_value.role,level);
+});
+test("privileged invitation requires roles.assign before dispatch", async()=>{
+ const s=server({level:"administrador",noAssign:true});
+ assert.equal((await s.invoke()).data.code,"invite_failed"); assert.equal(s.state.sent,0);
+});
+for (const level of ["ejecutivo", "administrador"]) test("password setup accepts invited " + level, async()=>{
+ const {context}=serviceContext(); const original=context.fetch;
+ context.fetch=async(url,options)=>url.includes("/profiles?") ? response([{id:"u1",museum_id:"m1",email:authUser.email,role:level,status:"active"}]) : url.includes("/user_roles?") ? response([{museum_id:"m1",roles:{code:level}}]) : original(url,options);
+ await context.validateSupabasePasswordSetupSession(clone(session),"invite");
 });
