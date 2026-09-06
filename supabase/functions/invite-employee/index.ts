@@ -1,4 +1,5 @@
 import { corsHeaders, json, requirePermission } from "../_shared/security.ts";
+import { cleanEmployeeId, cleanRequestId, enforceEmailCooldown } from "../_shared/employee-access.ts";
 
 const messages = {
   invite_failed: "No se envió una invitación en esta operación. Revise los requisitos con Administración.",
@@ -7,7 +8,7 @@ const messages = {
   invite_status_unknown: "No se pudo confirmar el envío. Verifique o repare la vinculación antes de considerar otro envío."
 };
 function result(code: keyof typeof messages, stage: string, status = 200) {
-  return json({ code, stage, message: messages[code] }, status);
+  return json({ code, stage, message: stage === "cooldown" ? "Espere un minuto antes de enviar otro correo." : messages[code] }, status);
 }
 function logFailure(stage: string, error: unknown) {
   const e = error as { code?: string; message?: string; details?: string; hint?: string };
@@ -51,9 +52,12 @@ Deno.serve(async (req) => {
     const { admin, user, profile } = await requirePermission(req, "users.invite");
     stage = "validation";
     const body = await req.json();
-    const employeeId = String(body.employee_id || "").trim();
-    const repairOnly = body.action === "repair";
-    if (!employeeId || (body.action && !["invite", "repair"].includes(body.action))) throw new Error("INVALID_REQUEST");
+    const employeeId = cleanEmployeeId(body.employee_id);
+    const requestId = cleanRequestId(body.request_id);
+    const action = body.action || "invite";
+    const repairOnly = action === "repair";
+    if (!["invite", "repair", "resend"].includes(action)) throw new Error("INVALID_REQUEST");
+    if (!profile.status || typeof profile.status !== "string") throw new Error("PROFILE_STATUS_REQUIRED");
     const redirectTo = invitationRedirect();
     const { data: employee, error: employeeError } = await admin.from("employees")
       .select("id,email,first_name,last_name,profile_id,museum_id").eq("id", employeeId).eq("museum_id", profile.museum_id).single();
@@ -67,7 +71,14 @@ Deno.serve(async (req) => {
     if (duplicateError) throw duplicateError;
     if (duplicates?.length !== 1 || duplicates[0].id !== employeeId) throw new Error("EMAIL_CONFLICT");
     const { data: role, error: roleError } = await admin.from("roles").select("id").eq("code", "empleado").single();
-    if (roleError || !role) throw roleError || new Error("ROLE_REQUIRED");
+    const usesLegacyRbac = roleError?.code === "PGRST205";
+    if (usesLegacyRbac) {
+      const legacyProbe = await admin.from("user_roles").select("user_id").limit(0);
+      if (legacyProbe.error?.code !== "PGRST205") throw legacyProbe.error || new Error("PARTIAL_RBAC_SCHEMA");
+      console.info("invite-employee", { code: "LEGACY_RBAC_PROFILE_ROLE" });
+    } else {
+      if (roleError || !role) throw roleError || new Error("EMPLOYEE_ROLE_REQUIRED");
+    }
 
     // Read Auth before every attempt, including repairs and repeated initial requests.
     const matches = [];
@@ -88,11 +99,12 @@ Deno.serve(async (req) => {
       if (!account.invited_at) throw new Error("EXISTING_NON_INVITED_ACCOUNT");
       sent = true; // Auth records an earlier invitation; never send it again.
       const existing = profiles[0];
-      if (!existing || existing.museum_id !== profile.museum_id || existing.role !== "empleado" || existing.status !== "active") throw new Error("INCOMPATIBLE_PROFILE");
+      if (existing && (existing.museum_id !== profile.museum_id || existing.role !== "empleado" || existing.status !== profile.status)) throw new Error("INCOMPATIBLE_PROFILE");
+      if (account.banned_until && Date.parse(account.banned_until) > Date.now()) throw new Error("ACCOUNT_DEACTIVATED");
       const { data: links, error: linksError } = await admin.from("employees").select("id").eq("profile_id", account.id);
       if (linksError) throw linksError;
       if (links.some(link => link.id !== employeeId)) throw new Error("IDENTITY_ALREADY_LINKED");
-    } else if (repairOnly) {
+    } else if (repairOnly || action === "resend") {
       return result("invite_status_unknown", "verification", 409);
     }
 
@@ -109,11 +121,12 @@ Deno.serve(async (req) => {
     if (!account) {
       // Durable one-time dispatch claim, using the existing audit primary key.
       // A concurrent/repeated request may repair, but must never dispatch again.
+      await enforceEmailCooldown(admin, profile.museum_id, employeeId, ["USER_INVITED", "USER_INVITATION_RESENT"]);
       const claimId = await auditId("dispatch:" + profile.museum_id + ":" + email, employeeId);
       const claim = await admin.from("audit_logs").insert({
         id: claimId, museum_id: profile.museum_id, [actorColumn]: user.id,
         action: "USER_INVITATION_REQUESTED", table_name: "employees", record_id: employeeId,
-        new_value: { employee_id: employeeId }
+        new_value: { employee_id: employeeId, request_id: requestId }
       });
       if (claim.error) {
         logFailure("verification", claim.error);
@@ -139,9 +152,14 @@ Deno.serve(async (req) => {
     stage = "link";
     const userId = account.id;
     const { data: savedProfile, error: profileError } = await admin.from("profiles")
-      .update({ museum_id: profile.museum_id, full_name: [employee.first_name, employee.last_name].filter(Boolean).join(" "), email, status: "active" })
-      .eq("id", userId).select("id,museum_id").single();
-    if (profileError || !savedProfile || savedProfile.museum_id !== profile.museum_id) throw profileError || new Error("PROFILE_REQUIRED");
+      .upsert({ id: userId, museum_id: profile.museum_id,
+        full_name: [employee.first_name, employee.last_name].filter(Boolean).join(" "),
+        email, role: "empleado", status: profile.status }, { onConflict: "id" })
+      .select("id,museum_id").single();
+    if (profileError || !savedProfile || savedProfile.museum_id !== profile.museum_id) {
+      logFailure("link", profileError || new Error("PROFILE_PROVISION_FAILED"));
+      throw new Error("PROFILE_PROVISION_FAILED");
+    }
     if (!employee.profile_id) {
       const link = await admin.from("employees").update({ profile_id: userId }).eq("id", employeeId)
         .eq("museum_id", profile.museum_id).is("profile_id", null).select("id").maybeSingle();
@@ -151,19 +169,22 @@ Deno.serve(async (req) => {
         if (current.error || current.data?.profile_id !== userId) throw current.error || new Error("LINK_CONFLICT");
       }
     }
-    const assignment = await admin.from("user_roles").upsert({
-      museum_id: profile.museum_id, user_id: userId, role_id: role.id, assigned_by: user.id
-    }, { onConflict: "museum_id,user_id,role_id", ignoreDuplicates: true });
-    if (assignment.error) throw assignment.error;
-    const verifiedRole = await admin.from("user_roles").select("role_id,valid_until")
-      .eq("museum_id", profile.museum_id).eq("user_id", userId).eq("role_id", role.id).single();
-    if (verifiedRole.error || !verifiedRole.data || (verifiedRole.data.valid_until && Date.parse(verifiedRole.data.valid_until) <= Date.now()))
-      throw verifiedRole.error || new Error("ROLE_ASSIGNMENT_INCOMPLETE");
+    if (!usesLegacyRbac) {
+      const assignment = await admin.from("user_roles").upsert({
+        museum_id: profile.museum_id, user_id: userId, role_id: role.id, assigned_by: user.id
+      }, { onConflict: "museum_id,user_id,role_id", ignoreDuplicates: true });
+      if (assignment.error) throw assignment.error;
+      const verifiedRole = await admin.from("user_roles").select("role_id,valid_until")
+        .eq("museum_id", profile.museum_id).eq("user_id", userId).eq("role_id", role.id).single();
+      if (verifiedRole.error || !verifiedRole.data || (verifiedRole.data.valid_until && Date.parse(verifiedRole.data.valid_until) <= Date.now()))
+        throw verifiedRole.error || new Error("ROLE_ASSIGNMENT_INCOMPLETE");
+
+    }
 
     stage = "audit";
     const id = await auditId(userId, employeeId);
     const audit = { id, museum_id: profile.museum_id, [actorColumn]: user.id, action: "USER_INVITED",
-      table_name: "profiles", record_id: userId, new_value: { employee_id: employeeId, role: "empleado" } };
+      table_name: "profiles", record_id: userId, new_value: { employee_id: employeeId, role: "empleado", request_id: requestId } };
     const existingAudit = await admin.from("audit_logs").select("id,record_id,museum_id,action,new_value").eq("id", id).maybeSingle();
     if (existingAudit.error) throw existingAudit.error;
     if (!existingAudit.data) {
@@ -177,9 +198,52 @@ Deno.serve(async (req) => {
       }
     } else if (existingAudit.data.record_id !== userId || existingAudit.data.museum_id !== profile.museum_id ||
         existingAudit.data.action !== "USER_INVITED" || existingAudit.data.new_value?.employee_id !== employeeId) throw new Error("AUDIT_CONFLICT");
+
+    if (action === "resend") {
+      // Explicit resend only, after the existing identity/link has been verified.
+      // A repeated request with uncertain delivery cannot send a second email.
+      if (account.email_confirmed_at) return result("invite_failed", "validation", 409);
+      const resentId = await auditId("resent:" + requestId, employeeId);
+      const previous = await admin.from("audit_logs").select("id").eq("id", resentId).maybeSingle();
+      if (previous.error) throw previous.error;
+      if (previous.data) return result("invite_sent_linked", "resend");
+      await enforceEmailCooldown(admin, profile.museum_id, employeeId,
+        ["USER_INVITED", "USER_INVITATION_RESENT", "USER_INVITATION_RESEND_REQUESTED"]);
+      const resendClaimId = await auditId("resend-request:" + requestId, employeeId);
+      const resendClaim = await admin.from("audit_logs").insert({
+        id: resendClaimId, museum_id: profile.museum_id, [actorColumn]: user.id,
+        action: "USER_INVITATION_RESEND_REQUESTED", table_name: "employee_access", record_id: userId,
+        new_value: { employee_id: employeeId, request_id: requestId }
+      });
+      if (resendClaim.error) {
+        logFailure("verification", resendClaim.error);
+        if (resendClaim.error.code === "23505") return result("invite_status_unknown", "verification", 409);
+        throw resendClaim.error;
+      }
+      stage = "send";
+      try {
+        const resend = await admin.auth.resend({ type: "signup", email, options: { emailRedirectTo: redirectTo } });
+        if (resend.error) {
+          logFailure(stage, resend.error);
+          return result(resend.error.status >= 400 && resend.error.status < 500 ? "invite_failed" : "invite_status_unknown", "send", 400);
+        }
+      } catch (error) {
+        logFailure(stage, error);
+        return result("invite_status_unknown", "verification", 502);
+      }
+      stage = "audit";
+      const receipt = await admin.from("audit_logs").insert({
+        id: resentId, museum_id: profile.museum_id, [actorColumn]: user.id,
+        action: "USER_INVITATION_RESENT", table_name: "employee_access", record_id: userId,
+        new_value: { employee_id: employeeId, request_id: requestId }
+      });
+      if (receipt.error) throw receipt.error;
+      return result("invite_sent_linked", "resend");
+    }
     return result("invite_sent_linked", "complete", 200);
   } catch (error) {
     logFailure(stage, error);
+    if (error instanceof Error && error.message === "RATE_LIMITED") return result("invite_failed", "cooldown", 429);
     if (sent) return result("invite_sent_link_pending", stage === "audit" ? "audit" : "link", 202);
     if (dispatching) return result("invite_status_unknown", "verification", 502);
     return result("invite_failed", stage, stage === "authorization" ? 403 : 400);

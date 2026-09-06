@@ -34,70 +34,20 @@
         <section class="finance-module" data-finance-module hidden>
           <div class="finance-toolbar">
             <div>
-              <p class="page-kicker">Panel Financiero</p>
-              <h2>Finanzas del Museo</h2>
-              <p>Sistema administrativo conectado a Supabase para ingresos, gastos, balance neto, reportes y bitácora.</p>
+              <p class="page-kicker">Finanzas v1</p>
+              <h2>Presupuesto anual</h2>
+              <p>Período presupuestario del 1 de septiembre de 2026 al 31 de agosto de 2027.</p>
             </div>
             <div class="finance-sync-status is-checking" data-finance-sync-status>
               <span class="sync-dot" aria-hidden="true"></span>
               <div>
-                <strong data-finance-sync-title>Verificando Supabase</strong>
-                <span data-finance-sync-detail>Confirmando fuente central de datos.</span>
+                <strong data-finance-sync-title>Conectando con Instituva</strong>
+                <span data-finance-sync-detail>Consultando el presupuesto oficial.</span>
               </div>
             </div>
           </div>
-
-          <section class="finance-summary-grid" data-finance-summary></section>
-
-          <nav class="admin-tabs finance-tabs" aria-label="Navegación interna de Finanzas">
-            <button class="admin-tab is-active" type="button" data-finance-tab="resumen">Resumen</button>
-            <button class="admin-tab" type="button" data-finance-tab="ingresos">Ingresos</button>
-            <button class="admin-tab" type="button" data-finance-tab="gastos">Gastos</button>
-            <button class="admin-tab" type="button" data-finance-tab="nomina">Nómina</button>
-            <button class="admin-tab" type="button" data-finance-tab="reportes">Reportes</button>
-            <button class="admin-tab" type="button" data-finance-tab="configuracion">Configuración</button>
-          </nav>
-
-          <div class="finance-sync-status finance-sync-status-wide is-checking" data-finance-sync-status>
-            <span class="sync-dot" aria-hidden="true"></span>
-            <div>
-              <strong data-finance-sync-title>Verificando Supabase</strong>
-              <span data-finance-sync-detail>Confirmando fuente central de datos.</span>
-            </div>
-          </div>
-
-          <section class="card panel finance-panel" data-finance-panel></section>
-
-          <section class="card panel finance-export-panel" data-quickbooks-export>
-            <div class="finance-export-heading">
-              <div>
-                <p class="page-kicker">Exportación para QuickBooks</p>
-                <h3>Exportación para QuickBooks</h3>
-                <p>Supabase se utilizará como base operacional del sistema. QuickBooks/Intuit se utilizará para contabilidad oficial mediante exportación o integración futura.</p>
-              </div>
-              <button
-                class="button secondary quickbooks-disabled"
-                type="button"
-                disabled
-                title="Integración futura requiere backend seguro y OAuth 2.0."
-              >
-                Conectar con QuickBooks Online
-              </button>
-            </div>
-            <p class="form-message">Integración futura requiere backend seguro y OAuth 2.0.</p>
-            <div class="finance-export-actions">
-              <button class="button secondary" type="button" data-qb-export="csv">Exportar CSV</button>
-              <button class="button secondary" type="button" data-qb-export="excel">Exportar Excel</button>
-              <button class="button secondary" type="button" data-qb-export="daily">Exportar Resumen Diario</button>
-              <button class="button secondary" type="button" data-qb-export="category">Exportar por Categoría Contable</button>
-            </div>
-          </section>
-
-          <div class="finance-actions finance-actions-bottom">
-            <button class="button secondary" type="button" data-finance-export-excel>Exportar a Excel</button>
-            <button class="button secondary" type="button" data-finance-export-pdf>Exportar a PDF</button>
-            <button class="button secondary" type="button" data-finance-print>Imprimir</button>
-          </div>
+          <p class="form-message" data-finance-message aria-live="polite"></p>
+          <section class="card panel finance-v1-panel" data-finance-panel></section>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
@@ -105,7 +55,7 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/services/supabase.js?v=employee-sensitive-20260721"></script>
-  <script src="js/app.js?v=access-policy-20260728"></script>
+  <script src="js/app.js?v=finance-v1-20260903"></script>
 </body>
 </html>
 

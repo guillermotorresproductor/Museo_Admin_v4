@@ -943,8 +943,8 @@ function updateCurrentUserFromEmployeeCache() {
   }
 }
 
-const financeMonths = ["Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio"];
-const defaultFinanceRows = [
+const financeMonths = ["Septiembre", "Octubre", "Noviembre", "Diciembre", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto"];
+const legacyFinanceProjectionRows = [
   { id: "ing-aportacion", type: "income", category: "Ingresos", concept: "Aportación Municipal", values: [100000,0,0,0,0,0,0,0,0,0,0,0] },
   { id: "ing-adultos", type: "income", category: "Entradas al Museo", concept: "Entradas Adultos", values: [0,0,26000,26000,26000,26000,26000,26000,26000,26000,26000,26000] },
   { id: "ing-ninos", type: "income", category: "Entradas al Museo", concept: "Entradas Niños", values: [0,0,8666.67,8666.67,8666.67,8666.67,8666.67,8666.67,8666.67,8666.67,8666.67,8666.67] },
@@ -1000,6 +1000,9 @@ const defaultFinanceRows = [
   { id: "exp-miscelaneos", type: "expense", category: "Otros Gastos", concept: "Misceláneos", values: [0,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500] },
   { id: "exp-reserva", type: "expense", category: "Otros Gastos", concept: "Gastos de representación", values: [0,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000] }
 ];
+
+// Legacy projection retained only as source history. Finanzas v1 never reads or writes it.
+const defaultFinanceRows = Object.freeze([]);
 
 const excludedFinanceConcepts = new Set(["Contingencia", "Ahorros"]);
 
@@ -4311,7 +4314,7 @@ function bindNotificationsModule() {
   loadPreferences();
 }
 
-function bindFinanceModule() {
+function bindLegacyFinanceModuleDisabled() {
   const module = document.querySelector("[data-finance-module]");
   const gate = document.querySelector("[data-finance-gate]");
   if (!module || !gate) return;
@@ -5050,6 +5053,185 @@ function bindFinanceModule() {
   }
 }
 
+function bindFinanceModule() {
+  const module = document.querySelector("[data-finance-module]");
+  const gate = document.querySelector("[data-finance-gate]");
+  const panel = document.querySelector("[data-finance-panel]");
+  const message = document.querySelector("[data-finance-message]");
+  if (!module || !gate || !panel) return;
+
+  const loginForm = document.querySelector("[data-finance-login]");
+  const loginMessage = document.querySelector("[data-finance-login-message]");
+  const loginFallback = document.querySelector("[data-finance-login-fallback]");
+  const syncStatuses = document.querySelectorAll("[data-finance-sync-status]");
+  const canWrite = () => hasPermission("finance.write");
+  let snapshot = { versions: [] };
+  let activeVersionId = "";
+
+  const setMessage = (text = "", state = "") => {
+    if (!message) return;
+    message.textContent = text;
+    message.className = `form-message${state ? ` ${state}` : ""}`;
+  };
+
+  const setSync = (state, title, detail) => {
+    syncStatuses.forEach((status) => {
+      status.classList.remove("is-checking", "is-connected", "is-error");
+      status.classList.add(`is-${state}`);
+      const titleNode = status.querySelector("[data-finance-sync-title]");
+      const detailNode = status.querySelector("[data-finance-sync-detail]");
+      if (titleNode) titleNode.textContent = title;
+      if (detailNode) detailNode.textContent = detail;
+    });
+  };
+
+  const bridge = (kind, payload = {}) => callInstitutionalDataBridge({ kind, payload });
+  const requestKey = () => crypto.randomUUID();
+  const periodStarts = Array.from({ length: 12 }, (_, index) => {
+    const date = new Date(Date.UTC(2026, 8 + index, 1));
+    return date.toISOString().slice(0, 10);
+  });
+  const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
+
+  const activeVersion = () => snapshot.versions.find((version) => version.id === activeVersionId)
+    || snapshot.versions.find((version) => version.status === "draft")
+    || snapshot.versions[0]
+    || null;
+
+  const render = () => {
+    const version = activeVersion();
+    if (!version) {
+      panel.innerHTML = `
+        <div class="finance-v1-empty">
+          <p class="page-kicker">Septiembre 2026 — agosto 2027</p>
+          <h3>No existe un presupuesto todavía</h3>
+          <p>Esta pantalla no utiliza proyecciones, datos de demostración ni los registros legacy.</p>
+          ${canWrite() ? `<form class="form-grid finance-v1-create" data-finance-create>
+            <div class="field"><label for="finance-budget-title">Nombre del presupuesto</label>
+            <input id="finance-budget-title" name="title" maxlength="160" value="Presupuesto anual 2026–2027" required></div>
+            <button class="button submit-button" type="submit">Crear presupuesto borrador</button>
+          </form>` : ""}
+        </div>`;
+      panel.querySelector("[data-finance-create]")?.addEventListener("submit", createBudget);
+      return;
+    }
+
+    activeVersionId = version.id;
+    const editable = canWrite() && version.status === "draft";
+    const options = snapshot.versions.map((item) => `<option value="${item.id}" ${item.id === version.id ? "selected" : ""}>v${item.version_number} · ${safeHtml(item.title)} · ${safeHtml(item.status)}</option>`).join("");
+    const header = financeMonths.map((month) => `<th scope="col">${month}</th>`).join("");
+    const rows = (version.lines || []).map((line) => {
+      const amounts = new Map((line.amounts || []).map((amount) => [amount.period_start, amount.amount]));
+      const cells = periodStarts.map((period) => `<td><input class="finance-cell" type="number" min="0" step="0.01"
+        value="${Number(amounts.get(period) || 0).toFixed(2)}" data-finance-amount data-line-id="${line.id}" data-period="${period}"
+        aria-label="${safeHtml(line.label)} ${period}" ${editable ? "" : "disabled"}></td>`).join("");
+      return `<tr><th scope="row"><strong>${safeHtml(line.label)}</strong><small>${safeHtml(line.line_code)} · ${line.line_type === "income" ? "Ingreso" : "Gasto"}</small></th>${cells}<td><strong>${money((line.amounts || []).reduce((sum, item) => sum + Number(item.amount || 0), 0))}</strong></td></tr>`;
+    }).join("");
+    panel.innerHTML = `
+      <div class="finance-v1-heading">
+        <div><p class="page-kicker">Versión ${version.version_number}</p><h3>${safeHtml(version.title)}</h3>
+        <p><span class="status-badge">${safeHtml(version.status)}</span> · ${version.period_start} — ${version.period_end}</p></div>
+        <label class="field finance-v1-version-picker"><span>Versión</span><select data-finance-version>${options}</select></label>
+      </div>
+      ${editable ? `<form class="finance-v1-line-form" data-finance-line-form>
+        <div class="field"><label for="finance-line-code">Código</label><input id="finance-line-code" name="code" maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9._-]*" required></div>
+        <div class="field"><label for="finance-line-label">Partida</label><input id="finance-line-label" name="label" maxlength="160" required></div>
+        <div class="field"><label for="finance-line-type">Tipo</label><select id="finance-line-type" name="type"><option value="income">Ingreso</option><option value="expense">Gasto</option></select></div>
+        <button class="button secondary" type="submit">Añadir partida</button>
+      </form>` : `<p class="form-message">Esta versión es de solo lectura.</p>`}
+      <div class="table-scroll"><table class="finance-table finance-v1-table"><thead><tr><th>Partida</th>${header}<th>Total anual</th></tr></thead><tbody>${rows || `<tr><td colspan="14">No hay partidas registradas.</td></tr>`}</tbody></table></div>`;
+    panel.querySelector("[data-finance-version]")?.addEventListener("change", (event) => { activeVersionId = event.target.value; render(); });
+    panel.querySelector("[data-finance-line-form]")?.addEventListener("submit", addLine);
+    panel.querySelectorAll("[data-finance-amount]").forEach((input) => input.addEventListener("change", saveAmount));
+  };
+
+  async function refresh() {
+    if (typeof isInstitutionalDataBackendEnabled !== "function" || !isInstitutionalDataBackendEnabled()) {
+      throw new Error("Finanzas v1 está habilitado únicamente en el preview conectado a Development.");
+    }
+    setSync("checking", "Consultando Instituva", "Cargando el presupuesto oficial.");
+    snapshot = await bridge("finance_budget_snapshot", { p_budget_version_id: null }) || { versions: [] };
+    setSync("connected", "Instituva Development conectado", "Fuente oficial de Finanzas v1.");
+    render();
+  }
+
+  async function createBudget(event) {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector("button");
+    if (button) button.disabled = true;
+    try {
+      activeVersionId = await bridge("finance_create_budget_draft", { p_request_key: requestKey(), p_title: event.currentTarget.elements.title.value.trim() });
+      setMessage("Presupuesto borrador creado.", "success");
+      await refresh();
+    } catch (error) {
+      setMessage(error.message || "No se pudo crear el presupuesto.", "error");
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function addLine(event) {
+    event.preventDefault();
+    const version = activeVersion();
+    const button = event.currentTarget.querySelector("button");
+    if (!version || version.status !== "draft") return;
+    if (button) button.disabled = true;
+    try {
+      const lineId = await bridge("finance_upsert_budget_line", {
+        p_budget_version_id: version.id, p_request_key: requestKey(), p_line_id: null,
+        p_line_code: event.currentTarget.elements.code.value.trim().toUpperCase(),
+        p_label: event.currentTarget.elements.label.value.trim(), p_line_type: event.currentTarget.elements.type.value,
+        p_display_order: (version.lines || []).length
+      });
+      await Promise.all(periodStarts.map((period) => bridge("finance_set_budget_amount", {
+        p_budget_version_id: version.id, p_budget_line_id: lineId, p_request_key: requestKey(),
+        p_period_start: period, p_amount: 0
+      })));
+      setMessage("Partida creada con sus doce períodos.", "success");
+      await refresh();
+    } catch (error) {
+      setMessage(error.message || "No se pudo crear la partida.", "error");
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function saveAmount(event) {
+    const input = event.currentTarget;
+    const version = activeVersion();
+    input.disabled = true;
+    try {
+      await bridge("finance_set_budget_amount", {
+        p_budget_version_id: version.id, p_budget_line_id: input.dataset.lineId,
+        p_request_key: requestKey(), p_period_start: input.dataset.period, p_amount: Number(input.value || 0)
+      });
+      setMessage("Monto guardado en Instituva.", "success");
+    } catch (error) {
+      setMessage(error.message || "No se pudo guardar el monto.", "error");
+    } finally {
+      input.disabled = false;
+    }
+  }
+
+  gate.hidden = false;
+  module.hidden = true;
+  if (!getSupabaseSession()?.access_token) {
+    gate.querySelector("[data-finance-login-message]").textContent = "Finanzas requiere una sesión activa.";
+    return;
+  }
+  if (!hasPermission("finance.read")) {
+    gate.querySelector("[data-finance-login-message]").textContent = "Su cuenta no tiene permiso finance.read.";
+    return;
+  }
+  const sensitiveGate = bindSensitiveModuleGate({
+    moduleId: "finance", permission: "finance.read", gate, content: module, loginForm,
+    loginMessage, loginFallbackLink: loginFallback,
+    async onUnlock() {
+      try { await refresh(); }
+      catch (error) { setSync("error", "Instituva no disponible", "No se mostraron datos alternos."); setMessage(error.message || "No se pudo consultar el presupuesto.", "error"); }
+    }
+  });
+  sensitiveGate.init();
+}
+
 function bindExecutiveDirectionModule() {
   const gate = document.querySelector("[data-executive-gate]");
   const launch = document.querySelector("[data-executive-launch]");
@@ -5126,8 +5308,20 @@ function bindEmployeeProfile() {
   const photoRemove = document.querySelector("[data-employee-photo-remove]");
   const photoMessage = document.querySelector("[data-employee-photo-message]");
   const saveButton = document.querySelector("[data-profile-save]");
-  const inviteButton = document.querySelector("[data-profile-invite]");
   const profileMessage = document.querySelector("[data-profile-message]");
+  const accessCard = document.querySelector("[data-employee-access]");
+  const accessEmail = document.querySelector("[data-access-email]");
+  const accessStatus = document.querySelector("[data-access-status]");
+  const accessLastInvitation = document.querySelector("[data-access-last-invitation]");
+  const accessLastSignIn = document.querySelector("[data-access-last-sign-in]");
+  const accessMessage = document.querySelector("[data-access-message]");
+  const accessInviteButton = document.querySelector("[data-access-invite]");
+  const accessRecoveryButton = document.querySelector("[data-access-recovery]");
+  const accessDeactivateButton = document.querySelector("[data-access-deactivate]");
+  const accessReactivateButton = document.querySelector("[data-access-reactivate]");
+  let accessState = null;
+  let accessResendButton = null;
+  let invitationLinkVerified = false;
 
   const setProfileMessage = (text, type = "") => {
     if (!profileMessage) return;
@@ -5135,19 +5329,82 @@ function bindEmployeeProfile() {
     profileMessage.className = `form-message ${type}`.trim();
   };
 
-  let invitationRepairOnly = Boolean(profile.authUserId);
-  const updateInviteButton = () => {
-    if (!inviteButton) return;
+  let invitationRepairOnly = false;
+  let invitationRequestId = null;
+  const formatAccessDate = (value) => {
+    if (!value) return "No disponible";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "No disponible" : date.toLocaleString("es-PR", { dateStyle: "medium", timeStyle: "short" });
+  };
+
+  const setAccessMessage = (text, type = "") => {
+    if (!accessMessage) return;
+    accessMessage.textContent = text;
+    accessMessage.className = `form-message ${type}`.trim();
+  };
+
+  const renderAccessState = () => {
+    if (accessResendButton) accessResendButton.hidden = true;
+    if (!accessCard) return;
     const canInvite = hasPermission("users.invite") && profile.source === "supabase";
-    inviteButton.hidden = !canInvite;
-    inviteButton.disabled = false;
-    inviteButton.textContent = invitationRepairOnly ? "Verificar / reparar vinculación" : "Enviar invitación";
+    const canDeactivate = hasPermission("users.deactivate") && profile.source === "supabase";
+    accessCard.hidden = !(canInvite || canDeactivate);
+    if (accessCard.hidden) return;
+
+    const labels = {
+      no_account: "Sin cuenta",
+      invitation_pending: "Invitación pendiente",
+      active: "Activo",
+      deactivated: "Desactivado"
+    };
+    if (accessEmail) accessEmail.textContent = accessState?.email || profile.correo || "No disponible";
+    if (accessStatus) accessStatus.textContent = labels[accessState?.status] || "No disponible";
+    if (accessLastInvitation) accessLastInvitation.textContent = formatAccessDate(accessState?.last_invitation_at);
+    if (accessLastSignIn) accessLastSignIn.textContent = formatAccessDate(accessState?.last_sign_in_at);
+
+    [accessInviteButton, accessRecoveryButton, accessDeactivateButton, accessReactivateButton].forEach((button) => {
+      if (button) button.hidden = true;
+    });
+    if (invitationRepairOnly && canInvite && accessInviteButton && accessState?.status !== "deactivated") {
+      accessInviteButton.hidden = false;
+      accessInviteButton.textContent = "Verificar / reparar vinculación";
+    }
+    if (!accessState) return;
+    if (accessState.status === "no_account" && canInvite && accessInviteButton) {
+      accessInviteButton.hidden = false;
+      accessInviteButton.textContent = invitationRepairOnly ? "Verificar / reparar vinculación" : "Enviar invitación";
+    } else if (accessState.status === "invitation_pending" && canInvite && accessInviteButton) {
+      accessInviteButton.hidden = false;
+      accessInviteButton.textContent = "Verificar / reparar vinculación";
+      if (accessResendButton) accessResendButton.hidden = !invitationLinkVerified;
+    } else if (accessState.status === "active") {
+      if (canInvite && accessRecoveryButton) accessRecoveryButton.hidden = false;
+      if (canDeactivate && accessDeactivateButton) accessDeactivateButton.hidden = false;
+    } else if (accessState.status === "deactivated" && canDeactivate && accessReactivateButton) {
+      accessReactivateButton.hidden = false;
+    }
+  };
+
+  const loadAccessState = async () => {
+    if (!accessCard || profile.source !== "supabase" || !(hasPermission("users.invite") || hasPermission("users.deactivate"))) return;
+    accessCard.hidden = false;
+    setAccessMessage("Consultando acceso seguro…");
+    try {
+      accessState = await fetchSupabaseEmployeeAccess(profile.id);
+      renderAccessState();
+      setAccessMessage("");
+    } catch (error) {
+      accessState = null;
+      renderAccessState();
+      setAccessMessage("No se pudo consultar el acceso. Inténtelo más tarde.", "error");
+    }
   };
 
   if (avatar) avatar.textContent = profile.avatar || employeeInitials(profile);
   if (name) name.textContent = employeeDisplayName(profile);
   if (position) position.textContent = profile.posicion;
-  updateInviteButton();
+  renderAccessState();
+  loadAccessState();
 
   document.querySelectorAll("[data-profile-field]").forEach((field) => {
     const value = profile[field.dataset.profileField] || "";
@@ -5204,25 +5461,94 @@ function bindEmployeeProfile() {
     });
   }
 
-  inviteButton?.addEventListener("click", async () => {
-    if (inviteButton.disabled) return;
-    const repair = invitationRepairOnly;
-    if (!window.confirm(repair
-      ? "Se verificará y reparará la vinculación existente sin enviar correo. ¿Desea continuar?"
-      : `Se comprobará el expediente de ${employeeDisplayName(profile)} y se enviará una invitación solo si no existe una anterior. ¿Desea continuar?`)) return;
-    inviteButton.disabled = true;
-    setProfileMessage(repair ? "Verificando vinculación..." : "Procesando invitación...", "");
+  // The existing panel gets a separate explicit resend action; repair never sends.
+  accessResendButton = accessInviteButton ? document.createElement("button") : null;
+  if (accessResendButton) {
+    accessResendButton.type = "button";
+    accessResendButton.className = accessInviteButton.className;
+    accessResendButton.textContent = "Reenviar invitación";
+    accessResendButton.hidden = true;
+    accessInviteButton.insertAdjacentElement("afterend", accessResendButton);
+  }
+  const runInvitationAction = async (action) => {
+    if (accessInviteButton?.disabled) return;
+    const prompts = {
+      invite: "Se enviará una invitación solo si no existe una anterior. ¿Desea continuar?",
+      repair: "Se verificará y reparará la vinculación sin enviar correo. ¿Desea continuar?",
+      resend: "Se reenviará explícitamente la invitación pendiente. ¿Desea continuar?"
+    };
+    if (!window.confirm(prompts[action])) return;
+    accessInviteButton.disabled = true;
+    if (accessResendButton) accessResendButton.disabled = true;
+    invitationRequestId ||= crypto.randomUUID();
+    setAccessMessage(action === "repair" ? "Verificando vinculación..." : "Procesando invitación...");
     try {
-      const result = await inviteSupabaseEmployee(profile.id, repair ? "repair" : "invite");
-      invitationRepairOnly = result.code !== "invite_failed" || repair;
-      updateInviteButton();
+      const result = action === "resend"
+        ? await resendSupabaseEmployeeInvitation(profile.id, invitationRequestId)
+        : await inviteSupabaseEmployee(profile.id, action, invitationRequestId);
+      invitationRepairOnly = result.code !== "invite_failed" || action === "repair";
+      if (result.code !== "invite_status_unknown") invitationRequestId = null;
+      invitationLinkVerified = result.code === "invite_sent_linked";
+      await loadAccessState();
       const complete = result.code === "invite_sent_linked";
-      if (complete) { inviteButton.disabled = true; inviteButton.textContent = "Vinculación verificada"; }
-      setProfileMessage(result.message, complete ? "success" : "error");
+      if (accessResendButton) accessResendButton.hidden = !(complete && accessState?.status === "invitation_pending" && hasPermission("users.invite"));
+      setAccessMessage(result.message, complete ? "success" : "error");
     } catch {
       invitationRepairOnly = true;
-      updateInviteButton();
-      setProfileMessage("No se pudo confirmar el resultado. Verifique la vinculación sin reenviar el correo.", "error");
+      invitationLinkVerified = false;
+      renderAccessState();
+      if (accessResendButton) accessResendButton.hidden = true;
+      setAccessMessage("No se pudo confirmar el resultado. Verifique la vinculación sin reenviar el correo.", "error");
+    } finally {
+      accessInviteButton.disabled = false;
+      if (accessResendButton) accessResendButton.disabled = false;
+    }
+  };
+  accessInviteButton?.addEventListener("click", () => runInvitationAction(
+    invitationRepairOnly || accessState?.status === "invitation_pending" ? "repair" : "invite"
+  ));
+  accessResendButton?.addEventListener("click", () => runInvitationAction("resend"));
+
+  accessRecoveryButton?.addEventListener("click", async () => {
+    accessRecoveryButton.disabled = true;
+    setAccessMessage("Enviando enlace seguro…");
+    try {
+      await requestSupabaseEmployeeRecovery(profile.id);
+      setAccessMessage("Enlace para cambiar contraseña enviado correctamente.", "success");
+    } catch (error) {
+      setAccessMessage(error.message || "No se pudo enviar el enlace.", "error");
+    } finally {
+      accessRecoveryButton.disabled = false;
+    }
+  });
+
+  accessDeactivateButton?.addEventListener("click", async () => {
+    if (!window.confirm(`Se desactivará exclusivamente el acceso al sistema de ${employeeDisplayName(profile)}. ¿Desea continuar?`)) return;
+    accessDeactivateButton.disabled = true;
+    setAccessMessage("Desactivando acceso…");
+    try {
+      await deactivateSupabaseEmployeeAccess(profile.id);
+      await loadAccessState();
+      setAccessMessage("Acceso desactivado. El expediente laboral no fue modificado.", "success");
+    } catch (error) {
+      setAccessMessage(error.message || "No se pudo desactivar el acceso.", "error");
+    } finally {
+      accessDeactivateButton.disabled = false;
+    }
+  });
+
+  accessReactivateButton?.addEventListener("click", async () => {
+    if (!window.confirm(`Se reactivará el acceso al sistema de ${employeeDisplayName(profile)}. ¿Desea continuar?`)) return;
+    accessReactivateButton.disabled = true;
+    setAccessMessage("Reactivando acceso…");
+    try {
+      await reactivateSupabaseEmployeeAccess(profile.id);
+      await loadAccessState();
+      setAccessMessage("Acceso reactivado correctamente.", "success");
+    } catch (error) {
+      setAccessMessage(error.message || "No se pudo reactivar el acceso.", "error");
+    } finally {
+      accessReactivateButton.disabled = false;
     }
   });
 

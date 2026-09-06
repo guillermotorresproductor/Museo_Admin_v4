@@ -8,7 +8,8 @@ const service = fs.readFileSync(new URL("../../js/services/supabase.js", import.
 const app = fs.readFileSync(new URL("../../js/app.js", import.meta.url), "utf8");
 const html = fs.readFileSync(new URL("../../login.html", import.meta.url), "utf8");
 const edge = fs.readFileSync(new URL("../functions/invite-employee/index.ts", import.meta.url), "utf8");
-const edgeJS = stripTypeScriptTypes(edge.replace(/^import[^\n]+\n/,""));
+const edgeJS = stripTypeScriptTypes(edge.replace(/^import[^\n]+\n/gm,""));
+const accessHelpers = stripTypeScriptTypes(fs.readFileSync(new URL("../functions/_shared/employee-access.ts", import.meta.url), "utf8").replace(/^export /gm, ""));
 const clone = value => JSON.parse(JSON.stringify(value));
 const storage = () => { const data=new Map(); return { getItem:k=>data.get(k)??null, setItem:(k,v)=>data.set(k,String(v)), removeItem:k=>data.delete(k) }; };
 const response = (data,status=200) => new Response(JSON.stringify(data),{status});
@@ -17,13 +18,14 @@ const session={access_token:"fixture-token",refresh_token:"fixture-refresh",user
 function serviceContext(overrides={}) {
   const calls=[];
   const context=vm.createContext({
-    URL,Date,Object,localStorage:storage(),supabaseUrl:"https://fixture.supabase.invalid",
+    URL,Date,Object,crypto:webcrypto,localStorage:storage(),supabaseUrl:"https://fixture.supabase.invalid",
     supabaseHeaders:()=>({"Content-Type":"application/json"}),supabaseAuthHeaders:async()=>({}),
     fetch:async(url,options={})=>{
       calls.push({url,options});
       if(url.includes("/auth/v1/user"))return response(authUser);
-      if(url.includes("/profiles?"))return response([{id:"u1",museum_id:"m1",email:authUser.email,status:"active"}]);
-      if(url.includes("/employees?"))return response([{id:"e1",profile_id:"u1",museum_id:"m1",email:authUser.email}]);
+      if(url.includes("/profiles?"))return response([{id:"u1",museum_id:"m1",email:authUser.email,role:"empleado",status:"active"}]);
+      if(url.includes("/employees?"))return response([{id:"11111111-1111-4111-8111-111111111111",profile_id:"u1",museum_id:"m1",email:authUser.email}]);
+      if(url.includes("/roles?"))return response([{id:"r1",code:"empleado"}]);
       if(url.includes("/user_roles?"))return response([{museum_id:"m1",roles:{code:"empleado"}}]);
       if(url.includes("/logout"))return response({});
       throw Error("Unexpected mock URL");
@@ -32,23 +34,23 @@ function serviceContext(overrides={}) {
   vm.runInContext(service,context);return {context,calls};
 }
 function server(options={}) {
-  const state={failure:null,sent:0,calls:[],logs:[],users:[],tables:{
-    employees:[{id:"e1",museum_id:"m1",email:authUser.email,first_name:"Fixture",last_name:"User",profile_id:null}],
+  const state={failure:null,sent:0,resent:0,calls:[],logs:[],users:[],tables:{
+    employees:[{id:"11111111-1111-4111-8111-111111111111",museum_id:"m1",email:authUser.email,first_name:"Fixture",last_name:"User",profile_id:null}],
     profiles:[],roles:[{id:"r1",code:"empleado"}],user_roles:[],audit_logs:[]
   }};
   Object.assign(state,options.state);
   let handler;
   const dbError=(message="internal column fixture",code="42501")=>({code,message,details:"technical fixture detail"});
   const admin={
-    auth:{admin:{
+    auth:{resend:async(config)=>{state.calls.push({op:"resend",config});state.resent++;return {error:null};},admin:{
       listUsers:async({page,perPage})=>({data:{users:clone(state.users.slice((page-1)*perPage,page*perPage))}}),
       inviteUserByEmail:async(email,config)=>{
         state.calls.push({op:"invite",config});
         if(state.failure==="send")return {error:{status:400,message:"internal Auth error"}};
         if(state.failure==="uncertain")throw Error("transport fixture error");
         state.sent++;
-        const account=clone(authUser);state.users.push(account);
-        state.tables.profiles.push({id:"u1",museum_id:"m1",email,full_name:"Fixture User",role:"empleado",status:"active"});
+        const account={...clone(authUser),email_confirmed_at:null};state.users.push(account);
+        if(!options.noProfile)state.tables.profiles.push({id:"u1",museum_id:"m1",email,full_name:"Fixture User",role:"empleado",status:options.profileStatus||"active"});
         if(state.failure==="lost-after")throw Error("lost response after send");
         return {data:{user:clone(account)}};
       },
@@ -58,7 +60,7 @@ function server(options={}) {
     from(table) {
       let op="read",payload,selection="",limit=Infinity,mode="many",filters=[];
       const q={
-        select(value){selection=value;return q;},eq(k,v){filters.push(row=>row[k]===v);return q;},
+        select(value){selection=value;return q;},in(k,values){filters.push(row=>values.includes(row[k]));return q;},contains(k,values){filters.push(row=>Object.entries(values).every(([key,value])=>row[k]?.[key]===value));return q;},order(){return q;},eq(k,v){filters.push(row=>row[k]===v);return q;},
         ilike(k,v){const exact=v.replace(/\\([\\%_])/g,"$1").toLowerCase();filters.push(row=>String(row[k]).toLowerCase()===exact);return q;},
         is(k,v){filters.push(row=>(row[k]??null)===v);return q;},limit(v){limit=v;return q;},
         single(){mode="one";return q;},maybeSingle(){mode="maybe";return q;},
@@ -71,7 +73,10 @@ function server(options={}) {
               return {error:{code:"PGRST204",message:"Could not find the 'actor_user_id' column of 'audit_logs' in the schema cache"}};
             if(table==="audit_logs"&&op==="read"&&limit===0&&options.schema==="trigger")
               return {error:{code:"42703",message:"column actor_user_id missing inside trigger"}};
-            if(table==="profiles"&&op==="update"&&state.failure==="profile")return {error:dbError()};
+            if(options.rbac==="legacy"&&["roles","user_roles"].includes(table))return {error:{code:"PGRST205",message:"missing relation"}};
+            if(options.rbac==="partial"&&table==="roles")return {error:{code:"PGRST205",message:"missing relation"}};
+            if(options.rbac==="denied"&&table==="roles")return {error:{code:"42501",message:"denied"}};
+            if(table==="profiles"&&op==="upsert"&&state.failure==="profile")return {error:dbError()};
             if(table==="employees"&&op==="update"&&state.failure==="employee")return {error:dbError()};
             if(table==="user_roles"&&op==="upsert"&&state.failure==="role")return {error:dbError()};
             if(table==="audit_logs"&&op==="insert"&&payload.action==="USER_INVITED"&&state.failure==="audit")return {error:dbError()};
@@ -80,7 +85,12 @@ function server(options={}) {
             if(op==="update")found.forEach(row=>Object.assign(row,payload));
             if(op==="insert"){
               if(rows.some(row=>row.id===payload.id))return {error:dbError("duplicate id","23505")};
-              rows.push(clone(payload));return {data:null,error:null};
+              rows.push({...clone(payload),created_at:new Date().toISOString()});return {data:null,error:null};
+            }
+            if(op==="upsert"&&table==="profiles"){
+              let row=rows.find(row=>row.id===payload.id);
+              if(row)Object.assign(row,payload);else{row=clone(payload);rows.push(row);}
+              return {data:clone(row),error:null};
             }
             if(op==="upsert"){
               if(!rows.some(row=>row.museum_id===payload.museum_id&&row.user_id===payload.user_id&&row.role_id===payload.role_id))rows.push(clone(payload));
@@ -95,14 +105,15 @@ function server(options={}) {
     }
   };
   const context=vm.createContext({
-    Response,URL,TextEncoder,crypto:webcrypto,console:{error:(...args)=>state.logs.push(args)},corsHeaders:{},
+    Response,URL,TextEncoder,crypto:webcrypto,console:{error:(...args)=>state.logs.push(args),info:(...args)=>state.logs.push(args)},corsHeaders:{},
     json:(data,status=200)=>response(data,status),
-    requirePermission:async()=>{if(options.denied)throw Error("FORBIDDEN");return {admin,user:{id:"admin"},profile:{museum_id:"m1"}};},
+    requirePermission:async()=>{if(options.denied)throw Error("FORBIDDEN");return {admin,user:{id:"admin"},profile:{museum_id:"m1",status:options.profileStatus||"active"}};},
     Deno:{serve:fn=>{handler=fn;},env:{get:key=>key==="SUPABASE_URL"?(options.project??"https://kfokfjngozgcwjpzxcsu.supabase.co"):options.redirect}}
   });
+  vm.runInContext(accessHelpers,context);
   vm.runInContext(edgeJS,context);
   return {state,context,async invoke(action="invite",body={}) {
-    const r=await handler({method:"POST",json:async()=>({employee_id:"e1",action,...body})});
+    const r=await handler({method:"POST",json:async()=>({employee_id:"11111111-1111-4111-8111-111111111111",request_id:webcrypto.randomUUID(),action,...body})});
     return {status:r.status,data:await r.json()};
   }};
 }
@@ -156,7 +167,7 @@ for(const kind of ["permission","missing","museum","email","duplicate","role","p
   if(kind==="missing")s.state.tables.employees=[];
   if(kind==="museum")s.state.tables.employees[0].museum_id="other";
   if(kind==="email")s.state.tables.employees[0].email="bad";
-  if(kind==="duplicate")s.state.tables.employees.push({...s.state.tables.employees[0],id:"e2"});
+  if(kind==="duplicate")s.state.tables.employees.push({...s.state.tables.employees[0],id:"22222222-2222-4222-8222-222222222222"});
   if(kind==="role")s.state.tables.roles=[];
   if(kind==="profile")s.state.tables.employees[0].profile_id="other";
   assert.equal((await s.invoke()).data.code,"invite_failed");
@@ -222,7 +233,7 @@ test("Auth and PostgREST messages are not shown to the user",async()=>{
 });
 for(const code of ["invite_failed","invite_sent_link_pending","invite_sent_linked"])test("frontend recognizes "+code,async()=>{
   const {context}=serviceContext({fetch:async()=>response({code,stage:"link",message:"internal malicious detail"},code==="invite_failed"?400:200)});
-  const r=await context.inviteSupabaseEmployee("e1","repair");assert.equal(r.code,code);assert.doesNotMatch(r.message,/internal malicious/);
+  const r=await context.inviteSupabaseEmployee("11111111-1111-4111-8111-111111111111","repair");assert.equal(r.code,code);assert.doesNotMatch(r.message,/internal malicious/);
 });
 test("PKCE verifier is removed even on rejection",async()=>{
   const {context}=serviceContext({fetch:async()=>response({},400)});
@@ -338,18 +349,23 @@ test("inline capture strips query and fragment credentials before asset loading"
   assert.equal(window.__instituvaAuthCallback.access_token,"fixture-token");
   assert.ok(html.indexOf(inline)<html.indexOf('src="js/config.js'));
 });
-test("repair button requests repair explicitly and never auto-retries",async()=>{
-  let click;const calls=[];
-  const button={disabled:false,addEventListener:(event,fn)=>{click=fn;}};
+test("access panel repairs a partial result without automatic resend",async()=>{
+  const calls=[],messages=[];
+  const button={disabled:false,className:"button",addEventListener(event,fn){this[event]=fn;},insertAdjacentElement(){}};
+  const resendButton={...button};
   const context=vm.createContext({
-    invitationRepairOnly:false,inviteButton:button,profile:{id:"e1"},window:{confirm:()=>true},
-    employeeDisplayName:()=>"Fixture",setProfileMessage(){},updateInviteButton:()=>{button.disabled=false;},
-    inviteSupabaseEmployee:async(id,action)=>{calls.push(action);return {code:"invite_sent_link_pending",message:"Invitación enviada"};}
+    crypto:webcrypto,accessInviteButton:button,accessResendButton:null,invitationLinkVerified:false,invitationRepairOnly:false,invitationRequestId:null,
+    accessState:{status:"no_account"},profile:{id:"11111111-1111-4111-8111-111111111111"},
+    document:{createElement:()=>resendButton},window:{confirm:()=>true},
+    hasPermission:()=>true,setAccessMessage:text=>messages.push(text),renderAccessState(){},loadAccessState:async()=>{},
+    inviteSupabaseEmployee:async(id,action)=>{calls.push(action);return {code:"invite_sent_link_pending",message:"Invitación enviada, vinculación pendiente"};},
+    resendSupabaseEmployeeInvitation:async()=>{throw Error("must not resend");}
   });
-  const start=app.indexOf('  inviteButton?.addEventListener("click"');
-  vm.runInContext(app.slice(start,app.indexOf('  saveButton?.addEventListener',start)),context);
-  await click();assert.deepEqual(calls,["invite"]);
-  await click();assert.deepEqual(calls,["invite","repair"]);
+  const start=app.indexOf("  // The existing panel gets a separate explicit resend action");
+  vm.runInContext(app.slice(start,app.indexOf('  accessRecoveryButton?.addEventListener',start)),context);
+  await button.click();assert.deepEqual(calls,["invite"]);
+  await button.click();assert.deepEqual(calls,["invite","repair"]);
+  assert.ok(messages.at(-1).includes("pendiente"));
 });
 
 test("a lost Auth response is repaired from the existing identity without resending",async()=>{
@@ -397,4 +413,61 @@ test("legacy page redirects remove credentials instead of forwarding them",()=>{
   assert.ok(urls.every(u=>!/fixture|access_token|refresh_token/.test(u)));
   assert.equal(params.access_token,undefined);
   assert.match(urls.at(-1),/reason=invalid-link/);
+});
+
+for(const rbac of ["legacy","normalized"])test("provisions a missing profile with "+rbac+" RBAC and preserves activo status",async()=>{
+  const s=server({rbac,noProfile:true,profileStatus:"activo"});
+  assert.equal((await s.invoke()).data.code,"invite_sent_linked");
+  assert.equal(s.state.tables.profiles[0].status,"activo");
+  assert.equal(s.state.tables.profiles[0].role,"empleado");
+  assert.equal(s.state.tables.user_roles.length,rbac==="legacy"?0:1);
+});
+test("repair can provision the profile missing after an earlier failure",async()=>{
+  const s=server({noProfile:true});s.state.failure="profile";
+  assert.equal((await s.invoke()).data.code,"invite_sent_link_pending");
+  s.state.failure=null;
+  assert.equal((await s.invoke("repair")).data.code,"invite_sent_linked");
+  assert.equal(s.state.sent,1);
+});
+for(const rbac of ["denied","partial"])test("does not disguise "+rbac+" RBAC as legacy",async()=>{
+  const s=server({rbac});assert.equal((await s.invoke()).data.code,"invite_failed");
+  assert.equal(s.state.sent,0);
+});
+test("legacy acceptance uses profiles.role and accepts activo",async()=>{
+  const {context}=serviceContext();const original=context.fetch;
+  context.fetch=async(url,opts)=>{
+    if(url.includes("/roles?")||url.includes("/user_roles?"))return response({code:"PGRST205"},404);
+    if(url.includes("/profiles?"))return response([{id:"u1",museum_id:"m1",email:authUser.email,role:"empleado",status:"activo"}]);
+    return original(url,opts);
+  };
+  await context.updateSupabaseSetupPassword(clone(session),"FixturePassword123!");
+});
+test("acceptance rejects partial RBAC rather than using profile role",async()=>{
+  const {context}=serviceContext();const original=context.fetch;
+  context.fetch=async(url,opts)=>url.includes("/roles?")?response({code:"PGRST205"},404):original(url,opts);
+  await assert.rejects(context.validateSupabasePasswordSetupSession(clone(session),"invite"),e=>e.code==="invalid_role");
+});
+test("explicit resend retains cooldown, closed redirect and request idempotency",async()=>{
+  const s=server();await s.invoke();
+  const id=webcrypto.randomUUID();
+  assert.equal((await s.invoke("resend",{request_id:id})).data.code,"invite_failed");
+  assert.equal(s.state.resent,0);
+  s.state.tables.audit_logs.forEach(row=>row.created_at="2000-01-01");
+  const first=await s.invoke("resend",{request_id:id});
+  assert.equal(first.data.code,"invite_sent_linked");assert.equal(first.data.stage,"resend");
+  assert.equal((await s.invoke("resend",{request_id:id})).data.code,"invite_sent_linked");
+  assert.equal(s.state.resent,1);assert.equal(s.state.sent,1);
+  assert.equal(s.state.calls.find(c=>c.op==="resend").config.options.emailRedirectTo,"https://mmdpr.org/login.html");
+});
+test("resend is never used by a repair request",async()=>{
+  const s=server();await s.invoke();await s.invoke("repair");assert.equal(s.state.resent,0);
+});
+test("legacy acceptance refuses a non-employee profile role",async()=>{
+  const {context}=serviceContext();const original=context.fetch;
+  context.fetch=async(url,opts)=>{
+    if(url.includes("/roles?")||url.includes("/user_roles?"))return response({code:"PGRST205"},404);
+    if(url.includes("/profiles?"))return response([{id:"u1",museum_id:"m1",email:authUser.email,role:"administrador",status:"activo"}]);
+    return original(url,opts);
+  };
+  await assert.rejects(context.validateSupabasePasswordSetupSession(clone(session),"invite"),e=>e.code==="invalid_role");
 });

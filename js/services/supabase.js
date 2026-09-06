@@ -133,20 +133,51 @@ const employeeInvitationMessages = Object.freeze({
   invite_sent_linked: "Invitación enviada y vinculación completada. El destinatario puede activar su cuenta.",
   invite_status_unknown: "No se pudo confirmar el envío. Verifique o repare la vinculación sin reenviar el correo."
 });
-async function inviteSupabaseEmployee(employeeId, action = "invite") {
+async function inviteSupabaseEmployee(employeeId, action = "invite", requestId = crypto.randomUUID()) {
   let response;
   try {
     response = await fetch(`${supabaseUrl}/functions/v1/invite-employee`, {
       method: "POST", headers: await supabaseAuthHeaders(),
-      body: JSON.stringify({ employee_id: employeeId, action })
+      body: JSON.stringify({ employee_id: employeeId, action, request_id: requestId })
     });
   } catch {
     return { code: "invite_status_unknown", stage: "verification", message: employeeInvitationMessages.invite_status_unknown };
   }
   const data = await response.json().catch(() => ({}));
   const code = Object.hasOwn(employeeInvitationMessages, data.code) ? data.code : "invite_status_unknown";
-  const stages = ["authorization", "validation", "send", "link", "audit", "complete", "verification"];
-  return { code, stage: stages.includes(data.stage) ? data.stage : "verification", message: employeeInvitationMessages[code] };
+  const stages = ["authorization", "validation", "send", "link", "audit", "complete", "verification", "resend", "cooldown"];
+  return { code, stage: stages.includes(data.stage) ? data.stage : "verification", message: data.stage === "cooldown" ? "Espere un minuto antes de enviar otro correo." : code === "invite_sent_linked" && data.stage === "resend" ? "Invitación reenviada y vinculación verificada." : employeeInvitationMessages[code] };
+}
+
+async function callEmployeeAccessFunction(functionName, body) {
+  const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify(body)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "No se pudo completar la operación de acceso.");
+  return data;
+}
+
+async function resendSupabaseEmployeeInvitation(employeeId, requestId = crypto.randomUUID()) {
+  return inviteSupabaseEmployee(employeeId, "resend", requestId);
+}
+
+async function fetchSupabaseEmployeeAccess(employeeId) {
+  return callEmployeeAccessFunction("employee-access", { employee_id: employeeId, action: "status" });
+}
+
+async function requestSupabaseEmployeeRecovery(employeeId) {
+  return callEmployeeAccessFunction("employee-access", { employee_id: employeeId, action: "recovery", request_id: crypto.randomUUID() });
+}
+
+async function deactivateSupabaseEmployeeAccess(employeeId) {
+  return callEmployeeAccessFunction("deactivate-user-access", { employee_id: employeeId, confirmed: true, request_id: crypto.randomUUID() });
+}
+
+async function reactivateSupabaseEmployeeAccess(employeeId) {
+  return callEmployeeAccessFunction("employee-access", { employee_id: employeeId, action: "reactivate", confirmed: true, request_id: crypto.randomUUID() });
 }
 
 async function fetchOwnSupabaseTimeEntries(limit = 7) {
@@ -494,7 +525,15 @@ async function passwordSetupRequest(path, session, options = {}) {
       ...options, headers: { ...supabaseHeaders(), Authorization: `Bearer ${session.access_token}` }
     });
   } catch { throw passwordSetupError("acceptance_failed"); }
-  if (!response.ok) throw passwordSetupError(response.status === 401 ? "invalid_link" : "acceptance_failed");
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const error = passwordSetupError(response.status === 401 ? "invalid_link" : "acceptance_failed");
+    if (response.status === 404 && data.code === "PGRST205") {
+      if (path.startsWith("/rest/v1/roles?")) error.code = "roles_unavailable";
+      if (path.startsWith("/rest/v1/user_roles?")) error.code = "assignments_unavailable";
+    }
+    throw error;
+  }
   return response.status === 204 ? {} : response.json().catch(() => { throw passwordSetupError("acceptance_failed"); });
 }
 async function exchangeSupabasePasswordSetupCode(code) {
@@ -520,17 +559,33 @@ async function validateSupabasePasswordSetupSession(session, type) {
   if (!user.id || !user.email_confirmed_at) throw passwordSetupError("unconfirmed");
   if (type === "invite" && !user.invited_at) throw passwordSetupError("invalid_link");
   if (session.user?.id && session.user.id !== user.id) throw passwordSetupError("wrong_account");
-  const profiles = await passwordSetupRequest(`/rest/v1/profiles?select=id,museum_id,email,status&id=eq.${encodeURIComponent(user.id)}&limit=2`, session);
+  const profiles = await passwordSetupRequest(`/rest/v1/profiles?select=id,museum_id,email,role,status&id=eq.${encodeURIComponent(user.id)}&limit=2`, session);
   const profile = profiles[0];
-  if (profiles.length !== 1 || profile.id !== user.id || !profile.museum_id || profile.status !== "active" ||
+  if (profiles.length !== 1 || profile.id !== user.id || !profile.museum_id || !["active", "activo"].includes(String(profile.status).toLowerCase()) ||
       String(profile.email).toLowerCase() !== String(user.email).toLowerCase()) throw passwordSetupError("invalid_profile");
   if (type === "invite" || user.invited_at) {
     const employees = await passwordSetupRequest(`/rest/v1/employees?select=id,museum_id,email,profile_id&profile_id=eq.${encodeURIComponent(user.id)}&limit=2`, session);
     if (employees.length !== 1 || employees[0].profile_id !== user.id || employees[0].museum_id !== profile.museum_id ||
         String(employees[0].email).toLowerCase() !== String(user.email).toLowerCase()) throw passwordSetupError("invalid_employee");
-    const roles = await passwordSetupRequest(`/rest/v1/user_roles?select=museum_id,valid_until,roles!inner(code)&user_id=eq.${encodeURIComponent(user.id)}&museum_id=eq.${encodeURIComponent(profile.museum_id)}&roles.code=eq.empleado`, session);
-    if (!roles.some(role => role.museum_id === profile.museum_id && role.roles?.code === "empleado" &&
-        (!role.valid_until || Date.parse(role.valid_until) > Date.now()))) throw passwordSetupError("invalid_role");
+    let usesLegacyRbac = false;
+    try {
+      const roles = await passwordSetupRequest("/rest/v1/roles?select=id&code=eq.empleado", session);
+      if (roles.length !== 1) throw passwordSetupError("invalid_role");
+    } catch (error) {
+      if (error.code !== "roles_unavailable") throw error;
+      try {
+        await passwordSetupRequest("/rest/v1/user_roles?select=user_id&limit=0", session);
+      } catch (probeError) {
+        if (probeError.code !== "assignments_unavailable") throw probeError;
+        usesLegacyRbac = true;
+      }
+      if (!usesLegacyRbac || profile.role !== "empleado") throw passwordSetupError("invalid_role");
+    }
+    if (!usesLegacyRbac) {
+      const roles = await passwordSetupRequest(`/rest/v1/user_roles?select=museum_id,valid_until,roles!inner(code)&user_id=eq.${encodeURIComponent(user.id)}&museum_id=eq.${encodeURIComponent(profile.museum_id)}&roles.code=eq.empleado`, session);
+      if (!roles.some(role => role.museum_id === profile.museum_id && role.roles?.code === "empleado" &&
+          (!role.valid_until || Date.parse(role.valid_until) > Date.now()))) throw passwordSetupError("invalid_role");
+    }
   }
   return { access_token: session.access_token, refresh_token: session.refresh_token,
     user: { id: user.id }, setup_type: type || (user.invited_at ? "invite" : "recovery") };
