@@ -4,6 +4,29 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <script>
+    // Remove callback credentials before loading other scripts or assets.
+    (() => {
+      const url = new URL(window.location.href);
+      const hash = new URLSearchParams(url.hash.slice(1));
+      const keys = ["access_token", "refresh_token", "token_hash", "code", "type", "expires_in", "token_type", "error", "error_code", "error_description"];
+      const callback = {};
+      keys.forEach(key => {
+        const value = hash.get(key) || url.searchParams.get(key);
+        if (value) callback[key] = key === "error_description" ? "invalid_link" : value;
+        url.searchParams.delete(key);
+      });
+      if (Object.keys(callback).length) {
+        window.__instituvaAuthCallback = callback;
+        window.history.replaceState(null, "", url.pathname + url.search);
+        window.addEventListener("pagehide", () => {
+          Object.keys(callback).forEach(key => { callback[key] = null; delete callback[key]; });
+          delete window.__instituvaAuthCallback;
+        });
+      }
+    })();
+  </script>
   <title>Acceso privado | Museo de la Música</title>
   <link rel="stylesheet" href="css/main.css?v=private-login-20260903">
 </head>
@@ -54,18 +77,18 @@
         </section>
         <section class="card panel login-card" data-invite-acceptance hidden>
           <h3>Crear contraseña</h3>
-          <p>Establezca una contraseña privada para activar su acceso al Museo.</p>
+          <p>Cree y confirme su contraseña para activar su cuenta de Instituva.</p>
           <form class="form-grid" data-invite-password-form>
             <div class="field">
               <label for="invite-password">Nueva contraseña</label>
-              <input id="invite-password" name="password" type="password" autocomplete="new-password" minlength="12" required>
+              <input id="invite-password" disabled name="password" type="password" autocomplete="new-password" minlength="12" required>
             </div>
             <div class="field">
               <label for="invite-password-confirmation">Confirmar contraseña</label>
-              <input id="invite-password-confirmation" name="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required>
+              <input id="invite-password-confirmation" disabled name="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required>
             </div>
             <p class="field-hint">Use 12 caracteres o más e incluya mayúscula, minúscula, número y símbolo.</p>
-            <button class="button" type="submit">Guardar nueva contraseña</button>
+            <button class="button" type="submit" disabled>Crear contraseña y activar mi cuenta</button>
             <button class="login-recovery-link" type="button" data-password-setup-cancel>Cancelar y volver al acceso</button>
             <p class="login-help" data-invite-password-message>El enlace seguro será validado antes de guardar la contraseña.</p>
           </form>
@@ -75,8 +98,8 @@
     </div>
   </div>
   <script src="js/config.js?v=private-login-20260903"></script>
-  <script src="js/services/supabase.js?v=private-login-20260903"></script>
-  <script src="js/app.js?v=private-login-20260903"></script>
+  <script src="js/services/supabase.js?v=invite-safe-20260906"></script>
+  <script src="js/app.js?v=invite-safe-20260906"></script>
 </body>
 </html>
 

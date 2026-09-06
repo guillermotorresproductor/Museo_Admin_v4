@@ -22,5 +22,5 @@ test("recovery callback accepts session and token-hash responses", () => {
   assert.match(app, /callback\.access_token/);
   assert.match(app, /callback\.token_hash/);
   assert.match(app, /verifySupabaseEmailToken/);
-  assert.match(app, /method:\s*"PUT"[\s\S]*body:\s*JSON\.stringify\(\{ password \}\)/);
+  assert.match(service, /method:\s*"PUT"[\s\S]*body:\s*JSON\.stringify\(\{ password \}\)/);
 });
