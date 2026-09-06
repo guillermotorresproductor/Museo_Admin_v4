@@ -23,7 +23,7 @@ do $$ declare before_state jsonb; point text; failed boolean; begin
 end $$;
 select set_config('test.access_fault','',false);
 select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',false);
-do $ declare before_state jsonb; failed boolean:=false; begin
+do $$ declare before_state jsonb; failed boolean:=false; begin
  before_state:=public.test_access_snapshot();
  perform set_config('test.access_fault','audit',true);
  begin
@@ -33,7 +33,7 @@ do $ declare before_state jsonb; failed boolean:=false; begin
   failed:=true;
  end;
  if not failed or public.test_access_snapshot() is distinct from before_state then raise exception 'Unlinked employee audit rollback failed'; end if;
-end $;
+end $$;
 -- Test the real authenticated SQL role: direct profile mutation remains denied.
 set role authenticated;
 do $$ begin
