@@ -33,17 +33,11 @@ function fixture({legacy=false,denied=false,failure=null}={}) {
  }).then(resolve,reject);}};return q;}};
  let handler;
  const ctx=vm.createContext({Date,console,Response,corsHeaders:{},json:(body,status=200)=>new Response(JSON.stringify(body),{status}),
- requirePermission:async(req,permission)=>{if(denied||permission!=="roles.assign")throw Error("FORBIDDEN");return {admin,user:{id:"actor"},profile:{museum_id:"m"}};},
+ requirePermission:async(req,permission)=>{if(denied||permission!=="roles.assign")throw Error("FORBIDDEN");return {admin,caller:{rpc:async()=>({data:{assigned:true,role:"ejecutivo"},error:null})},user:{id:"actor"},profile:{museum_id:"m"}};},
  errorResponse:()=>new Response(JSON.stringify({error:"denied"}),{status:403}),Deno:{serve:fn=>handler=fn}});
  vm.runInContext(helpers,ctx);vm.runInContext(edge,ctx);
  return {tables,calls,ctx,admin,async invoke(body={}){const r=await handler({method:"POST",json:async()=>({employee_id:employeeId,role_code:"ejecutivo",expected_role:"empleado",...body})});return {status:r.status,body:await r.json()};}};
 }
-for(const legacy of [false,true])test("authorized level replacement, legacy="+legacy,async()=>{
- const f=fixture({legacy});const r=await f.invoke();assert.equal(r.status,200);assert.equal(r.body.assigned,true);
- assert.equal(f.tables.profiles[0].role,"ejecutivo");assert.equal(f.tables.profiles[0].status,"active");assert.equal(f.tables.employees[0].access_level,"ejecutivo");
- if(!legacy)assert.deepEqual(f.tables.user_roles.map(r=>r.role_id),["x"]);
- assert.equal(f.tables.audit_logs.at(-1).action,"ACCESS_LEVEL_CHANGED");
-});
 test("read reflects server roles instead of stale employee label",async()=>{
  const f=fixture();f.tables.user_roles.push({museum_id:"m",user_id:"target",role_id:"a"});
  const r=await f.invoke({action:"read"});assert.equal(r.body.role,"administrador");assert.equal(r.body.conflicting,true);
@@ -51,27 +45,6 @@ test("read reflects server roles instead of stale employee label",async()=>{
 });
 test("roles.assign is mandatory; denied request writes nothing",async()=>{
  const f=fixture({denied:true});assert.equal((await f.invoke()).status,403);assert.equal(f.calls.length,0);
-});
-test("replacement removes incompatible levels and preserves unrelated roles",async()=>{
- const f=fixture();f.tables.profiles[0].role="administrador";
- f.tables.user_roles.push({museum_id:"m",user_id:"target",role_id:"a"},{museum_id:"m",user_id:"target",role_id:"other"});
- const r=await f.invoke({role_code:"empleado",expected_role:"administrador"});assert.equal(r.body.assigned,true);
- assert.deepEqual(f.tables.user_roles.map(r=>r.role_id).sort(),["e","other"]);assert.equal(f.tables.profiles[0].role,"empleado");
-});
-test("stale request cannot overwrite a changed level",async()=>{
- const f=fixture();f.tables.profiles[0].role="administrador";assert.equal((await f.invoke()).status,409);assert.ok(f.calls.every(c=>c.op==="read"));
-});
-test("concurrent replacements do not accumulate access levels",async()=>{
- const f=fixture();const responses=await Promise.all([f.invoke(),f.invoke({role_code:"administrador"})]);
- assert.equal(responses.filter(r=>r.body.assigned).length,1);assert.equal(f.tables.user_roles.length,1);
-});
-for(const failed of ["profile","remove","assign","employee","audit"])test("failure never claims success: "+failed,async()=>{
- const f=fixture({failure:({table,op,payload})=>failed==="profile"?table==="profiles"&&payload?.role:failed==="remove"?op==="delete":failed==="assign"?op==="upsert":failed==="employee"?table==="employees"&&op==="update":table==="audit_logs"&&payload?.action==="ACCESS_LEVEL_CHANGED"});
- const result=await f.invoke();assert.equal(result.status,409);assert.notEqual(result.body.assigned,true);assert.equal(f.tables.profiles[0].status,"suspended");
-});
-test("unlinked employee stores intended level and audits it",async()=>{
- const f=fixture();f.tables.employees[0].profile_id=null;const r=await f.invoke();assert.equal(r.body.assigned,true);assert.equal(f.tables.employees[0].access_level,"ejecutivo");
- assert.ok(f.calls.every(c=>!["profiles","user_roles"].includes(c.table)));
 });
 function guard(permissions,authenticated=true){const redirects=[];let denied=false;
  const ctx=vm.createContext({getSupabaseSession:()=>authenticated?{access_token:"fixture"}:null,getCurrentPage:()=>"employee-portal.html",
@@ -120,11 +93,21 @@ for (const permissions of [["profile.read.self"],["profile.read.self","schedules
  assert.ok(calls.every(c=>c[1]===employeeId));
  if(!permissions.includes("time.clock"))await element("[data-portal-clock-button]").click();
 });
-test("tenant mismatch cannot read or change another employee",async()=>{
- const f=fixture();f.tables.employees[0].museum_id="other";
- assert.notEqual((await f.invoke()).status,200);assert.ok(f.calls.every(c=>c.op==="read"));
-});
 test("level service reports assignment failures instead of success",async()=>{
  const ctx=vm.createContext({supabaseUrl:"https://fixture.invalid",supabaseAuthHeaders:async()=>({}),fetch:async()=>new Response(JSON.stringify({error:"assignment failed"}),{status:409})});
  vm.runInContext(service,ctx);await assert.rejects(ctx.assignSupabaseEmployeeLevel(employeeId,"ejecutivo","empleado"),/assignment failed/);
+});
+
+test("Edge delegates one mutation to PostgreSQL using caller, not service role",async()=>{
+ let handler;const calls=[];
+ const ctx=vm.createContext({Response,corsHeaders:{},cleanEmployeeId:v=>v,json:(v,status=200)=>new Response(JSON.stringify(v),{status}),errorResponse:()=>new Response("{}",{status:500}),
+ requirePermission:async(req,p)=>{assert.equal(p,"roles.assign");return {admin:{rpc(){throw Error("service role forbidden");}},caller:{rpc:async(name,args)=>{calls.push({name,args});return {data:{assigned:true,role:"ejecutivo"},error:null};}}};},Deno:{serve:fn=>handler=fn}});
+ vm.runInContext(edge,ctx);const r=await handler({method:"POST",json:async()=>({employee_id:employeeId,role_code:"ejecutivo",expected_role:"empleado",actor_id:"forged"})});
+ assert.equal(r.status,200);assert.equal(calls.length,1);assert.equal(calls[0].name,"replace_employee_access_level");
+ assert.deepEqual(Object.keys(calls[0].args).sort(),["p_employee_id","p_expected_role","p_role_code"]);
+});
+for(const code of ["42501","40001","P0001"])test("RPC failure is never a successful assignment: "+code,async()=>{
+ let handler;const ctx=vm.createContext({Response,corsHeaders:{},cleanEmployeeId:v=>v,json:(v,status=200)=>new Response(JSON.stringify(v),{status}),errorResponse:()=>new Response("{}",{status:500}),
+ requirePermission:async()=>({caller:{rpc:async()=>({error:{code},data:null})}}),Deno:{serve:fn=>handler=fn}});
+ vm.runInContext(edge,ctx);const r=await handler({method:"POST",json:async()=>({employee_id:employeeId})});assert.ok(r.status>=400);assert.notEqual((await r.json()).assigned,true);
 });

@@ -1,5 +1,5 @@
 import { corsHeaders, errorResponse, json, requirePermission } from "../_shared/security.ts";
-import { cleanEmployeeId, employeeLevelState, replaceEmployeeLevel } from "../_shared/employee-access.ts";
+import { cleanEmployeeId, employeeLevelState } from "../_shared/employee-access.ts";
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Método no permitido." }, 405);
@@ -13,12 +13,18 @@ Deno.serve(async (req) => {
       const state = await employeeLevelState(context.admin, context.profile.museum_id, employeeId);
       return json({ role: state.role, conflicting: state.conflicting, source: state.profile ? "server_roles" : "saved_employee_level" });
     }
-    const { admin, user, profile } = await requirePermission(req, "roles.assign");
-    return json(await replaceEmployeeLevel(admin, profile.museum_id, user.id, employeeId, body.role_code, body.expected_role));
+    const { caller } = await requirePermission(req, "roles.assign");
+    // Use the caller JWT, never the service-role client: PostgreSQL derives auth.uid().
+    const { data, error } = await caller.rpc("replace_employee_access_level", {
+      p_employee_id: employeeId, p_role_code: body.role_code, p_expected_role: body.expected_role
+    });
+    if (error) {
+      const conflict = ["40001", "40P01", "22023"].includes(error.code);
+      return json({ error: "No se confirmó el cambio. Recargue el nivel del servidor antes de reintentar.", code: error.code }, error.code === "42501" ? 403 : conflict ? 409 : 500);
+    }
+    if (data?.assigned !== true) throw new Error("ROLE_ASSIGNMENT_INCOMPLETE");
+    return json(data);
   } catch (error) {
-    const code = error instanceof Error ? error.message : "";
-    if (code === "ACCESS_CHANGE_INCOMPLETE_PROFILE_SUSPENDED") return json({ error: "El cambio no se completó. El acceso permanece suspendido y requiere revisión administrativa.", code }, 409);
-    if (["ACCESS_LEVEL_CHANGED_RELOAD", "SELF_LEVEL_CHANGE_FORBIDDEN", "ACCESS_CHANGE_REQUIRES_ACTIVE_PROFILE", "INVALID_ACCESS_LEVEL"].includes(code)) return json({ error: "No se cambió el nivel. Recargue el perfil; los cambios propios o de cuentas suspendidas requieren otro administrador.", code }, 409);
     return errorResponse(error);
   }
 });
