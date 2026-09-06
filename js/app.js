@@ -6330,7 +6330,7 @@ function renderPortalNotifications(notifications) {
     list.innerHTML = '<p class="portal-empty">No tienes notificaciones nuevas.</p>';
     return;
   }
-  list.innerHTML = notifications.map((item) => `<article class="portal-notification"><strong>${escapeHtml(item.title || "Aviso")}</strong><p>${escapeHtml(item.message || "")}</p><small>${formatPortalDate(item.created_at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></article>`).join("");
+  list.innerHTML = notifications.map((item) => `<article class="portal-notification"><strong>${safeHtml(item.title || "Aviso")}</strong><p>${safeHtml(item.message || "")}</p><small>${formatPortalDate(item.created_at, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></article>`).join("");
 }
 
 function renderPortalTools() {

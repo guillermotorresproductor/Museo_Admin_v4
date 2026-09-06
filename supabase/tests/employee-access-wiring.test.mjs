@@ -111,3 +111,16 @@ for(const code of ["42501","40001","P0001"])test("RPC failure is never a success
  requirePermission:async()=>({caller:{rpc:async()=>({error:{code},data:null})}}),Deno:{serve:fn=>handler=fn}});
  vm.runInContext(edge,ctx);const r=await handler({method:"POST",json:async()=>({employee_id:employeeId})});assert.ok(r.status>=400);assert.notEqual((await r.json()).assigned,true);
 });
+
+test("portal notifications render safely without a missing helper",()=>{
+ const list={innerHTML:""};
+ const ctx=vm.createContext({document:{querySelector:()=>list},formatPortalDate:()=>"date"});
+ vm.runInContext(app.slice(app.indexOf("function safeHtml("),app.indexOf("function bindMaterialsRequestModule(")),ctx);
+ vm.runInContext(app.slice(app.indexOf("function renderPortalNotifications("),app.indexOf("function renderPortalTools(")),ctx);
+ ctx.renderPortalNotifications([{title:'<img src=x onerror="alert(1)">',message:"A & B <script>alert(1)</script>"}]);
+ assert.match(list.innerHTML,/&lt;img/);
+ assert.match(list.innerHTML,/A &amp; B &lt;script&gt;/);
+ assert.doesNotMatch(list.innerHTML,/<img|<script/);
+ ctx.renderPortalNotifications([]);
+ assert.match(list.innerHTML,/No tienes notificaciones nuevas/);
+});
