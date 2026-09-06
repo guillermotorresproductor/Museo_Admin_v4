@@ -24,7 +24,8 @@ insert into public.roles(code) values ('empleado'),('ejecutivo'),('administrador
 -- Reuse the real has_permission implementation and catalog from this repository.
 \ir ../migrations/202609030005_current_user_permissions_production_fix.sql
 \ir ../migrations/202609060001_transactional_employee_access_level.sql
-create trigger profiles_protect_security before update on public.profiles for each row execute function public.protect_profile_security_fields();
+\ir ../migrations/202609060002_personal_access_compatibility.sql
+\ir ../migrations/202609060002_personal_access_compatibility.sql
 grant usage on schema public,auth to authenticated;
 grant select,update on public.profiles to authenticated;
 insert into public.profiles(id,museum_id,role,status) values

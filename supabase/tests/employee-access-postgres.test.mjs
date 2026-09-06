@@ -35,7 +35,8 @@ try {
  assert.notEqual(second.status,0);assert.match(second.stderr,/ACCESS_LEVEL_CHANGED_RELOAD/);
  assert.ok(Date.now()-start>=1000,"Second session must wait for the first transaction");await finished;
  assert.equal(run(db,["-Atc","select role||':'||status from profiles where id='20000000-0000-4000-8000-000000000001'"]).trim(),"ejecutivo:active");
- console.log("PASS: real PostgreSQL rollback at profile/delete/insert/employee/audit; permissions preserved; authenticated authorization; two-session concurrency.");
+ run(db,["-f",sql("personal-access-compatibility.sql")]);
+ console.log("PASS: personal access compatibility plus real PostgreSQL rollback at profile/delete/insert/employee/audit; permissions preserved; authenticated authorization; two-session concurrency.");
 } finally {
  if(created)run("postgres",["-c","drop database "+db+" with (force)"]);
 }
