@@ -124,3 +124,14 @@ test("portal notifications render safely without a missing helper",()=>{
  ctx.renderPortalNotifications([]);
  assert.match(list.innerHTML,/No tienes notificaciones nuevas/);
 });
+
+test("denied view replaces protected content and becomes visible with dashboard exit",()=>{
+ const main={innerHTML:"SENSITIVE CONTENT"};const classes=new Set();
+ const ctx=vm.createContext({document:{querySelector:()=>main,body:{classList:{add:v=>classes.add(v)}}},safeHtml:v=>v});
+ vm.runInContext(app.slice(app.indexOf("function showProtectedAccessDenied("),app.indexOf("async function recordSecurityAuditEvent(")),ctx);
+ ctx.showProtectedAccessDenied("No tienes permiso para acceder a esta sección");
+ assert.ok(classes.has("app-ready"));
+ assert.match(main.innerHTML,/No tienes permiso para acceder a esta sección/);
+ assert.match(main.innerHTML,/href="dashboard.html"/);
+ assert.doesNotMatch(main.innerHTML,/SENSITIVE CONTENT/);
+});

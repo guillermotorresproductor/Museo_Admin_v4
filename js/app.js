@@ -350,6 +350,8 @@ function showProtectedAccessDenied(message) {
     </section>
   `;
   if (typeof renderInlineIcons === "function") renderInlineIcons();
+  // Reveal only the replacement denial view; protected modules stay uninitialized.
+  document.body.classList.add("app-ready");
 }
 
 async function recordSecurityAuditEvent(action, moduleId, result, details = {}) {
@@ -399,7 +401,7 @@ function enforceAuthenticatedPageAccess() {
       void recordSecurityAuditEvent("MODULE_ACCESS_DENIED", moduleId, "denied", {
         reason: "missing_permission"
       });
-      showProtectedAccessDenied("No tiene autorización para abrir este módulo.");
+      showProtectedAccessDenied("No tienes permiso para acceder a esta sección");
       return true;
     }
     return false;
