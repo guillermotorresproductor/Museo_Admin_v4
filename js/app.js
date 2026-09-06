@@ -1254,6 +1254,7 @@ function isLoginPage() {
 const passwordSetupPendingKey = `museo-password-setup-pending-${museoEnvironment.name}`;
 
 function getAuthCallbackParams() {
+  if (window.__instituvaAuthCallback) return window.__instituvaAuthCallback;
   const hash = new URLSearchParams(window.location.hash.slice(1));
   const query = new URLSearchParams(window.location.search);
   const read = (key) => hash.get(key) || query.get(key);
@@ -1264,15 +1265,15 @@ function getAuthCallbackParams() {
     token_hash: read("token_hash"),
     code: read("code"),
     error_description: read("error_description"),
+    error: read("error"),
     expires_in: read("expires_in"),
     token_type: read("token_type")
   };
 }
 
 function isPasswordSetupCallback(params = getAuthCallbackParams()) {
-  if (params.error_description) return true;
-  if (!["invite", "recovery"].includes(params.type || "")) return false;
-  return Boolean(params.access_token || params.token_hash || params.code);
+  if (params.error_description || params.error || params.code) return true;
+  return ["invite", "recovery"].includes(params.type || "");
 }
 
 function markPasswordSetupPending() {
@@ -1569,97 +1570,131 @@ function bindLoginDemo() {
   const recoveryForm = document.querySelector("[data-recovery-form]");
   const recoveryMessage = document.querySelector("[data-recovery-message]");
   const reason = new URLSearchParams(window.location.search).get("reason");
-  const callback = getAuthCallbackParams();
+  const capturedCallback = getAuthCallbackParams();
+  const callback = { ...capturedCallback };
+  Object.keys(capturedCallback).forEach(key => { capturedCallback[key] = null; delete capturedCallback[key]; });
+  delete window.__instituvaAuthCallback;
 
+  const callbackPresent = isPasswordSetupCallback(callback);
+  let setupSession = null;
+  let pendingSession = null;
+  let setupGeneration = 0;
+  const setupSessionKey = `${passwordSetupPendingKey}-session`;
+  const setupSubmit = inviteForm?.querySelector('button[type="submit"]');
+  const setupCancel = document.querySelector("[data-password-setup-cancel]");
+  const disableSetup = (disabled) => {
+    inviteForm?.querySelectorAll('input, button[type="submit"]').forEach(field => { field.disabled = disabled; });
+    if (setupSubmit) setupSubmit.disabled = disabled;
+  };
+  disableSetup(true);
+  const cleanCallbackUrl = () => {
+    const clean = new URL(window.location.href);
+    ["access_token", "refresh_token", "token_hash", "code", "type", "expires_in", "token_type", "error_description", "error", "error_code"].forEach(key => clean.searchParams.delete(key));
+    window.history.replaceState(null, "", `${clean.pathname}${clean.search}`);
+  };
+  cleanCallbackUrl();
+  const wipe = (value) => {
+    if (!value) return;
+    Object.keys(value).forEach(key => { value[key] = null; delete value[key]; });
+  };
+  const releaseSession = (session) => {
+    if (!session) return;
+    // Best-effort revocation uses only the acceptance token, never a previous account.
+    if (session.access_token) void closeSupabasePasswordSetupSession({ access_token: session.access_token }).catch(() => {});
+    wipe(session);
+  };
+  const clearSetup = (revoke = true) => {
+    ++setupGeneration;
+    if (revoke) { releaseSession(setupSession); if (pendingSession !== setupSession) releaseSession(pendingSession); }
+    else { wipe(setupSession); wipe(pendingSession); }
+    setupSession = null;
+    pendingSession = null;
+    sessionStorage.removeItem(setupSessionKey);
+    sessionStorage.removeItem(`${passwordSetupPendingKey}-callback`);
+    clearPasswordSetupVerifier();
+    clearPasswordSetupPending();
+    wipe(callback);
+    delete window.__instituvaAuthCallback;
+    inviteForm?.reset();
+    disableSetup(true);
+    cleanCallbackUrl();
+  };
+  window.addEventListener("pagehide", () => clearSetup());
+  window.addEventListener("pageshow", event => {
+    if (event.persisted) {
+      clearSetup();
+      if (inviteCard) inviteCard.hidden = true;
+      if (loginCard) loginCard.hidden = false;
+    }
+  });
   const showPasswordSetup = () => {
     if (loginCard) loginCard.hidden = true;
     if (recoveryCard) recoveryCard.hidden = true;
     if (inviteCard) inviteCard.hidden = false;
     markPasswordSetupPending();
   };
-
-  const cleanCallbackUrl = () => {
-    const clean = new URL(window.location.href);
-    ["access_token", "refresh_token", "token_hash", "code", "type", "expires_in", "token_type", "error_description", "error", "error_code"].forEach((key) => {
-      clean.searchParams.delete(key);
-    });
-    window.history.replaceState(null, "", `${clean.pathname}${clean.search}`);
-  };
-
-  const applyRecoverySession = (sessionLike) => {
-    const accessToken = sessionLike?.access_token || sessionLike?.accessToken;
-    if (!accessToken) throw new Error("El enlace de recuperación no devolvió una sesión válida.");
-    const expiresIn = Number(sessionLike.expires_in || callback.expires_in || 3600);
-    saveSupabaseSession({
-      access_token: accessToken,
-      refresh_token: sessionLike.refresh_token || callback.refresh_token || "",
-      expires_in: expiresIn,
-      expires_at: Math.floor(Date.now() / 1000) + expiresIn,
-      token_type: sessionLike.token_type || callback.token_type || "bearer",
-      user: sessionLike.user || null
-    });
-    showPasswordSetup();
-    cleanCallbackUrl();
-  };
-
-  if (callback.error_description) {
-    if (message) {
-      message.textContent = callback.error_description;
-      message.className = "login-help error";
-    }
-    clearPasswordSetupPending();
-    cleanCallbackUrl();
-  } else if (["invite", "recovery"].includes(callback.type || "") && callback.access_token && inviteCard && inviteForm) {
-    try {
-      applyRecoverySession({
-        access_token: callback.access_token,
-        refresh_token: callback.refresh_token,
-        expires_in: callback.expires_in,
-        token_type: callback.token_type
-      });
-    } catch (error) {
-      if (message) {
-        message.textContent = error.message || "No se pudo abrir el enlace de recuperación.";
-        message.className = "login-help error";
-      }
-    }
-  } else if (["invite", "recovery"].includes(callback.type || "") && callback.token_hash && inviteCard && inviteForm) {
-    if (inviteMessage) {
-      inviteMessage.textContent = "Validando enlace seguro...";
-      inviteMessage.className = "login-help";
-    }
-    showPasswordSetup();
-    verifySupabaseEmailToken({ token_hash: callback.token_hash, type: callback.type })
-      .then((data) => {
-        applyRecoverySession(data);
-        if (inviteMessage) {
-          inviteMessage.textContent = "Enlace validado. Establezca su nueva contraseña.";
-          inviteMessage.className = "login-help success";
-        }
-      })
-      .catch((error) => {
-        clearPasswordSetupPending();
-        if (loginCard) loginCard.hidden = false;
-        if (inviteCard) inviteCard.hidden = true;
-        if (message) {
-          message.textContent = error.message || "El enlace de recuperación no es válido o expiró.";
-          message.className = "login-help error";
-        }
-        cleanCallbackUrl();
-      });
-  } else if (isPasswordSetupPending() && getSupabaseSession()?.access_token && inviteCard) {
-    showPasswordSetup();
-  } else if (isPasswordSetupPending() && !getSupabaseSession()?.access_token) {
-    // Enlace consumido/expirado o sesión temporal perdida: no dejar al usuario atrapado.
-    clearPasswordSetupPending();
-    if (inviteCard) inviteCard.hidden = true;
+  const failSetup = (error) => {
+    clearSetup();
+    if (setupCancel) setupCancel.disabled = false;
     if (loginCard) loginCard.hidden = false;
+    if (inviteCard) inviteCard.hidden = true;
     if (message) {
-      message.textContent = "El enlace de recuperación expiró o ya no es válido. Solicite uno nuevo o entre con su contraseña.";
+      message.textContent = safePasswordSetupMessage(error);
       message.className = "login-help error";
     }
+  };
+  const prepareSetup = async (sessionPromise, type) => {
+    const generation = ++setupGeneration;
+    showPasswordSetup();
+    disableSetup(true);
+    if (inviteMessage) { inviteMessage.textContent = "Validando enlace y vinculación..."; inviteMessage.className = "login-help"; }
+    let candidate = null;
+    try {
+      candidate = await sessionPromise;
+      if (generation !== setupGeneration) { releaseSession(candidate); return; }
+      pendingSession = candidate;
+      const validated = await validateSupabasePasswordSetupSession(candidate, type);
+      if (generation !== setupGeneration) { releaseSession(validated); return; }
+      setupSession = validated;
+      // No session tokens or user data are persisted in browser storage.
+      if (candidate !== validated) wipe(candidate);
+      pendingSession = null;
+      disableSetup(false);
+      if (inviteMessage) { inviteMessage.textContent = "Enlace validado. Cree y confirme su contraseña."; inviteMessage.className = "login-help success"; }
+    } catch (error) {
+      if (generation === setupGeneration) failSetup(error);
+    } finally { candidate = null; sessionPromise = null; }
+  };
+  sessionStorage.removeItem(setupSessionKey); // Remove sessions left by the previous implementation.
+  if (callback.error_description || callback.error) {
+    failSetup(passwordSetupError("invalid_link"));
+  } else if (callbackPresent && inviteCard && inviteForm) {
+    if (callback.access_token && ["invite", "recovery"].includes(callback.type)) {
+      void prepareSetup(Promise.resolve({ access_token: callback.access_token, refresh_token: callback.refresh_token }), callback.type);
+    } else if (callback.token_hash && ["invite", "recovery"].includes(callback.type)) {
+      void prepareSetup(verifySupabaseEmailToken({ token_hash: callback.token_hash, type: callback.type }), callback.type);
+    } else if (callback.code) {
+      void prepareSetup(exchangeSupabasePasswordSetupCode(callback.code), callback.type);
+    } else { failSetup(passwordSetupError("invalid_link")); }
+  } else if (isPasswordSetupPending()) {
+    failSetup(passwordSetupError("invalid_link"));
   }
+  wipe(callback);
+  delete window.__instituvaAuthCallback;
+  clearPasswordSetupVerifier();
 
+  if (message && reason === "invalid-link" && !callbackPresent) {
+    message.textContent = safePasswordSetupMessage(passwordSetupError("invalid_link"));
+    message.className = "login-help error";
+  }
+  if (message && reason === "password-created" && !callbackPresent) {
+    message.textContent = "Activación completada. Inicie sesión con su nueva contraseña.";
+    message.className = "login-help success";
+  }
+  if (message && reason === "password-created-logout-pending" && !callbackPresent) {
+    message.textContent = "Contraseña guardada. No se pudo confirmar el cierre de la sesión temporal. Contacte a Administración.";
+    message.className = "login-help error";
+  }
   if (message && reason === "idle") {
     message.textContent = "La sesión se cerró automáticamente por inactividad.";
     message.className = "login-help";
@@ -1670,22 +1705,11 @@ function bindLoginDemo() {
   }
 
   const returnToLoginAccess = () => {
-    clearPasswordSetupPending();
-    clearSupabaseSession();
-    currentPermissions.clear();
-    currentPermissionsLoaded = false;
+    clearSetup();
     if (inviteCard) inviteCard.hidden = true;
     if (recoveryCard) recoveryCard.hidden = true;
     if (loginCard) loginCard.hidden = false;
-    if (inviteForm) inviteForm.reset();
-    if (inviteMessage) {
-      inviteMessage.textContent = "El enlace seguro será validado antes de guardar la contraseña.";
-      inviteMessage.className = "login-help";
-    }
-    if (message) {
-      message.textContent = "Acceso preparado para usuarios del Museo.";
-      message.className = "login-help";
-    }
+    if (message) { message.textContent = "Activación cancelada. Use un enlace válido para volver a intentarlo."; message.className = "login-help"; }
   };
 
   document.querySelector("[data-recovery-toggle]")?.addEventListener("click", () => {
@@ -1711,7 +1735,7 @@ function bindLoginDemo() {
       recoveryMessage.textContent = "Si el correo está registrado, recibirá un enlace para crear una nueva contraseña.";
       recoveryMessage.className = "login-help success";
     } catch (error) {
-      const raw = String(error.message || "");
+      const raw = safePasswordSetupMessage(error);
       const rateLimited = /rate limit|over_email_send_rate_limit/i.test(raw);
       recoveryMessage.textContent = rateLimited
         ? "Se enviaron demasiados correos en poco tiempo. Espere unos minutos o use el último enlace recibido. También puede volver al acceso e entrar con su contraseña actual."
@@ -1722,9 +1746,10 @@ function bindLoginDemo() {
 
   inviteForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!setupSession || setupSubmit?.disabled) return;
     const formData = new FormData(inviteForm);
-    const password = String(formData.get("password") || "");
-    const confirmation = String(formData.get("passwordConfirmation") || "");
+    let password = String(formData.get("password") || "");
+    let confirmation = String(formData.get("passwordConfirmation") || "");
     const strongPassword = password.length >= 12 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /[0-9]/.test(password) && /[^A-Za-z0-9]/.test(password);
 
     if (!strongPassword) {
@@ -1749,39 +1774,27 @@ function bindLoginDemo() {
       inviteMessage.className = "login-help";
     }
 
+    disableSetup(true);
+    if (setupCancel) setupCancel.disabled = true;
+    const generation = setupGeneration;
     try {
-      const session = getSupabaseSession();
-      if (!session?.access_token) throw new Error("El enlace de recuperación no es válido o expiró. Solicite uno nuevo.");
-      const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-        method: "PUT",
-        headers: {
-          ...supabaseHeaders(),
-          Authorization: `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ password })
-      });
-      const user = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(user.error_description || user.msg || user.message || user.error || "No se pudo guardar la contraseña.");
-      }
-
-      saveSupabaseSession({ ...session, user });
-      localStorage.setItem(currentUserKey, user.user_metadata?.full_name || user.email || "Empleado");
-      const profile = await fetchSupabaseProfile().catch(() => null);
-      localStorage.setItem(
-        currentAccessLevelKey,
-        profile?.role === "administrador" ? "Administrador" : profile?.role === "ejecutivo" ? "Ejecutivo" : "Empleado"
-      );
-      localStorage.removeItem(currentUserPhotoKey);
-      clearPasswordSetupPending();
-      await refreshCurrentPermissions();
-      window.location.replace(resolvePostLoginDestination());
+      if (!setupSession) throw passwordSetupError("invalid_link");
+      await updateSupabaseSetupPassword(setupSession, password);
+      if (generation !== setupGeneration) return;
+      const logoutSession = { access_token: setupSession.access_token };
+      clearSetup(false);
+      let logoutPending = false;
+      try { await closeSupabasePasswordSetupSession(logoutSession); }
+      catch { logoutPending = true; }
+      finally { wipe(logoutSession); }
+      const destination = new URL(passwordRecoveryRedirectUrl());
+      destination.searchParams.set("reason", logoutPending ? "password-created-logout-pending" : "password-created");
+      window.location.replace(destination.href);
     } catch (error) {
-      if (inviteMessage) {
-        inviteMessage.textContent = error.message || "No se pudo activar la cuenta.";
-        inviteMessage.className = "login-help error";
-      }
-      if (submitButton) submitButton.disabled = false;
+      if (generation === setupGeneration) failSetup(error);
+    } finally {
+      password = ""; confirmation = "";
+      formData.delete("password"); formData.delete("passwordConfirmation");
     }
   });
 
@@ -5307,6 +5320,8 @@ function bindEmployeeProfile() {
   const accessDeactivateButton = document.querySelector("[data-access-deactivate]");
   const accessReactivateButton = document.querySelector("[data-access-reactivate]");
   let accessState = null;
+  let accessResendButton = null;
+  let invitationLinkVerified = false;
 
   const setProfileMessage = (text, type = "") => {
     if (!profileMessage) return;
@@ -5314,6 +5329,8 @@ function bindEmployeeProfile() {
     profileMessage.className = `form-message ${type}`.trim();
   };
 
+  let invitationRepairOnly = false;
+  let invitationRequestId = null;
   const formatAccessDate = (value) => {
     if (!value) return "No disponible";
     const date = new Date(value);
@@ -5327,6 +5344,7 @@ function bindEmployeeProfile() {
   };
 
   const renderAccessState = () => {
+    if (accessResendButton) accessResendButton.hidden = true;
     if (!accessCard) return;
     const canInvite = hasPermission("users.invite") && profile.source === "supabase";
     const canDeactivate = hasPermission("users.deactivate") && profile.source === "supabase";
@@ -5347,13 +5365,18 @@ function bindEmployeeProfile() {
     [accessInviteButton, accessRecoveryButton, accessDeactivateButton, accessReactivateButton].forEach((button) => {
       if (button) button.hidden = true;
     });
+    if (invitationRepairOnly && canInvite && accessInviteButton && accessState?.status !== "deactivated") {
+      accessInviteButton.hidden = false;
+      accessInviteButton.textContent = "Verificar / reparar vinculación";
+    }
     if (!accessState) return;
     if (accessState.status === "no_account" && canInvite && accessInviteButton) {
       accessInviteButton.hidden = false;
-      accessInviteButton.textContent = "Enviar invitación";
+      accessInviteButton.textContent = invitationRepairOnly ? "Verificar / reparar vinculación" : "Enviar invitación";
     } else if (accessState.status === "invitation_pending" && canInvite && accessInviteButton) {
       accessInviteButton.hidden = false;
-      accessInviteButton.textContent = "Reenviar invitación";
+      accessInviteButton.textContent = "Verificar / reparar vinculación";
+      if (accessResendButton) accessResendButton.hidden = !invitationLinkVerified;
     } else if (accessState.status === "active") {
       if (canInvite && accessRecoveryButton) accessRecoveryButton.hidden = false;
       if (canDeactivate && accessDeactivateButton) accessDeactivateButton.hidden = false;
@@ -5371,7 +5394,9 @@ function bindEmployeeProfile() {
       renderAccessState();
       setAccessMessage("");
     } catch (error) {
-      setAccessMessage(error.message || "No se pudo consultar el acceso.", "error");
+      accessState = null;
+      renderAccessState();
+      setAccessMessage("No se pudo consultar el acceso. Inténtelo más tarde.", "error");
     }
   };
 
@@ -5436,22 +5461,53 @@ function bindEmployeeProfile() {
     });
   }
 
-  accessInviteButton?.addEventListener("click", async () => {
-    const resend = accessState?.status === "invitation_pending";
-    if (!window.confirm(`${resend ? "Se reenviará" : "Se enviará"} una invitación al correo institucional de ${employeeDisplayName(profile)}. ¿Desea continuar?`)) return;
+  // The existing panel gets a separate explicit resend action; repair never sends.
+  accessResendButton = accessInviteButton ? document.createElement("button") : null;
+  if (accessResendButton) {
+    accessResendButton.type = "button";
+    accessResendButton.className = accessInviteButton.className;
+    accessResendButton.textContent = "Reenviar invitación";
+    accessResendButton.hidden = true;
+    accessInviteButton.insertAdjacentElement("afterend", accessResendButton);
+  }
+  const runInvitationAction = async (action) => {
+    if (accessInviteButton?.disabled) return;
+    const prompts = {
+      invite: "Se enviará una invitación solo si no existe una anterior. ¿Desea continuar?",
+      repair: "Se verificará y reparará la vinculación sin enviar correo. ¿Desea continuar?",
+      resend: "Se reenviará explícitamente la invitación pendiente. ¿Desea continuar?"
+    };
+    if (!window.confirm(prompts[action])) return;
     accessInviteButton.disabled = true;
-    setAccessMessage(resend ? "Reenviando invitación segura…" : "Enviando invitación segura…");
+    if (accessResendButton) accessResendButton.disabled = true;
+    invitationRequestId ||= crypto.randomUUID();
+    setAccessMessage(action === "repair" ? "Verificando vinculación..." : "Procesando invitación...");
     try {
-      if (resend) await resendSupabaseEmployeeInvitation(profile.id);
-      else await inviteSupabaseEmployee(profile.id);
+      const result = action === "resend"
+        ? await resendSupabaseEmployeeInvitation(profile.id, invitationRequestId)
+        : await inviteSupabaseEmployee(profile.id, action, invitationRequestId);
+      invitationRepairOnly = result.code !== "invite_failed" || action === "repair";
+      if (result.code !== "invite_status_unknown") invitationRequestId = null;
+      invitationLinkVerified = result.code === "invite_sent_linked";
       await loadAccessState();
-      setAccessMessage(resend ? "Invitación reenviada correctamente." : "Invitación enviada e identidad vinculada correctamente.", "success");
-    } catch (error) {
-      setAccessMessage(error.message || "No se pudo enviar la invitación.", "error");
+      const complete = result.code === "invite_sent_linked";
+      if (accessResendButton) accessResendButton.hidden = !(complete && accessState?.status === "invitation_pending" && hasPermission("users.invite"));
+      setAccessMessage(result.message, complete ? "success" : "error");
+    } catch {
+      invitationRepairOnly = true;
+      invitationLinkVerified = false;
+      renderAccessState();
+      if (accessResendButton) accessResendButton.hidden = true;
+      setAccessMessage("No se pudo confirmar el resultado. Verifique la vinculación sin reenviar el correo.", "error");
     } finally {
       accessInviteButton.disabled = false;
+      if (accessResendButton) accessResendButton.disabled = false;
     }
-  });
+  };
+  accessInviteButton?.addEventListener("click", () => runInvitationAction(
+    invitationRepairOnly || accessState?.status === "invitation_pending" ? "repair" : "invite"
+  ));
+  accessResendButton?.addEventListener("click", () => runInvitationAction("resend"));
 
   accessRecoveryButton?.addEventListener("click", async () => {
     accessRecoveryButton.disabled = true;
@@ -6380,32 +6436,25 @@ async function bindEmployeePortal() {
   await Promise.all([refresh(), fetchOwnSupabaseNotifications(5).then(renderPortalNotifications), bindPortalAttendanceCorrections()]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
 }
 function ensureEnvironmentOnLocalAuthCallback() {
-  const params = getAuthCallbackParams();
-  if (!isPasswordSetupCallback(params)) return false;
-  const url = new URL(window.location.href);
-  if (url.searchParams.get("environment")) return false;
-  if (typeof isLocalMuseoHost === "function" && !isLocalMuseoHost()) return false;
-  // En local, los enlaces de recovery suelen caer sin ?environment=; staging es el flujo de prueba.
-  url.searchParams.set("environment", "staging");
-  window.location.replace(`${url.pathname}${url.search}${url.hash}`);
-  return true;
+  // Never guess or change the Auth environment while handling credentials.
+  return false;
 }
 
 function redirectAuthCallbackToLogin() {
   const params = getAuthCallbackParams();
-  if (!isPasswordSetupCallback(params)) return false;
-  if (isLoginPage()) return false;
-
-  const next = new URL(passwordRecoveryRedirectUrl(), window.location.origin);
-  ["type", "access_token", "refresh_token", "token_hash", "code", "expires_in", "token_type", "error_description"].forEach((key) => {
-    if (params[key]) next.searchParams.set(key, params[key]);
-  });
-  // Preserve hash tokens when present (Supabase implicit recovery).
-  if (window.location.hash && window.location.hash.includes("access_token")) {
-    next.hash = window.location.hash;
-  }
-  markPasswordSetupPending();
-  window.location.replace(`${next.pathname}${next.search}${next.hash}`);
+  if (!isPasswordSetupCallback(params) || isLoginPage()) return false;
+  // Old links to another page must not re-export credentials through a second URL.
+  const clean = new URL(window.location.href);
+  ["type", "access_token", "refresh_token", "token_hash", "code", "expires_in", "token_type", "error_description", "error", "error_code"].forEach(key => clean.searchParams.delete(key));
+  window.history.replaceState(null, "", clean.pathname + clean.search);
+  Object.keys(params).forEach(key => { params[key] = null; delete params[key]; });
+  delete window.__instituvaAuthCallback;
+  sessionStorage.removeItem(`${passwordSetupPendingKey}-session`);
+  clearPasswordSetupPending();
+  clearPasswordSetupVerifier();
+  const next = new URL(passwordRecoveryRedirectUrl());
+  next.searchParams.set("reason", "invalid-link");
+  window.location.replace(next.href);
   return true;
 }
 

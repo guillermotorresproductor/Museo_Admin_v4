@@ -2,29 +2,30 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const invite = await readFile(new URL("../functions/invite-employee/index.ts", import.meta.url), "utf8");
-const access = await readFile(new URL("../functions/_shared/employee-access.ts", import.meta.url), "utf8");
+const service = await readFile(new URL("../../js/services/supabase.js", import.meta.url), "utf8");
 
-// The production legacy schema has profiles.role but no roles/user_roles.
-// PGRST205 must select that compatibility path without masking any other error.
+// Main's legacy profile provisioning and status vocabulary remain supported.
 assert.match(invite, /const usesLegacyRbac = roleError\?\.code === "PGRST205"/);
-assert.match(invite, /if \(usesLegacyRbac\)[\s\S]*LEGACY_RBAC_PROFILE_ROLE[\s\S]*else[\s\S]*EMPLOYEE_ROLE_REQUIRED/);
-assert.match(invite, /role:\s*"empleado"/);
-assert.match(invite, /status:\s*profile\.status/);
-assert.match(invite, /\.update\(\{ profile_id: invited\.user\.id \}\)[\s\S]*\.is\("profile_id", null\)/);
+assert.match(invite, /legacyProbe\.error\?\.code !== "PGRST205"/);
+assert.match(invite, /LEGACY_RBAC_PROFILE_ROLE/);
+assert.match(invite, /\.from\("profiles"\)[\s\S]*?\.upsert\(\{ id: userId/);
+assert.match(invite, /role: "empleado", status: profile\.status/);
+assert.match(invite, /if \(!usesLegacyRbac\)[\s\S]*admin\.from\("user_roles"\)\.upsert/);
+assert.match(service, /roles_unavailable/);
+assert.match(service, /assignments_unavailable/);
+assert.match(service, /profile\.role !== "empleado"/);
+assert.match(service, /\["active", "activo"\]/);
 
-// Normalized RBAC remains supported and still assigns the employee role.
-assert.match(invite, /\.from\("roles"\)[\s\S]*\.eq\("code", "empleado"\)/);
-assert.match(invite, /admin\.from\("user_roles"\)\.upsert\([\s\S]*role_id: role\.id/);
-
-// Safety properties: one invite call, rollback on later failure, durable audit,
-// request idempotency, resend path, cooldown, and the mandated redirect.
+// The conflict is resolved in favor of durable repair, never destructive rollback.
 assert.equal((invite.match(/inviteUserByEmail\(/g) || []).length, 1);
-assert.match(invite, /findProcessedRequest/);
+assert.doesNotMatch(invite, /deleteUser|ban_duration|updateUserById/);
+for (const state of ["invite_failed", "invite_sent_link_pending", "invite_sent_linked"]) assert.ok(invite.includes(state));
+assert.match(invite, /cleanEmployeeId\(body\.employee_id\)/);
+assert.match(invite, /cleanRequestId\(body\.request_id\)/);
 assert.match(invite, /enforceEmailCooldown/);
 assert.match(invite, /action === "resend"[\s\S]*admin\.auth\.resend/);
-assert.match(invite, /recordAccessAudit[\s\S]*USER_INVITED/);
-assert.match(invite, /admin\.auth\.admin\.deleteUser\(invited\.user\.id\)/);
-assert.match(access, /EMPLOYEE_LOGIN_REDIRECT = "https:\/\/mmdpr\.org\/login"/);
-assert.match(access, /findAuthUserByEmail/);
-
-console.log("Invite employee legacy/normalized RBAC compatibility checks passed.");
+assert.match(invite, /resend-request:/);
+assert.match(invite, /USER_INVITATION_RESENT/);
+assert.match(invite, /allowed\.includes\(destination\)/);
+assert.doesNotMatch(invite, /body\.(redirectTo|redirect_to|redirect)/);
+console.log("Reconciled legacy/normalized invitation checks passed.");

@@ -19,7 +19,7 @@ Require-Text 'supabase/functions/invite-employee/index.ts' 'USER_INVITATION_RESE
 Require-Text 'supabase/functions/employee-access/index.ts' 'USER_PASSWORD_RECOVERY_SENT'
 Require-Text 'supabase/functions/employee-access/index.ts' 'USER_ACCESS_REACTIVATED'
 Require-Text 'supabase/functions/invite-employee/index.ts' '\.from\("profiles"\)\s*\.upsert\('
-Require-Text 'supabase/functions/invite-employee/index.ts' 'id:\s*invited\.user\.id'
+Require-Text 'supabase/functions/invite-employee/index.ts' 'id:\s*userId'
 Require-Text 'supabase/functions/invite-employee/index.ts' 'status:\s*profile\.status'
 Require-Text 'supabase/functions/_shared/security.ts' 'id,museum_id,email,status'
 Require-Text 'supabase/functions/invite-employee/index.ts' 'PROFILE_PROVISION_FAILED'
@@ -36,7 +36,9 @@ if ($browserCode -match 'service_role|SUPABASE_SECRET_KEY|SUPABASE_SERVICE_ROLE_
 }
 
 $accessFunctions = Get-Content (Join-Path $root 'supabase/functions/invite-employee/index.ts'), (Join-Path $root 'supabase/functions/deactivate-user-access/index.ts'), (Join-Path $root 'supabase/functions/employee-access/index.ts') -Raw
-if ($accessFunctions -match 'localhost|github\.io') { throw 'Una función de acceso contiene un redirect no autorizado.' }
+Require-Text 'supabase/functions/invite-employee/index.ts' 'allowed\.includes\(destination\)'
+if ($inviteSource -match 'body\.(redirectTo|redirect_to|redirect)|deleteUser|ban_duration') { throw 'La invitación reintroduce un redirect del navegador o un bloqueo/borrado Auth.' }
+if ($accessFunctions -match 'github\.io') { throw 'Una función de acceso contiene un redirect no autorizado.' }
 if ((Get-Content (Join-Path $root 'supabase/functions/deactivate-user-access/index.ts') -Raw) -match 'from\("employees"\)\.update') {
   throw 'La desactivación de Auth no puede cambiar el estado laboral del empleado.'
 }

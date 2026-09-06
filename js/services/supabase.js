@@ -127,15 +127,26 @@ async function fetchCurrentSupabasePermissions() {
   return Array.isArray(data) ? data.map((item) => typeof item === "string" ? item : item.code).filter(Boolean) : [];
 }
 
-async function inviteSupabaseEmployee(employeeId) {
-  const response = await fetch(`${supabaseUrl}/functions/v1/invite-employee`, {
-    method: "POST",
-    headers: await supabaseAuthHeaders(),
-    body: JSON.stringify({ employee_id: employeeId, action: "invite", request_id: crypto.randomUUID() })
-  });
+const employeeInvitationMessages = Object.freeze({
+  invite_failed: "No se envió una invitación en esta operación. Revise los requisitos con Administración.",
+  invite_sent_link_pending: "La invitación fue enviada, pero la vinculación está pendiente. Puede repararla sin reenviar el correo.",
+  invite_sent_linked: "Invitación enviada y vinculación completada. El destinatario puede activar su cuenta.",
+  invite_status_unknown: "No se pudo confirmar el envío. Verifique o repare la vinculación sin reenviar el correo."
+});
+async function inviteSupabaseEmployee(employeeId, action = "invite", requestId = crypto.randomUUID()) {
+  let response;
+  try {
+    response = await fetch(`${supabaseUrl}/functions/v1/invite-employee`, {
+      method: "POST", headers: await supabaseAuthHeaders(),
+      body: JSON.stringify({ employee_id: employeeId, action, request_id: requestId })
+    });
+  } catch {
+    return { code: "invite_status_unknown", stage: "verification", message: employeeInvitationMessages.invite_status_unknown };
+  }
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "No se pudo enviar la invitación.");
-  return data;
+  const code = Object.hasOwn(employeeInvitationMessages, data.code) ? data.code : "invite_status_unknown";
+  const stages = ["authorization", "validation", "send", "link", "audit", "complete", "verification", "resend", "cooldown"];
+  return { code, stage: stages.includes(data.stage) ? data.stage : "verification", message: data.stage === "cooldown" ? "Espere un minuto antes de enviar otro correo." : code === "invite_sent_linked" && data.stage === "resend" ? "Invitación reenviada y vinculación verificada." : employeeInvitationMessages[code] };
 }
 
 async function callEmployeeAccessFunction(functionName, body) {
@@ -149,8 +160,8 @@ async function callEmployeeAccessFunction(functionName, body) {
   return data;
 }
 
-async function resendSupabaseEmployeeInvitation(employeeId) {
-  return callEmployeeAccessFunction("invite-employee", { employee_id: employeeId, action: "resend", request_id: crypto.randomUUID() });
+async function resendSupabaseEmployeeInvitation(employeeId, requestId = crypto.randomUUID()) {
+  return inviteSupabaseEmployee(employeeId, "resend", requestId);
 }
 
 async function fetchSupabaseEmployeeAccess(employeeId) {
@@ -211,7 +222,7 @@ async function requestSupabasePasswordRecovery(email) {
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.error_description || data.msg || "No se pudo solicitar la recuperación.");
+    throw passwordSetupError("request_failed");
   }
 }
 
@@ -223,7 +234,7 @@ async function verifySupabaseEmailToken({ token_hash, type }) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.error_description || data.msg || data.message || "El enlace de recuperación no es válido o expiró.");
+    throw passwordSetupError("invalid_link");
   }
   return data;
 }
@@ -481,4 +492,114 @@ async function archiveSupabaseMaintenanceTask(id) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.message || "No se pudo archivar el registro de mantenimiento.");
   }
+}
+
+const passwordSetupMessages = Object.freeze({
+  invalid_link: "El enlace no es válido, expiró o ya fue utilizado. Solicite uno nuevo.",
+  invalid_profile: "No se pudo validar la vinculación del perfil. Contacte a Administración.",
+  invalid_employee: "No se pudo validar la vinculación del empleado y museo. Contacte a Administración.",
+  invalid_role: "No se pudo validar la vinculación del rol. Contacte a Administración.",
+  unconfirmed: "El correo no está confirmado. Solicite un enlace válido.",
+  wrong_account: "La sesión no corresponde a la cuenta del enlace.",
+  verifier_missing: "Abra el enlace en el navegador que inició la solicitud o solicite uno nuevo.",
+  request_failed: "No se pudo completar la solicitud. Inténtelo más tarde.",
+  acceptance_failed: "No se pudo completar la activación. Solicite un enlace válido o contacte a Administración."
+});
+function passwordSetupError(code) {
+  const safeCode = Object.hasOwn(passwordSetupMessages, code) ? code : "acceptance_failed";
+  const error = new Error(passwordSetupMessages[safeCode]);
+  error.code = safeCode;
+  return error;
+}
+function safePasswordSetupMessage(error) {
+  return Object.hasOwn(passwordSetupMessages, error?.code) ? passwordSetupMessages[error.code] : passwordSetupMessages.acceptance_failed;
+}
+function clearPasswordSetupVerifier() {
+  const ref = new URL(supabaseUrl).hostname.split(".")[0];
+  localStorage.removeItem(`sb-${ref}-auth-token-code-verifier`);
+}
+async function passwordSetupRequest(path, session, options = {}) {
+  let response;
+  try {
+    response = await fetch(`${supabaseUrl}${path}`, {
+      ...options, headers: { ...supabaseHeaders(), Authorization: `Bearer ${session.access_token}` }
+    });
+  } catch { throw passwordSetupError("acceptance_failed"); }
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const error = passwordSetupError(response.status === 401 ? "invalid_link" : "acceptance_failed");
+    if (response.status === 404 && data.code === "PGRST205") {
+      if (path.startsWith("/rest/v1/roles?")) error.code = "roles_unavailable";
+      if (path.startsWith("/rest/v1/user_roles?")) error.code = "assignments_unavailable";
+    }
+    throw error;
+  }
+  return response.status === 204 ? {} : response.json().catch(() => { throw passwordSetupError("acceptance_failed"); });
+}
+async function exchangeSupabasePasswordSetupCode(code) {
+  const ref = new URL(supabaseUrl).hostname.split(".")[0];
+  const stored = localStorage.getItem(`sb-${ref}-auth-token-code-verifier`);
+  clearPasswordSetupVerifier();
+  let verifier = stored;
+  try { verifier = JSON.parse(stored); } catch { /* Raw SDK storage is also accepted. */ }
+  if (typeof verifier !== "string" || !verifier) throw passwordSetupError("verifier_missing");
+  try {
+    const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=pkce`, {
+      method: "POST", headers: supabaseHeaders(),
+      body: JSON.stringify({ auth_code: code, code_verifier: verifier.split("/")[0] })
+    });
+    if (!response.ok) throw passwordSetupError("invalid_link");
+    return await response.json();
+  } catch { throw passwordSetupError("invalid_link"); }
+  finally { verifier = null; code = null; }
+}
+async function validateSupabasePasswordSetupSession(session, type) {
+  if (!session?.access_token) throw passwordSetupError("invalid_link");
+  const user = await passwordSetupRequest("/auth/v1/user", session);
+  if (!user.id || !user.email_confirmed_at) throw passwordSetupError("unconfirmed");
+  if (type === "invite" && !user.invited_at) throw passwordSetupError("invalid_link");
+  if (session.user?.id && session.user.id !== user.id) throw passwordSetupError("wrong_account");
+  const profiles = await passwordSetupRequest(`/rest/v1/profiles?select=id,museum_id,email,role,status&id=eq.${encodeURIComponent(user.id)}&limit=2`, session);
+  const profile = profiles[0];
+  if (profiles.length !== 1 || profile.id !== user.id || !profile.museum_id || !["active", "activo"].includes(String(profile.status).toLowerCase()) ||
+      String(profile.email).toLowerCase() !== String(user.email).toLowerCase()) throw passwordSetupError("invalid_profile");
+  if (type === "invite" || user.invited_at) {
+    const employees = await passwordSetupRequest(`/rest/v1/employees?select=id,museum_id,email,profile_id&profile_id=eq.${encodeURIComponent(user.id)}&limit=2`, session);
+    if (employees.length !== 1 || employees[0].profile_id !== user.id || employees[0].museum_id !== profile.museum_id ||
+        String(employees[0].email).toLowerCase() !== String(user.email).toLowerCase()) throw passwordSetupError("invalid_employee");
+    let usesLegacyRbac = false;
+    try {
+      const roles = await passwordSetupRequest("/rest/v1/roles?select=id&code=eq.empleado", session);
+      if (roles.length !== 1) throw passwordSetupError("invalid_role");
+    } catch (error) {
+      if (error.code !== "roles_unavailable") throw error;
+      try {
+        await passwordSetupRequest("/rest/v1/user_roles?select=user_id&limit=0", session);
+      } catch (probeError) {
+        if (probeError.code !== "assignments_unavailable") throw probeError;
+        usesLegacyRbac = true;
+      }
+      if (!usesLegacyRbac || profile.role !== "empleado") throw passwordSetupError("invalid_role");
+    }
+    if (!usesLegacyRbac) {
+      const roles = await passwordSetupRequest(`/rest/v1/user_roles?select=museum_id,valid_until,roles!inner(code)&user_id=eq.${encodeURIComponent(user.id)}&museum_id=eq.${encodeURIComponent(profile.museum_id)}&roles.code=eq.empleado`, session);
+      if (!roles.some(role => role.museum_id === profile.museum_id && role.roles?.code === "empleado" &&
+          (!role.valid_until || Date.parse(role.valid_until) > Date.now()))) throw passwordSetupError("invalid_role");
+    }
+  }
+  return { access_token: session.access_token, refresh_token: session.refresh_token,
+    user: { id: user.id }, setup_type: type || (user.invited_at ? "invite" : "recovery") };
+}
+async function updateSupabaseSetupPassword(session, password) {
+  const validated = await validateSupabasePasswordSetupSession(session, session.setup_type);
+  try {
+    const user = await passwordSetupRequest("/auth/v1/user", validated, { method: "PUT", body: JSON.stringify({ password }) });
+    if (user.id !== validated.user.id) throw passwordSetupError("wrong_account");
+    return { id: user.id };
+  } finally {
+    validated.access_token = null; validated.refresh_token = null; validated.user = null; password = null;
+  }
+}
+async function closeSupabasePasswordSetupSession(session) {
+  await passwordSetupRequest("/auth/v1/logout?scope=local", session, { method: "POST" });
 }
