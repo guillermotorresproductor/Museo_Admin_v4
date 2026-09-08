@@ -39,6 +39,7 @@ function employeeFromSupabase(row) {
     apellidos: row.last_name || "",
     nombreCompleto: `${row.first_name || ""} ${row.last_name || ""}`.trim(),
     foto: row.photo_url || "",
+    photoReference: row.photo_url || "",
     posicion: row.position || "",
     departamento: row.department || "",
     correo: row.email || "",
@@ -62,7 +63,6 @@ function employeeToSupabasePayload(employee, museumId) {
     museum_id: museumId,
     first_name: employee.nombre,
     last_name: employee.apellidos,
-    photo_url: employee.foto && !employee.foto.startsWith("data:") ? employee.foto : null,
     position: employee.posicion,
     department: employee.departamento,
     email: employee.correo,
@@ -77,7 +77,7 @@ function employeeToSupabasePayload(employee, museumId) {
 
 async function fetchSupabaseEmployees() {
   const data = await supabaseGet("/rest/v1/employees?select=id,profile_id,access_level,first_name,last_name,photo_url,position,department,email,phone,address,hire_date,work_schedule,education_level,status,created_at&order=created_at.asc");
-  return data.map(employeeFromSupabase);
+  return Promise.all(data.map(resolveSupabaseEmployeePhoto));
 }
 async function saveSupabaseEmployee(employee, museumId, id) {
   const payload = employeeToSupabasePayload(employee, museumId);
@@ -95,6 +95,9 @@ async function saveSupabaseEmployee(employee, museumId, id) {
   });
   const saved = await response.json();
   if (!response.ok) throw new Error(saved.message || "No se pudo guardar el empleado.");
+  if (!saved?.[0]?.id) throw new Error("No se confirmó el guardado del empleado.");
+  try { await persistSupabaseEmployeePhoto(saved[0].id, employee, museumId); }
+  catch (error) { error.savedEmployeeId = saved[0].id; throw error; }
   return saved;
 }
 
@@ -102,13 +105,16 @@ async function updateSupabaseEmployee(id, employee, museumId) {
   const payload = employeeToSupabasePayload(employee, museumId);
   const response = await fetch(`${supabaseUrl}/rest/v1/employees?id=eq.${encodeURIComponent(id)}`, {
     method: "PATCH",
-    headers: await supabaseAuthHeaders(),
+    headers: { ...(await supabaseAuthHeaders()), Prefer: "return=representation" },
     body: JSON.stringify(payload)
   });
   if (!response.ok) {
     const data = await response.json();
     throw new Error(data.message || "No se pudo actualizar el empleado.");
   }
+  const updated = await response.json();
+  if (!updated?.[0]?.id) throw new Error("No se confirmó el guardado del empleado.");
+  await persistSupabaseEmployeePhoto(id, employee, museumId);
 }
 async function updateSupabaseEmployeeStatus(id, status) {
   const response = await fetch(`${supabaseUrl}/functions/v1/set-employee-status`, {
@@ -606,13 +612,48 @@ async function closeSupabasePasswordSetupSession(session) {
 
 async function fetchOwnSupabaseEmployee() {
   const user = await supabaseGet("/auth/v1/user");
-  const rows = await supabaseGet("/rest/v1/employees?select=id,profile_id,access_level,first_name,last_name,email,phone,work_schedule,position&profile_id=eq." + encodeURIComponent(user.id));
+  const rows = await supabaseGet("/rest/v1/employees?select=id,profile_id,access_level,photo_url,first_name,last_name,email,phone,work_schedule,position&profile_id=eq." + encodeURIComponent(user.id));
   if (rows.length > 1) throw new Error("Vínculo personal ambiguo.");
-  return rows[0] ? employeeFromSupabase(rows[0]) : null;
+  return rows[0] ? resolveSupabaseEmployeePhoto(rows[0]) : null;
 }
 async function fetchSupabaseEmployeeLevel(employeeId) {
   return callEmployeeAccessFunction("assign-sensitive-role", { action: "read", employee_id: employeeId });
 }
 async function assignSupabaseEmployeeLevel(employeeId, role, expectedRole) {
   return callEmployeeAccessFunction("assign-sensitive-role", { employee_id: employeeId, role_code: role, expected_role: expectedRole });
+}
+
+// Store a durable private object reference, never a signed URL or an inline image.
+const employeePhotoPrefix = "storage:employee-photos/";
+async function resolveSupabaseEmployeePhoto(row) {
+  const employee = employeeFromSupabase(row);
+  if (!employee.foto.startsWith(employeePhotoPrefix)) return employee;
+  const path = employee.foto.slice(employeePhotoPrefix.length);
+  const data = await supabasePost(`/storage/v1/object/sign/employee-photos/${path}`, { expiresIn: 3600 });
+  const signed = data.signedURL || data.signedUrl;
+  if (!signed) throw new Error("No se pudo consultar la fotografía guardada.");
+  employee.foto = `${supabaseUrl}/storage/v1${signed}`;
+  return employee;
+}
+
+async function persistSupabaseEmployeePhoto(id, employee, museumId) {
+  const photo = employee.foto || "";
+  if (!photo.startsWith("data:") && (photo || !employee.photoReference)) return;
+  let path = null;
+  if (photo) {
+    const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(photo);
+    if (!match) throw new Error("La foto debe ser PNG, JPEG o WebP.");
+    const bytes = Uint8Array.from(atob(match[2]), c => c.charCodeAt(0));
+    if (!bytes.length || bytes.length > 5 * 1024 * 1024) throw new Error("La foto debe pesar hasta 5 MB.");
+    path = `${museumId}/${id}/${crypto.randomUUID()}.${match[1]}`;
+    const response = await fetch(`${supabaseUrl}/storage/v1/object/employee-photos/${path}`, {
+      method: "POST", headers: { ...(await supabaseAuthHeaders()), "Content-Type": `image/${match[1]}` }, body: bytes
+    });
+    if (!response.ok) throw new Error("No se pudo subir la fotografía. Los demás datos pueden haberse guardado; reintente.");
+  }
+  const result = await supabasePost("/rest/v1/rpc/set_employee_photo", {
+    p_employee_id: id, p_path: path, p_expected_photo: employee.photoReference || null
+  });
+  if (result?.saved !== true) throw new Error("No se confirmó la fotografía guardada.");
+  employee.photoReference = path ? employeePhotoPrefix + path : "";
 }

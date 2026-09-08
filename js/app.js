@@ -3981,9 +3981,19 @@ function bindHumanResourcesModule() {
     }
   };
 
+  let formServerLevel = null;
+  let formPhotoReference = "";
+  let employeeSaving = false;
+  let photoReading = false;
+  let photoReadError = false;
   const resetForm = () => {
     form.reset();
     form.elements.id.value = "";
+    formServerLevel = { role: "empleado", conflicting: false };
+    formPhotoReference = "";
+    photoReadError = false;
+    form.elements.acceso.disabled = !hasPermission("roles.assign");
+    if (submitButton) submitButton.disabled = false;
     selectedPhoto = "";
     if (photoInput) photoInput.value = "";
     if (photoStatus) photoStatus.textContent = "Ninguna fotografía seleccionada.";
@@ -4016,6 +4026,18 @@ function bindHumanResourcesModule() {
       if (field && key !== "foto") field.value = value || "";
     });
     form.elements.id.value = employee.id;
+    formServerLevel = null;
+    formPhotoReference = employee.photoReference || "";
+    form.elements.acceso.disabled = true;
+    if (submitButton) submitButton.disabled = true;
+    try {
+      const level = await fetchSupabaseEmployeeLevel(employee.id);
+      if (form.elements.id.value !== employee.id) return;
+      formServerLevel = level;
+      form.elements.acceso.value = level.role.charAt(0).toUpperCase() + level.role.slice(1);
+      form.elements.acceso.disabled = !hasPermission("roles.assign");
+      if (submitButton) submitButton.disabled = false;
+    } catch (error) { setMessage("No se pudo verificar el nivel del servidor. Vuelva a abrir el empleado.", "error"); return; }
     selectedPhoto = employee.foto || "";
     if (photoStatus) photoStatus.textContent = selectedPhoto ? "Fotografía existente cargada." : "Ninguna fotografía seleccionada.";
     if (submitButton) submitButton.textContent = "Actualizar Empleado";
@@ -4046,11 +4068,19 @@ function bindHumanResourcesModule() {
         photoInput.value = "";
         return;
       }
+      photoReading = true;
+      photoReadError = false;
       const reader = new FileReader();
+      reader.addEventListener("error", () => {
+        photoReading = false;
+        photoReadError = true;
+        setMessage("No se pudo leer la fotografía. Vuelva a seleccionarla.", "error");
+      });
       reader.addEventListener("load", () => {
+        photoReading = false;
         selectedPhoto = reader.result;
         if (photoStatus) photoStatus.textContent = `Fotografía seleccionada: ${file.name}`;
-        setMessage("Fotografía lista para guardar con el empleado.", "success");
+        setMessage("Fotografía lista para guardar con el empleado.");
       });
       reader.readAsDataURL(file);
     });
@@ -4058,6 +4088,11 @@ function bindHumanResourcesModule() {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (employeeSaving) return;
+    if (photoReading || photoReadError) {
+      setMessage("Espere a que termine la lectura o vuelva a seleccionar la fotografía.", "error");
+      return;
+    }
     if (!canManageEmployees()) {
       setMessage("Su rol no tiene permiso para crear o editar empleados.", "error");
       return;
@@ -4082,7 +4117,8 @@ function bindHumanResourcesModule() {
       horario: data.get("horario").trim(),
       educacion: data.get("educacion"),
       condicion: data.get("condicion").trim(),
-      acceso: data.get("acceso"),
+      acceso: data.get("acceso") || formServerLevel?.role,
+      photoReference: formPhotoReference,
       estado: data.get("estado"),
       notificaciones: data.get("notificaciones").trim()
     };
@@ -4099,11 +4135,24 @@ function bindHumanResourcesModule() {
 
     const session = getSupabaseSession();
     if (session?.access_token) {
+      employeeSaving = true;
+      if (submitButton) submitButton.disabled = true;
       try {
         if (!supabaseProfile) supabaseProfile = await fetchSupabaseProfile();
         if (!supabaseProfile?.museum_id) throw new Error("No se encontró el museo asociado al perfil.");
+        if (!formServerLevel) throw new Error("Nivel del servidor pendiente de verificar.");
+        const requestedLevel = String(employee.acceso || "").toLowerCase();
+        const needsLevelChange = requestedLevel !== formServerLevel.role || formServerLevel.conflicting;
+        if (needsLevelChange && !hasPermission("roles.assign")) throw new Error("No tiene permiso para cambiar el nivel.");
         const savedEmployee = await saveSupabaseEmployee(employee, supabaseProfile.museum_id, id);
         const savedEmployeeId = savedEmployee[0]?.id || id;
+        formPhotoReference = employee.photoReference || "";
+        form.elements.id.value = savedEmployeeId;
+        if (needsLevelChange) {
+          const assigned = await assignSupabaseEmployeeLevel(savedEmployeeId, requestedLevel, formServerLevel.role);
+          if (!assigned.assigned || assigned.role !== requestedLevel) throw new Error("No se confirmó el cambio de nivel.");
+          formServerLevel = { role: assigned.role, conflicting: false };
+        }
         if (canManageSensitiveEmployeeData()) { const sensitive = sensitiveEmployeePayload(data); await saveSupabaseEmployeeSensitiveDetails(savedEmployeeId, sensitive.compensation, sensitive.emergencyContact); }
 
         const syncedRecords = await fetchSupabaseEmployees();
@@ -4114,8 +4163,13 @@ function bindHumanResourcesModule() {
         setMessage(existing ? "EMPLEADO ACTUALIZADO." : "EMPLEADO CREADO Y AGREGADO AL DIRECTORIO.", "success");
         return;
       } catch (error) {
-        setMessage(`${providerNeutralMessage(error, "No se pudo guardar el empleado.")} No se guardó una copia local para evitar datos distintos entre computadoras.`, "error");
+        if (error.savedEmployeeId) form.elements.id.value = error.savedEmployeeId;
+        formPhotoReference = employee.photoReference || "";
+        setMessage(`${providerNeutralMessage(error, "No se pudo guardar el empleado.")} El guardado no se completó; algunos datos pueden haberse guardado. No se guardó una copia local.`, "error");
         return;
+      } finally {
+        employeeSaving = false;
+        if (submitButton) submitButton.disabled = false;
       }
     }
 
@@ -5293,6 +5347,9 @@ async function bindEmployeeProfile() {
   const id = params.get("empleado") || "guillermo-torres";
   let profile = getEmployeeById(id);
   let pendingPhoto = profile.foto || "";
+  let profilePhotoReading = false;
+  let profilePhotoReadError = false;
+  let profileSaving = false;
 
   const avatar = document.querySelector("[data-profile-avatar]");
   const name = document.querySelector("[data-profile-name]");
@@ -5456,11 +5513,19 @@ async function bindEmployeeProfile() {
         return;
       }
 
+      profilePhotoReading = true;
+      profilePhotoReadError = false;
       const reader = new FileReader();
+      reader.addEventListener("error", () => {
+        profilePhotoReading = false;
+        profilePhotoReadError = true;
+        setProfileMessage("No se pudo leer la fotografía. Vuelva a seleccionarla.", "error");
+      });
       reader.addEventListener("load", () => {
+        profilePhotoReading = false;
         pendingPhoto = reader.result;
         showPhoto(pendingPhoto);
-        setProfileMessage("Fotografía lista. Presione Guardar cambios para conservarla.", "success");
+        setProfileMessage("Fotografía lista. Presione Guardar cambios para conservarla.");
       });
       reader.readAsDataURL(file);
     });
@@ -5471,7 +5536,7 @@ async function bindEmployeeProfile() {
       pendingPhoto = "";
       if (photoInput) photoInput.value = "";
       showPhoto("");
-      setProfileMessage("Fotografía removida. Presione Guardar cambios para conservar el cambio.", "success");
+      setProfileMessage("Fotografía removida. Presione Guardar cambios para conservar el cambio.");
     });
   }
 
@@ -5567,6 +5632,11 @@ async function bindEmployeeProfile() {
   });
 
   saveButton?.addEventListener("click", async () => {
+    if (profileSaving) return;
+    if (profilePhotoReading || profilePhotoReadError) {
+      setProfileMessage("Espere a que termine la lectura o vuelva a seleccionar la fotografía.", "error");
+      return;
+    }
     const updatedProfile = { ...profile, foto: pendingPhoto };
     document.querySelectorAll("[data-profile-field]").forEach((field) => {
       updatedProfile[field.dataset.profileField] = field.value;
@@ -5576,6 +5646,8 @@ async function bindEmployeeProfile() {
 
     const session = getSupabaseSession();
     if (session?.access_token && profile.source === "supabase") {
+      profileSaving = true;
+      saveButton.disabled = true;
       try {
         const supabaseProfile = await fetchSupabaseProfile();
         if (!serverLevel) throw new Error("Nivel del servidor pendiente de verificar.");
@@ -5589,6 +5661,11 @@ async function bindEmployeeProfile() {
           throw new Error("Solo roles.assign puede cambiar el nivel.");
         }
         if (canManageEmployees()) await updateSupabaseEmployee(profile.id, updatedProfile, supabaseProfile.museum_id);
+        else if (pendingPhoto !== profile.foto) await persistSupabaseEmployeePhoto(profile.id, updatedProfile, supabaseProfile.museum_id);
+        const freshProfile = (await fetchSupabaseEmployees()).find(employee => employee.id === profile.id);
+        if (!freshProfile) throw new Error("No se pudo verificar el perfil guardado.");
+        Object.assign(updatedProfile, freshProfile);
+        pendingPhoto = updatedProfile.foto;
 
         const records = getEmployeeRecords();
         saveEmployeeRecords(records.map((employee) => employee.id === profile.id ? updatedProfile : employee));
@@ -5604,8 +5681,12 @@ async function bindEmployeeProfile() {
         setProfileMessage("Perfil guardado en Supabase.", "success");
         return;
       } catch (error) {
+        profile.photoReference = updatedProfile.photoReference;
         setProfileMessage(`No se pudo guardar en Supabase: ${error.message}. No se guardó una copia local.`, "error");
         return;
+      } finally {
+        profileSaving = false;
+        saveButton.disabled = false;
       }
     }
 
