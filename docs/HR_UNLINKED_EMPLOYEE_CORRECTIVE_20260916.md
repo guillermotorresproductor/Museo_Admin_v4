@@ -55,9 +55,21 @@ Ejecución `unlinked-1789559723080`:
 | assign-sensitive-role / read | 500 | `{"error":"No se pudo completar la operación."}` |
 | employee-access / status | 400 | `{"error":"El expediente no tiene un correo válido."}` |
 
-La captura HTTP anterior es de Staging, no de una sesión de Roberto o de
-Guillermo en Producción. El navegador de mmdpr.org volvió a login al navegar
-a RH; queda pendiente capturar allí la respuesta autenticada y la UI original.
+La captura HTTP anterior es de Staging. Después de que Guillermo preparara su
+sesión, se verificó también el fallo en la interfaz de Producción, sin guardar:
+
+- Navegación Dashboard → Administración → RH → Editar Roberto, mismo ID.
+- RH: «No se pudo verificar el nivel del servidor. Vuelva a abrir el empleado»;
+  selector de nivel y botón Guardar deshabilitados.
+- Ver perfil: «No se pudo verificar el nivel del servidor: No se pudo completar
+  la operación.» El último fragmento es el campo `error` que el servicio de
+  frontend recibe del servidor; no es un mensaje inventado por la prueba.
+- Cuenta institucional: correo/estado/última invitación «No disponible»,
+  «No se pudo consultar el acceso. Inténtelo más tarde», sin acción de invitación.
+
+Esto acredita la reproducción autenticada en Producción y el mensaje recibido.
+No se exportó un HAR ni el cuerpo HTTP bruto de Producción: los estados HTTP y
+cuerpos JSON completos que figuran arriba son los capturados en Staging.
 
 ## Comportamiento corregido
 
@@ -143,14 +155,47 @@ criterio previo; no contienen cuentas de acceso. No se enviaron correos de prueb
 - `employee-access`: versión 2, `verify_jwt:true`, igual que antes.
 - Migraciones `202609160001` y `202609160002` aplicadas y registradas.
 - No se desplegó frontend en demo.instituva.com. Los callbacks de UI se
-  verificaron localmente; la integración ejecutó los servicios del frontend
-  contra el backend real de Staging.
+  verificaron localmente y se completó la revisión en navegador real descrita
+  a continuación; ambas usan el backend real de Staging.
+
+## Revisión visual completada con la sesión disponible
+
+Ejecución `unlinked-1789561810816`, terminada el 16 de septiembre de 2026 antes
+de las 12:33 UTC. Frontend del correctivo en `127.0.0.1:5189`, backend Staging,
+actor Auth y expediente sintéticos. La sesión de prueba se mantuvo solo en el
+proceso/navegador local y la clave de servicio nunca se sirvió al navegador.
+
+1. Editar el expediente sin correo, perfil o nivel: selector «Sin nivel
+   solicitado», explicación «Sin permiso efectivo: no hay perfil vinculado»
+   y botón **Actualizar Empleado** habilitado.
+2. Guardar desde RH con correo y nivel aún vacíos: **EMPLEADO ACTUALIZADO**;
+   mismo ID de expediente.
+3. Abrir Ver perfil: **Guardar cambios** habilitado. Cuenta institucional
+   muestra «Expediente pendiente de completar», el botón de invitación
+   deshabilitado y la indicación de completar correo y nivel solicitado.
+4. Completar teléfono ficticio, correo `visual-draft@example.invalid` y elegir
+   Empleado solo para el fixture; guardar: «Perfil guardado en Supabase».
+5. Cuenta institucional cambia a «Sin cuenta» y **Enviar invitación** queda
+   habilitado. No se pulsó. Recargar conserva ese estado y el nivel solicitado.
+6. Lectura independiente del backend: mismo ID
+   `bd2a6adf-08b9-4164-80e8-fb3c6e206cff`, teléfono `555-0100`, correo persistido,
+   `access_level:empleado`, `profile_id:null`, cero eventos de invitación.
+
+La limpieza inicial detectó las filas de compensación que RH crea incluso
+vacías. Se ajustó el ejecutor para eliminar las dependencias del fixture antes
+del expediente. Se retiraron únicamente los datos de este ensayo, incluidas
+sus dependencias y el actor temporal. No se repitieron pruebas de fotografías.
+
+Reproducción visual: `./scripts/test-unlinked-employee-staging.ps1 -UI`; abrir
+la URL temporal que imprime el proceso, completar los pasos anteriores y
+presionar Enter en el proceso para verificar los datos y limpiar el fixture.
+No usar esa URL/sesión para datos reales ni enviar invitaciones durante la prueba.
 
 ## Pasos pendientes para Producción
 
-1. Con sesión administrativa disponible en mmdpr.org, capturar el fallo
-   autenticado del expediente de Roberto y completar la comprobación visual
-   del correctivo con frontend local y Staging. No enviar correos para probar.
+1. Reproducción autenticada de Producción y validación visual del correctivo
+   en Staging completadas. Si se requiere un archivo HAR de Producción para
+   soporte, aún debe capturarse; no sustituirlo por el JSON de Staging.
 2. Revisar/aprobar y publicar el commit del correctivo. Aplicar/registrar las
    dos migraciones explícitas en `kfokfjngozgcwjpzxcsu`; evitar un db push que
    arrastre migraciones ajenas. La primera migración es idempotente y no cambia

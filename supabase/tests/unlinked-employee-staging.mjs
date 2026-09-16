@@ -29,12 +29,23 @@ try {
   await api(`/rest/v1/profiles?id=eq.${actor.id}`, {museum_id:museum.id, role:'administrador', status:'active'}, secret, 'PATCH');
   const [role] = await api('/rest/v1/roles?select=id&code=eq.administrador');
   await api('/rest/v1/user_roles', {museum_id:museum.id,user_id:actor.id,role_id:role.id,assigned_by:actor.id});
-  token = (await api('/auth/v1/token?grant_type=password', {email,password},anon)).access_token;
-  [employee] = await api('/rest/v1/employees', {museum_id:museum.id,first_name:marker,last_name:'Synthetic',position:'Prueba',department:'Prueba',status:'activo',email:null,profile_id:null,access_level:null});
+  const session = await api('/auth/v1/token?grant_type=password', {email,password},anon);
+  token = session.access_token;
+  [employee] = await api('/rest/v1/employees', {museum_id:museum.id,first_name:marker,last_name:'Synthetic',position:'Gerente Administrativo',department:'Administración',status:'activo',email:null,profile_id:null,access_level:null});
   console.log(JSON.stringify({employee:employee.id,stage:'queries'}));
   const c = vm.createContext({fetch:capturedFetch,crypto,Uint8Array,atob,console,supabaseUrl:url,supabaseAuthHeaders:async()=>headers(token),employeeInitials:()=> 'TEST'});
   vm.runInContext(fs.readFileSync(new URL('../../js/services/supabase.js',import.meta.url),'utf8'),c);
-  if (before) {
+  if (process.argv.includes('ui')) {
+    const { review } = await import('../../scripts/review-unlinked-employee-staging.mjs');
+    await review(session);
+    const [saved] = await api(`/rest/v1/employees?id=eq.${employee.id}`);
+    assert.equal(saved.profile_id,null);
+    assert.equal(saved.access_level,'empleado');
+    assert.equal(saved.phone,'555-0100');
+    assert.equal(saved.email,'visual-draft@example.invalid');
+    assert.equal((await api(`/rest/v1/audit_logs?museum_id=eq.${museum.id}&action=in.(USER_INVITED,USER_INVITATION_REQUESTED,USER_INVITATION_RESENT)`)).length,0);
+    console.log(JSON.stringify({ui_saved:true,same_employee_id:saved.id,profile_id:saved.profile_id,access_level:saved.access_level,invitation_events:0}));
+  } else if (before) {
     await assert.rejects(()=>c.fetchSupabaseEmployeeLevel(employee.id));
     await assert.rejects(()=>c.fetchSupabaseEmployeeAccess(employee.id));
   } else {
@@ -70,7 +81,14 @@ try {
   }
   console.log(JSON.stringify({marker,mode:before?'before':'after',captures,result:'PASS'}));
 } finally {
-  if (employee) await api(`/rest/v1/employees?id=eq.${employee.id}`,undefined,secret,'DELETE');
+  if (employee) {
+    // RH also persists empty sensitive sections; remove only this fixture's
+    // dependent rows before deleting its parent employee.
+    for(const table of ['employee_compensation','employee_emergency_contacts']) {
+      await api(`/rest/v1/${table}?employee_id=eq.${employee.id}`,undefined,secret,'DELETE');
+    }
+    await api(`/rest/v1/employees?id=eq.${employee.id}`,undefined,secret,'DELETE');
+  }
   if (actor) {
     await api(`/rest/v1/user_roles?user_id=eq.${actor.id}`,undefined,secret,'DELETE');
     await api(`/rest/v1/audit_logs?actor_user_id=eq.${actor.id}`,undefined,secret,'DELETE');
