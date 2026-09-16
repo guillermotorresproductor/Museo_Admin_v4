@@ -1,5 +1,5 @@
 import { corsHeaders, errorResponse, json, requirePermission } from "../_shared/security.ts";
-import { cleanEmployeeId, cleanRequestId, EMPLOYEE_LOGIN_REDIRECT, enforceEmailCooldown, findProcessedRequest, getEmployeeAccessTarget, latestInvitationAt, recordAccessAudit } from "../_shared/employee-access.ts";
+import { cleanEmployeeId, cleanRequestId, EMPLOYEE_LOGIN_REDIRECT, employeeInvitationState, enforceEmailCooldown, findProcessedRequest, getEmployeeAccessTarget, latestInvitationAt, recordAccessAudit } from "../_shared/employee-access.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -10,16 +10,15 @@ Deno.serve(async (req) => {
     const permission = action === "reactivate" ? "users.deactivate" : "users.invite";
     const { admin, user, profile } = await requirePermission(req, permission);
     const employeeId = cleanEmployeeId(body.employee_id);
-    const target = await getEmployeeAccessTarget(admin, profile.museum_id, employeeId);
-
     if (action === "status") {
+      const state = await employeeInvitationState(admin, profile.museum_id, employeeId);
       return json({
-        email: target.email,
-        status: target.status,
-        last_invitation_at: await latestInvitationAt(admin, profile.museum_id, employeeId),
-        last_sign_in_at: target.authUser?.last_sign_in_at || null
+        ...state,
+        last_invitation_at: await latestInvitationAt(admin, profile.museum_id, employeeId)
       });
     }
+
+    const target = await getEmployeeAccessTarget(admin, profile.museum_id, employeeId);
 
     const requestId = cleanRequestId(body.request_id);
     if (action === "recovery") {

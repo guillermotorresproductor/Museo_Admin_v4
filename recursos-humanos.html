@@ -87,7 +87,7 @@
               </label>
               <label class="field">
                 <span>Correo electrónico</span>
-                <input type="email" name="correo" required>
+                <input type="email" name="correo">
               </label>
             </div>
 
@@ -154,12 +154,12 @@
             <div class="form-row">
               <label class="field">
                 <span>Nivel de acceso</span>
-                <select name="acceso" required>
+                <select name="acceso"><option value="">Sin nivel solicitado</option>
                   <option>Empleado</option>
                   <option>Ejecutivo</option>
                   <option>Administrador</option>
                 </select>
-                <small class="field-hint">Este valor pertenece al expediente. El acceso efectivo depende del perfil de identidad asociado.</small>
+                <small class="field-hint" data-employee-level-state>El nivel solicitado no concede acceso hasta vincular una cuenta.</small>
               </label>
               <label class="field">
                 <span>Estado</span>
@@ -255,8 +255,8 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=hr-photo-level-20260908"></script>
-  <script src="js/app.js?v=hr-photo-level-20260908"></script>
+  <script src="js/services/supabase.js?v=hr-draft-access-20260916"></script>
+  <script src="js/app.js?v=hr-draft-access-20260916"></script>
 </body>
 </html>
 

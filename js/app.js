@@ -3990,6 +3990,7 @@ function bindHumanResourcesModule() {
     form.reset();
     form.elements.id.value = "";
     formServerLevel = { role: "empleado", conflicting: false };
+    form.elements.acceso.value = "Empleado";
     formPhotoReference = "";
     photoReadError = false;
     form.elements.acceso.disabled = !hasPermission("roles.assign");
@@ -4034,10 +4035,14 @@ function bindHumanResourcesModule() {
       const level = await fetchSupabaseEmployeeLevel(employee.id);
       if (form.elements.id.value !== employee.id) return;
       formServerLevel = level;
-      form.elements.acceso.value = level.role.charAt(0).toUpperCase() + level.role.slice(1);
+      form.elements.acceso.value = level.role ? level.role.charAt(0).toUpperCase() + level.role.slice(1) : "";
+      const levelHint = form.querySelector("[data-employee-level-state]");
+      if (levelHint) levelHint.textContent = level.source === "saved_employee_level"
+        ? "Nivel solicitado para una futura invitación. Sin permiso efectivo: no hay perfil vinculado."
+        : "Nivel efectivo verificado en el servidor. Los cambios requieren autorización.";
       form.elements.acceso.disabled = !hasPermission("roles.assign");
       if (submitButton) submitButton.disabled = false;
-    } catch (error) { setMessage("No se pudo verificar el nivel del servidor. Vuelva a abrir el empleado.", "error"); return; }
+    } catch (error) { setMessage(`No se pudo verificar el nivel del servidor${error.status ? ` (HTTP ${error.status})` : ""}: ${error.message}. Vuelva a abrir el empleado.`, "error"); return; }
     selectedPhoto = employee.foto || "";
     if (photoStatus) photoStatus.textContent = selectedPhoto ? "Fotografía existente cargada." : "Ninguna fotografía seleccionada.";
     if (submitButton) submitButton.textContent = "Actualizar Empleado";
@@ -4123,7 +4128,7 @@ function bindHumanResourcesModule() {
       notificaciones: data.get("notificaciones").trim()
     };
 
-    if (!employee.nombre || !employee.apellidos || !employee.posicion || !employee.departamento || !employee.correo) {
+    if (!employee.nombre || !employee.apellidos || !employee.posicion || !employee.departamento) {
       setMessage("Complete los campos obligatorios antes de crear el empleado.", "error");
       return;
     }
@@ -4141,8 +4146,9 @@ function bindHumanResourcesModule() {
         if (!supabaseProfile) supabaseProfile = await fetchSupabaseProfile();
         if (!supabaseProfile?.museum_id) throw new Error("No se encontró el museo asociado al perfil.");
         if (!formServerLevel) throw new Error("Nivel del servidor pendiente de verificar.");
-        const requestedLevel = String(employee.acceso || "").toLowerCase();
+        const requestedLevel = String(employee.acceso || "").toLowerCase() || null;
         const needsLevelChange = requestedLevel !== formServerLevel.role || formServerLevel.conflicting;
+        if (needsLevelChange && !requestedLevel) throw new Error("Seleccione un nivel válido para cambiar el nivel existente.");
         if (needsLevelChange && !hasPermission("roles.assign")) throw new Error("No tiene permiso para cambiar el nivel.");
         const savedEmployee = await saveSupabaseEmployee(employee, supabaseProfile.museum_id, id);
         const savedEmployeeId = savedEmployee[0]?.id || id;
@@ -5404,6 +5410,10 @@ async function bindEmployeeProfile() {
 
     const labels = {
       no_account: "Sin cuenta",
+      incomplete_record: "Expediente pendiente de completar",
+      link_pending: "Vinculación pendiente",
+      verification_required: "Envío pendiente de verificar",
+      review_required: "Identidad pendiente de revisión",
       invitation_pending: "Invitación pendiente",
       active: "Activo",
       deactivated: "Desactivado"
@@ -5416,18 +5426,20 @@ async function bindEmployeeProfile() {
     [accessInviteButton, accessRecoveryButton, accessDeactivateButton, accessReactivateButton].forEach((button) => {
       if (button) button.hidden = true;
     });
-    if (invitationRepairOnly && canInvite && accessInviteButton && accessState?.status !== "deactivated") {
+    if (invitationRepairOnly && canInvite && accessInviteButton && !accessState) {
       accessInviteButton.hidden = false;
       accessInviteButton.textContent = "Verificar / reparar vinculación";
     }
     if (!accessState) return;
-    if (accessState.status === "no_account" && canInvite && accessInviteButton) {
+    if (["incomplete_record", "no_account"].includes(accessState.status) && canInvite && accessInviteButton) {
       accessInviteButton.hidden = false;
+      accessInviteButton.disabled = accessState.can_invite !== true;
       accessInviteButton.textContent = invitationRepairOnly ? "Verificar / reparar vinculación" : "Enviar invitación";
-    } else if (accessState.status === "invitation_pending" && canInvite && accessInviteButton) {
+    } else if (["invitation_pending", "link_pending", "verification_required"].includes(accessState.status) && canInvite && accessInviteButton) {
       accessInviteButton.hidden = false;
+      accessInviteButton.disabled = false;
       accessInviteButton.textContent = "Verificar / reparar vinculación";
-      if (accessResendButton) accessResendButton.hidden = !invitationLinkVerified;
+      if (accessResendButton) accessResendButton.hidden = !(invitationLinkVerified && accessState.status === "invitation_pending");
     } else if (accessState.status === "active") {
       if (canInvite && accessRecoveryButton) accessRecoveryButton.hidden = false;
       if (canDeactivate && accessDeactivateButton) accessDeactivateButton.hidden = false;
@@ -5442,8 +5454,13 @@ async function bindEmployeeProfile() {
     setAccessMessage("Consultando acceso seguro…");
     try {
       accessState = await fetchSupabaseEmployeeAccess(profile.id);
+      invitationRepairOnly = ["invitation_pending", "link_pending", "verification_required"].includes(accessState.status);
       renderAccessState();
-      setAccessMessage("");
+      const missing = accessState.missing_fields || [];
+      setAccessMessage(accessState.status === "incomplete_record"
+        ? `Puede guardar el expediente antes de invitar. Complete y guarde: ${missing.map(field => field === "email" ? "correo institucional" : "nivel solicitado").join(" y ")}.`
+        : accessState.status === "review_required" ? "Revise el correo y el vínculo de identidad con Administración antes de enviar un enlace."
+        : accessState.status === "verification_required" ? "Existe un intento de envío sin confirmación. Verifique la vinculación antes de considerar otro envío." : "");
     } catch (error) {
       accessState = null;
       renderAccessState();
@@ -5463,7 +5480,7 @@ async function bindEmployeeProfile() {
   });
 
   const levelField = document.querySelector('[data-profile-field="acceso"]');
-  let serverLevel = null;
+  let serverLevel;
   let serverLevelConflict = false;
   if (levelField) levelField.disabled = true;
   if (saveButton) saveButton.disabled = true;
@@ -5471,6 +5488,10 @@ async function bindEmployeeProfile() {
     const level = await fetchSupabaseEmployeeLevel(profile.id);
     serverLevel = level.role;
     serverLevelConflict = level.conflicting;
+    const levelHint = document.querySelector("[data-employee-level-state]");
+    if (levelHint) levelHint.textContent = level.source === "saved_employee_level"
+      ? "Nivel solicitado para una futura invitación. Sin permiso efectivo: no hay perfil vinculado."
+      : "Nivel efectivo verificado en el servidor. Los cambios requieren autorización.";
     profile.acceso = serverLevel ? serverLevel.charAt(0).toUpperCase() + serverLevel.slice(1) : "";
     if (levelField) {
       levelField.value = profile.acceso;
@@ -5581,6 +5602,7 @@ async function bindEmployeeProfile() {
     } finally {
       accessInviteButton.disabled = false;
       if (accessResendButton) accessResendButton.disabled = false;
+      renderAccessState();
     }
   };
   accessInviteButton?.addEventListener("click", () => runInvitationAction(
@@ -5650,8 +5672,9 @@ async function bindEmployeeProfile() {
       saveButton.disabled = true;
       try {
         const supabaseProfile = await fetchSupabaseProfile();
-        if (!serverLevel) throw new Error("Nivel del servidor pendiente de verificar.");
-        const requestedLevel = String(updatedProfile.acceso || "").toLowerCase();
+        if (serverLevel === undefined) throw new Error("Nivel del servidor pendiente de verificar.");
+        const requestedLevel = String(updatedProfile.acceso || "").toLowerCase() || null;
+        if (requestedLevel !== serverLevel && !requestedLevel) throw new Error("Seleccione un nivel válido para cambiar el nivel existente.");
         if (hasPermission("roles.assign") && (requestedLevel !== serverLevel || serverLevelConflict)) {
           const assigned = await assignSupabaseEmployeeLevel(profile.id, requestedLevel, serverLevel);
           if (!assigned.assigned || assigned.role !== requestedLevel) throw new Error("No se confirmó el cambio de nivel.");
@@ -5678,6 +5701,7 @@ async function bindEmployeeProfile() {
         if (avatar) avatar.textContent = profile.avatar;
         if (name) name.textContent = employeeDisplayName(profile);
         if (position) position.textContent = profile.posicion;
+        await loadAccessState();
         setProfileMessage("Perfil guardado en Supabase.", "success");
         return;
       } catch (error) {

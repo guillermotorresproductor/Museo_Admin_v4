@@ -100,16 +100,17 @@ test("level service reports assignment failures instead of success",async()=>{
 
 test("Edge delegates one mutation to PostgreSQL using caller, not service role",async()=>{
  let handler;const calls=[];
- const ctx=vm.createContext({Response,corsHeaders:{},getEmployeeAccessTarget:async()=>({employee:{profile_id:null}}),cleanEmployeeId:v=>v,json:(v,status=200)=>new Response(JSON.stringify(v),{status}),errorResponse:()=>new Response("{}",{status:500}),
+ const ctx=vm.createContext({Response,corsHeaders:{},employeeLevelState:async()=>({employee:{profile_id:null}}),getEmployeeAccessTarget:async()=>({employee:{profile_id:null}}),cleanEmployeeId:v=>v,json:(v,status=200)=>new Response(JSON.stringify(v),{status}),errorResponse:()=>new Response("{}",{status:500}),
  requirePermission:async(req,p)=>{assert.equal(p,"roles.assign");return {profile:{museum_id:"m"},admin:{rpc(){throw Error("service role forbidden");}},caller:{rpc:async(name,args)=>{calls.push({name,args});return {data:{assigned:true,role:"ejecutivo"},error:null};}}};},Deno:{serve:fn=>handler=fn}});
  vm.runInContext(edge,ctx);const r=await handler({method:"POST",json:async()=>({employee_id:employeeId,role_code:"ejecutivo",expected_role:"empleado",actor_id:"forged"})});
  assert.equal(r.status,200);assert.equal(calls.length,1);assert.equal(calls[0].name,"replace_employee_access_level");
  assert.deepEqual(Object.keys(calls[0].args).sort(),["p_employee_id","p_expected_role","p_role_code"]);
 });
-for(const code of ["42501","40001","P0001"])test("RPC failure is never a successful assignment: "+code,async()=>{
- let handler;const ctx=vm.createContext({Response,corsHeaders:{},getEmployeeAccessTarget:async()=>({employee:{profile_id:null}}),cleanEmployeeId:v=>v,json:(v,status=200)=>new Response(JSON.stringify(v),{status}),errorResponse:()=>new Response("{}",{status:500}),
+for(const code of ["42501","40001","P0001","PT409"])test("RPC failure is never a successful assignment: "+code,async()=>{
+ let handler;const ctx=vm.createContext({Response,corsHeaders:{},employeeLevelState:async()=>({employee:{profile_id:null}}),getEmployeeAccessTarget:async()=>({employee:{profile_id:null}}),cleanEmployeeId:v=>v,json:(v,status=200)=>new Response(JSON.stringify(v),{status}),errorResponse:()=>new Response("{}",{status:500}),
  requirePermission:async()=>({profile:{museum_id:"m"},caller:{rpc:async()=>({error:{code},data:null})}}),Deno:{serve:fn=>handler=fn}});
  vm.runInContext(edge,ctx);const r=await handler({method:"POST",json:async()=>({employee_id:employeeId})});assert.ok(r.status>=400);assert.notEqual((await r.json()).assigned,true);
+ if(code==='PT409')assert.equal(r.status,409);
 });
 
 test("portal notifications render safely without a missing helper",()=>{
