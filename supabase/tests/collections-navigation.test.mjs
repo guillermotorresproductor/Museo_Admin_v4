@@ -6,10 +6,11 @@ const app=fs.readFileSync(new URL('../../js/app.js',import.meta.url),'utf8');
 const guardSource=app.slice(app.indexOf('function enforceAuthenticatedPageAccess()'),app.indexOf('async function refreshCurrentPermissions()'));
 function guard(page,permissions){
  let denied=false;const redirects=[];
- const canRead=()=>permissions.includes('collections.read')||permissions.includes('collections.write');
+ const admin=()=>permissions.includes('system.configure')||(permissions.includes('audit.read')&&permissions.includes('notifications.manage'));
+ const canRead=()=>admin()||permissions.includes('collections.read')||permissions.includes('collections.write');
  const checks={'inventario-colecciones.html':canRead,'departamento-museologico.html':canRead,'colecciones-museograficas.html':canRead,'recibo-prestamo.html':()=>permissions.includes('collections.write')};
  const ctx=vm.createContext({getCurrentPage:()=>page,getSupabaseSession:()=>({access_token:'test'}),currentPermissionsLoaded:true,moduleAccessChecks:checks,
- EXECUTIVE_MODULE_ACCESS:{},SENSITIVE_MODULE_ACCESS:{},hasAdministrativeWorkspaceAccess:()=>permissions.includes('system.configure'),hasPermission:p=>permissions.includes(p),
+ EXECUTIVE_MODULE_ACCESS:{},SENSITIVE_MODULE_ACCESS:{},hasAdministrativeWorkspaceAccess:admin,hasPermission:p=>permissions.includes(p),
  showProtectedAccessDenied:()=>denied=true,window:{location:{replace:p=>redirects.push(p)}}});
  vm.runInContext(guardSource,ctx);return{blocked:ctx.enforceAuthenticatedPageAccess(),denied,redirects};
 }
@@ -20,8 +21,18 @@ test('read-only access opens catalog but does not grant loan form editing',()=>{
  assert.equal(guard('inventario-colecciones.html',['collections.read']).blocked,false);
  assert.equal(guard('recibo-prestamo.html',['collections.read']).blocked,true);
 });
-test('equipment and administrator permissions do not silently grant catalog rights',()=>{
- for(const permissions of [[],['inventory.manage'],['system.configure']]) assert.equal(guard('inventario-colecciones.html',permissions).denied,true);
+test('equipment or incomplete executive authority does not grant catalog rights',()=>{
+ for(const permissions of [[],['inventory.manage'],['audit.read'],['notifications.manage']]) assert.equal(guard('inventario-colecciones.html',permissions).denied,true);
+});
+test('actual UI helpers enable Administrator and Executive effective authority',()=>{
+ const source=app.slice(app.indexOf('const hasAdministrativeWorkspaceAccess'),app.indexOf('const canAccessAdministrationHub'));
+ for(const permissions of [['system.configure'],['audit.read','notifications.manage'],['collections.write']]) {
+  const c=vm.createContext({hasPermission:p=>permissions.includes(p)});
+  assert.equal(vm.runInContext(source+';canWriteCollections() && canReadCollections()',c),true);
+  assert.equal(guard('inventario-colecciones.html',permissions).blocked,false);
+ }
+ const c=vm.createContext({hasPermission:p=>p==='collections.read'});
+ assert.equal(vm.runInContext(source+';canReadCollections() && !canWriteCollections()',c),true);
 });
 test('piece deep link survives a login redirect without storing record data',()=>{
  const store=new Map();const piece='11111111-1111-4111-8111-111111111111';

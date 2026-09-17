@@ -67,20 +67,40 @@ Nuevos permisos en el catálogo existente, sin elevar roles:
 - `collections.read`: consultar piezas, fotos e historial.
 - `collections.write`: registrar/editar y añadir fotos; incluye consulta del catálogo.
 
-La migración **no concede permisos a ninguna persona ni cambia roles existentes**.
-Ni `inventory.manage` ni ser Administrador habilitan implícitamente este catálogo.
-Se usa `has_permission` vigente, con perfil activo y museo asociado, además de RLS.
-Las concesiones/revocaciones individuales siguen en `user_permissions` existente.
+La regla final, aclarada por el usuario, habilita a **cualquier cuenta con acceso
+administrativo autorizado**, sin listas de nombres o correos. La interfaz y los
+RPC/RLS/Storage usan la misma condición de permisos efectivos:
+`system.configure OR (audit.read AND notifications.manage) OR collections.write`.
+Consulta también admite `collections.read` sin conceder escritura.
 
-Se solicitó la identidad de la persona que catalogará; todavía no fue indicada.
-Antes de habilitar su uso real hay que identificar su cuenta/perfil/museo y revisar
-sus permisos efectivos. Si requiere escritura, una concesión explícita de
-`collections.write` es suficiente; no necesita Administrador, RH ni Finanzas.
-No se ha modificado ninguna cuenta real.
+| Rol / autorización vigente | Crear, editar, fotos e historial | Borrar piezas |
+| --- | --- | --- |
+| Administrador: system.configure, o su combinación administrativa vigente | Sí | No |
+| Ejecutivo: audit.read + notifications.manage | Sí | No |
+| Otro rol con la misma autorización administrativa efectiva | Sí | No |
+| Catalogador con collections.write explícito | Sí | No |
+| Solo collections.read | Solo consulta | No |
+| Empleado, Finanzas u otro rol sin las autorizaciones anteriores | No | No |
+
+Se leyó el resolver actual de Producción: usa profiles.role y sus permisos
+heredados; Administrador incluye system.configure y Ejecutivo incluye audit.read
+y notifications.manage. Staging usa user_roles/role_permissions y se verificaron
+esas mismas concesiones. No se cambia ninguno de estos resolvers ni se confía
+en el nombre de rol guardado en el navegador. Perfiles inactivos y denegaciones
+de los permisos administrativos se siguen resolviendo por has_permission.
+Una denegación de collections.write por sí sola no revoca una autorización
+administrativa independiente, igual que en la regla de acceso administrativo.
+
+La migración adicional `202609170002_collections_administrative_access` incorpora
+collection_can_write y actualiza lectura, guardado y fotos. No cambia cuentas,
+roles, grants personales, tablas ni las restricciones de borrado. Identificar
+una persona concreta ya no es requisito para habilitar el módulo. No se ha
+modificado ninguna cuenta real ni publicado nombres/correos personales en el PR.
 
 ## Validación acreditada
 
-- Migración `202609170001_collections_catalog` aplicada y registrada solo en Staging.
+- Migraciones `202609170001_collections_catalog` y
+  `202609170002_collections_administrative_access` aplicadas y registradas solo en Staging.
 - 23 comprobaciones HTTP usando el servicio de frontend real: creación, lectura
   desde un segundo login, edición/versiones, número duplicado, denegación de lector,
   aislamiento entre museos, escritura directa rechazada, anonimato rechazado,
@@ -92,7 +112,13 @@ No se ha modificado ninguna cuenta real.
   de una maraca ficticia, recarga, edición de ubicación con motivo, subida de PNG,
   consulta de fotografía y tres eventos históricos, reapertura desde enlace permanente.
   Navegación Departamento → Colecciones → formulario de préstamo comprobada sin enviar.
-- 4 pruebas de navegación/autorización y retorno de enlace por login aprobadas.
+- 5 pruebas de navegación/autorización y retorno por login aprobadas con la regla final.
+- 28 comprobaciones HTTP adicionales de autorización administrativa en Staging:
+  Administrador y Ejecutivo sin concesión individual de Colecciones crean/editan,
+  suben/leen fotografías y consultan historial; no borran piezas ni reescriben
+  historial. Revocar su autoridad administrativa bloquea escritura y lectura.
+  Empleado sin autoridad sigue bloqueado. Los tres perfiles ficticios y el museo
+  de esa prueba se desactivan al concluir. No se repiten las pruebas no afectadas.
 - 18 pruebas de wiring de acceso aprobadas porque este PR modifica los controles
   de navegación compartidos. No se repitió el ciclo funcional de RH en servidores.
 - Los fixtures se conservan en museos exclusivos de pruebas: sin borrarlos ni
@@ -104,7 +130,7 @@ No se ha modificado ninguna cuenta real.
 
 Comandos reproducibles: `node --test supabase/tests/collections-navigation.test.mjs`,
 `node --test supabase/tests/employee-access-wiring.test.mjs` y
-`scripts/test-collections-staging.ps1 [-UI]`. El runner fija la URL de Staging y
+`scripts/test-collections-staging.ps1 [-UI | -Administrative]`. El runner fija la URL de Staging y
 rechaza cualquier otro proyecto. Secretos solo en memoria del proceso; el servidor
 de revisión escucha exclusivamente en 127.0.0.1 y sirve un acceso de un solo uso.
 
@@ -120,8 +146,8 @@ Publicación prohibida hasta revisión y autorización. El commit de la rama usa
 workflow manual. La configuración de hosting permanece igual.
 
 Para una publicación futura: revisar el respaldo reciente, verificar el main
-vigente, aplicar solo la migración nueva, registrar su versión, desplegar el
-frontend aprobado y comprobar la cuenta de catalogación con permisos explícitos.
+vigente, aplicar las dos migraciones nuevas en orden, registrar sus versiones,
+desplegar el frontend aprobado y comprobar el acceso administrativo efectivo.
 No se requieren nuevas Edge Functions. No activar scripts de fixtures en Producción.
 
 Reversión: volver al código frontend previo y conservar todas las tablas nuevas,

@@ -281,6 +281,8 @@ const hasPermission = (permission) => currentPermissions.has(permission);
 const canManageEmployees = () => hasPermission("employees.create") || hasPermission("employees.update.basic");
 const hasAdministrativeWorkspaceAccess = () =>
   hasPermission("system.configure") || (hasPermission("audit.read") && hasPermission("notifications.manage"));
+const canWriteCollections = () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.write");
+const canReadCollections = () => canWriteCollections() || hasPermission("collections.read");
 const canAccessAdministrationHub = () => hasAdministrativeWorkspaceAccess();
 const postLoginDestination = () => "dashboard.html";
 const canAccessPersonalSpace = () => ["profile.read.self", "employees.read.self", "schedules.read.self", "time.clock", "time.read.self"].some(hasPermission);
@@ -304,7 +306,7 @@ const moduleAccessChecks = {
   "employee-portal.html": () => canAccessPersonalSpace(),
   "departamento-museologico.html": () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.read") || hasPermission("collections.write"),
   "colecciones-museograficas.html": () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.read") || hasPermission("collections.write"),
-  "inventario-colecciones.html": () => hasPermission("collections.read") || hasPermission("collections.write"),
+  "inventario-colecciones.html": () => canReadCollections(),
   "recibo-prestamo.html": () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.write"),
   "calendario.html": () => hasPermission("calendar.manage") || hasPermission("schedules.read.team"),
   "renta-espacios.html": () => hasPermission("rentals.manage"),

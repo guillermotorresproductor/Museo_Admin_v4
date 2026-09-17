@@ -9,7 +9,7 @@ async function bindCollectionsCatalog() {
   const detail = document.querySelector('#collection-detail'), dialog = document.querySelector('#collection-dialog');
   const search = document.querySelector('#collection-search');
   let items = [], editing = null, saving = false;
-  const canWrite = hasPermission('collections.write');
+  const canWrite = canWriteCollections();
   const base = ['accession_number','title','description','category','location','condition','status'];
   const more = ['author','dating','materials','dimensions','provenance','owner','acquisition','custody','donor','lender','received_date','fmv','currency','loan_reference','notes'];
   const labels = {accession_number:'Número de inventario',title:'Nombre o título',description:'Descripción museográfica',category:'Clasificación',location:'Ubicación',condition:'Estado de conservación',status:'Estado del registro',author:'Autor / fabricante',dating:'Época / fecha de creación',materials:'Materiales y técnica',dimensions:'Dimensiones',provenance:'Procedencia',owner:'Titularidad',acquisition:'Forma de ingreso / adquisición',custody:'Condición de custodia',donor:'Donante',lender:'Prestamista',received_date:'Fecha de ingreso',fmv:'Valor estimado (FMV)',currency:'Moneda',loan_reference:'Referencia de préstamo / documento',notes:'Observaciones'};
