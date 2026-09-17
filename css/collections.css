@@ -1,0 +1,16 @@
+.collection-toolbar { display:flex; flex-wrap:wrap; gap:1rem; align-items:end; margin:1rem 0; }
+.collection-toolbar .field { flex:1; min-width:220px; }
+.collection-form fieldset { border:1px solid #d8dee7; border-radius:12px; padding:1rem; margin:1rem 0; }
+.collection-form legend { font-weight:700; padding:0 .5rem; }
+.collection-form [hidden] { display:none; }
+.collection-dialog { width:min(1000px,92vw); max-height:90vh; border:0; border-radius:16px; padding:1.5rem; }
+.collection-dialog::backdrop { background:#0c192c99; }
+.collection-dialog > button { float:right; }
+.collection-facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:1rem; }
+.collection-facts dt { font-weight:700; color:#44546b; }
+.collection-facts dd { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; }
+.collection-gallery { display:flex; flex-wrap:wrap; gap:1rem; }
+.collection-gallery figure { width:240px; margin:0; }
+.collection-gallery img { max-width:100%; max-height:240px; object-fit:contain; }
+.collection-dialog pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#f3f5f8; padding:1rem; }
+.collection-dialog li { margin-bottom:1rem; }

@@ -14,6 +14,7 @@ const appPages = {
   "membresias.html": { title: "Membresías", subtitle: "Socios, beneficios, renovaciones y participación." },
   "departamento-museologico.html": { title: "Departamento Museológico", subtitle: "Museología, salas, colecciones y formularios museográficos." },
   "colecciones-museograficas.html": { title: "Colecciones museográficas", subtitle: "Registro, documentación, conservación y gestión de colecciones." },
+  "inventario-colecciones.html": { title: "Inventario de Colecciones", subtitle: "Expedientes de piezas y patrimonio museográfico." },
   "administracion.html": { title: "Administración", subtitle: "Dirección ejecutiva, recursos humanos, notificaciones, reportes y finanzas." },
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
   "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
@@ -56,7 +57,7 @@ const navigationGroups = [
     label: "Menu",
     items: [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
-      { href: "departamento-museologico.html", label: "Departamento Museológico", icon: "building", activePages: ["colecciones-museograficas.html", "recibo-prestamo.html"] },
+      { href: "departamento-museologico.html", label: "Departamento Museológico", icon: "building", activePages: ["colecciones-museograficas.html", "inventario-colecciones.html", "recibo-prestamo.html"] },
       { href: "calendario.html", label: "Calendario de Eventos del Museo", icon: "calendar" },
       { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building", activePages: ["renta-espacio.html"] },
       { href: "membresias.html", label: "Membresías", icon: "users" },
@@ -73,7 +74,7 @@ const navigationGroups = [
 
 const moduleShortcutGroups = [
   {
-    pages: ["recibo-prestamo.html"],
+    pages: ["recibo-prestamo.html", "inventario-colecciones.html"],
     backHref: "colecciones-museograficas.html",
     homeLabel: "Inicio",
     links: [
@@ -280,6 +281,8 @@ const hasPermission = (permission) => currentPermissions.has(permission);
 const canManageEmployees = () => hasPermission("employees.create") || hasPermission("employees.update.basic");
 const hasAdministrativeWorkspaceAccess = () =>
   hasPermission("system.configure") || (hasPermission("audit.read") && hasPermission("notifications.manage"));
+const canWriteCollections = () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.write");
+const canReadCollections = () => canWriteCollections() || hasPermission("collections.read");
 const canAccessAdministrationHub = () => hasAdministrativeWorkspaceAccess();
 const postLoginDestination = () => "dashboard.html";
 const canAccessPersonalSpace = () => ["profile.read.self", "employees.read.self", "schedules.read.self", "time.clock", "time.read.self"].some(hasPermission);
@@ -301,8 +304,10 @@ const SENSITIVE_MODULE_ACCESS = {
 
 const moduleAccessChecks = {
   "employee-portal.html": () => canAccessPersonalSpace(),
-  "departamento-museologico.html": () => hasAdministrativeWorkspaceAccess(),
-  "colecciones-museograficas.html": () => hasAdministrativeWorkspaceAccess(),
+  "departamento-museologico.html": () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.read") || hasPermission("collections.write"),
+  "colecciones-museograficas.html": () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.read") || hasPermission("collections.write"),
+  "inventario-colecciones.html": () => canReadCollections(),
+  "recibo-prestamo.html": () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.write"),
   "calendario.html": () => hasPermission("calendar.manage") || hasPermission("schedules.read.team"),
   "renta-espacios.html": () => hasPermission("rentals.manage"),
   "membresias.html": () => hasPermission("memberships.manage"),
@@ -379,6 +384,11 @@ function enforceAuthenticatedPageAccess() {
   }
   if (!currentPermissionsLoaded) return true;
   if (page === "dashboard.html" || page === "index.html") return false;
+  if (page === "inventario-colecciones.html") {
+    if (moduleAccessChecks[page]()) return false;
+    showProtectedAccessDenied("Solicite permiso de consulta o catalogación de Colecciones.");
+    return true;
+  }
 
   const executiveChecker = EXECUTIVE_MODULE_ACCESS[page];
   const sensitiveChecker = SENSITIVE_MODULE_ACCESS[page];
@@ -410,6 +420,9 @@ function enforceAuthenticatedPageAccess() {
   if (hasAdministrativeWorkspaceAccess()) return false;
 
   const allowedPages = new Map([
+    ["departamento-museologico.html", moduleAccessChecks["departamento-museologico.html"]],
+    ["colecciones-museograficas.html", moduleAccessChecks["colecciones-museograficas.html"]],
+    ["recibo-prestamo.html", moduleAccessChecks["recibo-prestamo.html"]],
     ["recursos-humanos.html", () => hasPermission("employees.read.all")],
     ["perfil-empleado.html", () => hasPermission("roles.assign")],
     ["calendario.html", () => hasPermission("calendar.manage") || hasPermission("schedules.read.team")],
@@ -6672,6 +6685,7 @@ async function initApp() {
   bindRentalForm();
   bindLoanReceiptForm();
   bindInventoryModule();
+  if (typeof bindCollectionsCatalog === "function") await bindCollectionsCatalog();
   bindCalendarModules();
   bindMembershipsModule();
   await bindEmployeePortal();
