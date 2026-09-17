@@ -67,14 +67,60 @@ export async function enforceEmailCooldown(admin: any, museumId: string, employe
 }
 
 export async function latestInvitationAt(admin: any, museumId: string, employeeId: string) {
-  const { data } = await admin.from("audit_logs")
+  const { data, error } = await admin.from("audit_logs")
     .select("created_at")
     .eq("museum_id", museumId)
     .in("action", ["USER_INVITED", "USER_INVITATION_RESENT"])
     .contains("new_value", { employee_id: employeeId })
     .order("created_at", { ascending: false })
     .limit(1);
+  if (error) throw error;
   return data?.[0]?.created_at || null;
+}
+
+// Read-only invitation readiness. Missing HR fields are data, not service errors.
+// Never infer an absent Auth identity solely from a missing profile_id.
+export async function employeeInvitationState(admin: any, museumId: string, employeeId: string) {
+  const { data: employee, error } = await admin.from("employees")
+    .select("id,email,profile_id,access_level").eq("id", employeeId).eq("museum_id", museumId).single();
+  if (error || !employee) throw error || new Error("EMPLOYEE_NOT_FOUND");
+  const email = String(employee.email || "").trim().toLowerCase();
+  const missing = [];
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) missing.push("email");
+  if (!ACCESS_LEVELS.includes(String(employee.access_level || "").trim().toLowerCase())) missing.push("access_level");
+  const base = { email, can_invite: false, missing_fields: missing, last_sign_in_at: null };
+  if (missing.includes("email")) return { ...base, status: employee.profile_id ? "review_required" : "incomplete_record" };
+  const pattern = email.replace(/[\\%_]/g, "\\$&");
+  const duplicates = await admin.from("employees").select("id").ilike("email", pattern);
+  const profiles = await admin.from("profiles").select("id,museum_id,email").ilike("email", pattern);
+  if (duplicates.error || profiles.error) throw duplicates.error || profiles.error;
+  const matches = [];
+  for (let page = 1; ; page++) {
+    const { data, error: authError } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (authError) throw authError;
+    matches.push(...data.users.filter((u: any) => String(u.email || "").trim().toLowerCase() === email));
+    if (data.users.length < 1000) break;
+  }
+  const account = matches[0];
+  if (duplicates.data?.length !== 1 || duplicates.data[0].id !== employeeId || matches.length > 1
+      || profiles.data.length > 1 || profiles.data.some((p: any) => p.id !== account?.id || p.museum_id !== museumId)
+      || (employee.profile_id && (employee.profile_id !== account?.id || profiles.data.length !== 1))) {
+    return { ...base, status: "review_required" };
+  }
+  if (account) {
+    const links = await admin.from("employees").select("id").eq("profile_id", account.id);
+    if (links.error) throw links.error;
+    if (links.data.some((e: any) => e.id !== employeeId)) return { ...base, status: "review_required" };
+    if (!employee.profile_id) return { ...base, status: account.invited_at ? "link_pending" : "review_required" };
+    const target = await getEmployeeAccessTarget(admin, museumId, employeeId);
+    return { ...base, status: target.status, last_sign_in_at: account.last_sign_in_at || null };
+  }
+  const attempts = await admin.from("audit_logs").select("id").eq("museum_id", museumId)
+    .in("action", ["USER_INVITATION_REQUESTED", "USER_INVITED", "USER_INVITATION_RESENT"])
+    .contains("new_value", { employee_id: employeeId }).limit(1);
+  if (attempts.error) throw attempts.error;
+  if (attempts.data?.length) return { ...base, status: "verification_required" };
+  return { ...base, status: missing.length ? "incomplete_record" : "no_account", can_invite: missing.length === 0 };
 }
 
 export async function recordAccessAudit(admin: any, museumId: string, actorId: string, action: string, employeeId: string, userId: string | null, requestId: string | null) {
@@ -112,7 +158,7 @@ export async function employeeLevelState(admin: any, museumId: string, employeeI
     .eq("id", employeeId).eq("museum_id", museumId).single();
   if (employeeResult.error || !employeeResult.data) throw employeeResult.error || new Error("EMPLOYEE_NOT_FOUND");
   const employee = employeeResult.data;
-  if (!employee.profile_id) return { employee, role: accessLevel(employee.access_level), conflicting: false, profile: null, roles: [], assignments: [], legacy: true };
+  if (!employee.profile_id) return { employee, role: employee.access_level === null ? null : accessLevel(employee.access_level), conflicting: false, profile: null, roles: [], assignments: [], legacy: true };
   const profileResult = await admin.from("profiles").select("id,museum_id,role,status")
     .eq("id", employee.profile_id).eq("museum_id", museumId).single();
   if (profileResult.error || !profileResult.data) throw profileResult.error || new Error("IDENTITY_LINK_INVALID");

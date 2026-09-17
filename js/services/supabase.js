@@ -51,7 +51,7 @@ function employeeFromSupabase(row) {
     condicion: row.medical_condition || "",
     usuario: row.email || "",
     passwordTemporal: "",
-    acceso: row.access_level ? row.access_level.charAt(0).toUpperCase() + row.access_level.slice(1) : "Empleado",
+    acceso: row.access_level ? row.access_level.charAt(0).toUpperCase() + row.access_level.slice(1) : "",
     estado: row.status === "inactivo" ? "Inactivo" : "Activo",
     notificaciones: "",
     source: "supabase"
@@ -65,7 +65,7 @@ function employeeToSupabasePayload(employee, museumId) {
     last_name: employee.apellidos,
     position: employee.posicion,
     department: employee.departamento,
-    email: employee.correo,
+    email: employee.correo?.trim() || null,
     phone: employee.telefono || null,
     address: employee.direccion || null,
     hire_date: employee.fechaContratacion || null,
@@ -162,7 +162,12 @@ async function callEmployeeAccessFunction(functionName, body) {
     body: JSON.stringify(body)
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "No se pudo completar la operación de acceso.");
+  if (!response.ok) {
+    const error = new Error(data.error || "No se pudo completar la operación de acceso.");
+    error.status = response.status;
+    error.code = data.code || null;
+    throw error;
+  }
   return data;
 }
 

@@ -33,16 +33,23 @@ test('signed URL failure prevents a successful directory read',async()=>{
 
 const hr=app.slice(app.indexOf('function bindHumanResourcesModule()'),app.indexOf('async function bindEmployeeProfile()'));
 const submit=hr.slice(hr.indexOf('  form.addEventListener("submit"'),hr.indexOf('  directory.addEventListener("click"'));
-function formFixture({roleFailure=false,photoFailure=false,allowed=true}={}) {
+function formFixture({roleFailure=false,photoFailure=false,allowed=true,draft=false}={}) {
  let handler;const calls=[],messages=[];
  const fields={id,nombre:'Synthetic',apellidos:'Employee',posicion:'Prueba',departamento:'Prueba',correo:'test@example.invalid',telefono:'',direccion:'',fechaContratacion:'',horario:'',educacion:'',condicion:'',acceso:'Administrador',estado:'Activo',notificaciones:''};
+ if(draft){fields.correo='';fields.acceso='';}
  const form={elements:{id:{value:id}},addEventListener:(event,fn)=>handler=fn};
  const c=vm.createContext({form,FormData:class{get(k){return fields[k];}},employeeSaving:false,photoReading:false,photoReadError:false,selectedPhoto:png,formPhotoReference:'',formServerLevel:{role:'empleado',conflicting:false},submitButton:{},
  canManageEmployees:()=>true,hasPermission:()=>allowed,employeeInitials:()=>'',getEmployeeRecords:()=>[{id}],getSupabaseSession:()=>({access_token:'fixture'}),supabaseProfile:{museum_id:'m'},
  saveSupabaseEmployee:async()=>{calls.push('save');if(photoFailure)throw Error('photo failed');return [{id}];},assignSupabaseEmployeeLevel:async()=>{calls.push('assign');if(roleFailure)throw Error('role failed');return {assigned:true,role:'administrador'};},
  canManageSensitiveEmployeeData:()=>false,fetchSupabaseEmployees:async()=>{calls.push('readback');return [{id}];},saveEmployeeRecords:()=>{},renderDirectory:()=>{},resetForm:()=>{},hideForm:()=>{},setMessage:(text,type)=>messages.push({text,type}),providerNeutralMessage:e=>e.message});
+ if(draft){c.formServerLevel={role:null,conflicting:false};c.selectedPhoto='';}
  vm.runInContext(submit,c);return {invoke:()=>handler({preventDefault(){}}),calls,messages};
 }
+
+test('RH saves a draft with no email or level without assigning any role',async()=>{
+ const f=formFixture({draft:true,allowed:false});await f.invoke();
+ assert.deepEqual(f.calls,['save','readback']);assert.equal(f.messages.at(-1).type,'success');
+});
 test('RH submit waits for safe assignment and server readback before success',async()=>{
  const f=formFixture();await f.invoke();assert.deepEqual(f.calls,['save','assign','readback']);assert.equal(f.messages.at(-1).type,'success');
 });

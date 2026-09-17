@@ -11,11 +11,14 @@ Deno.serve(async (req) => {
       try { context = await requirePermission(req, "roles.assign"); }
       catch { context = await requirePermission(req, "employees.read.all"); }
       const state = await employeeLevelState(context.admin, context.profile.museum_id, employeeId);
-      return json({ role: state.role, conflicting: state.conflicting, source: state.profile ? "server_roles" : "saved_employee_level" });
+      return json({ role: state.role, requested_role: state.employee.access_level,
+        effective_role: state.profile ? state.role : null,
+        conflicting: state.conflicting, source: state.profile ? "server_roles" : "saved_employee_level" });
     }
     const { caller, admin, profile } = await requirePermission(req, "roles.assign");
-    const target = await getEmployeeAccessTarget(admin, profile.museum_id, employeeId);
-    if (target.employee.profile_id) {
+    const state = await employeeLevelState(admin, profile.museum_id, employeeId);
+    if (state.employee.profile_id) {
+      const target = await getEmployeeAccessTarget(admin, profile.museum_id, employeeId);
       const linked = await admin.from("employees").select("id").eq("profile_id", target.employee.profile_id);
       const targetProfile = await admin.from("profiles").select("email,museum_id").eq("id", target.employee.profile_id).single();
       if (linked.error || targetProfile.error || linked.data?.length !== 1
@@ -30,7 +33,7 @@ Deno.serve(async (req) => {
       p_employee_id: employeeId, p_role_code: body.role_code, p_expected_role: body.expected_role
     });
     if (error) {
-      const conflict = ["40001", "40P01", "22023"].includes(error.code);
+      const conflict = ["40001", "40P01", "22023", "PT409"].includes(error.code);
       return json({ error: "No se confirmó el cambio. Recargue el nivel del servidor antes de reintentar.", code: error.code }, error.code === "42501" ? 403 : conflict ? 409 : 500);
     }
     if (data?.assigned !== true) throw new Error("ROLE_ASSIGNMENT_INCOMPLETE");
