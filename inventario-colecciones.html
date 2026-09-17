@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Museo Admin | Inventario de Colecciones</title>
+<link rel="stylesheet" href="css/main.css?v=instituva-catalog-20260729"><link rel="stylesheet" href="css/collections.css?v=collections-20260917"></head>
+<body><div class="app-shell"><aside class="sidebar" data-sidebar></aside><div class="sidebar-backdrop" data-sidebar-backdrop></div><div class="main-area">
+<header class="site-header" data-header></header><main class="page-content">
+<section class="card panel section-stack"><p class="page-kicker">PATRIMONIO MUSEOGRÁFICO</p><h2>Inventario de Colecciones</h2>
+<p>Registre y consulte el expediente de cada pieza. Se conservan las fotografías y el historial de cambios.</p>
+<div class="collection-toolbar"><label class="field" for="collection-search"><span>Buscar piezas</span><input id="collection-search" type="search" placeholder="Número, título, ubicación, donante o prestamista"></label>
+<button class="button secondary" id="collection-reload">Actualizar listado</button><button class="button submit-button" id="collection-new" hidden>Registrar pieza</button>
+<a class="button secondary" href="recibo-prestamo.html">Formulario de préstamo</a></div>
+<p id="collection-message" class="form-message" role="status" aria-live="polite">Cargando catálogo…</p><p id="collection-count"></p>
+<div class="table-wrap"><table class="data-table"><thead><tr><th>Número</th><th>Pieza</th><th>Clasificación</th><th>Ubicación</th><th>Conservación</th><th>Expediente</th></tr></thead><tbody id="collection-list"></tbody></table></div></section>
+<form id="collection-form" class="card panel application-form collection-form" hidden><h2 id="collection-form-title">Registrar pieza</h2><p>Los campos con * son obligatorios. La titularidad, el ingreso y la custodia se documentan por separado.</p>
+<fieldset><legend>Identificación de la pieza</legend><div class="form-row"><label class="field" for="collection-accession_number"><span>Número de inventario *</span><input id="collection-accession_number" name="accession_number" required type="text" maxlength="100"></label>
+<label class="field" for="collection-title"><span>Nombre o título *</span><input id="collection-title" name="title" required type="text" maxlength="300"></label>
+<label class="field" for="collection-description"><span>Descripción museográfica *</span><textarea id="collection-description" name="description" required rows="3" maxlength="10000"></textarea></label>
+<label class="field" for="collection-category"><span>Clasificación *</span><select id="collection-category" name="category" required><option value="">Seleccione una clasificación</option><option value="Instrumento musical">Instrumento musical</option><option value="Obra de arte">Obra de arte</option><option value="Fotografía patrimonial">Fotografía patrimonial</option><option value="Documento histórico">Documento histórico</option><option value="Vestuario">Vestuario</option><option value="Memorabilia">Memorabilia</option><option value="Otro bien patrimonial">Otro bien patrimonial</option></select></label>
+<label class="field" for="collection-author"><span>Autor / fabricante</span><input id="collection-author" name="author" type="text" maxlength="1000"></label>
+<label class="field" for="collection-dating"><span>Época / fecha de creación</span><input id="collection-dating" name="dating" type="text" maxlength="1000"></label>
+<label class="field" for="collection-materials"><span>Materiales y técnica</span><input id="collection-materials" name="materials" type="text" maxlength="1000"></label>
+<label class="field" for="collection-dimensions"><span>Dimensiones</span><input id="collection-dimensions" name="dimensions" type="text" maxlength="1000"></label>
+<label class="field" for="collection-provenance"><span>Procedencia</span><textarea id="collection-provenance" name="provenance" rows="3" maxlength="10000"></textarea></label></div></fieldset>
+<fieldset><legend>Procedencia y custodia</legend><div class="form-row"><label class="field" for="collection-owner"><span>Titularidad</span><input id="collection-owner" name="owner" type="text" maxlength="1000"></label>
+<label class="field" for="collection-acquisition"><span>Forma de ingreso / adquisición</span><input id="collection-acquisition" name="acquisition" type="text" maxlength="1000"></label>
+<label class="field" for="collection-custody"><span>Condición de custodia</span><input id="collection-custody" name="custody" type="text" maxlength="1000"></label>
+<label class="field" for="collection-donor"><span>Donante</span><input id="collection-donor" name="donor" type="text" maxlength="1000"></label>
+<label class="field" for="collection-lender"><span>Prestamista</span><input id="collection-lender" name="lender" type="text" maxlength="1000"></label>
+<label class="field" for="collection-received_date"><span>Fecha de ingreso</span><input id="collection-received_date" name="received_date" type="date" maxlength="1000"></label>
+<label class="field" for="collection-loan_reference"><span>Referencia de préstamo / documento</span><input id="collection-loan_reference" name="loan_reference" type="text" maxlength="1000"></label>
+<label class="field" for="collection-location"><span>Ubicación *</span><input id="collection-location" name="location" required type="text" maxlength="300"></label></div></fieldset>
+<fieldset><legend>Ubicación y conservación</legend><div class="form-row"><label class="field" for="collection-condition"><span>Estado de conservación *</span><textarea id="collection-condition" name="condition" required rows="3" maxlength="2000"></textarea></label>
+<label class="field" for="collection-status"><span>Estado del registro *</span><select id="collection-status" name="status" required><option value="ingreso">Ingreso / en documentación</option><option value="catalogada">Catalogada</option><option value="conservacion">En conservación</option><option value="restauracion">En restauración</option></select></label>
+<label class="field" for="collection-fmv"><span>Valor estimado (FMV)</span><input id="collection-fmv" name="fmv" type="number" min="0" max="999999999999.99" step="0.01"></label>
+<label class="field" for="collection-currency"><span>Moneda</span><select id="collection-currency" name="currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="Otra">Otra</option></select></label>
+<label class="field" for="collection-notes"><span>Observaciones</span><textarea id="collection-notes" name="notes" rows="3" maxlength="10000"></textarea></label></div></fieldset>
+<fieldset><legend>Fotografía y motivo</legend><label class="field" for="collection-photo"><span>Añadir fotografía (JPG, PNG o WEBP, hasta 10 MB)</span><input id="collection-photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
+<p>Las fotografías anteriores permanecen en el expediente.</p><label class="field" for="collection-caption"><span>Descripción de la fotografía</span><input id="collection-caption" name="caption" maxlength="1000"></label>
+<label class="field" for="collection-reason"><span>Motivo del registro o cambio *</span><textarea id="collection-reason" name="reason" required minlength="3" maxlength="2000" rows="2"></textarea></label></fieldset>
+<div class="collection-toolbar"><button class="button submit-button" type="submit">Guardar pieza</button><button class="button secondary" id="collection-cancel" type="button">Cancelar</button></div></form>
+<dialog id="collection-dialog" class="collection-dialog" aria-label="Expediente museográfico"><button id="collection-close" class="button secondary">Cerrar expediente</button><div id="collection-detail"></div></dialog>
+</main><footer class="site-footer" data-footer></footer></div></div>
+<script src="js/config.js"></script><script src="js/services/supabase.js?v=hr-draft-access-20260916"></script><script src="js/services/collections.js?v=collections-20260917"></script><script src="js/vendor/qrcode-1.4.4.js"></script><script src="js/collections.js?v=collections-20260917"></script><script src="js/app.js?v=collections-20260917"></script>
+</body></html>
