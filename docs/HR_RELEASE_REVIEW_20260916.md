@@ -32,7 +32,7 @@ tres, normalizando CRLF y salto final. SHA-256 del contenido normalizado:
 | js/services/supabase.js | `604A886C4CD2BFE4EF39DBFC612D5B154DE7DDC412D7DC6C9759879C7E8F78CF` |
 | js/config.js | `508D729A83B38458D076442FA9563451E37EA7E50CC4A6104F5003D7A93736E2` |
 
-Esto acredita repositorio, proyecto Pages y contenido publicado. **La asociación
+Esto acredita repositorio, proyecto Pages y contenido publicado. Por instrucción del usuario del 17 de septiembre, esta evidencia es la base de verificación del destino y no se exige acceso al panel como requisito para publicar. **La asociación
 administrativa del dominio personalizado y la configuración de ramas de
 Cloudflare no se han inspeccionado aún: el panel solicita iniciar sesión.** No
 se presenta la coincidencia de contenido como sustituto de esa comprobación.
@@ -99,7 +99,9 @@ Versiones actuales consultadas en Producción, sin desplegar:
 | employee-access | 1 | true |
 | invite-employee | 7 | true; no requiere despliegue por este PR |
 
-## Respaldo disponible: comprobación y límites
+## Respaldo disponible: comprobación inicial y límites históricos
+
+Esta comprobación inicial se complementa con el respaldo local y ensayo descritos al final; las carencias de copia de fotos y ensayo indicadas aquí quedaron resueltas dentro del alcance allí documentado.
 
 Lectura con `supabase backups list --project-ref kfokfjngozgcwjpzxcsu --output json`
 el 16 de septiembre de 2026:
@@ -167,3 +169,61 @@ Staging. Reproducción del error de Roberto con sesión de Guillermo en Producci
 sin guardar; el HAR/cuerpo HTTP bruto de Producción no se exportó. Consultar el
 [informe de evidencia](HR_UNLINKED_EMPLOYEE_CORRECTIVE_20260916.md).
 No se repiten pruebas de fotos, seguridad o datos reales durante esta revisión.
+
+## Actualización: respaldo local y recuperación comprobada
+
+El 16 de septiembre se creó una copia privada fuera del repositorio y de
+OneDrive, en `C:\Users\guill\Museo_Backups\production-20260916-224524`.
+La carpeta raíz tiene herencia de permisos deshabilitada y acceso limitado al
+usuario actual de Windows y SYSTEM. Los datos, fotografías, credenciales locales
+y registros de recuperación no se incorporan a este PR.
+
+- `database.dump`: pg_dump 17.11, formato custom, 7.177.706 bytes; SHA-256
+  `F1367757490A0A88BA63A5482845DAE02E10A804EABF29B7977E19871AD315D1`.
+  Incluye esquema y datos; se pudo listar y extraer íntegramente sin errores.
+- Recuperación en PostgreSQL local aislado, solo `127.0.0.1:55439`, con contraseña:
+  64 tablas y 2.147 filas de `public`, `auth`, `storage` y `supabase_migrations`.
+  Se compararon todas las filas COPY, ordenadas dentro de cada tabla, con el dump
+  original: igualdad completa, además de conteos coincidentes. Ambas exportaciones
+  usan UTC; la primera diferencia detectada era únicamente la zona horaria local.
+- Storage: 20 archivos, 4.976.031 bytes. Tamaños y SHA-256 verificados al descargar
+  y al recuperar una copia local; imágenes decodificables: 1 PNG y 19 WEBP.
+  El inventario de objetos/buckets y referencias permaneció estable durante la
+  descarga. También se preservó, decodificó y verificó una foto inline de employees.
+- El dump también contiene `legacy.inventory_items_pre_v1` (0 filas),
+  `realtime.schema_migrations` (82), `realtime.subscription` (0) y `vault.secrets`
+  (0). Estas cuatro tablas están en el archivo y en su extracción íntegra,
+  pero no se cargaron en el ensayo de recuperación de datos de aplicación.
+- El servidor local quedó detenido. No se escribieron datos de aplicación en
+  Producción ni Staging, no se restauraron backups antiguos, no hubo invitaciones,
+  migraciones, despliegues ni repetición de las pruebas funcionales acreditadas.
+
+**Alcance preciso:** se comprobó recuperación de datos de aplicación y archivos,
+no la puesta en marcha completa de Supabase. El ensayo local omite RLS, triggers,
+funciones, propietarios/ACL y servicios administrados; sus definiciones incluidas
+en el dump requieren un entorno Supabase compatible y revisión para recuperarse
+operativamente. No usar `pg_restore` a ciegas contra Producción.
+
+El paquete privado de respaldo conserva el dump, objetos, inventario y referencias
+de fotos, manifiestos, comprobaciones y guía. Para comprobarlo sin tocar servidores:
+extraer en otra carpeta privada y cotejar `SHA256SUMS.json`. La guía de recuperación
+local y la evidencia detallada permanecen junto al respaldo privado.
+
+**Estado al 17 de septiembre:** el usuario acepta verificar el destino mediante
+la evidencia ya obtenida y no requiere acceso al panel de Cloudflare. El check de
+GitHub para instituva-app, el ID de despliegue y la igualdad de scripts con
+mmdpr.org acreditan el destino operativo; no se afirma haber inspeccionado la
+configuración administrativa de dominios o ramas. No se cambiará esa configuración.
+La segunda copia externa queda aplazada por decisión expresa del usuario.
+
+Paquete privado final: `production-recovery.zip`, 29 archivos, 11.919.888 bytes;
+SHA-256 `ddad278caf10575abcc82c1d7d77a14c115a1d4f2bcd9eaf08be038968e4fecb`.
+Se verificaron el ZIP y todos sus archivos contra el manifiesto. El paquete permanece
+local, fuera del repositorio. No se hace ninguna nueva restauración en esta etapa.
+
+PR #32 sin conflictos contra main `2a33ef4`; las pruebas funcionales aprobadas no
+se repiten. La documentación se actualiza con `[CF-Pages-Skip]`, sin despliegue.
+Se mantiene el PR en borrador para evitar confundir preparación con autorización.
+**Único impedimento de autorización para publicar: falta la aprobación explícita
+posterior del usuario.** Antes de ejecutarla, comprobar que main y el estado de
+Producción siguen siendo los revisados; una deriva real requeriría evaluación.
