@@ -17,13 +17,13 @@ assert.match(service, /includes\(profile\.role\)/);
 assert.match(service, /\["active", "activo"\]/);
 
 // The conflict is resolved in favor of durable repair, never destructive rollback.
-assert.equal((invite.match(/inviteUserByEmail\(/g) || []).length, 1);
+assert.equal((invite.match(/inviteUserByEmail\(/g) || []).length, 2);
 assert.doesNotMatch(invite, /deleteUser|ban_duration|updateUserById/);
 for (const state of ["invite_failed", "invite_sent_link_pending", "invite_sent_linked"]) assert.ok(invite.includes(state));
 assert.match(invite, /cleanEmployeeId\(body\.employee_id\)/);
 assert.match(invite, /cleanRequestId\(body\.request_id\)/);
 assert.match(invite, /enforceEmailCooldown/);
-assert.match(invite, /action === "resend"[\s\S]*admin\.auth\.resend/);
+assert.match(invite, /action === "resend"[\s\S]*admin\.auth\.admin\.inviteUserByEmail/);
 assert.match(invite, /resend-request:/);
 assert.match(invite, /USER_INVITATION_RESENT/);
 assert.match(invite, /allowed\.includes\(destination\)/);

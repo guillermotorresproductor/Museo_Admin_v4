@@ -34,11 +34,18 @@ export async function getEmployeeAccessTarget(admin: any, museumId: string, empl
   if (authError || !data?.user) throw new Error("IDENTITY_LINK_INVALID");
   const authUser = data.user;
   const bannedUntil = authUser.banned_until ? new Date(authUser.banned_until).getTime() : 0;
-  const status = bannedUntil > Date.now()
+  let status = bannedUntil > Date.now()
     ? "deactivated"
     : authUser.email_confirmed_at
       ? "active"
       : "invitation_pending";
+  if (status === 'active' && Deno.env.get('EMPLOYEE_INVITATIONS_V2') === 'true') {
+    const latest=await admin.from('employee_invitation_grants').select('accepted_at')
+      .eq('employee_id',employeeId).eq('auth_user_id',authUser.id).is('revoked_at',null)
+      .order('issued_at',{ascending:false}).limit(1);
+    if(latest.error)throw latest.error;
+    if(latest.data?.length && !latest.data[0].accepted_at)status='password_setup_pending';
+  }
   return { employee, email, authUser, status };
 }
 
@@ -113,7 +120,7 @@ export async function employeeInvitationState(admin: any, museumId: string, empl
     if (links.data.some((e: any) => e.id !== employeeId)) return { ...base, status: "review_required" };
     if (!employee.profile_id) return { ...base, status: account.invited_at ? "link_pending" : "review_required" };
     const target = await getEmployeeAccessTarget(admin, museumId, employeeId);
-    return { ...base, status: target.status, last_sign_in_at: account.last_sign_in_at || null };
+    return { ...base, status: target.status, last_sign_in_at: target.status==='password_setup_pending'?null:account.last_sign_in_at || null };
   }
   const attempts = await admin.from("audit_logs").select("id").eq("museum_id", museumId)
     .in("action", ["USER_INVITATION_REQUESTED", "USER_INVITED", "USER_INVITATION_RESENT"])

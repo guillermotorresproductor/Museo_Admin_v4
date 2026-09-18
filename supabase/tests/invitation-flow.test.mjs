@@ -45,6 +45,8 @@ function server(options={}) {
     auth:{resend:async(config)=>{state.calls.push({op:"resend",config});state.resent++;return {error:null};},admin:{
       listUsers:async({page,perPage})=>({data:{users:clone(state.users.slice((page-1)*perPage,page*perPage))}}),
       inviteUserByEmail:async(email,config)=>{
+        const existing=state.users.find(u=>u.email===email);
+        if(existing){state.resent++;state.calls.push({op:"reinvite",config});return {data:{user:clone(existing)},error:null};}
         state.calls.push({op:"invite",config});
         if(state.failure==="send")return {error:{status:400,message:"internal Auth error"}};
         if(state.failure==="uncertain")throw Error("transport fixture error");
@@ -175,7 +177,7 @@ for(const kind of ["permission","missing","museum","email","duplicate","role","p
   assert.equal(s.state.sent,0);
 });
 for(const [project,redirect] of [
-  ["https://kfokfjngozgcwjpzxcsu.supabase.co","https://mmdpr.org/login.html"],
+  ["https://kfokfjngozgcwjpzxcsu.supabase.co","https://mmdpr.org/login"],
   ["https://lonpdmxdvbxuagqxztig.supabase.co","https://demo.instituva.com/login.html"],
   ["http://127.0.0.1:54321","http://localhost:3000/login.html"],
   ["http://kong:8000","http://localhost:5173/login.html"]
@@ -268,7 +270,7 @@ function ui(callback={},overrides={}) {
     window:{location:{href:"https://fixture.invalid/login.html#access_token=fixture-token",search:"",replace:url=>{state.redirect=url;}},
       history:{replaceState(){state.cleaned=true;}},addEventListener:(name,fn)=>events[name]=fn},
     sessionStorage:storage(),localStorage:storage(),passwordSetupPendingKey:"setup",
-    getAuthCallbackParams:()=>clone(callback),isPasswordSetupCallback:p=>Boolean(p.type||p.code||p.access_token||p.token_hash||p.error),
+    getAuthCallbackParams:()=>clone(callback),isPasswordSetupCallback:p=>Boolean(p.invitation_token||p.type||p.code||p.access_token||p.token_hash||p.error),
     markPasswordSetupPending(){},clearPasswordSetupPending(){},isPasswordSetupPending:()=>false,
     validateSupabasePasswordSetupSession:async candidate=>{if(!candidate?.access_token)throw helpers.passwordSetupError("invalid_link");return {...candidate,user:{id:"u1"},setup_type:"invite"};},
     verifySupabaseEmailToken:async()=>clone(session),exchangeSupabasePasswordSetupCode:async()=>clone(session),
@@ -286,6 +288,79 @@ function ui(callback={},overrides={}) {
   return {context,state,events,element,submit:()=>element("[data-invite-password-form]").listeners.submit({preventDefault(){}})};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
+test("opening a token-hash email in a fresh browser does not consume it; double click verifies once",async()=>{
+  let verifies=0;
+  const u=ui({token_hash:"fixture-hash",type:"invite"},{verifySupabaseEmailToken:async token=>{
+    assert.equal(token.token_hash,"fixture-hash"); verifies++; return clone(session);
+  }});
+  await tick(); assert.equal(verifies,0); assert.equal(u.element("password").disabled,true);
+  const button=u.element("[data-password-setup-continue]");
+  button.listeners.click();button.listeners.click();await tick();
+  assert.equal(verifies,1); assert.equal(u.element("password").disabled,false);
+  await u.submit();assert.equal(u.state.updated,1);
+});
+test("cancelling before verification erases the pending email token",async()=>{
+  let verifies=0;
+  const u=ui({token_hash:"fixture-hash",type:"invite"},{verifySupabaseEmailToken:async()=>{verifies++;return clone(session);}});
+  u.element("[data-password-setup-cancel]").listeners.click();
+  u.element("[data-password-setup-continue]").listeners.click();await tick();
+  assert.equal(verifies,0);assert.equal(u.state.updated,0);
+});
+test('independent invitation waits for user action and redeems once on double click',async()=>{
+  let redeemed=0;
+  const u=ui({invitation_token:'a'.repeat(64)},{redeemSupabaseEmployeeInvitation:async token=>{
+    assert.equal(token,'a'.repeat(64));redeemed++;return {...clone(session),invitation_id:'grant-fixture'};
+  }});
+  await tick();assert.equal(redeemed,0);assert.equal(u.element('password').disabled,true);
+  const button=u.element('[data-password-setup-continue]');
+  button.listeners.click();button.listeners.click();await tick();
+  assert.equal(redeemed,1);assert.equal(u.element('password').disabled,false);
+});
+test('custom invitation acceptance follows password write and fails closed on completion error',async()=>{
+  const calls=[];
+  const {context}=serviceContext();
+  const normalFetch=context.fetch;
+  context.fetch=async(url,options={})=>{
+    if(options.method==='PUT'){calls.push('password');return response(authUser);}
+    if(url.includes('/functions/v1/accept-employee-invitation')){
+      calls.push('complete');assert.equal(JSON.parse(options.body).invitation_id,'grant-fixture');
+      return response({code:'acceptance_failed'},409);
+    }
+    return normalFetch(url,options);
+  };
+  await assert.rejects(context.updateSupabaseSetupPassword({...session,invitation_id:'grant-fixture'},'FixturePass123!'),e=>e.code==='acceptance_failed');
+  assert.deepEqual(calls,['password','complete']);
+});
+for(const code of ['invitation_expired','invitation_used','invitation_replaced','invitation_processing'])test('custom invitation preserves precise error '+code,async()=>{
+  const {context}=serviceContext({fetch:async()=>response({code},409)});
+  await assert.rejects(context.redeemSupabaseEmployeeInvitation('a'.repeat(64)),e=>e.code===code);
+});
+test("expired/reused callback is honest about Auth ambiguity and offers recovery",async()=>{
+  const u=ui({error:"access_denied",error_code:"otp_expired"});await tick();
+  assert.match(u.element("[data-login-message]").textContent,/venció o ya fue utilizado/);
+  assert.match(u.element("[data-login-message]").textContent,/reenviar la invitación/);
+  assert.equal(u.state.updated,0);
+});
+for(const [status,data,code] of [[403,{error_code:"otp_expired"},"link_unavailable"],[429,{},"rate_limited"],[503,{},"request_failed"]])
+test("verification distinguishes unavailable link from transient failure "+status,async()=>{
+  const {context}=serviceContext({fetch:async()=>response(data,status)});
+  await assert.rejects(context.verifySupabaseEmailToken({token_hash:"fixture",type:"invite"}),e=>e.code===code);
+});
+test("linked existing account receives a login/recovery result without writes",async()=>{
+  const s=server();s.state.users=[{...authUser,invited_at:null}];
+  s.state.tables.profiles=[{id:"u1",museum_id:"m1",email:authUser.email,role:"empleado",status:"active"}];
+  s.state.tables.employees[0].profile_id="u1";
+  const before=clone(s.state.tables);
+  assert.equal((await s.invoke()).data.code,"existing_account");
+  assert.deepEqual(s.state.tables,before);assert.equal(s.state.sent,0);assert.equal(s.state.resent,0);
+});
+test("resend preserves identity profile and permissions",async()=>{
+  const s=server();await s.invoke();s.state.tables.audit_logs.forEach(row=>row.created_at="2000-01-01");
+  s.state.tables.profiles[0].full_name="Preserved name";
+  const before=clone({users:s.state.users,profiles:s.state.tables.profiles,employees:s.state.tables.employees,roles:s.state.tables.user_roles});
+  await s.invoke("resend");
+  assert.deepEqual({users:s.state.users,profiles:s.state.tables.profiles,employees:s.state.tables.employees,roles:s.state.tables.user_roles},before);
+});
 test("URL is cleaned immediately and all fields disabled until validation",async()=>{
   let release;
   const u=ui({access_token:"fixture-token",type:"invite"},{validateSupabasePasswordSetupSession:()=>new Promise(r=>{release=r;})});
@@ -458,7 +533,9 @@ test("explicit resend retains cooldown, closed redirect and request idempotency"
   assert.equal(first.data.code,"invite_sent_linked");assert.equal(first.data.stage,"resend");
   assert.equal((await s.invoke("resend",{request_id:id})).data.code,"invite_sent_linked");
   assert.equal(s.state.resent,1);assert.equal(s.state.sent,1);
-  assert.equal(s.state.calls.find(c=>c.op==="resend").config.options.emailRedirectTo,"https://mmdpr.org/login.html");
+  assert.equal(s.state.calls.find(c=>c.op==="reinvite").config.redirectTo,"https://mmdpr.org/login");
+  assert.equal(s.state.calls.filter(c=>c.op==="resend").length,0);
+  assert.equal(s.state.users.length,1);
 });
 test("resend is never used by a repair request",async()=>{
   const s=server();await s.invoke();await s.invoke("repair");assert.equal(s.state.resent,0);

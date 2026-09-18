@@ -22,10 +22,12 @@ Deno.serve(async (req) => {
 
     const requestId = cleanRequestId(body.request_id);
     if (action === "recovery") {
-      if (target.status !== "active" || !target.authUser) return json({ error: "La cuenta no está activa." }, 409);
+      if (!["active","password_setup_pending"].includes(target.status) || !target.authUser) return json({ error: "La cuenta no está activa." }, 409);
       if (await findProcessedRequest(admin, profile.museum_id, employeeId, "USER_PASSWORD_RECOVERY_SENT", requestId)) return json({ recovery_sent: true, replayed: true });
       await enforceEmailCooldown(admin, profile.museum_id, employeeId, ["USER_PASSWORD_RECOVERY_SENT"]);
-      const { error } = await admin.auth.resetPasswordForEmail(target.email, { redirectTo: EMPLOYEE_LOGIN_REDIRECT });
+      const recoveryRedirect=Deno.env.get('SUPABASE_URL')==='https://lonpdmxdvbxuagqxztig.supabase.co'
+        ? (Deno.env.get('INVITE_REDIRECT_URL')||'https://demo.instituva.com/login.html') : EMPLOYEE_LOGIN_REDIRECT;
+      const { error } = await admin.auth.resetPasswordForEmail(target.email, { redirectTo: recoveryRedirect });
       if (error) return json({ error: "No se pudo enviar el enlace de recuperación." }, 400);
       await recordAccessAudit(admin, profile.museum_id, user.id, "USER_PASSWORD_RECOVERY_SENT", employeeId, target.authUser.id, requestId);
       return json({ recovery_sent: true });

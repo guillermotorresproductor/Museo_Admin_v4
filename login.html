@@ -10,7 +10,7 @@
     (() => {
       const url = new URL(window.location.href);
       const hash = new URLSearchParams(url.hash.slice(1));
-      const keys = ["access_token", "refresh_token", "token_hash", "code", "type", "expires_in", "token_type", "error", "error_code", "error_description"];
+      const keys = ["invitation_token", "access_token", "refresh_token", "token_hash", "code", "type", "expires_in", "token_type", "error", "error_code", "error_description"];
       const callback = {};
       keys.forEach(key => {
         const value = hash.get(key) || url.searchParams.get(key);
@@ -78,6 +78,7 @@
         <section class="card panel login-card" data-invite-acceptance hidden>
           <h3>Crear contraseña</h3>
           <p>Cree y confirme su contraseña para activar su cuenta de Instituva.</p>
+          <button class="button" type="button" data-password-setup-continue hidden>Continuar y validar invitación</button>
           <form class="form-grid" data-invite-password-form>
             <div class="field">
               <label for="invite-password">Nueva contraseña</label>
@@ -98,8 +99,8 @@
     </div>
   </div>
   <script src="js/config.js?v=private-login-20260903"></script>
-  <script src="js/services/supabase.js?v=pr31-access-91849c8"></script>
-  <script src="js/app.js?v=pr31-access-91849c8"></script>
+  <script src="js/services/supabase.js?v=invite-recovery-20260917"></script>
+  <script src="js/app.js?v=invite-recovery-20260917"></script>
 </body>
 </html>
 

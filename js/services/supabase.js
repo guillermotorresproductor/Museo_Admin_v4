@@ -134,6 +134,7 @@ async function fetchCurrentSupabasePermissions() {
 }
 
 const employeeInvitationMessages = Object.freeze({
+  existing_account: "El empleado ya tiene una cuenta vinculada. Puede iniciar sesión o usar Recuperar contraseña; no se envió otra invitación.",
   invite_failed: "No se envió una invitación en esta operación. Revise los requisitos con Administración.",
   invite_sent_link_pending: "La invitación fue enviada, pero la vinculación está pendiente. Puede repararla sin reenviar el correo.",
   invite_sent_linked: "Invitación enviada y vinculación completada. El destinatario puede activar su cuenta.",
@@ -217,6 +218,7 @@ async function clockSupabaseEmployeeTime(action, presence = {}) {
 }
 
 function passwordRecoveryRedirectUrl() {
+  if (typeof isMuseumProductionHost === "function" && isMuseumProductionHost()) return "https://mmdpr.org/login";
   const redirect = new URL("login.html", window.location.href);
   if (typeof isMuseumProductionHost !== "function" || !isMuseumProductionHost()) {
     redirect.searchParams.set("environment", museoEnvironment.name);
@@ -233,7 +235,7 @@ async function requestSupabasePasswordRecovery(email) {
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw passwordSetupError("request_failed");
+    throw passwordSetupError(response.status === 429 ? "rate_limited" : "request_failed");
   }
 }
 
@@ -245,8 +247,17 @@ async function verifySupabaseEmailToken({ token_hash, type }) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw passwordSetupError("invalid_link");
+    throw passwordSetupError(response.status === 429 ? "rate_limited" : response.status >= 500 ? "request_failed" : data.error_code === "otp_expired" || data.code === "otp_expired" ? "link_unavailable" : "invalid_link");
   }
+  return data;
+}
+
+async function redeemSupabaseEmployeeInvitation(invitation_token) {
+  const response = await fetch(`${supabaseUrl}/functions/v1/accept-employee-invitation`, {
+    method: 'POST', headers: supabaseHeaders(), body: JSON.stringify({action:'redeem',invitation_token})
+  });
+  const data = await response.json().catch(()=>({}));
+  if(!response.ok) throw passwordSetupError(data.code || 'request_failed');
   return data;
 }
 
@@ -506,7 +517,14 @@ async function archiveSupabaseMaintenanceTask(id) {
 }
 
 const passwordSetupMessages = Object.freeze({
-  invalid_link: "El enlace no es válido, expiró o ya fue utilizado. Solicite uno nuevo.",
+  invitation_expired: "La invitación venció: han pasado sus 24 horas de vigencia. Solicite a Administración una nueva invitación.",
+  invitation_replaced: "Esta invitación fue reemplazada por otra. Abra el correo más reciente.",
+  invitation_used: "Esta invitación ya se utilizó. Inicie sesión; si no terminó de crear su contraseña, use Recuperar contraseña.",
+  invitation_preparing: "La vinculación todavía se está preparando. Espere un momento y vuelva a abrir el enlace; si continúa, contacte a Administración.",
+  invitation_processing: "La activación ya se inició con este enlace. Si no pudo terminar, use Recuperar contraseña o contacte a Administración.",
+  invalid_link: "No se pudo validar este enlace. Use el correo más reciente o solicite a Administración una nueva invitación. Si ya creó su contraseña, inicie sesión o use Recuperar contraseña.",
+  link_unavailable: "El enlace venció o ya fue utilizado. Si no creó su contraseña, solicite a Administración reenviar la invitación y abra el correo más reciente. Si ya la creó, inicie sesión o use Recuperar contraseña.",
+  rate_limited: "Se solicitaron demasiados correos o intentos. Espere unos minutos y use el último enlace recibido.",
   invalid_profile: "No se pudo validar la vinculación del perfil. Contacte a Administración.",
   invalid_employee: "No se pudo validar la vinculación del empleado y museo. Contacte a Administración.",
   invalid_role: "No se pudo validar la vinculación del rol. Contacte a Administración.",
@@ -599,13 +617,19 @@ async function validateSupabasePasswordSetupSession(session, type) {
     }
   }
   return { access_token: session.access_token, refresh_token: session.refresh_token,
-    user: { id: user.id }, setup_type: type || (user.invited_at ? "invite" : "recovery") };
+    user: { id: user.id }, setup_type: type || (user.invited_at ? "invite" : "recovery"), invitation_id: session.invitation_id };
 }
 async function updateSupabaseSetupPassword(session, password) {
   const validated = await validateSupabasePasswordSetupSession(session, session.setup_type);
   try {
     const user = await passwordSetupRequest("/auth/v1/user", validated, { method: "PUT", body: JSON.stringify({ password }) });
     if (user.id !== validated.user.id) throw passwordSetupError("wrong_account");
+    if(validated.invitation_id || validated.setup_type==='recovery') {
+      const completed = await passwordSetupRequest('/functions/v1/accept-employee-invitation',validated,{
+        method:'POST',body:JSON.stringify({action:'complete',invitation_id:validated.invitation_id})
+      });
+      if(completed.accepted!==true)throw passwordSetupError('acceptance_failed');
+    }
     return { id: user.id };
   } finally {
     validated.access_token = null; validated.refresh_token = null; validated.user = null; password = null;

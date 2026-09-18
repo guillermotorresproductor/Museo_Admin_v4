@@ -1,7 +1,9 @@
 import { corsHeaders, json, requirePermission } from "../_shared/security.ts";
 import { cleanEmployeeId, cleanRequestId, enforceEmailCooldown, accessLevel } from "../_shared/employee-access.ts";
+import { prepareInvitationGrant, activateInvitationGrant } from "../_shared/invitation-grants.ts";
 
 const messages = {
+  existing_account: "El empleado ya tiene una cuenta vinculada. Puede iniciar sesión o usar Recuperar contraseña; no se envió otra invitación.",
   invite_failed: "No se envió una invitación en esta operación. Revise los requisitos con Administración.",
   invite_sent_link_pending: "La invitación fue enviada, pero la vinculación está pendiente. Puede reparar la vinculación sin reenviar el correo.",
   invite_sent_linked: "Invitación enviada y vinculación completada. El destinatario puede activar su cuenta.",
@@ -14,15 +16,15 @@ function logFailure(stage: string, error: unknown) {
   const e = error as { code?: string; message?: string; details?: string; hint?: string };
   // Only technical fields: never serialize requests, users, sessions or credentials.
   const redact = (value: unknown) => String(value || "").replace(/Bearer\s+\S+|eyJ[A-Za-z0-9_.-]+/gi, "[REDACTED]")
-    .replace(/(access_token|refresh_token|token_hash|password|code_verifier)[=:"\s]+[^\s,;&}]+/gi, "$1=[REDACTED]")
+    .replace(/(invitation_token|access_token|refresh_token|token_hash|password|code_verifier)[=:"\s]+[^\s,;&}]+/gi, "$1=[REDACTED]")
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[EMAIL]").slice(0, 1500);
   console.error("invite-employee", { stage, code: redact(e?.code || "INTERNAL"), detail: redact(e?.message), details: redact(e?.details), hint: redact(e?.hint) });
 }
 function invitationRedirect() {
   const project = Deno.env.get("SUPABASE_URL") || "";
   const environments: Record<string, string[]> = {
-    "https://kfokfjngozgcwjpzxcsu.supabase.co": ["https://mmdpr.org/login.html"],
-    "https://lonpdmxdvbxuagqxztig.supabase.co": ["https://demo.instituva.com/login.html"],
+    "https://kfokfjngozgcwjpzxcsu.supabase.co": ["https://mmdpr.org/login"],
+    "https://lonpdmxdvbxuagqxztig.supabase.co": ["https://demo.instituva.com/login.html", "http://127.0.0.1:8765/login.html?environment=staging"],
     // 5173 is the documented local Vite port; 3000 is the local Auth site port.
     "http://127.0.0.1:54321": ["http://localhost:3000/login.html", "http://localhost:5173/login.html"],
     "http://localhost:54321": ["http://localhost:3000/login.html", "http://localhost:5173/login.html"],
@@ -59,6 +61,7 @@ Deno.serve(async (req) => {
     if (!["invite", "repair", "resend"].includes(action)) throw new Error("INVALID_REQUEST");
     if (!profile.status || typeof profile.status !== "string") throw new Error("PROFILE_STATUS_REQUIRED");
     const redirectTo = invitationRedirect();
+    const customInvitations = Deno.env.get("EMPLOYEE_INVITATIONS_V2") === "true";
     const { data: employee, error: employeeError } = await admin.from("employees")
       .select("id,email,first_name,last_name,profile_id,museum_id,access_level").eq("id", employeeId).eq("museum_id", profile.museum_id).single();
     if (employeeError) throw employeeError;
@@ -98,7 +101,17 @@ Deno.serve(async (req) => {
     if (profiles.length > 1 || (profiles.length && profiles[0].id !== account?.id)) throw new Error("PROFILE_CONFLICT");
     if (employee.profile_id && employee.profile_id !== account?.id) throw new Error("EMPLOYEE_IDENTITY_CONFLICT");
     if (account) {
-      if (!account.invited_at) throw new Error("EXISTING_NON_INVITED_ACCOUNT");
+      if (!account.invited_at || account.email_confirmed_at) {
+        // Never adopt an unlinked account or rewrite its existing permissions.
+        const existing = profiles[0];
+        const links = await admin.from("employees").select("id").eq("profile_id", account.id);
+        if (links.error) throw links.error;
+        if (employee.profile_id !== account.id || !existing || existing.museum_id !== profile.museum_id ||
+            !["active", "activo"].includes(existing.status) || !account.email_confirmed_at ||
+            (account.banned_until && Date.parse(account.banned_until) > Date.now()) ||
+            links.data.length !== 1 || links.data[0].id !== employeeId) throw new Error("EXISTING_ACCOUNT_REQUIRES_REVIEW");
+        return result("existing_account", "verification");
+      }
       sent = true; // Auth records an earlier invitation; never send it again.
       const existing = profiles[0];
       if (existing && (existing.museum_id !== profile.museum_id || existing.role !== roleCode || existing.status !== profile.status)) throw new Error("INCOMPATIBLE_PROFILE");
@@ -136,14 +149,18 @@ Deno.serve(async (req) => {
         throw claim.error;
       }
       stage = "send";
+      const grant = customInvitations ? await prepareInvitationGrant(admin,employeeId,profile.museum_id,user.id,requestId,redirectTo) : null;
       dispatching = true;
       const invitation = await admin.auth.admin.inviteUserByEmail(email, {
-        redirectTo, data: { full_name: [employee.first_name, employee.last_name].filter(Boolean).join(" ") }
+        redirectTo: grant?.redirect || redirectTo, data: { full_name: [employee.first_name, employee.last_name].filter(Boolean).join(" ") }
       });
       if (invitation.error) {
         logFailure(stage, invitation.error);
         // Only a definite client rejection proves that this attempt did not send.
-        if (invitation.error.status >= 400 && invitation.error.status < 500) return result("invite_failed", stage, 400);
+        if (invitation.error.status >= 400 && invitation.error.status < 500) {
+          if(grant)await admin.from('employee_invitation_grants').update({revoked_at:new Date().toISOString()}).eq('id',grant.id);
+          return result("invite_failed", stage, 400);
+        }
         return result("invite_status_unknown", "verification", 502);
       }
       if (!invitation.data?.user) return result("invite_status_unknown", "verification", 502);
@@ -153,11 +170,12 @@ Deno.serve(async (req) => {
     }
     stage = "link";
     const userId = account.id;
-    const { data: savedProfile, error: profileError } = await admin.from("profiles")
+    const profileResult = profiles[0] ? { data: profiles[0], error: null } : await admin.from("profiles")
       .upsert({ id: userId, museum_id: profile.museum_id,
         full_name: [employee.first_name, employee.last_name].filter(Boolean).join(" "),
         email, role: roleCode, status: profile.status }, { onConflict: "id" })
       .select("id,museum_id").single();
+    const { data: savedProfile, error: profileError } = profileResult;
     if (profileError || !savedProfile || savedProfile.museum_id !== profile.museum_id) {
       logFailure("link", profileError || new Error("PROFILE_PROVISION_FAILED"));
       throw new Error("PROFILE_PROVISION_FAILED");
@@ -179,8 +197,8 @@ Deno.serve(async (req) => {
         const previous = await admin.from("user_roles").select("role_id").eq("museum_id", profile.museum_id).eq("user_id", userId).in("role_id", incompatible);
         if (previous.error) throw previous.error;
         if (previous.data.length) await requirePermission(req, "roles.assign");
-        const removed = await admin.from("user_roles").delete().eq("museum_id", profile.museum_id).eq("user_id", userId).in("role_id", incompatible);
-        if (removed.error) throw removed.error;
+        // An invitation is not a role-change operation. Preserve existing roles.
+        if (previous.data.length) throw new Error("ROLE_ASSIGNMENT_REQUIRES_REVIEW");
       }
       const assignment = await admin.from("user_roles").upsert({
         museum_id: profile.museum_id, user_id: userId, role_id: role.id, assigned_by: user.id
@@ -211,6 +229,7 @@ Deno.serve(async (req) => {
     } else if (existingAudit.data.record_id !== userId || existingAudit.data.museum_id !== profile.museum_id ||
         existingAudit.data.action !== "USER_INVITED" || existingAudit.data.new_value?.employee_id !== employeeId) throw new Error("AUDIT_CONFLICT");
 
+    if(customInvitations && action !== 'resend') await activateInvitationGrant(admin,employeeId,userId);
     if (action === "resend") {
       // Explicit resend only, after the existing identity/link has been verified.
       // A repeated request with uncertain delivery cannot send a second email.
@@ -233,12 +252,17 @@ Deno.serve(async (req) => {
         throw resendClaim.error;
       }
       stage = "send";
+      const grant = customInvitations ? await prepareInvitationGrant(admin,employeeId,profile.museum_id,user.id,requestId,redirectTo) : null;
       try {
-        const resend = await admin.auth.resend({ type: "signup", email, options: { emailRedirectTo: redirectTo } });
+        // /resend signup produces a signup callback, not an invitation callback.
+        // Reinvite the SAME unconfirmed identity; never delete/recreate it.
+        const resend = await admin.auth.admin.inviteUserByEmail(email, { redirectTo: grant?.redirect || redirectTo });
         if (resend.error) {
           logFailure(stage, resend.error);
+          if(grant && resend.error.status>=400 && resend.error.status<500)await admin.from('employee_invitation_grants').update({revoked_at:new Date().toISOString()}).eq('id',grant.id);
           return result(resend.error.status >= 400 && resend.error.status < 500 ? "invite_failed" : "invite_status_unknown", "send", 400);
         }
+        if (resend.data?.user?.id !== userId) return result("invite_status_unknown", "verification", 502);
       } catch (error) {
         logFailure(stage, error);
         return result("invite_status_unknown", "verification", 502);
@@ -250,6 +274,7 @@ Deno.serve(async (req) => {
         new_value: { employee_id: employeeId, request_id: requestId }
       });
       if (receipt.error) throw receipt.error;
+      if(customInvitations)await activateInvitationGrant(admin,employeeId,userId);
       return result("invite_sent_linked", "resend");
     }
     return result("invite_sent_linked", "complete", 200);

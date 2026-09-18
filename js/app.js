@@ -1266,6 +1266,7 @@ function getAuthCallbackParams() {
   const query = new URLSearchParams(window.location.search);
   const read = (key) => hash.get(key) || query.get(key);
   return {
+    invitation_token: read("invitation_token"),
     access_token: read("access_token"),
     refresh_token: read("refresh_token"),
     type: read("type"),
@@ -1273,13 +1274,14 @@ function getAuthCallbackParams() {
     code: read("code"),
     error_description: read("error_description"),
     error: read("error"),
+    error_code: read("error_code"),
     expires_in: read("expires_in"),
     token_type: read("token_type")
   };
 }
 
 function isPasswordSetupCallback(params = getAuthCallbackParams()) {
-  if (params.error_description || params.error || params.code) return true;
+  if (params.invitation_token || params.error_description || params.error || params.code) return true;
   return ["invite", "recovery"].includes(params.type || "");
 }
 
@@ -1589,6 +1591,8 @@ function bindLoginDemo() {
   const setupSessionKey = `${passwordSetupPendingKey}-session`;
   const setupSubmit = inviteForm?.querySelector('button[type="submit"]');
   const setupCancel = document.querySelector("[data-password-setup-cancel]");
+  const setupContinue = document.querySelector("[data-password-setup-continue]");
+  let pendingEmailToken = null;
   const disableSetup = (disabled) => {
     inviteForm?.querySelectorAll('input, button[type="submit"]').forEach(field => { field.disabled = disabled; });
     if (setupSubmit) setupSubmit.disabled = disabled;
@@ -1596,7 +1600,7 @@ function bindLoginDemo() {
   disableSetup(true);
   const cleanCallbackUrl = () => {
     const clean = new URL(window.location.href);
-    ["access_token", "refresh_token", "token_hash", "code", "type", "expires_in", "token_type", "error_description", "error", "error_code"].forEach(key => clean.searchParams.delete(key));
+    ["invitation_token", "access_token", "refresh_token", "token_hash", "code", "type", "expires_in", "token_type", "error_description", "error", "error_code"].forEach(key => clean.searchParams.delete(key));
     window.history.replaceState(null, "", `${clean.pathname}${clean.search}`);
   };
   cleanCallbackUrl();
@@ -1616,6 +1620,9 @@ function bindLoginDemo() {
     else { wipe(setupSession); wipe(pendingSession); }
     setupSession = null;
     pendingSession = null;
+    wipe(pendingEmailToken);
+    pendingEmailToken = null;
+    if (setupContinue) setupContinue.hidden = true;
     sessionStorage.removeItem(setupSessionKey);
     sessionStorage.removeItem(`${passwordSetupPendingKey}-callback`);
     clearPasswordSetupVerifier();
@@ -1674,12 +1681,22 @@ function bindLoginDemo() {
   };
   sessionStorage.removeItem(setupSessionKey); // Remove sessions left by the previous implementation.
   if (callback.error_description || callback.error) {
-    failSetup(passwordSetupError("invalid_link"));
+    failSetup(passwordSetupError(callback.error_code === "otp_expired" ? "link_unavailable" : "invalid_link"));
   } else if (callbackPresent && inviteCard && inviteForm) {
-    if (callback.access_token && ["invite", "recovery"].includes(callback.type)) {
+    if (callback.invitation_token) {
+      pendingEmailToken = { invitation_token: callback.invitation_token, type: 'invite' };
+      showPasswordSetup();
+      if (setupContinue) { setupContinue.hidden = false; setupContinue.disabled = false; }
+      if (inviteMessage) inviteMessage.textContent = "Esta invitación es válida durante 24 horas desde el envío. Pulse Continuar para comprobarla y crear su contraseña.";
+    } else if (callback.access_token && ["invite", "recovery"].includes(callback.type)) {
       void prepareSetup(Promise.resolve({ access_token: callback.access_token, refresh_token: callback.refresh_token }), callback.type);
     } else if (callback.token_hash && ["invite", "recovery"].includes(callback.type)) {
-      void prepareSetup(verifySupabaseEmailToken({ token_hash: callback.token_hash, type: callback.type }), callback.type);
+      // Opening/prefetching the email landing page must not consume its token.
+      // Keep it only in memory, and exchange exactly once after an explicit click.
+      pendingEmailToken = { token_hash: callback.token_hash, type: callback.type };
+      showPasswordSetup();
+      if (setupContinue) { setupContinue.hidden = false; setupContinue.disabled = false; }
+      if (inviteMessage) inviteMessage.textContent = "Pulse Continuar para validar el enlace y crear su contraseña. Abrir esta página todavía no acepta la invitación.";
     } else if (callback.code) {
       void prepareSetup(exchangeSupabasePasswordSetupCode(callback.code), callback.type);
     } else { failSetup(passwordSetupError("invalid_link")); }
@@ -1689,6 +1706,17 @@ function bindLoginDemo() {
   wipe(callback);
   delete window.__instituvaAuthCallback;
   clearPasswordSetupVerifier();
+  setupContinue?.addEventListener("click", () => {
+    if (!pendingEmailToken || setupContinue.disabled) return;
+    setupContinue.disabled = true;
+    setupContinue.hidden = true;
+    const token = pendingEmailToken;
+    pendingEmailToken = null;
+    const type = token.type;
+    const verification = token.invitation_token ? redeemSupabaseEmployeeInvitation(token.invitation_token) : verifySupabaseEmailToken(token);
+    wipe(token);
+    void prepareSetup(verification, type);
+  });
 
   if (message && reason === "invalid-link" && !callbackPresent) {
     message.textContent = safePasswordSetupMessage(passwordSetupError("invalid_link"));
@@ -1743,7 +1771,7 @@ function bindLoginDemo() {
       recoveryMessage.className = "login-help success";
     } catch (error) {
       const raw = safePasswordSetupMessage(error);
-      const rateLimited = /rate limit|over_email_send_rate_limit/i.test(raw);
+      const rateLimited = error?.code === "rate_limited";
       recoveryMessage.textContent = rateLimited
         ? "Se enviaron demasiados correos en poco tiempo. Espere unos minutos o use el último enlace recibido. También puede volver al acceso e entrar con su contraseña actual."
         : (raw || "No se pudo solicitar el enlace.");
@@ -5428,6 +5456,7 @@ async function bindEmployeeProfile() {
       verification_required: "Envío pendiente de verificar",
       review_required: "Identidad pendiente de revisión",
       invitation_pending: "Invitación pendiente",
+      password_setup_pending: "Creación de contraseña pendiente",
       active: "Activo",
       deactivated: "Desactivado"
     };
@@ -5453,7 +5482,7 @@ async function bindEmployeeProfile() {
       accessInviteButton.disabled = false;
       accessInviteButton.textContent = "Verificar / reparar vinculación";
       if (accessResendButton) accessResendButton.hidden = !(invitationLinkVerified && accessState.status === "invitation_pending");
-    } else if (accessState.status === "active") {
+    } else if (["active","password_setup_pending"].includes(accessState.status)) {
       if (canInvite && accessRecoveryButton) accessRecoveryButton.hidden = false;
       if (canDeactivate && accessDeactivateButton) accessDeactivateButton.hidden = false;
     } else if (accessState.status === "deactivated" && canDeactivate && accessReactivateButton) {
@@ -5588,7 +5617,7 @@ async function bindEmployeeProfile() {
     const prompts = {
       invite: "Se enviará una invitación solo si no existe una anterior. ¿Desea continuar?",
       repair: "Se verificará y reparará la vinculación sin enviar correo. ¿Desea continuar?",
-      resend: "Se reenviará explícitamente la invitación pendiente. ¿Desea continuar?"
+      resend: "Se enviará un nuevo enlace de invitación. El enlace anterior dejará de funcionar; la vigencia se indica en el correo. ¿Desea continuar?"
     };
     if (!window.confirm(prompts[action])) return;
     accessInviteButton.disabled = true;
@@ -6596,7 +6625,7 @@ function redirectAuthCallbackToLogin() {
   if (!isPasswordSetupCallback(params) || isLoginPage()) return false;
   // Old links to another page must not re-export credentials through a second URL.
   const clean = new URL(window.location.href);
-  ["type", "access_token", "refresh_token", "token_hash", "code", "expires_in", "token_type", "error_description", "error", "error_code"].forEach(key => clean.searchParams.delete(key));
+  ["type", "access_token", "refresh_token", "token_hash", "invitation_token", "code", "expires_in", "token_type", "error_description", "error", "error_code"].forEach(key => clean.searchParams.delete(key));
   window.history.replaceState(null, "", clean.pathname + clean.search);
   Object.keys(params).forEach(key => { params[key] = null; delete params[key]; });
   delete window.__instituvaAuthCallback;
