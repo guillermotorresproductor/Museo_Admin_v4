@@ -266,7 +266,7 @@ function ui(callback={},overrides={}) {
   const helpers=serviceContext().context;
   const context=vm.createContext({
     URL,URLSearchParams,Promise,JSON,Object,Set,
-    document:{querySelector:element},
+    document:{querySelector:element},bindPasswordVisibility(){},
     window:{location:{href:"https://fixture.invalid/login.html#access_token=fixture-token",search:"",replace:url=>{state.redirect=url;}},
       history:{replaceState(){state.cleaned=true;}},addEventListener:(name,fn)=>events[name]=fn},
     sessionStorage:storage(),localStorage:storage(),passwordSetupPendingKey:"setup",
@@ -288,6 +288,45 @@ function ui(callback={},overrides={}) {
   return {context,state,events,element,submit:()=>element("[data-invite-password-form]").listeners.submit({preventDefault(){}})};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
+test('mobile setup hides locked fields until validation finishes',async()=>{
+  let finish;
+  const validation=new Promise(resolve=>{finish=resolve;});
+  const u=ui({invitation_token:'a'.repeat(64)},{redeemSupabaseEmployeeInvitation:()=>validation});
+  const form=u.element('[data-invite-password-form]');
+  assert.equal(form.hidden,true);
+  u.element('[data-password-setup-continue]').listeners.click();await tick();
+  assert.equal(form.hidden,true);
+  finish(clone(session));await tick();
+  assert.equal(form.hidden,false);
+  assert.equal(u.element('password').disabled,false);
+  assert.equal(u.element('confirmation').disabled,false);
+  await u.submit();assert.equal(u.state.updated,1);
+  assert.equal(form.hidden,true);
+});
+test('mobile setup leaves no visible locked form after validation failure',async()=>{
+  const u=ui({invitation_token:'a'.repeat(64)},{redeemSupabaseEmployeeInvitation:async()=>{throw serviceContext().context.passwordSetupError('invalid_link');}});
+  u.element('[data-password-setup-continue]').listeners.click();await tick();
+  assert.equal(u.element('[data-invite-password-form]').hidden,true);
+  assert.equal(u.element('[data-invite-acceptance]').hidden,true);
+  assert.equal(u.element('[data-login-card]').hidden,false);
+});
+test('mobile eye toggle preserves text caret and focus and resets to hidden',()=>{
+  const listeners={},resetListeners={};
+  const input={type:'password',value:'UI fixture only',disabled:false,selectionStart:3,selectionEnd:3,
+    form:{addEventListener:(name,fn)=>resetListeners[name]=fn},focus(){this.focused=true;},setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}};
+  const attributes={'aria-label':'Mostrar nueva contraseña','aria-pressed':'false'};
+  const slash={hidden:true};
+  const button={dataset:{passwordVisibility:'fixture'},getAttribute:name=>attributes[name],setAttribute:(name,value)=>attributes[name]=value,
+    querySelector:()=>slash,addEventListener:(name,fn)=>listeners[name]=fn};
+  const context=vm.createContext({document:{querySelectorAll:()=>[button],getElementById:()=>input}});
+  vm.runInContext(app.slice(app.indexOf('function bindPasswordVisibility()'),app.indexOf('function bindLoginDemo()')),context);
+  context.bindPasswordVisibility();listeners.click();
+  assert.equal(input.type,'text');assert.equal(input.value,'UI fixture only');assert.equal(input.focused,true);assert.equal(input.selectionStart,3);
+  assert.equal(attributes['aria-label'],'Ocultar nueva contraseña');assert.equal(slash.hidden,false);
+  listeners.click();assert.equal(input.type,'password');
+  listeners.click();resetListeners.reset();assert.equal(input.type,'password');assert.equal(attributes['aria-pressed'],'false');
+  input.disabled=true;listeners.click();assert.equal(input.type,'password');
+});
 test("opening a token-hash email in a fresh browser does not consume it; double click verifies once",async()=>{
   let verifies=0;
   const u=ui({token_hash:"fixture-hash",type:"invite"},{verifySupabaseEmailToken:async token=>{

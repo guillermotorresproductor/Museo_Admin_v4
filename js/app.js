@@ -1566,9 +1566,41 @@ function bindNotificationMenu() {
   });
 }
 
+function bindPasswordVisibility() {
+  document.querySelectorAll('[data-password-visibility]').forEach(button => {
+    const input = document.getElementById(button.dataset.passwordVisibility);
+    if (!input) return;
+    const label = button.getAttribute('aria-label').replace(/^Mostrar /, '');
+    const reset = () => {
+      input.type = 'password';
+      button.setAttribute('aria-pressed', 'false');
+      button.setAttribute('aria-label', `Mostrar ${label}`);
+      button.title = `Mostrar ${label}`;
+      const slash = button.querySelector('[data-visibility-slash]');
+      if (slash) slash.hidden = true;
+    };
+    button.addEventListener('click', () => {
+      if (input.disabled) return;
+      const start = input.selectionStart, end = input.selectionEnd;
+      const reveal = input.type === 'password';
+      input.type = reveal ? 'text' : 'password';
+      button.setAttribute('aria-pressed', String(reveal));
+      button.setAttribute('aria-label', `${reveal ? 'Ocultar' : 'Mostrar'} ${label}`);
+      button.title = button.getAttribute('aria-label');
+      const slash = button.querySelector('[data-visibility-slash]');
+      if (slash) slash.hidden = !reveal;
+      // Synchronous user gesture preserves mobile keyboard and caret.
+      input.focus({ preventScroll: true });
+      if (start !== null && end !== null) input.setSelectionRange(start, end);
+    });
+    input.form?.addEventListener('reset', reset);
+  });
+}
+
 function bindLoginDemo() {
   const form = document.querySelector("[data-login-form]");
   if (!form) return;
+  bindPasswordVisibility();
 
   const loginCard = document.querySelector("[data-login-card]");
   const message = document.querySelector("[data-login-message]");
@@ -1598,6 +1630,7 @@ function bindLoginDemo() {
     if (setupSubmit) setupSubmit.disabled = disabled;
   };
   disableSetup(true);
+  if (inviteForm) inviteForm.hidden = true;
   const cleanCallbackUrl = () => {
     const clean = new URL(window.location.href);
     ["invitation_token", "access_token", "refresh_token", "token_hash", "code", "type", "expires_in", "token_type", "error_description", "error", "error_code"].forEach(key => clean.searchParams.delete(key));
@@ -1631,6 +1664,7 @@ function bindLoginDemo() {
     delete window.__instituvaAuthCallback;
     inviteForm?.reset();
     disableSetup(true);
+    if (inviteForm) inviteForm.hidden = true;
     cleanCallbackUrl();
   };
   window.addEventListener("pagehide", () => clearSetup());
@@ -1674,7 +1708,8 @@ function bindLoginDemo() {
       if (candidate !== validated) wipe(candidate);
       pendingSession = null;
       disableSetup(false);
-      if (inviteMessage) { inviteMessage.textContent = "Enlace validado. Cree y confirme su contraseña."; inviteMessage.className = "login-help success"; }
+      if (inviteForm) inviteForm.hidden = false;
+      if (inviteMessage) { inviteMessage.textContent = "Enlace validado. Toque Nueva contraseña para escribir y después confírmela."; inviteMessage.className = "login-help success"; }
     } catch (error) {
       if (generation === setupGeneration) failSetup(error);
     } finally { candidate = null; sessionPromise = null; }
@@ -1687,7 +1722,7 @@ function bindLoginDemo() {
       pendingEmailToken = { invitation_token: callback.invitation_token, type: 'invite' };
       showPasswordSetup();
       if (setupContinue) { setupContinue.hidden = false; setupContinue.disabled = false; }
-      if (inviteMessage) inviteMessage.textContent = "Esta invitación es válida durante 24 horas desde el envío. Pulse Continuar para comprobarla y crear su contraseña.";
+      if (inviteMessage) inviteMessage.textContent = "Primero pulse Continuar y validar invitación. Después aparecerán los campos para crear su contraseña. La invitación dura 24 horas.";
     } else if (callback.access_token && ["invite", "recovery"].includes(callback.type)) {
       void prepareSetup(Promise.resolve({ access_token: callback.access_token, refresh_token: callback.refresh_token }), callback.type);
     } else if (callback.token_hash && ["invite", "recovery"].includes(callback.type)) {

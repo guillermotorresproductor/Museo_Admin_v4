@@ -28,7 +28,7 @@
     })();
   </script>
   <title>Acceso privado | Museo de la Música</title>
-  <link rel="stylesheet" href="css/main.css?v=private-login-20260903">
+  <link rel="stylesheet" href="css/main.css?v=invite-mobile-20260918">
 </head>
 <body class="login-page">
   <div class="app-shell">
@@ -77,22 +77,31 @@
         </section>
         <section class="card panel login-card" data-invite-acceptance hidden>
           <h3>Crear contraseña</h3>
-          <p>Cree y confirme su contraseña para activar su cuenta de Instituva.</p>
+          <p class="login-help" data-invite-password-message role="status" aria-live="polite">Valide la invitación para mostrar los campos de contraseña.</p>
           <button class="button" type="button" data-password-setup-continue hidden>Continuar y validar invitación</button>
-          <form class="form-grid" data-invite-password-form>
+          <form class="form-grid" data-invite-password-form hidden>
             <div class="field">
               <label for="invite-password">Nueva contraseña</label>
-              <input id="invite-password" disabled name="password" type="password" autocomplete="new-password" minlength="12" required>
+              <div class="password-entry">
+                <input id="invite-password" disabled name="password" type="password" autocomplete="new-password" minlength="12" required>
+                <button type="button" class="password-visibility-toggle" data-password-visibility="invite-password" aria-controls="invite-password" aria-label="Mostrar nueva contraseña" aria-pressed="false" title="Mostrar nueva contraseña">
+                  <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/><path data-visibility-slash d="M3 3l18 18" hidden/></svg>
+                </button>
+              </div>
             </div>
             <div class="field">
               <label for="invite-password-confirmation">Confirmar contraseña</label>
-              <input id="invite-password-confirmation" disabled name="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required>
+              <div class="password-entry">
+                <input id="invite-password-confirmation" disabled name="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required>
+                <button type="button" class="password-visibility-toggle" data-password-visibility="invite-password-confirmation" aria-controls="invite-password-confirmation" aria-label="Mostrar confirmación de contraseña" aria-pressed="false" title="Mostrar confirmación de contraseña">
+                  <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/><path data-visibility-slash d="M3 3l18 18" hidden/></svg>
+                </button>
+              </div>
             </div>
             <p class="field-hint">Use 12 caracteres o más e incluya mayúscula, minúscula, número y símbolo.</p>
             <button class="button" type="submit" disabled>Crear contraseña y activar mi cuenta</button>
-            <button class="login-recovery-link" type="button" data-password-setup-cancel>Cancelar y volver al acceso</button>
-            <p class="login-help" data-invite-password-message>El enlace seguro será validado antes de guardar la contraseña.</p>
           </form>
+          <button class="login-recovery-link" type="button" data-password-setup-cancel>Cancelar y volver al acceso</button>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
@@ -100,7 +109,7 @@
   </div>
   <script src="js/config.js?v=private-login-20260903"></script>
   <script src="js/services/supabase.js?v=invite-recovery-20260917"></script>
-  <script src="js/app.js?v=invite-recovery-20260917"></script>
+  <script src="js/app.js?v=invite-mobile-20260918"></script>
 </body>
 </html>
 
