@@ -3,7 +3,7 @@ const appPages = {
   "dashboard.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
   "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Música." },
   "empleados.html": { title: "Solicitud de Empleo", subtitle: "Formulario para candidatos." },
-  "ujieres.html": { title: "Ujieres", subtitle: "Calendario mensual de ujieres, horarios y áreas asignadas." },
+  "ujieres.html": { title: "Calendario de Ujieres", subtitle: "Calendario mensual de ujieres, horarios y áreas asignadas." },
   "mantenimiento.html": { title: "Mantenimiento", subtitle: "Operación preventiva y correctiva." },
   "calendario.html": { title: "Calendario de Eventos del Museo", subtitle: "Actividades, eventos y compromisos oficiales del Museo." },
   "calendario-obras.html": { title: "Calendario de Obras", subtitle: "Asignación mensual de empleados, tareas y áreas de trabajo." },
@@ -278,12 +278,41 @@ let employeeRecords = museoEnvironmentName === "staging"
 let currentPermissions = new Set();
 let currentPermissionsLoaded = false;
 const hasPermission = (permission) => currentPermissions.has(permission);
+const hasModuleProfile = () => hasPermission("module_profiles.active");
+const profilePageModules = {
+  "employee-portal.html": "personal",
+  "departamento-museologico.html": "collections", "colecciones-museograficas.html": "collections",
+  "inventario-colecciones.html": "collections", "recibo-prestamo.html": "collections",
+  "calendario.html": "calendar", "renta-espacios.html": "rentals", "renta-espacio.html": "rentals", "solicitud-renta.html": "rentals",
+  "membresias.html": "memberships", "ujieres.html": "ushers",
+  "mantenimiento.html": "maintenance", "calendario-obras.html": "maintenance",
+  "solicitud-materiales.html": "maintenance", "ruta-digital.html": "maintenance",
+  "documentos.html": "documents", "deposito-artes.html": "documents", "empleados.html": "documents", "reglamento.html": "documents",
+  "administracion.html": "administration", "recursos-humanos.html": "administration", "perfil-empleado.html": "administration",
+  "notificaciones.html": "administration", "reportes.html": "administration", "finanzas.html": "administration", "direccion-ejecutiva.html": "administration",
+  "boletin.html": "announcements", "inventario.html": "inventory"
+};
+function profilePageAllowed(page) {
+  const module = profilePageModules[page];
+  if (!module || !hasPermission(`modules.${module}.read`)) return false;
+  // Entering Administración does not grant access to protected administrative operations.
+  const extra = {
+    "recursos-humanos.html": () => hasPermission("employees.read.all"),
+    "perfil-empleado.html": () => canManageEmployees() || hasPermission("roles.assign"),
+    "notificaciones.html": () => hasPermission("notifications.manage"),
+    "finanzas.html": () => hasPermission("finance.read"),
+    "reportes.html": () => hasPermission("reports.read"),
+    "direccion-ejecutiva.html": () => hasPermission("executive.case.read"),
+    "recibo-prestamo.html": () => canWriteCollections()
+  };
+  return extra[page] ? extra[page]() : true;
+}
 const canManageEmployees = () => hasPermission("employees.create") || hasPermission("employees.update.basic");
 const hasAdministrativeWorkspaceAccess = () =>
   hasPermission("system.configure") || (hasPermission("audit.read") && hasPermission("notifications.manage"));
 const canWriteCollections = () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.write");
 const canReadCollections = () => canWriteCollections() || hasPermission("collections.read");
-const canAccessAdministrationHub = () => hasAdministrativeWorkspaceAccess();
+const canAccessAdministrationHub = () => hasModuleProfile() ? hasPermission("modules.administration.read") : hasAdministrativeWorkspaceAccess();
 const postLoginDestination = () => "dashboard.html";
 const canAccessPersonalSpace = () => ["profile.read.self", "employees.read.self", "schedules.read.self", "time.clock", "time.read.self"].some(hasPermission);
 
@@ -383,6 +412,12 @@ function enforceAuthenticatedPageAccess() {
     return true;
   }
   if (!currentPermissionsLoaded) return true;
+  if (hasModuleProfile()) {
+    if (page === "dashboard.html" || page === "index.html") return false;
+    if (profilePageAllowed(page)) return false;
+    showProtectedAccessDenied("Su perfil no autoriza este módulo o la operación solicitada.");
+    return true;
+  }
   if (page === "dashboard.html" || page === "index.html") return false;
   if (page === "inventario-colecciones.html") {
     if (moduleAccessChecks[page]()) return false;
@@ -1326,7 +1361,7 @@ function renderPageShortcuts() {
           : { type: "back", label: "Atrás", icon: "arrowLeft" },
         { href: "dashboard.html", label: group?.homeLabel || "Home", icon: "dashboard" }
       ];
-  const groupLinks = group?.links || [];
+  const groupLinks = (group?.links || []).filter(link => !hasModuleProfile() || profilePageAllowed(link.href));
   const links = [...utilityLinks, ...groupLinks];
 
   if (!links.length) return "";
@@ -1359,6 +1394,7 @@ function renderSidebar() {
   const currentPage = getCurrentPage();
   const groupsMarkup = navigationGroups.map((group) => {
     const links = group.items.filter((item) => {
+      if (hasModuleProfile()) return profilePageAllowed(item.href);
       if (item.href === "dashboard.html" || item.href === "login.html") return true;
       if (hasAdministrativeWorkspaceAccess()) return true;
       return Boolean(moduleAccessChecks[item.href]?.());
@@ -1368,7 +1404,7 @@ function renderSidebar() {
         <li>
           <a class="nav-link${isActive ? " is-active" : ""}" href="${item.href}" aria-current="${isActive ? "page" : "false"}">
             <span class="nav-icon">${iconSvg(item.icon)}</span>
-            <span>${item.label}</span>
+            <span>${hasModuleProfile() && item.href === "employee-portal.html" ? "Mi espacio" : item.href === "ujieres.html" ? "Calendario de Ujieres" : item.label}</span>
           </a>
         </li>
       `;
@@ -1404,10 +1440,18 @@ function renderSidebar() {
 }
 
 function filterDashboardModules() {
-  if (!["dashboard.html", "index.html"].includes(getCurrentPage()) || hasAdministrativeWorkspaceAccess()) return;
+  if (!["dashboard.html", "index.html"].includes(getCurrentPage()) || (!hasModuleProfile() && hasAdministrativeWorkspaceAccess())) return;
   document.querySelectorAll(".module-grid .module-card[href]").forEach((card) => {
     const href = card.getAttribute("href");
-    card.hidden = !Boolean(moduleAccessChecks[href]?.());
+    card.hidden = !(hasModuleProfile() ? profilePageAllowed(href) : Boolean(moduleAccessChecks[href]?.()));
+  });
+}
+
+function filterProfileModuleLinks() {
+  if (!hasModuleProfile()) return;
+  document.querySelectorAll('.page-content a[href]').forEach(link => {
+    const page = (link.getAttribute('href') || '').split('?')[0];
+    if (profilePageModules[page]) link.hidden = !profilePageAllowed(page);
   });
 }
 
@@ -2106,7 +2150,7 @@ function bindRentalForm() {
     ? hasPermission("rentals.manage")
     : (Boolean(getSupabaseSession()?.access_token) && ["Administrador", "Ejecutivo"].includes(currentAccessLevel())));
   const isAuthorizedAdmin = canAdjust();
-  const canCreateInternalProduction = () => Boolean(getSupabaseSession()?.access_token) && currentAccessLevel() === "Administrador";
+  const canCreateInternalProduction = () => canAdjust() && Boolean(getSupabaseSession()?.access_token) && currentAccessLevel() === "Administrador";
   const internalProductionControl = document.querySelector("[data-rental-internal-control]");
   const internalProductionButton = document.querySelector("[data-rental-internal]");
   const internalProductionStatus = document.querySelector("[data-rental-internal-status]");
@@ -3257,7 +3301,7 @@ function bindCalendarModules() {
   const saveRecords = async () => saveSystemCollection(moduleKey, "records", records);
   const canEdit = () => isMaintenance
     ? hasPermission("maintenance.manage") || hasAdministrativeWorkspaceAccess()
-    : hasPermission("calendar.manage");
+    : isUshers ? hasPermission("usher.schedule.manage") : hasPermission("calendar.manage");
   const employeeName = (idOrName) => employeeDisplayName(getEmployeeRecords().find((employee) => employee.id === idOrName) || { nombreCompleto: idOrName });
   const createId = () => {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -3611,6 +3655,8 @@ function bindMaterialsRequestModule() {
   if (!module) return;
 
   const form = module.querySelector("[data-materials-form]");
+  const canEdit = () => hasPermission("maintenance.manage") || hasAdministrativeWorkspaceAccess();
+  if (hasModuleProfile() && !canEdit()) form.hidden = true;
   const orderNumber = module.querySelector("[data-material-order-number]");
   const orderDate = module.querySelector("[data-material-order-date]");
   const message = module.querySelector("[data-materials-message]");
@@ -3659,13 +3705,14 @@ function bindMaterialsRequestModule() {
         <p><strong>Empleado:</strong> ${safeHtml(employeeName(request.employee))}</p>
         <p><strong>Materiales:</strong> ${safeHtml(request.materials.join(", "))}</p>
         ${request.other ? `<p><strong>Otros:</strong> ${safeHtml(request.other)}</p>` : ""}
-        <div class="inventory-actions"><button class="button secondary" type="button" data-material-edit="${request.id}">Editar</button><button class="button secondary" type="button" data-material-archive="${request.id}">Archivar</button></div>
+        <div class="inventory-actions" ${hasModuleProfile() && !canEdit() ? "hidden" : ""}><button class="button secondary" type="button" data-material-edit="${request.id}">Editar</button><button class="button secondary" type="button" data-material-archive="${request.id}">Archivar</button></div>
       </article>
     `).join("");
   };
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (hasModuleProfile() && !canEdit()) return;
     if (!getSupabaseSession()?.access_token) {
       setMessage("Para enviar una solicitud de materiales, primero entre por Mi cuenta.", "error");
       return;
@@ -3711,6 +3758,7 @@ function bindMaterialsRequestModule() {
   });
 
   log?.addEventListener("click", async (event) => {
+    if (hasModuleProfile() && !canEdit()) return;
     const edit = event.target.closest("[data-material-edit]");
     const archive = event.target.closest("[data-material-archive]");
     if (edit) {
@@ -3744,6 +3792,8 @@ function bindDigitalRouteModule() {
   const module = document.querySelector("[data-route-module]");
   if (!module) return;
   const form = module.querySelector("[data-route-form]");
+  const canEdit = () => hasPermission("maintenance.manage") || hasAdministrativeWorkspaceAccess();
+  if (hasModuleProfile() && !canEdit()) form.hidden = true;
   const message = module.querySelector("[data-route-message]");
   const history = document.querySelector("[data-route-history]");
   let records = [];
@@ -3753,16 +3803,17 @@ function bindDigitalRouteModule() {
     if (!records.length) { history.innerHTML='<tr><td colspan="5" class="empty-state">No hay inspecciones registradas.</td></tr>'; return; }
     history.innerHTML=records.slice().reverse().map((record) => {
       const instant=new Date(record.created_at);
-      return `<tr><td>${safeHtml(record.task_date || "")}</td><td>${safeHtml(instant.toLocaleTimeString("es-PR",{hour:"numeric",minute:"2-digit"}))}</td><td>${safeHtml(employeeName(record.employee_id))}</td><td>${safeHtml(record.area || "")}</td><td><span class="status-dot green"></span> ${safeHtml(record.status === "completado" ? "Completado" : record.status)}<div class="calendar-item-actions"><button type="button" data-route-edit="${record.id}">Editar</button><button type="button" data-route-archive="${record.id}">Archivar</button></div></td></tr>`;
+      return `<tr><td>${safeHtml(record.task_date || "")}</td><td>${safeHtml(instant.toLocaleTimeString("es-PR",{hour:"numeric",minute:"2-digit"}))}</td><td>${safeHtml(employeeName(record.employee_id))}</td><td>${safeHtml(record.area || "")}</td><td><span class="status-dot green"></span> ${safeHtml(record.status === "completado" ? "Completado" : record.status)}<div class="calendar-item-actions" ${hasModuleProfile() && !canEdit() ? "hidden" : ""}><button type="button" data-route-edit="${record.id}">Editar</button><button type="button" data-route-archive="${record.id}">Archivar</button></div></td></tr>`;
     }).join("");
   };
   form.addEventListener("submit",async(event)=>{
-    event.preventDefault(); const data=new FormData(form); const id=String(data.get("id")||""); const checks=data.getAll("ruta").map(String);
+    event.preventDefault(); if (hasModuleProfile() && !canEdit()) return; const data=new FormData(form); const id=String(data.get("id")||""); const checks=data.getAll("ruta").map(String);
     if (!data.get("empleado") || !data.get("area") || checks.length!==form.querySelectorAll('[name="ruta"]').length) { setMessage("Seleccione el empleado, el área y complete toda la lista de verificación.","error"); return; }
     try { const saved=await saveSupabaseMaintenanceTask({record_type:"route_inspection",employee_id:data.get("empleado"),area:data.get("area"),task:"Inspección de ruta",task_date:new Date().toISOString().slice(0,10),status:"completado",observations:String(data.get("observaciones")||"").trim()||null,details:{checks}},id); records=id?records.map((item)=>item.id===id?saved:item):[...records,saved]; form.reset(); form.elements.id.value=""; render(); setMessage(id?"Inspección actualizada en Supabase.":"Inspección registrada en Supabase.","success"); }
     catch(error){ setMessage(error.message || "No se pudo guardar la inspección.","error"); }
   });
   history.addEventListener("click",async(event)=>{
+    if (hasModuleProfile() && !canEdit()) return;
     const edit=event.target.closest("[data-route-edit]"); const archive=event.target.closest("[data-route-archive]");
     if(edit){const record=records.find((item)=>item.id===edit.dataset.routeEdit);if(!record)return;form.elements.id.value=record.id;form.elements.empleado.value=record.employee_id||"";form.elements.area.value=record.area||"";form.elements.observaciones.value=record.observations||"";form.querySelectorAll('[name="ruta"]').forEach((box)=>{box.checked=(record.details?.checks||[]).includes(box.value);});form.scrollIntoView({behavior:"smooth",block:"start"});}
     if(archive){try{await archiveSupabaseMaintenanceTask(archive.dataset.routeArchive);records=records.filter((item)=>item.id!==archive.dataset.routeArchive);render();setMessage("Inspección archivada en Supabase.","success");}catch(error){setMessage(error.message||"No se pudo archivar la inspección.","error");}}
@@ -4065,8 +4116,8 @@ function bindHumanResourcesModule() {
   const resetForm = () => {
     form.reset();
     form.elements.id.value = "";
-    formServerLevel = { role: "empleado", conflicting: false };
-    form.elements.acceso.value = "Empleado";
+    formServerLevel = { role: null, conflicting: false };
+    form.elements.acceso.value = "";
     formPhotoReference = "";
     photoReadError = false;
     form.elements.acceso.disabled = !hasPermission("roles.assign");
@@ -4111,11 +4162,11 @@ function bindHumanResourcesModule() {
       const level = await fetchSupabaseEmployeeLevel(employee.id);
       if (form.elements.id.value !== employee.id) return;
       formServerLevel = level;
-      form.elements.acceso.value = level.role ? level.role.charAt(0).toUpperCase() + level.role.slice(1) : "";
+      form.elements.acceso.value = employeeAccessLabel(level.role);
       const levelHint = form.querySelector("[data-employee-level-state]");
       if (levelHint) levelHint.textContent = level.source === "saved_employee_level"
         ? "Nivel solicitado para una futura invitación. Sin permiso efectivo: no hay perfil vinculado."
-        : "Nivel efectivo verificado en el servidor. Los cambios requieren autorización.";
+        : "Perfil verificado en el servidor. Cambiar módulos no concede permisos de edición, borrado ni cambio de roles.";
       form.elements.acceso.disabled = !hasPermission("roles.assign");
       if (submitButton) submitButton.disabled = false;
     } catch (error) { setMessage(`No se pudo verificar el nivel del servidor${error.status ? ` (HTTP ${error.status})` : ""}: ${error.message}. Vuelva a abrir el empleado.`, "error"); return; }
@@ -4222,7 +4273,7 @@ function bindHumanResourcesModule() {
         if (!supabaseProfile) supabaseProfile = await fetchSupabaseProfile();
         if (!supabaseProfile?.museum_id) throw new Error("No se encontró el museo asociado al perfil.");
         if (!formServerLevel) throw new Error("Nivel del servidor pendiente de verificar.");
-        const requestedLevel = String(employee.acceso || "").toLowerCase() || null;
+        const requestedLevel = employeeAccessCode(employee.acceso);
         const needsLevelChange = requestedLevel !== formServerLevel.role || formServerLevel.conflicting;
         if (needsLevelChange && !requestedLevel) throw new Error("Seleccione un nivel válido para cambiar el nivel existente.");
         if (needsLevelChange && !hasPermission("roles.assign")) throw new Error("No tiene permiso para cambiar el nivel.");
@@ -5568,8 +5619,8 @@ async function bindEmployeeProfile() {
     const levelHint = document.querySelector("[data-employee-level-state]");
     if (levelHint) levelHint.textContent = level.source === "saved_employee_level"
       ? "Nivel solicitado para una futura invitación. Sin permiso efectivo: no hay perfil vinculado."
-      : "Nivel efectivo verificado en el servidor. Los cambios requieren autorización.";
-    profile.acceso = serverLevel ? serverLevel.charAt(0).toUpperCase() + serverLevel.slice(1) : "";
+      : "Perfil verificado en el servidor. Cambiar módulos no concede permisos de edición, borrado ni cambio de roles.";
+    profile.acceso = employeeAccessLabel(serverLevel);
     if (levelField) {
       levelField.value = profile.acceso;
       levelField.disabled = !hasPermission("roles.assign");
@@ -5750,7 +5801,7 @@ async function bindEmployeeProfile() {
       try {
         const supabaseProfile = await fetchSupabaseProfile();
         if (serverLevel === undefined) throw new Error("Nivel del servidor pendiente de verificar.");
-        const requestedLevel = String(updatedProfile.acceso || "").toLowerCase() || null;
+        const requestedLevel = employeeAccessCode(updatedProfile.acceso);
         if (requestedLevel !== serverLevel && !requestedLevel) throw new Error("Seleccione un nivel válido para cambiar el nivel existente.");
         if (hasPermission("roles.assign") && (requestedLevel !== serverLevel || serverLevelConflict)) {
           const assigned = await assignSupabaseEmployeeLevel(profile.id, requestedLevel, serverLevel);
@@ -6031,7 +6082,7 @@ function bindMembershipsModule() {
   });
 
   const requireAuthorizedProfile = async () => {
-    if (!hasPermission("memberships.manage") && !hasAdministrativeWorkspaceAccess()) {
+    if (!hasPermission("modules.memberships.read") && !hasPermission("memberships.manage") && !hasAdministrativeWorkspaceAccess()) {
       throw new Error("Su cuenta no tiene autorización para Membresías.");
     }
     profile = await currentMuseumContext();
@@ -6138,7 +6189,7 @@ function bindMembershipsModule() {
           <td><span class="membership-status ${statusClass(member.status)}">${safeHtml(member.status)}</span></td>
           <td>${safeHtml(communication)}</td>
           <td>
-            <div class="membership-row-actions">
+            <div class="membership-row-actions" ${hasPermission("memberships.manage") || hasAdministrativeWorkspaceAccess() ? "" : "hidden"}>
               <button class="table-action" type="button" data-membership-edit="${member.id}">Editar</button>
               <button class="table-action" type="button" data-membership-attendance="${member.id}">Asistencia</button>
             </div>
@@ -6310,6 +6361,9 @@ function bindMembershipsModule() {
       });
     });
   });
+  if (hasModuleProfile() && !hasPermission("memberships.manage") && !hasAdministrativeWorkspaceAccess()) {
+    module.querySelectorAll("[data-membership-new], [data-membership-export]").forEach(button => { button.hidden = true; });
+  }
   module.querySelector("[data-membership-new]")?.addEventListener("click", () => openForm());
   module.querySelector("[data-membership-export]")?.addEventListener("click", exportMembers);
   document.querySelectorAll("[data-membership-close]").forEach((button) => {
@@ -6723,6 +6777,7 @@ async function initApp() {
   renderHeader();
   renderFooter();
   filterDashboardModules();
+  filterProfileModuleLinks();
   renderInlineIcons();
   bindHeaderActions();
   document.body.classList.add("app-ready");
@@ -6753,6 +6808,7 @@ async function initApp() {
   bindCalendarModules();
   bindMembershipsModule();
   await bindEmployeePortal();
+  filterProfileModuleLinks();
 }
 
 document.addEventListener("DOMContentLoaded", initApp);

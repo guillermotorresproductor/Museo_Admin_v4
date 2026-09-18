@@ -161,7 +161,7 @@ export function accessLevel(value: unknown) {
   return role;
 }
 export async function employeeLevelState(admin: any, museumId: string, employeeId: string) {
-  const employeeResult = await admin.from("employees").select("id,museum_id,profile_id,access_level")
+  const employeeResult = await admin.from("employees").select("id,museum_id,profile_id,access_level,access_profile")
     .eq("id", employeeId).eq("museum_id", museumId).single();
   if (employeeResult.error || !employeeResult.data) throw employeeResult.error || new Error("EMPLOYEE_NOT_FOUND");
   const employee = employeeResult.data;

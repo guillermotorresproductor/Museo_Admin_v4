@@ -1,3 +1,11 @@
+const employeeModuleProfiles = Object.freeze({"mantenimiento": "Mantenimiento", "gerente_museografica": "Gerente Museográfica", "contenido_marketing": "Creadora de Contenido y Marketing", "coordinadora_experiencia": "Coordinadora de Experiencia Museográfica", "tecnico_produccion": "Técnico de Producción", "asistente_administrativa": "Asistente Administrativa", "director_ejecutivo": "Director Ejecutivo", "administrador_general": "Administrador General", "gerente_administrativo": "Gerente Administrativo", "it_programador": "IT Programador"});
+function employeeAccessLabel(code) {
+  return employeeModuleProfiles[code] || (code ? code.charAt(0).toUpperCase() + code.slice(1) : "");
+}
+function employeeAccessCode(label) {
+  return Object.keys(employeeModuleProfiles).find(code => employeeModuleProfiles[code] === label)
+    || String(label || "").toLowerCase() || null;
+}
 'use strict';
 async function supabaseGet(path) {
     const response = await fetch(`${supabaseUrl}${path}`, {
@@ -51,7 +59,7 @@ function employeeFromSupabase(row) {
     condicion: row.medical_condition || "",
     usuario: row.email || "",
     passwordTemporal: "",
-    acceso: row.access_level ? row.access_level.charAt(0).toUpperCase() + row.access_level.slice(1) : "",
+    acceso: employeeAccessLabel(row.access_profile || row.access_level),
     estado: row.status === "inactivo" ? "Inactivo" : "Activo",
     notificaciones: "",
     source: "supabase"
@@ -76,7 +84,7 @@ function employeeToSupabasePayload(employee, museumId) {
 }
 
 async function fetchSupabaseEmployees() {
-  const data = await supabaseGet("/rest/v1/employees?select=id,profile_id,access_level,first_name,last_name,photo_url,position,department,email,phone,address,hire_date,work_schedule,education_level,status,created_at&order=created_at.asc");
+  const data = await supabaseGet("/rest/v1/employees?select=id,profile_id,access_level,access_profile,first_name,last_name,photo_url,position,department,email,phone,address,hire_date,work_schedule,education_level,status,created_at&order=created_at.asc");
   return Promise.all(data.map(resolveSupabaseEmployeePhoto));
 }
 async function saveSupabaseEmployee(employee, museumId, id) {
@@ -641,7 +649,7 @@ async function closeSupabasePasswordSetupSession(session) {
 
 async function fetchOwnSupabaseEmployee() {
   const user = await supabaseGet("/auth/v1/user");
-  const rows = await supabaseGet("/rest/v1/employees?select=id,profile_id,access_level,photo_url,first_name,last_name,email,phone,work_schedule,position&profile_id=eq." + encodeURIComponent(user.id));
+  const rows = await supabaseGet("/rest/v1/employees?select=id,profile_id,access_level,access_profile,photo_url,first_name,last_name,email,phone,work_schedule,position&profile_id=eq." + encodeURIComponent(user.id));
   if (rows.length > 1) throw new Error("Vínculo personal ambiguo.");
   return rows[0] ? resolveSupabaseEmployeePhoto(rows[0]) : null;
 }

@@ -11,9 +11,10 @@ Deno.serve(async (req) => {
       try { context = await requirePermission(req, "roles.assign"); }
       catch { context = await requirePermission(req, "employees.read.all"); }
       const state = await employeeLevelState(context.admin, context.profile.museum_id, employeeId);
-      return json({ role: state.role, requested_role: state.employee.access_level,
+      return json({ role: state.employee.access_profile || state.role, access_profile: state.employee.access_profile,
+        requested_role: state.employee.access_level,
         effective_role: state.profile ? state.role : null,
-        conflicting: state.conflicting, source: state.profile ? "server_roles" : "saved_employee_level" });
+        conflicting: state.employee.access_profile ? false : state.conflicting, source: state.profile ? "server_roles" : "saved_employee_level" });
     }
     const { caller, admin, profile } = await requirePermission(req, "roles.assign");
     const state = await employeeLevelState(admin, profile.museum_id, employeeId);
@@ -29,8 +30,10 @@ Deno.serve(async (req) => {
       }
     }
     // Use the caller JWT, never the service-role client: PostgreSQL derives auth.uid().
-    const { data, error } = await caller.rpc("replace_employee_access_level", {
-      p_employee_id: employeeId, p_role_code: body.role_code, p_expected_role: body.expected_role
+    const isLegacy = ["empleado", "ejecutivo", "administrador"].includes(body.role_code);
+    if (isLegacy && state.employee.access_profile) return json({ error: "Seleccione uno de los diez perfiles de módulos." }, 409);
+    const { data, error } = await caller.rpc(isLegacy ? "replace_employee_access_level" : "assign_employee_module_profile", {
+      p_employee_id: employeeId, [isLegacy ? "p_role_code" : "p_profile_code"]: body.role_code, p_expected_role: body.expected_role
     });
     if (error) {
       const conflict = ["40001", "40P01", "22023", "PT409"].includes(error.code);

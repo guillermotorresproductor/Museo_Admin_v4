@@ -78,8 +78,13 @@ Deno.serve(async (req) => {
       return json({ error: "Puente Instituva no configurado en el servidor." }, 503);
     }
 
-    const permission = "rentals.manage";
-    const { profile, user } = await requirePermission(req, permission);
+    const permission = kind.startsWith("membership_") ? "memberships.manage" : "rentals.manage";
+    let context;
+    if (kind === "membership_list") {
+      try { context = await requirePermission(req, "modules.memberships.read"); }
+      catch { context = await requirePermission(req, permission); }
+    } else context = await requirePermission(req, permission);
+    const { profile, user } = context;
     const email = profile.email || user.email;
     if (!email) return json({ error: "La cuenta no tiene correo para vincular con Instituva." }, 403);
 
