@@ -1043,8 +1043,8 @@ const legacyFinanceProjectionRows = [
   { id: "exp-reserva", type: "expense", category: "Otros Gastos", concept: "Gastos de representación", values: [0,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000] }
 ];
 
-// Legacy projection retained only as source history. Finanzas v1 never reads or writes it.
-const defaultFinanceRows = Object.freeze([]);
+// Preserve the historical template and defaults as reference; never seed or overwrite stored amounts.
+const defaultFinanceRows = legacyFinanceProjectionRows;
 
 const excludedFinanceConcepts = new Set(["Contingencia", "Ahorros"]);
 
@@ -4495,10 +4495,13 @@ function bindNotificationsModule() {
   loadPreferences();
 }
 
-function bindLegacyFinanceModuleDisabled() {
+function bindFinanceModule() {
   const module = document.querySelector("[data-finance-module]");
   const gate = document.querySelector("[data-finance-gate]");
   if (!module || !gate) return;
+  if (module.dataset.financeBackend === "instituva-budget-preview") return bindFinanceBudgetPreview();
+  const canWrite = () => hasPermission("finance.write");
+  const canExport = () => hasPermission("finance.export");
 
   const loginForm = document.querySelector("[data-finance-login]");
   const loginMessage = document.querySelector("[data-finance-login-message]");
@@ -4543,87 +4546,6 @@ function bindLegacyFinanceModuleDisabled() {
     "Materiales",
     "Otros Gastos"
   ];
-  const quickBooksDemoTransactions = [
-    {
-      tipo: "Ingreso",
-      fecha: "2026-07-01",
-      numero: "QB-DEMO-0001",
-      categoria: "Boletería",
-      descripcion: "Entradas generales del museo",
-      cliente: "Visitantes del museo",
-      metodo: "Tarjeta",
-      subtotal: 420,
-      ivu: 48.3,
-      total: 468.3,
-      fuente: "Boletería"
-    },
-    {
-      tipo: "Ingreso",
-      fecha: "2026-07-02",
-      numero: "QB-DEMO-0002",
-      categoria: "Renta de Espacios",
-      descripcion: "Reserva de salón para actividad privada",
-      cliente: "Cliente institucional",
-      metodo: "Transferencia",
-      subtotal: 1000,
-      ivu: 0,
-      total: 1000,
-      fuente: "Renta de Espacios"
-    },
-    {
-      tipo: "Ingreso",
-      fecha: "2026-07-03",
-      numero: "QB-DEMO-0003",
-      categoria: "Donaciones",
-      descripcion: "Donativo individual para programación cultural",
-      cliente: "Donante",
-      metodo: "Cheque",
-      subtotal: 250,
-      ivu: 0,
-      total: 250,
-      fuente: "Donaciones"
-    },
-    {
-      tipo: "Ingreso",
-      fecha: "2026-07-04",
-      numero: "QB-DEMO-0004",
-      categoria: "Gift Shop",
-      descripcion: "Venta de artículos promocionales",
-      cliente: "Visitantes del museo",
-      metodo: "Efectivo",
-      subtotal: 180,
-      ivu: 20.7,
-      total: 200.7,
-      fuente: "Gift Shop"
-    },
-    {
-      tipo: "Gasto",
-      fecha: "2026-07-05",
-      numero: "QB-DEMO-0005",
-      categoria: "Nómina",
-      descripcion: "Pago de nómina administrativa",
-      cliente: "Museo de la Música",
-      metodo: "Transferencia",
-      subtotal: 1200,
-      ivu: 0,
-      total: 1200,
-      fuente: "Finanzas"
-    },
-    {
-      tipo: "Gasto",
-      fecha: "2026-07-06",
-      numero: "QB-DEMO-0006",
-      categoria: "Utilidades",
-      descripcion: "Pago de electricidad",
-      cliente: "Proveedor de servicio",
-      metodo: "ACH",
-      subtotal: 650,
-      ivu: 0,
-      total: 650,
-      fuente: "Finanzas"
-    }
-  ];
-
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   const syncTime = () => new Date().toLocaleTimeString("es-PR", { hour: "numeric", minute: "2-digit" });
   const setSyncStatus = (state, title, detail) => {
@@ -4636,115 +4558,18 @@ function bindLegacyFinanceModuleDisabled() {
       if (detailNode) detailNode.textContent = detail;
     });
   };
-  const rowTotal = (row) => row.values.reduce((sum, value) => sum + Number(value || 0), 0);
-  const rowsByType = (type) => rows.filter((row) => row.type === type);
-  const totalByType = (type) => rowsByType(type).reduce((sum, row) => sum + rowTotal(row), 0);
   const audit = () => auditEntries;
   const saveAudit = (entries) => {
     auditEntries = entries.slice(-250);
   };
-  const normalizeRows = (storedRows) => {
-    const storedById = new Map(storedRows.map((row) => [row.id, row]));
-    const normalized = defaultFinanceRows.map((defaultRow) => {
-      const row = storedById.get(defaultRow.id);
-      return {
-        ...defaultRow,
-        values: row && Array.isArray(row.values) && row.values.length === 12 ? row.values : defaultRow.values
-      };
-    });
-    const defaultIds = new Set(defaultFinanceRows.map((row) => row.id));
-    storedRows.forEach((row) => {
-      if (!defaultIds.has(row.id)) normalized.push(row);
-    });
-    return normalized;
-  };
-
-  rows = normalizeRows(defaultFinanceRows);
-
-  const buildFinanceRecordPayload = (row, monthIndex, amount, museumId) => ({
-    museum_id: museumId,
-    record_type: row.type,
-    category: row.category,
-    concept: row.concept,
-    month: financeMonths[monthIndex],
-    year: financeYear,
-    amount: Number(amount || 0)
-  });
-
-  const rowsFromFinanceRecords = (records) => {
-    const normalized = normalizeRows(defaultFinanceRows.map((row) => ({ ...row, values: Array(12).fill(0) })));
-    const rowKey = (row) => `${row.type}::${row.category}::${row.concept}`;
-    const rowsByKey = new Map(normalized.map((row) => [rowKey(row), row]));
-
-    records.forEach((record) => {
-      if (excludedFinanceConcepts.has(record.concept)) return;
-      const type = record.record_type;
-      const key = `${type}::${record.category}::${record.concept}`;
-      const monthIndex = financeMonths.indexOf(record.month);
-      if (monthIndex < 0) return;
-      if (!rowsByKey.has(key)) {
-        const id = `${type}-${record.category}-${record.concept}`.toLowerCase()
-          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "");
-        const newRow = { id, type, category: record.category, concept: record.concept, values: Array(12).fill(0) };
-        rowsByKey.set(key, newRow);
-        normalized.push(newRow);
-      }
-      rowsByKey.get(key).values[monthIndex] = Number(record.amount || 0);
-    });
-
-    return normalized;
-  };
-
-  const enforceApprovedFinanceRows = () => {
-    const approvedIds = new Set(["exp-miscelaneos", "exp-reserva"]);
-    defaultFinanceRows
-      .filter((defaultRow) => approvedIds.has(defaultRow.id))
-      .forEach((defaultRow) => {
-        const row = rows.find((item) => item.id === defaultRow.id);
-        if (!row) return;
-        row.values = [...defaultRow.values];
-      });
-  };
-
-  const syncApprovedFinanceRowsToSupabase = async (records) => {
-    const approvedIds = new Set(["exp-miscelaneos", "exp-reserva"]);
-    const approvedRows = defaultFinanceRows.filter((row) => approvedIds.has(row.id));
-    for (const row of approvedRows) {
-      for (let monthIndex = 0; monthIndex < financeMonths.length; monthIndex += 1) {
-        const desiredValue = Number(row.values[monthIndex] || 0);
-        const existing = records.find((record) =>
-          record.record_type === row.type &&
-          record.category === row.category &&
-          record.concept === row.concept &&
-          record.month === financeMonths[monthIndex] &&
-          Number(record.year) === financeYear
-        );
-        const currentValue = Number(existing?.amount || 0);
-        if (currentValue !== desiredValue) {
-          await saveFinanceCellToSupabase(row, monthIndex, currentValue, desiredValue);
-        }
-      }
-    }
-  };
-
-  const seedFinanceRecords = async (profile) => {
-    const payload = rows.flatMap((row) =>
-      row.values.map((value, monthIndex) => buildFinanceRecordPayload(row, monthIndex, value, profile.museum_id))
-    );
-    const response = await fetch(`${supabaseUrl}/rest/v1/finance_records`, {
-      method: "POST",
-      headers: {
-        ...(await supabaseAuthHeaders()),
-        Prefer: "return=minimal"
-      },
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.message || "No se pudo crear la plantilla financiera en Supabase.");
-    }
+  const rowsFromFinanceRecords = records => financeRowsFromRecords(records,defaultFinanceRows,financeMonths,excludedFinanceConcepts);
+  const loadAudit = async () => {
+    const entries = await supabasePost("/rest/v1/rpc/finance_audit_history", {p_year:financeYear});
+    auditEntries = entries.slice().reverse().map(entry => ({
+      usuario:entry.user_name,fecha:new Date(entry.created_at).toLocaleDateString("es-PR"),
+      hora:new Date(entry.created_at).toLocaleTimeString("es-PR"),concepto:entry.concept,
+      mes:entry.month,anterior:entry.old_amount,nuevo:entry.new_amount
+    }));
   };
 
   const syncFinanceFromSupabase = async () => {
@@ -4762,25 +4587,16 @@ function bindLegacyFinanceModuleDisabled() {
 
     currentUser = currentProfile.full_name || localStorage.getItem(currentUserKey) || "Usuario";
     setSyncStatus("checking", "Leyendo Supabase", `Usuario: ${currentUser}`);
-    const response = await fetch(`${supabaseUrl}/rest/v1/finance_records?select=*&museum_id=eq.${encodeURIComponent(currentProfile.museum_id)}&year=eq.${financeYear}&order=created_at.asc`, {
-      headers: await supabaseAuthHeaders()
-    });
-    const records = await response.json();
-    if (!response.ok) {
-      setSyncStatus("error", "Error de Supabase", records.message || "No se pudo leer Finanzas.");
-      throw new Error(records.message || "No se pudo leer Finanzas desde Supabase.");
+    const records = [];
+    for (let offset=0;;offset+=1000) {
+      const page = await supabaseGet(`/rest/v1/finance_records?select=id,record_type,category,concept,month,year,amount&museum_id=eq.${encodeURIComponent(currentProfile.museum_id)}&year=eq.${financeYear}&order=id.asc&limit=1000&offset=${offset}`);
+      records.push(...page);
+      if(page.length<1000)break;
     }
-
-    if (!records.length) {
-      await seedFinanceRecords(currentProfile);
-      rows = normalizeRows(rows);
-      setSyncStatus("connected", "Conectado a Supabase", `Plantilla financiera creada · ${syncTime()} · ${currentUser}`);
-      return true;
-    }
-
     rows = rowsFromFinanceRecords(records);
-    enforceApprovedFinanceRows();
-    await syncApprovedFinanceRowsToSupabase(records);
+    await loadAudit();
+    const notice = document.querySelector("[data-finance-message]");
+    if(notice)notice.textContent = records.length ? "Los importes provienen de registros guardados. Nómina presupuestada no ejecuta ni aprueba pagos." : "No hay registros financieros para este período. No se han creado datos ni aplicado valores predeterminados.";
     setSyncStatus("connected", "Conectado a Supabase", `Datos cargados · ${syncTime()} · ${currentUser}`);
     return true;
   };
@@ -4793,53 +4609,11 @@ function bindLegacyFinanceModuleDisabled() {
     }
     if (!currentProfile?.museum_id) throw new Error("No se encontró el museo asociado a su perfil.");
 
-    const query = [
-      `museum_id=eq.${encodeURIComponent(currentProfile.museum_id)}`,
-      `record_type=eq.${encodeURIComponent(row.type)}`,
-      `category=eq.${encodeURIComponent(row.category)}`,
-      `concept=eq.${encodeURIComponent(row.concept)}`,
-      `month=eq.${encodeURIComponent(financeMonths[monthIndex])}`,
-      `year=eq.${financeYear}`
-    ].join("&");
-
-    const existingResponse = await fetch(`${supabaseUrl}/rest/v1/finance_records?select=id&${query}&limit=1`, {
-      headers: await supabaseAuthHeaders()
-    });
-    const existing = await existingResponse.json();
-    if (!existingResponse.ok) throw new Error(existing.message || "No se pudo localizar el registro financiero.");
-
-    const payload = buildFinanceRecordPayload(row, monthIndex, nextValue, currentProfile.museum_id);
-    const recordId = existing[0]?.id;
-    const saveResponse = await fetch(recordId
-      ? `${supabaseUrl}/rest/v1/finance_records?id=eq.${encodeURIComponent(recordId)}`
-      : `${supabaseUrl}/rest/v1/finance_records`, {
-      method: recordId ? "PATCH" : "POST",
-      headers: {
-        ...(await supabaseAuthHeaders()),
-        Prefer: "return=representation"
-      },
-      body: JSON.stringify(payload)
-    });
-    const saved = await saveResponse.json();
-    if (!saveResponse.ok) throw new Error(saved.message || "No se pudo guardar el cambio financiero.");
-
-    await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
-      method: "POST",
-      headers: {
-        ...(await supabaseAuthHeaders()),
-        Prefer: "return=minimal"
-      },
-      body: JSON.stringify({
-        museum_id: currentProfile.museum_id,
-        user_id: currentProfile.id,
-        action: "update_finance_record",
-        table_name: "finance_records",
-        record_id: saved[0]?.id || recordId || null,
-        old_value: { amount: Number(previousValue || 0), month: financeMonths[monthIndex], concept: row.concept },
-        new_value: { amount: Number(nextValue || 0), month: financeMonths[monthIndex], concept: row.concept }
-      })
-    }).catch(() => null);
-
+    if(!canWrite())throw Error("No tiene permiso para editar Finanzas.");
+    const recordId=row.recordIds[monthIndex];
+    if(!recordId)throw Error("No existe un registro guardado para esta celda.");
+    const saved=await supabasePost("/rest/v1/rpc/update_finance_record_amount", {p_record_id:recordId,p_new_amount:nextValue});
+    if(saved?.record_id!==recordId || Number(saved.amount)!==nextValue || !saved.audit_id || !saved.updated_at)throw Error("Supabase no confirmó el guardado y la auditoría.");
     setSyncStatus("connected", "Guardado en Supabase", `Última confirmación: ${syncTime()} · ${currentUser}`);
     return true;
   };
@@ -4858,15 +4632,7 @@ function bindLegacyFinanceModuleDisabled() {
     saveAudit(entries);
   };
 
-  const totals = () => {
-    const income = totalByType("income");
-    const expense = totalByType("expense");
-    return {
-      income,
-      expense,
-      net: income - expense
-    };
-  };
+  const totals = () => financeTotals(rows);
 
   const renderSummary = () => {
     const data = totals();
@@ -4917,12 +4683,12 @@ function bindLegacyFinanceModuleDisabled() {
           </thead>
           <tbody>
             ${visibleRows.map((row) => {
-              const categoryRow = row.category !== lastCategory ? `<tr class="finance-category-row"><td colspan="13">${row.category}</td></tr>` : "";
+              const categoryRow = row.category !== lastCategory ? `<tr class="finance-category-row"><td colspan="13">${safeHtml(row.category)}</td></tr>` : "";
               lastCategory = row.category;
               return `${categoryRow}<tr>
                 <td><strong>${safeHtml(row.concept)}</strong></td>
                 ${row.values.map((value, index) => `
-                  <td><input class="finance-cell" type="number" step="0.01" value="${Number(value || 0)}" data-finance-row="${row.id}" data-finance-month="${index}"></td>
+                  <td><input class="finance-cell" type="number" step="0.01" value="${value === null ? "" : Number(value)}" ${!canWrite() || !row.recordIds[index] ? "disabled" : ""} aria-label="${safeHtml(row.concept)} ${financeMonths[index]}" data-finance-row="${row.id}" data-finance-month="${index}"></td>
                 `).join("")}
               </tr>`;
             }).join("")}
@@ -4962,7 +4728,7 @@ function bindLegacyFinanceModuleDisabled() {
     <h3>Regla Financiera Activa</h3>
     <p>El módulo Finanzas solo calcula Total de Ingresos menos Total de Gastos para presentar el Balance Neto.</p>
     <div class="finance-config-grid">
-      ${["Total de Ingresos", "Total de Gastos", "Balance Neto", "Supabase como base operacional", "Exportación contable para QuickBooks"].map((item) => `<span>${item}</span>`).join("")}
+      ${["Total de Ingresos", "Total de Gastos", "Balance Neto", "Supabase como base operacional", "QuickBooks opcional"].map((item) => `<span>${item}</span>`).join("")}
     </div>
   `;
 
@@ -4971,7 +4737,7 @@ function bindLegacyFinanceModuleDisabled() {
     if (activeTab === "resumen") panel.innerHTML = `<p class="page-kicker">Resumen</p><h3>Balance Neto</h3>${renderNetSummary()}`;
     if (activeTab === "ingresos") panel.innerHTML = renderFinanceTable("Ingresos", (row) => row.type === "income");
     if (activeTab === "gastos") panel.innerHTML = renderExpenseSummaryTable();
-    if (activeTab === "nomina") panel.innerHTML = renderFinanceTable("Nómina", (row) => row.category === "Nómina" || row.category === "Beneficios");
+    if (activeTab === "nomina") panel.innerHTML = renderFinanceTable("Nómina presupuestada", (row) => row.category === "Nómina" || row.category === "Beneficios");
     if (activeTab === "reportes") panel.innerHTML = renderReports();
     if (activeTab === "configuracion") panel.innerHTML = renderConfiguration();
   };
@@ -5027,11 +4793,7 @@ function bindLegacyFinanceModuleDisabled() {
     URL.revokeObjectURL(link.href);
   };
 
-  const monthDate = (monthIndex) => {
-    const fiscalMonthNumber = ((monthIndex + 6) % 12) + 1;
-    const year = monthIndex < 6 ? financeYear : financeYear + 1;
-    return `${year}-${String(fiscalMonthNumber).padStart(2, "0")}-01`;
-  };
+  const monthDate = index => financePeriodDate(financeYear,index);
 
   const accountingCategoryForConcept = (concept = "") => {
     const text = concept.toLowerCase();
@@ -5094,21 +4856,7 @@ function bindLegacyFinanceModuleDisabled() {
       });
     });
 
-    if (transactions.length) return transactions;
-
-    return quickBooksDemoTransactions.map((transaction) => ({
-      "Tipo": transaction.tipo,
-      "Fecha": transaction.fecha,
-      "Número de transacción": transaction.numero,
-      "Categoría": transaction.categoria,
-      "Descripción": transaction.descripcion,
-      "Cliente / visitante": transaction.cliente,
-      "Método de pago": transaction.metodo,
-      "Subtotal": transaction.subtotal.toFixed(2),
-      "IVU": transaction.ivu.toFixed(2),
-      "Total": transaction.total.toFixed(2),
-      "Fuente de ingreso": transaction.fuente
-    }));
+    return transactions;
   };
 
   const summarizeQuickBooksRecords = (records, groupKey) => {
@@ -5134,6 +4882,7 @@ function bindLegacyFinanceModuleDisabled() {
   };
 
   const exportQuickBooks = (type) => {
+    if(!canExport())return;
     const records = buildQuickBooksTransactions();
     if (type === "daily") {
       const headers = ["Fecha", "Total de Ingresos", "Total de Gastos", "Balance Neto"];
@@ -5153,6 +4902,7 @@ function bindLegacyFinanceModuleDisabled() {
   };
 
   const exportCsv = () => {
+    if(!canExport())return;
     const lines = [["Tipo", "Categoría", "Concepto", ...financeMonths]];
     rows.forEach((row) => lines.push([row.type, row.category, row.concept, ...row.values]));
     const csv = lines.map((line) => line.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -5176,12 +4926,13 @@ function bindLegacyFinanceModuleDisabled() {
 
   panel.addEventListener("change", async (event) => {
     const input = event.target.closest("[data-finance-row]");
-    if (!input) return;
+    if (!input || !canWrite()) return;
     const row = rows.find((item) => item.id === input.dataset.financeRow);
     const monthIndex = Number(input.dataset.financeMonth);
     if (!row || Number.isNaN(monthIndex)) return;
     const previousValue = Number(row.values[monthIndex] || 0);
-    const nextValue = Number(input.value || 0);
+    const nextValue = Number(input.value);
+    if (!input.value.trim() || !Number.isFinite(nextValue) || nextValue<0 || Math.abs(nextValue*100-Math.round(nextValue*100))>0.000001) { input.value=previousValue; return; }
     input.disabled = true;
     setSyncStatus("checking", "Guardando en Supabase", `${row.concept} · ${financeMonths[monthIndex]}`);
     try {
@@ -5198,9 +4949,10 @@ function bindLegacyFinanceModuleDisabled() {
     }
   });
 
+  document.querySelectorAll("[data-finance-export-excel], [data-finance-export-pdf], [data-finance-print], [data-qb-export]").forEach(button => { button.hidden = !canExport(); });
   document.querySelector("[data-finance-export-excel]")?.addEventListener("click", exportCsv);
-  document.querySelector("[data-finance-export-pdf]")?.addEventListener("click", () => window.print());
-  document.querySelector("[data-finance-print]")?.addEventListener("click", () => window.print());
+  document.querySelector("[data-finance-export-pdf]")?.addEventListener("click", () => { if(canExport())window.print(); });
+  document.querySelector("[data-finance-print]")?.addEventListener("click", () => { if(canExport())window.print(); });
   document.querySelectorAll("[data-qb-export]").forEach((button) => {
     button.addEventListener("click", () => exportQuickBooks(button.dataset.qbExport));
   });
@@ -5234,7 +4986,7 @@ function bindLegacyFinanceModuleDisabled() {
   }
 }
 
-function bindFinanceModule() {
+function bindFinanceBudgetPreview() {
   const module = document.querySelector("[data-finance-module]");
   const gate = document.querySelector("[data-finance-gate]");
   const panel = document.querySelector("[data-finance-panel]");
