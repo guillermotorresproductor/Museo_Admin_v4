@@ -3864,6 +3864,13 @@ function bindHrAttendanceView() {
   });
 }
 
+function setEmployeeCategorySelection(select, role = null) {
+  const label = employeeModuleProfiles[role];
+  select.value = label || "";
+  select.options[0].textContent = role && !label
+    ? "Conservar configuración actual" : "Seleccione una categoría";
+}
+
 function bindHumanResourcesModule() {
   const module = document.querySelector("[data-hr-module]");
   if (!module) return;
@@ -3989,8 +3996,7 @@ function bindHumanResourcesModule() {
     form.reset();
     form.elements.id.value = "";
     formServerLevel = { role: null, conflicting: false };
-    form.elements.acceso.options[0].textContent = "Sin nivel solicitado";
-    form.elements.acceso.value = "";
+    setEmployeeCategorySelection(form.elements.acceso);
     formPhotoReference = "";
     photoReadError = false;
     form.elements.acceso.disabled = !hasPermission("roles.assign");
@@ -4035,13 +4041,10 @@ function bindHumanResourcesModule() {
       const level = await fetchSupabaseEmployeeLevel(employee.id);
       if (form.elements.id.value !== employee.id) return;
       formServerLevel = level;
-      const legacyLevel = !!level.role && !Object.hasOwn(employeeModuleProfiles, level.role);
-      form.elements.acceso.options[0].textContent = legacyLevel ? "Conservar configuración actual" : "Sin nivel solicitado";
-      form.elements.acceso.value = legacyLevel ? "" : employeeAccessLabel(level.role);
+      setEmployeeCategorySelection(form.elements.acceso, level.role);
       const levelHint = form.querySelector("[data-employee-level-state]");
       if (levelHint) levelHint.textContent = level.source === "saved_employee_level"
         ? "Nivel solicitado para una futura invitación. Sin permiso efectivo: no hay perfil vinculado."
-        : legacyLevel ? "Configuración anterior verificada. Se conservará al guardar salvo que seleccione una categoría nueva."
         : "Categoría verificada en el servidor. Define módulos y permisos específicos; conserva el rol técnico de la cuenta.";
       form.elements.acceso.disabled = !hasPermission("roles.assign");
       if (submitButton) submitButton.disabled = false;
@@ -5250,7 +5253,7 @@ async function bindEmployeeProfile() {
       : "Categoría verificada en el servidor. Define módulos y permisos específicos; conserva el rol técnico de la cuenta.";
     profile.acceso = employeeAccessLabel(serverLevel);
     if (levelField) {
-      levelField.value = profile.acceso;
+      setEmployeeCategorySelection(levelField, serverLevel);
       levelField.disabled = !hasPermission("roles.assign");
     }
     if (saveButton) saveButton.disabled = false;
@@ -5429,9 +5432,11 @@ async function bindEmployeeProfile() {
       try {
         const supabaseProfile = await fetchSupabaseProfile();
         if (serverLevel === undefined) throw new Error("Nivel del servidor pendiente de verificar.");
-        const requestedLevel = employeeAccessCode(updatedProfile.acceso);
+        const categorySelected = !!updatedProfile.acceso;
+        const requestedLevel = employeeAccessCode(updatedProfile.acceso || serverLevel);
+        if (!updatedProfile.acceso) updatedProfile.acceso = employeeAccessLabel(serverLevel);
         if (requestedLevel !== serverLevel && !requestedLevel) throw new Error("Seleccione un nivel válido para cambiar el nivel existente.");
-        if (hasPermission("roles.assign") && (requestedLevel !== serverLevel || serverLevelConflict)) {
+        if (hasPermission("roles.assign") && (requestedLevel !== serverLevel || (categorySelected && serverLevelConflict))) {
           const assigned = await assignSupabaseEmployeeLevel(profile.id, requestedLevel, serverLevel);
           if (!assigned.assigned || assigned.role !== requestedLevel) throw new Error("No se confirmó el cambio de nivel.");
           serverLevel = assigned.role;

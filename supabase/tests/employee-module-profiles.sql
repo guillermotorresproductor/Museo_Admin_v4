@@ -54,10 +54,8 @@ begin
    if base='empleado' then
     foreach forbidden in array array['roles.assign','users.invite','employees.deactivate','inventory.manage','calendar.manage','usher.schedule.manage','collections.write','memberships.manage','rentals.manage','finance.write','system.configure'] loop
       if chosen.code='gerente_museografica' and forbidden='collections.write' then
-       if public.has_permission(forbidden) is not true then raise exception 'Museology write missing'; end if;
-       continue;
-      end if;
-      if public.has_permission(forbidden) then raise exception 'Privilege escalated % %',chosen.code,forbidden; end if;
+       if public.has_permission(forbidden) is not true then raise exception 'Museographic write missing'; end if;
+      elsif public.has_permission(forbidden) then raise exception 'Privilege escalated % %',chosen.code,forbidden; end if;
     end loop;
    end if;
    select count(*) into visible from public.app_records where record_key='module-profile-rollback';
@@ -101,6 +99,25 @@ begin
  if not mutation_denied then raise exception 'Stale selection accepted'; end if;
  if not public.has_permission('roles.assign') then raise exception 'Legacy administrator changed'; end if;
  insert into module_profile_test_results values('legacy','administrador','preserved+self_change_denied+stale_denied',true);
+end $$;
+reset role;
+-- The new profile capability must still respect an explicit per-user denial.
+select set_config('request.jwt.claim.sub','a5180000-0000-4000-8000-000000000001',true);
+set local role authenticated;
+select public.assign_employee_module_profile(
+ 'a5180000-0000-4000-8000-000000000002','gerente_museografica',
+ (select access_profile from public.employees where id='a5180000-0000-4000-8000-000000000002'));
+reset role;
+insert into public.user_permissions(museum_id,user_id,permission_id,effect,assigned_by)
+ select p.museum_id,p.id,perm.id,'deny','a5180000-0000-4000-8000-000000000001'::uuid
+ from public.profiles p cross join public.permissions perm
+ where p.id='a5180000-0000-4000-8000-000000000002' and perm.code='collections.write';
+select set_config('request.jwt.claim.sub','a5180000-0000-4000-8000-000000000002',true);
+set local role authenticated;
+do $$ begin
+ if public.has_permission('collections.write') then raise exception 'Explicit Collections denial ignored'; end if;
+ if public.has_permission('collections.read') is not true then raise exception 'Collections read lost'; end if;
+ insert into module_profile_test_results values('gerente_museografica','empleado','explicit_write_denial_preserved',true);
 end $$;
 reset role;
 -- Exact output is safe to save; no identities, credentials or existing data.

@@ -26,6 +26,17 @@ Las fotos se convierten en copias JPEG de hasta 1600 píxeles, con límite de 1.
 - `collections-navigation.test.mjs` ya está desactualizado respecto de la función de permisos: cuatro casos fallan por el mock ausente `hasModuleProfile`. Los helpers de permisos son idénticos a la base; este PR no los modifica.
 - No se ha fusionado ni desplegado en mmdpr.org. Continuar desde esta rama, comparando el estado del Codex local antes de editar.
 
+## Ampliación autorizada de categorías
+
+Incluida en el mismo PR:
+
+- Migración `202609210001_museographic_collections_access.sql`: añade exclusivamente `collections.write` al perfil `gerente_museografica`, después de validar cuenta activa, museo, módulo y denegaciones explícitas. Conserva la lista de módulos y los roles existentes.
+- Ambos selectores, Recursos Humanos y Perfil de Empleado, muestran solo las diez categorías nuevas. Las cuentas con roles antiguos pueden conservar la configuración al editar otros datos; no se convierten automáticamente.
+- Dieciocho pruebas locales de módulos, rutas, selectores y préstamos aprobadas. La prueba de navegador sigue pendiente. La prueba SQL de staging fue adaptada para esperar el permiso operativo de Museografía.
+- Aplicar la migración primero en staging y verificar `current_user_permissions()` y operaciones reales con ese perfil, incluidos los casos de denegación explícita.
+- Después de verificar y publicar, identificar a Ana Pérez por su expediente/cuenta y confirmar que está en `gerente_administrativo`. Cambiarla a `gerente_museografica` mediante `assign_employee_module_profile`, con la categoría anterior esperada y auditoría. No hacerlo por una coincidencia de nombre aislada ni por SQL directo. Si su categoría cambió mientras tanto, revisar antes de sobrescribir.
+- Este entorno no dispone de conexión administrativa a Supabase ni credenciales de Cloudflare. No se ha aplicado la migración, reasignado a Ana, fusionado el PR ni desplegado en mmdpr.org.
+
 ## Continuación verificada — 21 de septiembre
 
 La revisión posterior resolvió los permisos específicos de Museología y la política de inserción de préstamos, retiró las categorías antiguas del selector sin convertir cuentas y completó pruebas reales de staging y navegador. Véase `docs/loan-receipt-release-verification.md` para separar comprobaciones reales, simuladas y limitaciones de impresión. Las secciones anteriores describen el estado inicial del PR y sus pendientes originales.
