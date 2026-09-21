@@ -3864,6 +3864,13 @@ function bindHrAttendanceView() {
   });
 }
 
+function setEmployeeCategorySelection(select, role = null) {
+  const label = employeeModuleProfiles[role];
+  select.value = label || "";
+  select.options[0].textContent = role && !label
+    ? "Conservar configuración actual" : "Seleccione una categoría";
+}
+
 function bindHumanResourcesModule() {
   const module = document.querySelector("[data-hr-module]");
   if (!module) return;
@@ -3989,7 +3996,7 @@ function bindHumanResourcesModule() {
     form.reset();
     form.elements.id.value = "";
     formServerLevel = { role: null, conflicting: false };
-    form.elements.acceso.value = "";
+    setEmployeeCategorySelection(form.elements.acceso);
     formPhotoReference = "";
     photoReadError = false;
     form.elements.acceso.disabled = !hasPermission("roles.assign");
@@ -4034,11 +4041,11 @@ function bindHumanResourcesModule() {
       const level = await fetchSupabaseEmployeeLevel(employee.id);
       if (form.elements.id.value !== employee.id) return;
       formServerLevel = level;
-      form.elements.acceso.value = employeeAccessLabel(level.role);
+      setEmployeeCategorySelection(form.elements.acceso, level.role);
       const levelHint = form.querySelector("[data-employee-level-state]");
       if (levelHint) levelHint.textContent = level.source === "saved_employee_level"
         ? "Nivel solicitado para una futura invitación. Sin permiso efectivo: no hay perfil vinculado."
-        : "Perfil verificado en el servidor. Cambiar módulos no concede permisos de edición, borrado ni cambio de roles.";
+        : "Categoría verificada. Gerente Museográfica permite gestionar Colecciones y Préstamos; no concede permisos para cambiar roles.";
       form.elements.acceso.disabled = !hasPermission("roles.assign");
       if (submitButton) submitButton.disabled = false;
     } catch (error) { setMessage(`No se pudo verificar el nivel del servidor${error.status ? ` (HTTP ${error.status})` : ""}: ${error.message}. Vuelva a abrir el empleado.`, "error"); return; }
@@ -5243,10 +5250,10 @@ async function bindEmployeeProfile() {
     const levelHint = document.querySelector("[data-employee-level-state]");
     if (levelHint) levelHint.textContent = level.source === "saved_employee_level"
       ? "Nivel solicitado para una futura invitación. Sin permiso efectivo: no hay perfil vinculado."
-      : "Perfil verificado en el servidor. Cambiar módulos no concede permisos de edición, borrado ni cambio de roles.";
+      : "Categoría verificada. Gerente Museográfica permite gestionar Colecciones y Préstamos; no concede permisos para cambiar roles.";
     profile.acceso = employeeAccessLabel(serverLevel);
     if (levelField) {
-      levelField.value = profile.acceso;
+      setEmployeeCategorySelection(levelField, serverLevel);
       levelField.disabled = !hasPermission("roles.assign");
     }
     if (saveButton) saveButton.disabled = false;
@@ -5425,7 +5432,8 @@ async function bindEmployeeProfile() {
       try {
         const supabaseProfile = await fetchSupabaseProfile();
         if (serverLevel === undefined) throw new Error("Nivel del servidor pendiente de verificar.");
-        const requestedLevel = employeeAccessCode(updatedProfile.acceso);
+        const requestedLevel = employeeAccessCode(updatedProfile.acceso || serverLevel);
+        if (!updatedProfile.acceso) updatedProfile.acceso = employeeAccessLabel(serverLevel);
         if (requestedLevel !== serverLevel && !requestedLevel) throw new Error("Seleccione un nivel válido para cambiar el nivel existente.");
         if (hasPermission("roles.assign") && (requestedLevel !== serverLevel || serverLevelConflict)) {
           const assigned = await assignSupabaseEmployeeLevel(profile.id, requestedLevel, serverLevel);

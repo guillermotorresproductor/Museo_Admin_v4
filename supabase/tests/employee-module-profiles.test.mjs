@@ -56,3 +56,31 @@ test('All-module entry does not confer privileged administrative operations',()=
  assert.equal(vm.runInContext('profilePageAllowed("administracion.html")',ctx),true);
  assert.match(source,/: isUshers \? hasPermission\("usher\.schedule\.manage"\)/);
 });
+
+test('Museographic operational permission opens both child routes and preserves prior modules',()=>{
+ const {ctx}=context(expected.gerente_museografica,['collections.read','collections.write']);
+ for(const page of ['departamento-museologico.html','colecciones-museograficas.html','inventario-colecciones.html','recibo-prestamo.html']){
+  assert.equal(vm.runInContext(`profilePageAllowed('${page}')`,ctx),true,page);
+  ctx.window.location.pathname='/'+page;
+  assert.equal(vm.runInContext('enforceAuthenticatedPageAccess()',ctx),false,page);
+ }
+ assert.equal(vm.runInContext('canWriteCollections()',ctx),true);
+ for(const page of ['administracion.html','recursos-humanos.html','finanzas.html'])assert.equal(vm.runInContext(`profilePageAllowed('${page}')`,ctx),false,page);
+});
+test('Both category selectors remove legacy choices and preserve existing account roles',()=>{
+ const {ctx}=context(expected.gerente_museografica);
+ for(const file of ['perfil-empleado.html','recursos-humanos.html']){
+  const html=fs.readFileSync(new URL('../../'+file,import.meta.url),'utf8');
+  assert.doesNotMatch(html,/<option>(Empleado|Ejecutivo|Administrador)<\/option>/);
+  assert.doesNotMatch(html,/Niveles anteriores/);
+ }
+ for(const role of ['empleado','ejecutivo','administrador']){
+  ctx.select={value:'',options:[{textContent:''}]};ctx.role=role;
+  vm.runInContext('setEmployeeCategorySelection(select,role)',ctx);
+  assert.equal(ctx.select.value,'');assert.equal(ctx.select.options[0].textContent,'Conservar configuración actual');
+  assert.equal(vm.runInContext('employeeAccessCode(select.value || role)',ctx),role);
+ }
+ vm.runInContext("setEmployeeCategorySelection(select,'gerente_museografica')",ctx);
+ assert.equal(ctx.select.value,'Gerente Museográfica');
+ vm.runInContext('setEmployeeCategorySelection(select)',ctx);assert.equal(ctx.select.value,'');
+});
