@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Formulario de Préstamo a Colección</title>
   <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
+  <link rel="stylesheet" href="css/loan-receipt.css?v=20260921-2">
 </head>
 <body>
   <div class="app-shell">
@@ -18,116 +19,113 @@
           <div class="request-meta">
             <div>
               <span>Número interno del artículo</span>
-              <strong data-loan-article-number>Artículo 00001</strong>
+              <strong data-loan-article-number>Se asignará al guardar</strong>
             </div>
             <div>
               <span>Fecha de emisión</span>
               <strong data-loan-article-date></strong>
             </div>
           </div>
-          <form id="loan-receipt-form" class="application-form" action="#" method="post" novalidate>
-            <div class="form-row">
-              <div class="field">
-                <label for="loan-lender">Nombre del prestamista</label>
-                <input id="loan-lender" name="prestamista" type="text" autocomplete="name" required>
-              </div>
-              <div class="field">
-                <label for="loan-email">Correo electrónico</label>
-                <input id="loan-email" name="correo" type="email" autocomplete="email" required>
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="field">
-                <label for="loan-phone">Teléfono</label>
-                <input id="loan-phone" name="telefono" type="tel" autocomplete="tel" required>
-              </div>
-              <div class="field">
-                <label for="loan-date">Fecha de recibo</label>
-                <input id="loan-date" name="fecha" type="date" required>
-              </div>
-            </div>
-            <div class="field">
-              <label for="loan-address">Dirección postal</label>
-              <input id="loan-address" name="direccion" type="text" autocomplete="street-address" required>
-            </div>
-            <div class="form-row">
-              <div class="field">
-                <label for="loan-item-name">Nombre o título del artículo</label>
-                <input id="loan-item-name" name="articulo" type="text" required>
-              </div>
-              <div class="field">
-                <label for="loan-category">Categoría</label>
-                <select id="loan-category" name="categoria" required>
-                  <option value="">Seleccione...</option>
-                  <option>Instrumento musical</option>
-                  <option>Fotografía</option>
-                  <option>Documento</option>
-                  <option>Vestuario</option>
-                  <option>Memorabilia</option>
-                  <option>Equipo electrónico</option>
-                  <option>Otro</option>
-                </select>
-              </div>
-            </div>
-            <div class="field">
-              <label for="loan-description">Descripción detallada del artículo</label>
-              <textarea id="loan-description" name="descripcion" rows="5" required></textarea>
-            </div>
-            <div class="form-row">
-              <div class="field">
-                <label for="loan-condition">Condición al momento del recibo</label>
-                <select id="loan-condition" name="condicion" required>
-                  <option value="">Seleccione...</option>
-                  <option>Excelente</option>
-                  <option>Buena</option>
-                  <option>Regular</option>
-                  <option>Requiere evaluación</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="loan-value">Valor estimado</label>
-                <input id="loan-value" name="valor" type="text" required>
-              </div>
-            </div>
-            <div class="form-row">
-              <div class="field">
-                <label for="loan-start">Fecha de inicio del préstamo</label>
-                <input id="loan-start" name="inicio" type="date" required>
-              </div>
-              <div class="field">
-                <label for="loan-end">Fecha estimada de devolución</label>
-                <input id="loan-end" name="devolucion" type="date" required>
-              </div>
-            </div>
-            <div class="field">
-              <label for="loan-purpose">Propósito del préstamo</label>
-              <textarea id="loan-purpose" name="proposito" rows="4" required></textarea>
-            </div>
-            <div class="field">
-              <label for="loan-notes">Observaciones adicionales</label>
-              <textarea id="loan-notes" name="observaciones" rows="4"></textarea>
-            </div>
-            <label class="terms-accept">
-              <input id="loan-certification" name="certificacion" type="checkbox" required>
-              <span>Certifico que la información suministrada es correcta y autorizo al Museo a evaluar el recibo del artículo mediante préstamo.</span>
-            </label>
-            <p class="form-message" data-loan-message aria-live="polite"></p>
-            <button class="button submit-button" type="submit">Enviar formulario</button>
-          </form>
+<p>Los campos con * son obligatorios. Las firmas pueden completarse en pantalla o en la copia impresa.</p><form id="loan-receipt-form" class="application-form" novalidate>
+<h4>1. Categoría e información de la pieza</h4>
+<div class="field"><label for="loan-categoria">Categoría *</label><select id="loan-categoria" name="categoria" required><option value="">Seleccione…</option><option value="Instrumento musical">Instrumento musical</option><option value="Fotografía">Fotografía</option><option value="Documento">Documento</option><option value="Vestuario">Vestuario</option><option value="Memorabilia">Memorabilia</option><option value="Equipo electrónico">Equipo electrónico</option><option value="Periódicos / Revistas">Periódicos / Revistas</option><option value="Joyería">Joyería</option><option value="Carteles y Afiches">Carteles y Afiches</option><option value="Obras de Arte">Obras de Arte</option><option value="Discos de Vinilo">Discos de Vinilo</option><option value="Casetes">Casetes</option><option value="CD">CD</option><option value="Otro">Otro</option></select></div>
+<div class="field"><label for="loan-categoria_otro">Especifique otra categoría</label><input id="loan-categoria_otro" name="categoria_otro" type="text" maxlength="500"></div>
+<div class="form-row">
+<div class="field"><label for="loan-articulo">Nombre o título de la pieza *</label><input id="loan-articulo" name="articulo" required type="text" maxlength="500"></div>
+<div class="field"><label for="loan-autor">Autor / Artista / Intérprete</label><input id="loan-autor" name="autor" type="text" maxlength="500"></div>
+</div>
+<div class="form-row">
+<div class="field"><label for="loan-periodo">Fecha o período</label><input id="loan-periodo" name="periodo" type="text" maxlength="500"></div>
+<div class="field"><label for="loan-materiales">Materiales</label><input id="loan-materiales" name="materiales" type="text" maxlength="500"></div>
+</div>
+<div class="field"><label for="loan-procedencia">Procedencia</label><input id="loan-procedencia" name="procedencia" type="text" maxlength="500"></div>
+<div class="field"><label for="loan-descripcion">Descripción de la pieza *</label><textarea id="loan-descripcion" name="descripcion" required rows="3" maxlength="10000"></textarea></div>
+<h4>2. Fotografías de la pieza</h4>
+<p>JPG, PNG o WEBP, hasta 10 MB por fotografía. Se guardará una copia de hasta 1600 píxeles; conserve los originales por separado.</p>
+<div class="field"><label for="loan-foto_frontal">Fotografía frontal</label><input type="file" id="loan-foto_frontal" name="foto_frontal" accept="image/jpeg,image/png,image/webp"><img data-preview="foto_frontal" class="loan-photo" hidden alt="Fotografía frontal"></div>
+<div class="field"><label for="loan-foto_posterior">Fotografía posterior / detalles</label><input type="file" id="loan-foto_posterior" name="foto_posterior" accept="image/jpeg,image/png,image/webp"><img data-preview="foto_posterior" class="loan-photo" hidden alt="Fotografía posterior / detalles"></div>
+<h4>3. Dimensiones y medidas</h4>
+<div class="form-row">
+<div class="field"><label for="loan-alto">Alto</label><input id="loan-alto" name="alto" type="number" min="0" step="any"></div>
+<div class="field"><label for="loan-alto_unidad">Unidad de alto</label><select id="loan-alto_unidad" name="alto_unidad"><option value="cm">cm</option><option value="pulg.">pulg.</option></select></div>
+</div>
+<div class="form-row">
+<div class="field"><label for="loan-ancho">Ancho</label><input id="loan-ancho" name="ancho" type="number" min="0" step="any"></div>
+<div class="field"><label for="loan-ancho_unidad">Unidad de ancho</label><select id="loan-ancho_unidad" name="ancho_unidad"><option value="cm">cm</option><option value="pulg.">pulg.</option></select></div>
+</div>
+<div class="form-row">
+<div class="field"><label for="loan-profundidad">Profundidad</label><input id="loan-profundidad" name="profundidad" type="number" min="0" step="any"></div>
+<div class="field"><label for="loan-profundidad_unidad">Unidad de profundidad</label><select id="loan-profundidad_unidad" name="profundidad_unidad"><option value="cm">cm</option><option value="pulg.">pulg.</option></select></div>
+</div>
+<div class="form-row">
+<div class="field"><label for="loan-peso">Peso</label><input id="loan-peso" name="peso" type="number" min="0" step="any"></div>
+<div class="field"><label for="loan-peso_unidad">Unidad de peso</label><select id="loan-peso_unidad" name="peso_unidad"><option value="lb">lb</option><option value="kg">kg</option></select></div>
+</div>
+<div class="field"><label for="loan-otras_medidas">Otras medidas / detalles</label><textarea id="loan-otras_medidas" name="otras_medidas" rows="3" maxlength="10000"></textarea></div>
+<h4>4. Estado de conservación</h4>
+<div class="form-row">
+<div class="field"><label for="loan-condicion">Condición al momento del recibo *</label><select id="loan-condicion" name="condicion" required><option value="">Seleccione…</option><option value="Excelente">Excelente</option><option value="Buena">Buena</option><option value="Regular">Regular</option><option value="Malo">Malo</option><option value="Requiere evaluación">Requiere evaluación</option></select></div>
+<div class="field"><label for="loan-valor">Valor estimado *</label><input id="loan-valor" name="valor" required type="text" maxlength="500"></div>
+</div>
+<div class="field"><label for="loan-conservacion_observaciones">Observaciones de conservación</label><textarea id="loan-conservacion_observaciones" name="conservacion_observaciones" rows="3" maxlength="10000"></textarea></div>
+<h4>5. Modalidad y propósito del préstamo</h4>
+<div class="field"><label for="loan-modalidad">Modalidad *</label><select id="loan-modalidad" name="modalidad" required><option value="temporal">Préstamo temporal</option><option value="indefinido">Préstamo por tiempo indefinido</option></select></div>
+<p id="loan-ownership">La pieza continúa siendo propiedad del prestamista. El préstamo no transfiere la propiedad al Museo de la Música de Puerto Rico en Guaynabo. La modalidad por tiempo indefinido no establece una fecha de devolución en este formulario.</p>
+<fieldset><legend>Propósito del préstamo</legend>
+<label class="terms-accept"><input type="checkbox" name="propositos" value="Exhibición"><span>Exhibición</span></label>
+<label class="terms-accept"><input type="checkbox" name="propositos" value="Investigación"><span>Investigación</span></label>
+<label class="terms-accept"><input type="checkbox" name="propositos" value="Conservación"><span>Conservación</span></label>
+<label class="terms-accept"><input type="checkbox" name="propositos" value="Documentación"><span>Documentación</span></label>
+<label class="terms-accept"><input type="checkbox" name="propositos" value="Otros"><span>Otros</span></label>
+</fieldset>
+<div class="field"><label for="loan-proposito">Detalles del propósito / especifique otros</label><textarea id="loan-proposito" name="proposito" rows="3" maxlength="10000"></textarea></div>
+<div class="form-row">
+<div class="field"><label for="loan-inicio">Fecha de inicio *</label><input id="loan-inicio" name="inicio" required type="date"></div>
+<div class="field"><label for="loan-devolucion">Fecha estimada de devolución *</label><input id="loan-devolucion" name="devolucion" required type="date"></div>
+</div>
+<h4>6. Propietario / Prestamista</h4>
+<div class="field"><label for="loan-prestamista">Nombre del propietario / prestamista *</label><input id="loan-prestamista" name="prestamista" required type="text" maxlength="500"></div>
+<div class="form-row">
+<div class="field"><label for="loan-correo">Correo electrónico *</label><input id="loan-correo" name="correo" required type="email"></div>
+<div class="field"><label for="loan-telefono">Teléfono *</label><input id="loan-telefono" name="telefono" required type="tel"></div>
+</div>
+<div class="field"><label for="loan-direccion">Dirección postal *</label><input id="loan-direccion" name="direccion" required type="text" maxlength="500"></div>
+<div class="field loan-signature"><label>Firma del propietario / prestamista (opcional; también puede firmar en papel)</label><canvas width="600" height="160" data-signature="firma_propietario" aria-label="Firma del propietario / prestamista"></canvas><button type="button" class="button secondary" data-clear-signature="firma_propietario">Borrar firma</button></div>
+<div class="field"><label for="loan-fecha_propietario">Fecha de firma del propietario</label><input id="loan-fecha_propietario" name="fecha_propietario" type="date"></div>
+<h4>7. Representante del museo</h4>
+<div class="form-row">
+<div class="field"><label for="loan-representante">Nombre del representante</label><input id="loan-representante" name="representante" type="text" maxlength="500"></div>
+<div class="field"><label for="loan-cargo_representante">Cargo</label><input id="loan-cargo_representante" name="cargo_representante" type="text" maxlength="500"></div>
+</div>
+<div class="field loan-signature"><label>Firma del representante del museo (opcional; también puede firmar en papel)</label><canvas width="600" height="160" data-signature="firma_representante" aria-label="Firma del representante del museo"></canvas><button type="button" class="button secondary" data-clear-signature="firma_representante">Borrar firma</button></div>
+<div class="field"><label for="loan-fecha_representante">Fecha de firma del representante</label><input id="loan-fecha_representante" name="fecha_representante" type="date"></div>
+<h4>8. Uso exclusivo del museo</h4>
+<div class="form-row">
+<div class="field"><label for="loan-ubicacion">Ubicación de la pieza</label><input id="loan-ubicacion" name="ubicacion" type="text" maxlength="500"></div>
+<div class="field"><label for="loan-recibido_por">Recibido por – Nombre</label><input id="loan-recibido_por" name="recibido_por" type="text" maxlength="500"></div>
+</div>
+<div class="field loan-signature"><label>Firma de quien recibe (opcional; también puede firmar en papel)</label><canvas width="600" height="160" data-signature="firma_recibido" aria-label="Firma de quien recibe"></canvas><button type="button" class="button secondary" data-clear-signature="firma_recibido">Borrar firma</button></div>
+<div class="form-row">
+<div class="field"><label for="loan-fecha">Fecha de ingreso / recibo *</label><input id="loan-fecha" name="fecha" required type="date"></div>
+<div class="field"><label for="loan-inventario">Número de inventario</label><input id="loan-inventario" name="inventario" type="text" maxlength="500"></div>
+</div>
+<div class="field"><label for="loan-registro_digital">Registro digital de inventario completado</label><select id="loan-registro_digital" name="registro_digital"><option value="">Seleccione…</option><option value="Sí">Sí</option><option value="No">No</option></select></div>
+<div class="field"><label for="loan-observaciones">Observaciones de uso interno</label><textarea id="loan-observaciones" name="observaciones" rows="3" maxlength="10000"></textarea></div>
+<label class="terms-accept"><input id="loan-certificacion" name="certificacion" type="checkbox" required><span>Certifico que la información suministrada es correcta y que la pieza se recibe en préstamo, conservando el propietario su titularidad.</span></label>
+<p class="form-message" data-loan-message aria-live="polite"></p><button class="button submit-button" type="submit" disabled>Guardar préstamo</button> <button class="button secondary" type="button" id="loan-print">Imprimir formulario</button> <button class="button secondary" type="button" id="loan-new">Nuevo formulario</button>
+</form>
         </section>
 
-        <section class="card panel section-stack">
-          <h3>Documento descargable</h3>
-          <p>Si necesita completar la versión en papel, descargue el formulario oficial existente en formato Word.</p>
-          <a class="button secondary section-stack" href="docs/formulario-recibo-articulos-coleccion-prestamo.docx" download>Descargar formulario Word</a>
-        </section>
+<section class="card panel section-stack"><h3>Préstamos guardados</h3><button type="button" class="button secondary" id="loan-reload">Actualizar listado</button><p id="loan-list-message" aria-live="polite"></p><div id="loan-list"></div></section>
+<section id="loan-printout" hidden></section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
   <script src="js/config.js"></script>
   <script src="js/services/supabase.js?v=module-profiles-20260918"></script>
-  <script src="js/app.js?v=module-profiles-20260918"></script>
+  <script src="js/loan-receipt.js?v=20260921-2"></script>
+  <script src="js/app.js?v=museology-release-20260921"></script>
 </body>
 </html>
 

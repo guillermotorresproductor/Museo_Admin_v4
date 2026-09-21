@@ -2811,135 +2811,7 @@ function bindRentalForm() {
 }
 
 function bindLoanReceiptForm() {
-  const form = document.querySelector("#loan-receipt-form");
-  if (!form) return;
-
-  const articleNumber = document.querySelector("[data-loan-article-number]");
-  const articleDate = document.querySelector("[data-loan-article-date]");
-  let receipts = [];
-  const today = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  };
-  const displayDate = (date) => {
-    const [year, month, day] = date.split("-");
-    return `${day}/${month}/${year}`;
-  };
-  const nextSequence = () => receipts.reduce((highest, receipt) => Math.max(highest, Number(receipt.sequence || 0)), 0) + 1;
-  const formatArticleNumber = (sequence) => `Artículo ${String(sequence).padStart(5, "0")}`;
-  const saveReceipts = async () => saveSystemCollection("recibos_prestamo", "receipts", receipts);
-  const refreshMeta = () => {
-    if (articleNumber) articleNumber.textContent = formatArticleNumber(nextSequence());
-    if (articleDate) articleDate.textContent = displayDate(today());
-  };
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const message = document.querySelector("[data-loan-message]");
-    const requiredFields = Array.from(form.querySelectorAll("[required]"));
-    const invalidFields = requiredFields.filter((field) => {
-      if (field.type === "checkbox") return !field.checked;
-      return !field.value.trim();
-    });
-
-    const email = form.querySelector("#loan-email");
-    if (email && email.value && !email.checkValidity()) invalidFields.push(email);
-
-    if (invalidFields.length > 0) {
-      invalidFields[0].focus();
-      if (message) {
-        message.textContent = "Complete todos los campos requeridos correctamente antes de enviar.";
-        message.className = "form-message error";
-      }
-      return;
-    }
-
-    const data = new FormData(form);
-    const sequence = nextSequence();
-    const internalNumber = formatArticleNumber(sequence);
-    const emissionDate = today();
-    const body = [
-      "Formulario de Recibo de Artículos de Colección Mediante Préstamo",
-      `Número interno: ${internalNumber}`,
-      `Fecha de emisión: ${displayDate(emissionDate)}`,
-      "",
-      `Prestamista: ${data.get("prestamista")}`,
-      `Correo electrónico: ${data.get("correo")}`,
-      `Teléfono: ${data.get("telefono")}`,
-      `Dirección postal: ${data.get("direccion")}`,
-      `Fecha de recibo: ${data.get("fecha")}`,
-      "",
-      "Articulo",
-      `Nombre o titulo: ${data.get("articulo")}`,
-      `Categoria: ${data.get("categoria")}`,
-      `Descripcion: ${data.get("descripcion")}`,
-      `Condicion: ${data.get("condicion")}`,
-      `Valor estimado: ${data.get("valor")}`,
-      "",
-      "Préstamo",
-      `Fecha de inicio: ${data.get("inicio")}`,
-      `Fecha estimada de devolucion: ${data.get("devolucion")}`,
-      `Propósito: ${data.get("proposito")}`,
-      "",
-      `Observaciones: ${data.get("observaciones") || "N/A"}`,
-      "",
-      "El prestamista certifica que la información suministrada es correcta."
-    ].join("\n");
-
-    const nextReceipts = [...receipts, {
-      id: `loan-${Date.now()}`,
-      sequence,
-      numeroArticulo: internalNumber,
-      fechaEmision: emissionDate,
-      prestamista: data.get("prestamista"),
-      articulo: data.get("articulo"),
-      categoria: data.get("categoria")
-    }];
-
-    try {
-      const previousReceipts = receipts;
-      receipts = nextReceipts;
-      try {
-        await saveReceipts();
-      } catch (error) {
-        receipts = previousReceipts;
-        throw error;
-      }
-      refreshMeta();
-    } catch (error) {
-      if (message) {
-        message.textContent = `No se pudo guardar en Supabase: ${error.message}`;
-        message.className = "form-message error";
-      }
-      return;
-    }
-
-    const mailto = new URL("mailto:guillermotorrespr@gmail.com");
-    mailto.searchParams.set("subject", `${internalNumber} - Recibo de préstamo - ${data.get("articulo")}`);
-    mailto.searchParams.set("body", body);
-
-    if (message) {
-      message.textContent = "Formulario validado. Se abrira el correo para enviar la información al administrador.";
-      message.className = "form-message success";
-    }
-
-    window.location.href = mailto.toString();
-  });
-
-  const loadReceipts = async () => {
-    try {
-      receipts = await fetchSystemCollection("recibos_prestamo", "receipts", []);
-    } catch (error) {
-      const message = document.querySelector("[data-loan-message]");
-      if (message) {
-        message.textContent = `No se pudo cargar Recibos desde Supabase: ${error.message}`;
-        message.className = "form-message error";
-      }
-    }
-    refreshMeta();
-  };
-
-  loadReceipts();
+  if (typeof bindMuseologyLoanForm === "function") bindMuseologyLoanForm();
 }
 
 function bindInventoryModule() {
@@ -3992,6 +3864,13 @@ function bindHrAttendanceView() {
   });
 }
 
+function setEmployeeCategorySelection(select, role = null) {
+  const label = employeeModuleProfiles[role];
+  select.value = label || "";
+  select.options[0].textContent = role && !label
+    ? "Conservar configuración actual" : "Seleccione una categoría";
+}
+
 function bindHumanResourcesModule() {
   const module = document.querySelector("[data-hr-module]");
   if (!module) return;
@@ -4117,7 +3996,7 @@ function bindHumanResourcesModule() {
     form.reset();
     form.elements.id.value = "";
     formServerLevel = { role: null, conflicting: false };
-    form.elements.acceso.value = "";
+    setEmployeeCategorySelection(form.elements.acceso);
     formPhotoReference = "";
     photoReadError = false;
     form.elements.acceso.disabled = !hasPermission("roles.assign");
@@ -4162,11 +4041,11 @@ function bindHumanResourcesModule() {
       const level = await fetchSupabaseEmployeeLevel(employee.id);
       if (form.elements.id.value !== employee.id) return;
       formServerLevel = level;
-      form.elements.acceso.value = employeeAccessLabel(level.role);
+      setEmployeeCategorySelection(form.elements.acceso, level.role);
       const levelHint = form.querySelector("[data-employee-level-state]");
       if (levelHint) levelHint.textContent = level.source === "saved_employee_level"
         ? "Nivel solicitado para una futura invitación. Sin permiso efectivo: no hay perfil vinculado."
-        : "Perfil verificado en el servidor. Cambiar módulos no concede permisos de edición, borrado ni cambio de roles.";
+        : "Categoría verificada en el servidor. Define módulos y permisos específicos; conserva el rol técnico de la cuenta.";
       form.elements.acceso.disabled = !hasPermission("roles.assign");
       if (submitButton) submitButton.disabled = false;
     } catch (error) { setMessage(`No se pudo verificar el nivel del servidor${error.status ? ` (HTTP ${error.status})` : ""}: ${error.message}. Vuelva a abrir el empleado.`, "error"); return; }
@@ -4274,7 +4153,7 @@ function bindHumanResourcesModule() {
         if (!supabaseProfile?.museum_id) throw new Error("No se encontró el museo asociado al perfil.");
         if (!formServerLevel) throw new Error("Nivel del servidor pendiente de verificar.");
         const requestedLevel = employeeAccessCode(employee.acceso);
-        const needsLevelChange = requestedLevel !== formServerLevel.role || formServerLevel.conflicting;
+        const needsLevelChange = requestedLevel !== formServerLevel.role || (!!data.get("acceso") && formServerLevel.conflicting);
         if (needsLevelChange && !requestedLevel) throw new Error("Seleccione un nivel válido para cambiar el nivel existente.");
         if (needsLevelChange && !hasPermission("roles.assign")) throw new Error("No tiene permiso para cambiar el nivel.");
         const savedEmployee = await saveSupabaseEmployee(employee, supabaseProfile.museum_id, id);
@@ -5371,10 +5250,10 @@ async function bindEmployeeProfile() {
     const levelHint = document.querySelector("[data-employee-level-state]");
     if (levelHint) levelHint.textContent = level.source === "saved_employee_level"
       ? "Nivel solicitado para una futura invitación. Sin permiso efectivo: no hay perfil vinculado."
-      : "Perfil verificado en el servidor. Cambiar módulos no concede permisos de edición, borrado ni cambio de roles.";
+      : "Categoría verificada en el servidor. Define módulos y permisos específicos; conserva el rol técnico de la cuenta.";
     profile.acceso = employeeAccessLabel(serverLevel);
     if (levelField) {
-      levelField.value = profile.acceso;
+      setEmployeeCategorySelection(levelField, serverLevel);
       levelField.disabled = !hasPermission("roles.assign");
     }
     if (saveButton) saveButton.disabled = false;
@@ -5553,9 +5432,11 @@ async function bindEmployeeProfile() {
       try {
         const supabaseProfile = await fetchSupabaseProfile();
         if (serverLevel === undefined) throw new Error("Nivel del servidor pendiente de verificar.");
-        const requestedLevel = employeeAccessCode(updatedProfile.acceso);
+        const categorySelected = !!updatedProfile.acceso;
+        const requestedLevel = employeeAccessCode(updatedProfile.acceso || serverLevel);
+        if (!updatedProfile.acceso) updatedProfile.acceso = employeeAccessLabel(serverLevel);
         if (requestedLevel !== serverLevel && !requestedLevel) throw new Error("Seleccione un nivel válido para cambiar el nivel existente.");
-        if (hasPermission("roles.assign") && (requestedLevel !== serverLevel || serverLevelConflict)) {
+        if (hasPermission("roles.assign") && (requestedLevel !== serverLevel || (categorySelected && serverLevelConflict))) {
           const assigned = await assignSupabaseEmployeeLevel(profile.id, requestedLevel, serverLevel);
           if (!assigned.assigned || assigned.role !== requestedLevel) throw new Error("No se confirmó el cambio de nivel.");
           serverLevel = assigned.role;

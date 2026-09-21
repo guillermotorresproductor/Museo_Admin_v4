@@ -29,7 +29,7 @@
               <div>
                 <p class="page-kicker">Creación de cuentas</p>
                 <h3>Nuevo Empleado</h3>
-                <p>Solo Administrador o Ejecutivo puede crear, editar y administrar cuentas de empleados.</p>
+                <p>La gestión de empleados requiere los permisos administrativos correspondientes.</p>
               </div>
               <button class="button secondary employee-form-close" type="button" data-employee-close aria-label="Cerrar formulario de empleado">Cerrar</button>
             </div>
@@ -154,10 +154,8 @@
             <div class="form-row">
               <label class="field">
                 <span>Nivel de acceso / Perfil de módulos</span>
-                <select name="acceso"><option value="">Sin nivel solicitado</option>
-                  <optgroup label="Perfiles de módulos"><option>Mantenimiento</option><option>Gerente Museográfica</option><option>Creadora de Contenido y Marketing</option><option>Coordinadora de Experiencia Museográfica</option><option>Técnico de Producción</option><option>Asistente Administrativa</option><option>Director Ejecutivo</option><option>Administrador General</option><option>Gerente Administrativo</option><option>IT Programador</option></optgroup><optgroup label="Niveles anteriores (sin conversión automática)"><option>Empleado</option>
-                  <option>Ejecutivo</option>
-                  <option>Administrador</option></optgroup>
+                <select name="acceso"><option value="">Seleccione una categoría</option>
+                  <optgroup label="Perfiles de módulos"><option>Mantenimiento</option><option>Gerente Museográfica</option><option>Creadora de Contenido y Marketing</option><option>Coordinadora de Experiencia Museográfica</option><option>Técnico de Producción</option><option>Asistente Administrativa</option><option>Director Ejecutivo</option><option>Administrador General</option><option>Gerente Administrativo</option><option>IT Programador</option></optgroup>
                 </select>
                 <small class="field-hint" data-employee-level-state>El nivel solicitado no concede acceso hasta vincular una cuenta.</small>
               </label>
@@ -256,7 +254,7 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/services/supabase.js?v=module-profiles-20260918"></script>
-  <script src="js/app.js?v=module-profiles-20260918"></script>
+  <script src="js/app.js?v=museology-release-20260921"></script>
 </body>
 </html>
 
