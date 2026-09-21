@@ -9,7 +9,10 @@
 #loan-printout dd { margin: 3px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 #loan-printout img { max-width: 100%; max-height: 250px; object-fit: contain; }
 #loan-printout h3 { break-after: avoid; }
+#loan-printout figure { margin: 12px 0; break-inside: avoid; }
+#loan-printout figcaption { margin-bottom: 8px; }
 @media print {
+ .loan-print-action { display: none !important; }
  @page { size: letter; margin: .65in; }
  body.loan-printing .sidebar, body.loan-printing .sidebar-backdrop, body.loan-printing .site-header, body.loan-printing .site-footer, body.loan-printing .page-content > :not(#loan-printout) { display: none !important; }
  body.loan-printing .app-shell, body.loan-printing .main-area, body.loan-printing .page-content { display: block !important; margin: 0 !important; padding: 0 !important; width: auto !important; min-height: 0 !important; }

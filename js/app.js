@@ -3989,6 +3989,7 @@ function bindHumanResourcesModule() {
     form.reset();
     form.elements.id.value = "";
     formServerLevel = { role: null, conflicting: false };
+    form.elements.acceso.options[0].textContent = "Sin nivel solicitado";
     form.elements.acceso.value = "";
     formPhotoReference = "";
     photoReadError = false;
@@ -4034,11 +4035,14 @@ function bindHumanResourcesModule() {
       const level = await fetchSupabaseEmployeeLevel(employee.id);
       if (form.elements.id.value !== employee.id) return;
       formServerLevel = level;
-      form.elements.acceso.value = employeeAccessLabel(level.role);
+      const legacyLevel = !!level.role && !Object.hasOwn(employeeModuleProfiles, level.role);
+      form.elements.acceso.options[0].textContent = legacyLevel ? "Conservar configuración actual" : "Sin nivel solicitado";
+      form.elements.acceso.value = legacyLevel ? "" : employeeAccessLabel(level.role);
       const levelHint = form.querySelector("[data-employee-level-state]");
       if (levelHint) levelHint.textContent = level.source === "saved_employee_level"
         ? "Nivel solicitado para una futura invitación. Sin permiso efectivo: no hay perfil vinculado."
-        : "Perfil verificado en el servidor. Cambiar módulos no concede permisos de edición, borrado ni cambio de roles.";
+        : legacyLevel ? "Configuración anterior verificada. Se conservará al guardar salvo que seleccione una categoría nueva."
+        : "Categoría verificada en el servidor. Define módulos y permisos específicos; conserva el rol técnico de la cuenta.";
       form.elements.acceso.disabled = !hasPermission("roles.assign");
       if (submitButton) submitButton.disabled = false;
     } catch (error) { setMessage(`No se pudo verificar el nivel del servidor${error.status ? ` (HTTP ${error.status})` : ""}: ${error.message}. Vuelva a abrir el empleado.`, "error"); return; }
@@ -4146,7 +4150,7 @@ function bindHumanResourcesModule() {
         if (!supabaseProfile?.museum_id) throw new Error("No se encontró el museo asociado al perfil.");
         if (!formServerLevel) throw new Error("Nivel del servidor pendiente de verificar.");
         const requestedLevel = employeeAccessCode(employee.acceso);
-        const needsLevelChange = requestedLevel !== formServerLevel.role || formServerLevel.conflicting;
+        const needsLevelChange = requestedLevel !== formServerLevel.role || (!!data.get("acceso") && formServerLevel.conflicting);
         if (needsLevelChange && !requestedLevel) throw new Error("Seleccione un nivel válido para cambiar el nivel existente.");
         if (needsLevelChange && !hasPermission("roles.assign")) throw new Error("No tiene permiso para cambiar el nivel.");
         const savedEmployee = await saveSupabaseEmployee(employee, supabaseProfile.museum_id, id);
@@ -5243,7 +5247,7 @@ async function bindEmployeeProfile() {
     const levelHint = document.querySelector("[data-employee-level-state]");
     if (levelHint) levelHint.textContent = level.source === "saved_employee_level"
       ? "Nivel solicitado para una futura invitación. Sin permiso efectivo: no hay perfil vinculado."
-      : "Perfil verificado en el servidor. Cambiar módulos no concede permisos de edición, borrado ni cambio de roles.";
+      : "Categoría verificada en el servidor. Define módulos y permisos específicos; conserva el rol técnico de la cuenta.";
     profile.acceso = employeeAccessLabel(serverLevel);
     if (levelField) {
       levelField.value = profile.acceso;

@@ -56,3 +56,25 @@ test('All-module entry does not confer privileged administrative operations',()=
  assert.equal(vm.runInContext('profilePageAllowed("administracion.html")',ctx),true);
  assert.match(source,/: isUshers \? hasPermission\("usher\.schedule\.manage"\)/);
 });
+
+test('Museology write capability opens both modules and preserves every previous route',()=>{
+ const {ctx,sidebar}=context(expected.gerente_museografica,['collections.read','collections.write']);
+ vm.runInContext('renderSidebar()',ctx);
+ for(const page of ['inventario-colecciones.html','recibo-prestamo.html','departamento-museologico.html','employee-portal.html','calendario.html','ujieres.html','documentos.html','boletin.html']){
+  assert.equal(vm.runInContext(`profilePageAllowed('${page}')`,ctx),true,page);
+  ctx.window.location.pathname='/'+page;
+  assert.equal(vm.runInContext('enforceAuthenticatedPageAccess()',ctx),false,page);
+ }
+ for(const page of ['administracion.html','finanzas.html','recursos-humanos.html','perfil-empleado.html'])assert.equal(vm.runInContext(`profilePageAllowed('${page}')`,ctx),false,page);
+ assert.equal(vm.runInContext('canWriteCollections()',ctx),true);
+ const denied=context(expected.gerente_museografica,['collections.read']);
+ assert.equal(vm.runInContext('profilePageAllowed("recibo-prestamo.html")',denied.ctx),false);
+ assert.equal(vm.runInContext('canWriteCollections()',denied.ctx),false);
+});
+
+test('HR selector contains only ten current categories and an empty preservation option',()=>{
+ const html=fs.readFileSync(new URL('../../recursos-humanos.html',import.meta.url),'utf8');
+ const selector=html.match(/<select name="acceso">([\s\S]*?)<\/select>/)[1];
+ assert.equal((selector.match(/<option/g)||[]).length,11);
+ assert(!/Niveles anteriores|<option>(Administrador|Ejecutivo|Empleado)<\/option>/.test(selector));
+});

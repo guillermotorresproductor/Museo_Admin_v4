@@ -33,16 +33,19 @@ test('signed URL failure prevents a successful directory read',async()=>{
 
 const hr=app.slice(app.indexOf('function bindHumanResourcesModule()'),app.indexOf('async function bindEmployeeProfile()'));
 const submit=hr.slice(hr.indexOf('  form.addEventListener("submit"'),hr.indexOf('  directory.addEventListener("click"'));
-function formFixture({roleFailure=false,photoFailure=false,allowed=true,draft=false}={}) {
+function formFixture({roleFailure=false,photoFailure=false,allowed=true,draft=false,legacy=false,conflicting=false}={}) {
  let handler;const calls=[],messages=[];
  const fields={id,nombre:'Synthetic',apellidos:'Employee',posicion:'Prueba',departamento:'Prueba',correo:'test@example.invalid',telefono:'',direccion:'',fechaContratacion:'',horario:'',educacion:'',condicion:'',acceso:'Administrador',estado:'Activo',notificaciones:''};
  if(draft){fields.correo='';fields.acceso='';}
+ if(legacy)fields.acceso='';
  const form={elements:{id:{value:id}},addEventListener:(event,fn)=>handler=fn};
  const c=vm.createContext({form,FormData:class{get(k){return fields[k];}},employeeSaving:false,photoReading:false,photoReadError:false,selectedPhoto:png,formPhotoReference:'',formServerLevel:{role:'empleado',conflicting:false},submitButton:{},
  canManageEmployees:()=>true,hasPermission:()=>allowed,employeeInitials:()=>'',getEmployeeRecords:()=>[{id}],getSupabaseSession:()=>({access_token:'fixture'}),supabaseProfile:{museum_id:'m'},
  saveSupabaseEmployee:async()=>{calls.push('save');if(photoFailure)throw Error('photo failed');return [{id}];},assignSupabaseEmployeeLevel:async()=>{calls.push('assign');if(roleFailure)throw Error('role failed');return {assigned:true,role:'administrador'};},
  canManageSensitiveEmployeeData:()=>false,fetchSupabaseEmployees:async()=>{calls.push('readback');return [{id}];},saveEmployeeRecords:()=>{},renderDirectory:()=>{},resetForm:()=>{},hideForm:()=>{},setMessage:(text,type)=>messages.push({text,type}),providerNeutralMessage:e=>e.message});
  if(draft){c.formServerLevel={role:null,conflicting:false};c.selectedPhoto='';}
+ if(legacy)c.formServerLevel={role:legacy,conflicting};
+ vm.runInContext(service.slice(0,service.indexOf("'use strict';")),c);
  vm.runInContext(submit,c);return {invoke:()=>handler({preventDefault(){}}),calls,messages};
 }
 
@@ -70,4 +73,8 @@ test('Ver perfil photo failure never updates cache or reports success',async()=>
  updateSupabaseEmployee:async()=>{throw Error('photo failed');},saveEmployeeRecords:()=>assert.fail('must not change cache'),setProfileMessage:(text,type)=>messages.push({text,type})});
  vm.runInContext(callback,c);await handler();assert.equal(messages.at(-1).type,'error');assert.ok(!messages.some(m=>m.type==='success'));
  assert.equal(c.profileSaving,false);assert.equal(c.saveButton.disabled,false);
+});
+
+for(const legacy of ['empleado','ejecutivo','administrador'])test('Legacy '+legacy+' remains unchanged without a category selection',async()=>{
+ const f=formFixture({legacy,conflicting:true});await f.invoke();assert.deepEqual(f.calls,['save','readback']);assert.equal(f.messages.at(-1).type,'success');
 });

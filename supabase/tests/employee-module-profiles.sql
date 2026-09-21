@@ -53,6 +53,10 @@ begin
    if public.has_permission('module_profiles.active') is not true then raise exception 'Profile marker missing'; end if;
    if base='empleado' then
     foreach forbidden in array array['roles.assign','users.invite','employees.deactivate','inventory.manage','calendar.manage','usher.schedule.manage','collections.write','memberships.manage','rentals.manage','finance.write','system.configure'] loop
+      if chosen.code='gerente_museografica' and forbidden='collections.write' then
+       if public.has_permission(forbidden) is not true then raise exception 'Museology write missing'; end if;
+       continue;
+      end if;
       if public.has_permission(forbidden) then raise exception 'Privilege escalated % %',chosen.code,forbidden; end if;
     end loop;
    end if;

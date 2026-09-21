@@ -25,3 +25,7 @@ Las fotos se convierten en copias JPEG de hasta 1600 píxeles, con límite de 1.
 - Confirmar guardado y lectura con una sesión autorizada de staging, incluidas las políticas ya desplegadas de `app_records`. No se han utilizado credenciales ni escrito datos reales.
 - `collections-navigation.test.mjs` ya está desactualizado respecto de la función de permisos: cuatro casos fallan por el mock ausente `hasModuleProfile`. Los helpers de permisos son idénticos a la base; este PR no los modifica.
 - No se ha fusionado ni desplegado en mmdpr.org. Continuar desde esta rama, comparando el estado del Codex local antes de editar.
+
+## Continuación verificada — 21 de septiembre
+
+La revisión posterior resolvió los permisos específicos de Museología y la política de inserción de préstamos, retiró las categorías antiguas del selector sin convertir cuentas y completó pruebas reales de staging y navegador. Véase `docs/loan-receipt-release-verification.md` para separar comprobaciones reales, simuladas y limitaciones de impresión. Las secciones anteriores describen el estado inicial del PR y sus pendientes originales.

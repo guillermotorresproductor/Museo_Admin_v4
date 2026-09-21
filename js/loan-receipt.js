@@ -99,9 +99,14 @@ async function bindMuseologyLoanForm() {
     }).catch(e=>{if(photoTasks[key]===task){photoErrors[key]=e.message;delete photos[key];form.querySelector(`[data-preview="${key}"]`).hidden=true;say(e.message,true);}});
     photoTasks[key]=task;
   });
-  function printReceipt(r) {
+  async function printReceipt(r, printing = true) {
     const area=document.querySelector('#loan-printout');area.replaceChildren();
     const add=(tag,text)=>{const el=document.createElement(tag);el.textContent=text;area.append(el);return el;};
+    const evidence=(label,data,alt)=>{
+      const figure=add('figure',''),caption=document.createElement('figcaption');caption.textContent=label;figure.append(caption);
+      if(data){const img=document.createElement('img');img.src=data;img.alt=alt;figure.append(img);}
+      else {const line=document.createElement('p');line.textContent='________________________________________';figure.append(line);}
+    };
     add('h2','Museo de la Música de Puerto Rico');add('h3','Formulario de préstamo a colección');
     add('p',`${r.numeroArticulo||'Formulario sin guardar'} · Fecha de emisión: ${r.fechaEmision||loanToday()}`);
     add('p',r.titularidad||loanOwnershipText);
@@ -109,31 +114,40 @@ async function bindMuseologyLoanForm() {
     for(const child of form.children) {
       if(child.tagName==='H4'){add('h3',child.textContent);dl=document.createElement('dl');area.append(dl);}
       for(const e of child.querySelectorAll('[name]')){
-        if(e.type==='checkbox'||e.type==='file'||!dl)continue;
+        if(e.type==='checkbox'||e.type==='file'||e.name.endsWith('_unidad')||!dl)continue;
         const label=form.querySelector(`label[for="${e.id}"]`);const box=document.createElement('div');
         const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label?.textContent.replace(' *','')||e.name;
         const val=r[e.name];dd.textContent=e.tagName==='SELECT'?([...e.options].find(o=>o.value===val)?.textContent||val||'____________________'):(val||'____________________');
+        if(['alto','ancho','profundidad','peso'].includes(e.name)&&val)dd.textContent=`${val} ${r[e.name+'_unidad']||''}`.trim();
         if(e.name==='devolucion'&&r.modalidad==='indefinido')dd.textContent='Sin fecha establecida';
         box.append(dt,dd);dl.append(box);
       }
       if(child.tagName==='FIELDSET')add('p',`Propósitos: ${(r.propositos||[]).join(', ')||'____________________'}`);
       for(const input of child.querySelectorAll('[type=file]')){
-        const photo=r.fotografias?.[input.name];if(photo?.data?.startsWith('data:image/jpeg;base64,')){add('p',input.name==='foto_frontal'?'Fotografía frontal':'Fotografía posterior / detalles');const img=document.createElement('img');img.src=photo.data;img.alt=photo.name;area.append(img);}
+        const photo=r.fotografias?.[input.name];if(photo?.data?.startsWith('data:image/jpeg;base64,'))evidence(input.name==='foto_frontal'?'Fotografía frontal':'Fotografía posterior / detalles',photo.data,photo.name);
       }
       for(const canvas of child.querySelectorAll('[data-signature]')){
-        add('p',child.querySelector('label').textContent.split(' (')[0]);const sig=r.firmas?.[canvas.dataset.signature];
-        if(sig?.startsWith('data:image/png;base64,')){const img=document.createElement('img');img.src=sig;img.alt='Firma registrada';area.append(img);}else add('p','________________________________________');
+        const sig=r.firmas?.[canvas.dataset.signature];
+        evidence(child.querySelector('label').textContent.split(' (')[0],sig?.startsWith('data:image/png;base64,')?sig:null,'Firma registrada');
       }
     }
+    area.querySelectorAll('dl').forEach(list=>{if(!list.children.length)list.remove();});
     add('p',`Certificación de titularidad e información: ${r.certificacion?'Aceptada en el formulario':'Pendiente de completar'}`);
-    document.body.classList.add('loan-printing');window.print();
+    area.hidden=false;
+    const printButton=add('button','Imprimir este expediente');printButton.type='button';printButton.className='button secondary loan-print-action';
+    printButton.onclick=()=>printReceipt(r);
+    if(printing){
+      await Promise.all([...area.querySelectorAll('img')].map(img=>img.decode().catch(()=>{})));
+      document.body.classList.add('loan-printing');window.print();
+    }else area.scrollIntoView({block:'start'});
   }
   window.addEventListener('afterprint',()=>document.body.classList.remove('loan-printing'));
   document.querySelector('#loan-print').onclick=async()=>{await Promise.all(Object.values(photoTasks));printReceipt(displayed||pending||read());};
   document.querySelector('#loan-new').onclick=()=>{
     if(busy)return;
     if((dirty||pending)&&!confirm(pending?'Hay un guardado sin confirmar. Reintente primero para evitar duplicar el préstamo. ¿Abrir otro formulario?':'¿Descartar los datos sin guardar y abrir un formulario nuevo?'))return;
-    displayed=null;pending=null;dirty=false;form.reset();lock(false);submit.disabled=!profile;submit.textContent='Guardar préstamo';
+    displayed=null;pending=null;dirty=false;form.reset();lock(false);submit.disabled=!profile||!canWriteCollections();submit.textContent='Guardar préstamo';
+    document.querySelector('#loan-printout').hidden=true;
     for(const o of [photos,signatures,photoTasks,photoErrors])Object.keys(o).forEach(k=>delete o[k]);
     form.querySelectorAll('[data-signature]').forEach(c=>c.getContext('2d').clearRect(0,0,c.width,c.height));
     form.querySelectorAll('[data-preview]').forEach(i=>{i.hidden=true;i.removeAttribute('src');});meta();say('Nuevo formulario.');
@@ -148,7 +162,7 @@ async function bindMuseologyLoanForm() {
     const legacy=await fetchSystemCollection('recibos_prestamo','receipts',[]);
     container.replaceChildren();
     for(const r of all){const line=document.createElement('div'),button=document.createElement('button');button.type='button';button.className='button secondary';button.textContent=`${r.numero} · ${r.articulo} · ${r.prestamista} — Ver / imprimir`;
-      button.onclick=async()=>{if(busy)return;try{const record=await loanRead(profile,r.record_key);printReceipt(record);}catch(e){say(e.message,true);}};line.append(button);container.append(line);}
+      button.onclick=async()=>{if(busy)return;try{const record=await loanRead(profile,r.record_key);await printReceipt(record,false);}catch(e){say(e.message,true);}};line.append(button);container.append(line);}
     for(const r of Array.isArray(legacy)?legacy:[]){const p=document.createElement('p');p.textContent=`${r.numeroArticulo||'Recibo anterior'} · ${r.articulo||''} · ${r.prestamista||''} — Resumen del formulario anterior`;container.append(p);}
     status.textContent=`${all.length} expedientes completos y ${Array.isArray(legacy)?legacy.length:0} resúmenes anteriores.`;
   }

@@ -10,7 +10,7 @@ function guard(page,permissions){
  const canRead=()=>admin()||permissions.includes('collections.read')||permissions.includes('collections.write');
  const checks={'inventario-colecciones.html':canRead,'departamento-museologico.html':canRead,'colecciones-museograficas.html':canRead,'recibo-prestamo.html':()=>permissions.includes('collections.write')};
  const ctx=vm.createContext({getCurrentPage:()=>page,getSupabaseSession:()=>({access_token:'test'}),currentPermissionsLoaded:true,moduleAccessChecks:checks,
- EXECUTIVE_MODULE_ACCESS:{},SENSITIVE_MODULE_ACCESS:{},hasAdministrativeWorkspaceAccess:admin,hasPermission:p=>permissions.includes(p),
+ EXECUTIVE_MODULE_ACCESS:{},SENSITIVE_MODULE_ACCESS:{},hasModuleProfile:()=>false,hasAdministrativeWorkspaceAccess:admin,hasPermission:p=>permissions.includes(p),
  showProtectedAccessDenied:()=>denied=true,window:{location:{replace:p=>redirects.push(p)}}});
  vm.runInContext(guardSource,ctx);return{blocked:ctx.enforceAuthenticatedPageAccess(),denied,redirects};
 }

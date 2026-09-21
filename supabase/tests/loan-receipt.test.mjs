@@ -73,6 +73,7 @@ test('browser: fields, photographs, signatures, retry, reload, print and legacy 
  await page.locator('#loan-list button').click();assert.match(await page.locator('#loan-printout').textContent(),/Sin fecha establecida/);
  assert.match(await page.locator('#loan-printout').textContent(),/Vinilo <prueba>/);assert.equal(await page.locator('#loan-printout img').count(),3);
  assert.equal(await page.locator('#loan-printout prueba').count(),0);
+ await page.locator('.loan-print-action').click();
  await page.emulateMedia({media:'print'});
  if(process.env.LOAN_QA_DIR){await page.screenshot({path:process.env.LOAN_QA_DIR+'/loan-print.png',fullPage:true});await page.pdf({path:process.env.LOAN_QA_DIR+'/loan-print.pdf',preferCSSPageSize:true});}
  assert.deepEqual(errors,[]);
