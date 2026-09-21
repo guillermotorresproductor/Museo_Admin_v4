@@ -19,6 +19,12 @@ Base `0f982d6`; PR #34, rama `feat/loan-receipt-museology-details`. Se conservar
 
 Los datos de prueba son ficticios, en museos aislados de staging; al finalizar se desactivan sus identidades y museos, preservando los expedientes y el historial. Ninguna prueba escribe piezas ficticias en producción.
 
-## Publicación
+## Publicación confirmada
 
-Se aplicó y probó la migración en staging. Antes de publicar se ejecuta una transacción de ensayo en producción que compara huellas de doce tablas de datos. La aplicación definitiva usa la misma comprobación y registra la migración. La restitución de Ana se ejecutará después de verificar el despliegue, mediante `assign_employee_module_profile`, con comprobación de identidad, categoría esperada y auditoría. Los resultados finales de despliegue se comunican en la entrega de la tarea.
+PR #34 fusionado: `2980df5ae2c6b3766e4564f22a62dbf5d0387220`. Cloudflare Pages informó éxito y se compararon por SHA-256 los seis archivos publicados en mmdpr.org (HTTP 200) con la revisión local: formulario, RH, perfil de empleado, app.js, loan-receipt.js y su CSS.
+
+Migración `202609210001` registrada en staging y producción. El ensayo y la aplicación conservaron las huellas de las once tablas de datos presentes de las doce previstas; producción no tiene `public.user_roles`. Se conservaron cuentas Auth, perfiles, empleados, permisos, recibos, piezas, fotos, historial, Finanzas, museos y metadatos de almacenamiento.
+
+Después de verificar el despliegue, Ana fue restituida de Gerente Administrativo a Gerente Museográfica usando `assign_employee_module_profile`, con comprobación de la identidad vinculada, categoría esperada y auditoría. La operación se ejecutó como mantenimiento autorizado a través de Management API con el contexto del administrador existente; no fue una sesión de Ana. Una consulta independiente posterior confirmó las seis entradas de módulos anteriores, escritura de inventario y préstamos y ausencia de `roles.assign`, `system.configure` y `finance.write`. El rol técnico ejecutivo y los otros datos permanecieron idénticos. Se generó una sola auditoría de restitución.
+
+Las identidades y museos ficticios usados en staging se desactivaron; no se borraron expedientes.
