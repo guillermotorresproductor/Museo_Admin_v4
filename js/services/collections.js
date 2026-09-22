@@ -49,15 +49,18 @@ async function collectionUpload(item, file, caption) {
   });
 }
 async function collectionPhotoUrl(path) {
-  const data = await collectionRequest(`/storage/v1/object/sign/collection-photos/${path}`, { expiresIn: 900 });
-  const signed = data?.signedURL || data?.signedUrl || data?.signed_url;
-  if (!signed) throw Error('No se pudo abrir la fotografía.');
-  if (/^https:\/\//i.test(signed)) return signed;
-  const normalized = signed.startsWith('/storage/v1/')
-    ? signed
-    : signed.startsWith('/object/sign/collection-photos/')
-      ? `/storage/v1${signed}`
-      : null;
-  if (!normalized) throw Error('La dirección protegida de la fotografía no es válida.');
-  return `${supabaseUrl}${normalized}`;
+  if (!path || path.includes('..') || path.startsWith('/')) throw Error('La referencia de la fotografía no es válida.');
+  // Read the private object with the existing authenticated session.
+  // This avoids depending on signed-URL response formats while preserving Storage RLS.
+  return `${supabaseUrl}/storage/v1/object/authenticated/collection-photos/${path.split('/').map(encodeURIComponent).join('/')}`;
+}
+async function collectionLoadPhoto(img, path) {
+  const response = await fetch(collectionPhotoUrl(path), { headers: await supabaseAuthHeaders(), cache: 'no-store' });
+  if (!response.ok) throw Error('No se pudo abrir la fotografía.');
+  const blob = await response.blob();
+  if (!blob.type.startsWith('image/')) throw Error('El archivo protegido no es una imagen válida.');
+  const objectUrl = URL.createObjectURL(blob);
+  img.src = objectUrl;
+  img.addEventListener('load', () => URL.revokeObjectURL(objectUrl), { once:true });
+  img.addEventListener('error', () => URL.revokeObjectURL(objectUrl), { once:true });
 }
