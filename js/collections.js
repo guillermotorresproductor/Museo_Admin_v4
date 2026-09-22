@@ -10,6 +10,8 @@ async function bindCollectionsCatalog() {
   const search = document.querySelector('#collection-search');
   let items = [], editing = null, saving = false, viewedItem = null, viewedQrDataUrl = '';
   const canWrite = canWriteCollections();
+  const canReplacePhoto = hasPermission('collections.write');
+  let replacingPhoto = false;
   const base = ['accession_number','title','description','category','location','condition','status'];
   const more = ['author','dating','materials','dimensions','provenance','owner','acquisition','custody','donor','owner_phone','owner_email','owner_address','lender','received_date','fmv','currency','loan_reference','notes','cultural_history'];
   const labels = {accession_number:'Número de inventario',title:'Nombre o título',description:'Descripción museográfica',category:'Clasificación',location:'Ubicación',condition:'Estado de conservación',status:'Estado del registro',author:'Autor / fabricante',dating:'Época / fecha de creación',materials:'Material',dimensions:'Dimensiones',provenance:'Procedencia',owner:'Titularidad',acquisition:'Forma de ingreso / adquisición',custody:'Condición de custodia',donor:'Donante / propietario',lender:'Prestamista',received_date:'Fecha de ingreso',fmv:'Valor estimado (FMV)',currency:'Moneda',loan_reference:'Referencia de préstamo / documento',notes:'Observaciones / anotaciones',owner_phone:'Teléfono del donante / propietario',owner_email:'Email del donante / propietario',owner_address:'Dirección del donante / propietario',cultural_history:'Historia / valor cultural'};
@@ -35,6 +37,7 @@ async function bindCollectionsCatalog() {
   }
   async function reload() { items = await collectionRows('collection_items'); render(); }
   function historyChanges(h) {
+    if(h.action === 'sustitucion_fotografia') return `Fotografía anterior (sustituida, conservada): ${h.before_value.path}\nNueva fotografía: ${h.after_value.path}`;
     if(h.action === 'fotografia') return h.after_value.caption || 'Fotografía añadida al expediente.';
     return [...base,...more].flatMap(k => {
       const old = base.includes(k) ? h.before_value?.[k] : h.before_value?.details?.[k];
@@ -59,8 +62,38 @@ async function bindCollectionsCatalog() {
     viewedItem = item; viewedQrDataUrl = '';
     const printButton = document.querySelector('#collection-print-label'); if(printButton) printButton.disabled = true;
     dialog.showModal(); detail.textContent = 'Cargando expediente…';
-    const [photos,history] = await Promise.all([collectionRows('collection_photos',`&item_id=eq.${item.id}`),collectionHistory(item.id)]);
-    detail.innerHTML = `<h2>${esc(item.accession_number)} · ${esc(item.title)}</h2><dl class="collection-facts">${[...base,...more].map(k => `<div><dt>${esc(labels[k])}</dt><dd>${esc(base.includes(k) ? item[k] : item.details?.[k]) || 'No registrado'}</dd></div>`).join('')}</dl><h3>Fotografías conservadas</h3><div class="collection-gallery">${photos.map(p=>`<figure><img data-photo="${p.id}" alt="Fotografía de ${esc(item.title)}" loading="lazy"><figcaption>${esc(p.caption || 'Sin descripción')} · ${esc(new Date(p.created_at).toLocaleString('es-PR'))}</figcaption></figure>`).join('') || '<p>Sin fotografías registradas.</p>'}</div><h3>Historial</h3><ol>${history.map(h => `<li><strong>${esc(h.action)}</strong> · ${esc(new Date(h.occurred_at).toLocaleString('es-PR'))}<p>${esc(h.reason)}</p><small>Responsable: ${esc(h.actor_name || h.actor_id)}</small><details><summary>Ver cambios conservados</summary><pre>${esc(historyChanges(h))}</pre></details></li>`).join('')}</ol><p><a href="inventario-colecciones.html?pieza=${item.id}">Enlace permanente del expediente</a></p>`;
+    const [photos,history] = await Promise.all([collectionRows('collection_active_photos',`&item_id=eq.${item.id}`),collectionHistory(item.id)]);
+    detail.innerHTML = `<h2>${esc(item.accession_number)} · ${esc(item.title)}</h2><dl class="collection-facts">${[...base,...more].map(k => `<div><dt>${esc(labels[k])}</dt><dd>${esc(base.includes(k) ? item[k] : item.details?.[k]) || 'No registrado'}</dd></div>`).join('')}</dl><h3>Fotografías conservadas</h3><div class="collection-gallery">${photos.map(p=>`<figure><img data-photo="${p.id}" alt="Fotografía de ${esc(item.title)}" loading="lazy"><figcaption>${esc(p.caption || 'Sin descripción')} · ${esc(new Date(p.created_at).toLocaleString('es-PR'))}</figcaption></figure>`).join('') || '<p>Sin fotografías registradas.</p>'}</div><h3>Historial</h3><ol>${history.map(h => `<li><strong>${esc(h.action === 'sustitucion_fotografia' ? 'Sustitución de fotografía' : h.action)}</strong> · ${esc(new Date(h.occurred_at).toLocaleString('es-PR'))}<p>${esc(h.reason)}</p><small>Responsable: ${esc(h.actor_name || h.actor_id)}</small><details><summary>Ver cambios conservados</summary><pre>${esc(historyChanges(h))}</pre></details></li>`).join('')}</ol><p><a href="inventario-colecciones.html?pieza=${item.id}">Enlace permanente del expediente</a></p>`;
+    if(canReplacePhoto) photos.forEach(photo => {
+      const figure = detail.querySelector(`[data-photo="${photo.id}"]`).closest('figure');
+      const replaceButton = document.createElement('button');
+      replaceButton.type = 'button'; replaceButton.className = 'button secondary';
+      replaceButton.textContent = 'Sustituir fotografía inválida';
+      const replacementForm = document.createElement('form');
+      replacementForm.className = 'collection-photo-replacement'; replacementForm.hidden = true;
+      replacementForm.innerHTML = '<p>Esta acción conservará la fotografía anterior en el historial y cargará una nueva fotografía válida. La fotografía anterior no será eliminada.</p><label class="field"><span>Razón de sustitución *</span><select name="reason" required><option value="">Seleccione una razón</option><option value="Archivo inválido o corrupto">Archivo inválido o corrupto</option></select></label><label class="field"><span>Fotografía correcta (JPG, PNG o WEBP, hasta 10 MB) *</span><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required></label><p role="status" aria-live="polite"></p><button class="button" type="submit">Confirmar sustitución</button> <button class="button secondary" type="button" data-cancel-replacement>Cancelar</button>';
+      replaceButton.onclick = () => { if(replacingPhoto) return; replacementForm.hidden = false; replaceButton.hidden = true; replacementForm.elements.reason.focus(); };
+      replacementForm.querySelector('[data-cancel-replacement]').onclick = () => { if(replacingPhoto) return; replacementForm.reset(); replacementForm.hidden = true; replaceButton.hidden = false; };
+      replacementForm.onsubmit = async event => {
+        event.preventDefault();
+        if(replacingPhoto || !canReplacePhoto || !replacementForm.reportValidity()) return;
+        const message = replacementForm.querySelector('[role="status"]');
+        const controls = [...replacementForm.querySelectorAll('input,select,button')];
+        const file = replacementForm.elements.photo.files[0], reason = replacementForm.elements.reason.value;
+        replacingPhoto = true; controls.forEach(control => control.disabled = true); message.textContent = 'Validando y sustituyendo fotografía…';
+        let replaced = false;
+        try {
+          const updated = await collectionReplacePhoto(item, photo, file, reason); replaced = true;
+          await reload(); await show(updated);
+          const success = document.createElement('p'); success.setAttribute('role','status');
+          success.textContent = 'Fotografía sustituida correctamente. La referencia anterior se conserva en el historial.';
+          detail.prepend(success);
+        } catch(error) {
+          message.textContent = replaced ? 'La sustitución se guardó. Cierre y vuelva a abrir el expediente para verla; no repita la operación.' : error.message;
+        } finally { replacingPhoto = false; controls.forEach(control => control.disabled = replaced); }
+      };
+      figure.append(replaceButton, replacementForm);
+    });
     const permanent = new URL('inventario-colecciones.html', location.href);
     permanent.searchParams.set('pieza',item.id);
     if(museoEnvironment.name==='staging') permanent.searchParams.set('environment','staging');
@@ -79,7 +112,8 @@ async function bindCollectionsCatalog() {
   document.querySelector('#collection-new').hidden = !canWrite;
   document.querySelector('#collection-new').onclick = () => edit(null);
   document.querySelector('#collection-cancel').onclick = () => { if(!saving) reset(); };
-  document.querySelector('#collection-close').onclick = () => dialog.close();
+  document.querySelector('#collection-close').onclick = () => { if(!replacingPhoto) dialog.close(); };
+  dialog.addEventListener('cancel', event => { if(replacingPhoto) event.preventDefault(); });
   document.querySelector('#collection-print-label').onclick = printLabel;
   document.querySelector('#collection-reload').onclick = () => reload().then(()=>say('Listado actualizado.')).catch(e=>say(e.message,true));
   search.oninput = render;
@@ -99,7 +133,7 @@ async function bindCollectionsCatalog() {
     try {
       for (const file of files) await collectionValidatePhoto(file);
       if(files.length) {
-        const existingPhotos = editing ? await collectionRows('collection_photos',`&item_id=eq.${editing.id}`) : [];
+        const existingPhotos = editing ? await collectionRows('collection_active_photos',`&item_id=eq.${editing.id}`) : [];
         if(existingPhotos.length + files.length > 4) {say(`Esta pieza ya tiene ${existingPhotos.length} fotografía(s). El máximo total es 4.`,true); return;}
       }
       editing = await collectionSave(item,editing,form.elements.reason.value.trim()); saved = true;

@@ -14,6 +14,8 @@
 .collection-facts dt { font-weight:700; color:#44546b; }
 .collection-facts dd { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; }
 .collection-gallery { display:flex; flex-wrap:wrap; gap:1rem; }
+.collection-photo-replacement { margin-top:1rem; padding:1rem; border:1px solid #d8dee7; border-radius:12px; }
+.collection-photo-replacement[hidden] { display:none; }
 .collection-gallery figure { width:240px; margin:0; }
 .collection-gallery img { max-width:100%; max-height:240px; object-fit:contain; }
 .collection-dialog pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#f3f5f8; padding:1rem; }
