@@ -271,7 +271,7 @@ const currentUserPhotoKey = "museo-admin-current-user-photo";
 const currentAccessLevelKey = "museo-admin-access-level";
 const currentAccessLevel = () => localStorage.getItem(currentAccessLevelKey) || "Empleado";
 const SUPABASE_REFRESH_MARGIN_SECONDS = 60;
-const SESSION_IDLE_MS = 5 * 60 * 1000;
+const SESSION_IDLE_MS = 15 * 60 * 1000;
 let employeeRecords = museoEnvironmentName === "staging"
   ? Object.values(demoEmployeeProfiles).map((employee) => ({ ...employee, source: "demo" }))
   : [];
