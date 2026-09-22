@@ -16,7 +16,14 @@ Deno.serve(async (req) => {
         effective_role: state.profile ? state.role : null,
         conflicting: state.employee.access_profile ? false : state.conflicting, source: state.profile ? "server_roles" : "saved_employee_level" });
     }
-    const { caller, admin, profile } = await requirePermission(req, "roles.assign");
+    let context;
+    try { context = await requirePermission(req, "roles.assign"); }
+    catch {
+      // Gerencia Administrativa puede asignar perfiles de módulos a empleados sin alterar roles técnicos.
+      // La RPC mantiene aislamiento por museo, bloqueo de autoasignación y concurrencia optimista.
+      context = await requirePermission(req, "employees.create");
+    }
+    const { caller, admin, profile } = context;
     const state = await employeeLevelState(admin, profile.museum_id, employeeId);
     if (state.employee.profile_id) {
       const target = await getEmployeeAccessTarget(admin, profile.museum_id, employeeId);
