@@ -55,7 +55,8 @@ async function collectionPhotoUrl(path) {
   return `${supabaseUrl}/storage/v1/object/authenticated/collection-photos/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
 async function collectionLoadPhoto(img, path) {
-  const response = await fetch(collectionPhotoUrl(path), { headers: await supabaseAuthHeaders(), cache: 'no-store' });
+  const url = await collectionPhotoUrl(path);
+  const response = await fetch(url, { headers: await supabaseAuthHeaders(), cache: 'no-store' });
   if (!response.ok) throw Error('No se pudo abrir la fotografía.');
   const blob = await response.blob();
   if (!blob.type.startsWith('image/')) throw Error('El archivo protegido no es una imagen válida.');
