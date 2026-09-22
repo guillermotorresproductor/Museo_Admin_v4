@@ -3,6 +3,11 @@
 .collection-form fieldset { border:1px solid #d8dee7; border-radius:12px; padding:1rem; margin:1rem 0; }
 .collection-form legend { font-weight:700; padding:0 .5rem; }
 .collection-form [hidden] { display:none; }
+.collection-photo-slots { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1rem; margin:1rem 0; }
+.collection-photo-slot { position:relative; border:1px solid #d8dee7; border-radius:12px; padding:1rem; }
+.collection-photo-slot img { display:block; max-width:100%; max-height:120px; object-fit:contain; margin:.75rem 0; }
+.collection-photo-slot p { margin:.5rem 0; overflow-wrap:anywhere; }
+.collection-photo-slot input[type="file"] { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }
 .collection-dialog { width:min(1000px,92vw); max-height:90vh; border:0; border-radius:16px; padding:1.5rem; }
 .collection-dialog::backdrop { background:#0c192c99; }
 .collection-dialog-actions { display:flex; justify-content:flex-end; gap:.75rem; margin-bottom:1rem; }
