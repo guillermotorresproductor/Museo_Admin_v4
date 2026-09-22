@@ -17,13 +17,33 @@ async function bindCollectionsCatalog() {
   const labels = {accession_number:'Número de inventario',title:'Nombre o título',description:'Descripción museográfica',category:'Clasificación',location:'Ubicación',condition:'Estado de conservación',status:'Estado del registro',author:'Autor / fabricante',dating:'Época / fecha de creación',materials:'Material',dimensions:'Dimensiones',provenance:'Procedencia',owner:'Titularidad',acquisition:'Forma de ingreso / adquisición',custody:'Condición de custodia',donor:'Donante / propietario',lender:'Prestamista',received_date:'Fecha de ingreso',fmv:'Valor estimado (FMV)',currency:'Moneda',loan_reference:'Referencia de préstamo / documento',notes:'Observaciones / anotaciones',owner_phone:'Teléfono del donante / propietario',owner_email:'Email del donante / propietario',owner_address:'Dirección del donante / propietario',cultural_history:'Historia / valor cultural'};
   const say = (text, error = false) => { status.textContent = text; status.className = `form-message ${error ? 'error' : 'success'}`; };
   const esc = value => safeHtml(String(value ?? ''));
+  const photoSlotIds = [1, 2, 3, 4];
+  const photoPreviewUrls = {};
+  function revokePhotoPreview(n) {
+    if (photoPreviewUrls[n]) { URL.revokeObjectURL(photoPreviewUrls[n]); delete photoPreviewUrls[n]; }
+  }
+  function renderPhotoSlot(n) {
+    const file = form.elements[`photo_${n}`]?.files?.[0];
+    const preview = form.querySelector(`[data-photo-preview="${n}"]`);
+    const filename = form.querySelector(`[data-photo-filename="${n}"]`);
+    const clear = form.querySelector(`[data-photo-clear="${n}"]`);
+    revokePhotoPreview(n);
+    if (filename) filename.textContent = file ? file.name : 'Ninguna seleccionada';
+    if (clear) clear.hidden = !file;
+    if (!preview) return;
+    if (!file) { preview.removeAttribute('src'); preview.hidden = true; return; }
+    photoPreviewUrls[n] = URL.createObjectURL(file);
+    preview.src = photoPreviewUrls[n];
+    preview.hidden = false;
+  }
+  function resetPhotoSlots() { photoSlotIds.forEach(renderPhotoSlot); }
   function reset() {
-    editing = null; form.reset(); form.hidden = true;
+    editing = null; form.reset(); resetPhotoSlots(); form.hidden = true;
     document.querySelector('#collection-form-title').textContent = 'Registrar pieza';
   }
   function edit(item) {
     if (!canWrite || saving) return;
-    editing = item; form.reset();
+    editing = item; form.reset(); resetPhotoSlots();
     if (item) [...base,...more].forEach(key => { form.elements[key].value = base.includes(key) ? item[key] || '' : item.details?.[key] || ''; });
     form.elements.reason.value = item ? '' : 'Registro inicial';
     document.querySelector('#collection-form-title').textContent = item ? `Editar ${item.accession_number}` : 'Registrar pieza';
@@ -109,6 +129,19 @@ async function bindCollectionsCatalog() {
       catch { const img = detail.querySelector(`[data-photo="${p.id}"]`); if(img) img.replaceWith(document.createTextNode('No se pudo cargar esta fotografía. Cierre y vuelva a abrir el expediente.')); }
     }));
   }
+  form.addEventListener('change', event => {
+    const n = Number(event.target?.name?.match(/^photo_([1-4])$/)?.[1]);
+    if (n) renderPhotoSlot(n);
+  });
+  form.addEventListener('click', event => {
+    const pick = Number(event.target.closest('[data-photo-pick]')?.dataset.photoPick);
+    if (pick && !saving) { form.elements[`photo_${pick}`]?.click(); return; }
+    const n = Number(event.target.closest('[data-photo-clear]')?.dataset.photoClear);
+    if (!n || saving) return;
+    const input = form.elements[`photo_${n}`];
+    if (input) input.value = '';
+    renderPhotoSlot(n);
+  });
   document.querySelector('#collection-new').hidden = !canWrite;
   document.querySelector('#collection-new').onclick = () => edit(null);
   document.querySelector('#collection-cancel').onclick = () => { if(!saving) reset(); };
@@ -124,24 +157,33 @@ async function bindCollectionsCatalog() {
   };
   form.onsubmit = async event => {
     event.preventDefault(); if(saving || !canWrite || !form.reportValidity()) return;
-    const files = [...form.elements.photo.files];
-    if(files.length > 4) {say('Puede seleccionar un máximo de 4 fotografías.',true); return;}
+    const slots = photoSlotIds.map(n => ({ n, file: form.elements[`photo_${n}`]?.files?.[0] })).filter(slot => slot.file);
+    if(slots.length > 4) {say('Puede seleccionar un máximo de 4 fotografías.',true); return;}
     const item = Object.fromEntries(base.map(k=>[k,form.elements[k].value.trim()]));
     item.details = Object.fromEntries(more.map(k=>[k,form.elements[k].value.trim()]));
     saving = true; const buttons = [...form.querySelectorAll('button')]; buttons.forEach(b=>b.disabled=true);
-    let saved = false;
+    let saved = false, uploaded = 0, failedSlot = null;
     try {
-      for (const file of files) await collectionValidatePhoto(file);
-      if(files.length) {
+      for (const slot of slots) await collectionValidatePhoto(slot.file);
+      if(slots.length) {
         const existingPhotos = editing ? await collectionRows('collection_active_photos',`&item_id=eq.${editing.id}`) : [];
-        if(existingPhotos.length + files.length > 4) {say(`Esta pieza ya tiene ${existingPhotos.length} fotografía(s). El máximo total es 4.`,true); return;}
+        if(existingPhotos.length + slots.length > 4) {say(`Esta pieza ya tiene ${existingPhotos.length} fotografía(s). El máximo total es 4.`,true); return;}
       }
       editing = await collectionSave(item,editing,form.elements.reason.value.trim()); saved = true;
-      for (const file of files) editing = await collectionUpload(editing,file,form.elements.caption.value.trim());
+      for (const slot of slots) {
+        failedSlot = slot.n;
+        editing = await collectionUpload(editing,slot.file,form.elements.caption.value.trim());
+        uploaded += 1;
+        const input = form.elements[`photo_${slot.n}`];
+        if (input) input.value = '';
+        renderPhotoSlot(slot.n);
+        failedSlot = null;
+      }
       const savedId = editing.id; reset(); await reload(); say('Pieza guardada en Colecciones.');
       await show(items.find(i=>i.id===savedId));
     } catch(e) {
-      say(`${saved ? 'La ficha está guardada; no se completó el paso posterior. No cree otra pieza. ' : ''}${e.message}`,true);
+      const photoNote = failedSlot ? ` La fotografía ${failedSlot} no se adjuntó${uploaded ? `; se conservaron ${uploaded}.` : '.'}` : '';
+      say(`${saved ? 'La ficha está guardada; no cree otra pieza.' : ''}${photoNote} ${e.message}`.trim(),true);
       if(saved) await reload().catch(()=>{});
     } finally {saving=false;buttons.forEach(b=>b.disabled=false);}
   };

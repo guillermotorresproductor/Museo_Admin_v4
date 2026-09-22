@@ -7,6 +7,7 @@ async function collectionRequest(path, body, method = 'POST', extraHeaders = {})
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const message = data?.message?.includes('COLLECTION_PHOTO_LIMIT') ? 'Esta pieza ya tiene el máximo de 4 fotografías.'
+      : data?.message?.includes('INVALID_DETAILS') ? 'Revise los campos del expediente. Hay un dato de detalle que el catálogo no puede guardar.'
       : data?.code === '23505' ? 'Ese número de inventario ya existe. Consulte la pieza antes de crear otra.'
       : response.status === 409 || data?.code === 'PT409'
       ? 'Otra persona modificó esta pieza. Recargue antes de volver a guardar; sus cambios no se han sobrescrito.'

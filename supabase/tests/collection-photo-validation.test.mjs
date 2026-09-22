@@ -54,13 +54,30 @@ test('rejects mismatched MIME or extension, empty files and incomplete signature
   }
 });
 
+test('form exposes four independent photo slots instead of one multiple input', () => {
+  const html = fs.readFileSync(new URL('../../inventario-colecciones.html', import.meta.url), 'utf8');
+  assert.equal([...html.matchAll(/name="photo_([1-4])"/g)].map(match => match[1]).join(','), '1,2,3,4');
+  assert.equal([...html.matchAll(/data-photo-pick="([1-4])"/g)].map(match => match[1]).join(','), '1,2,3,4');
+  assert.doesNotMatch(html, /id="collection-photo"/);
+  assert.doesNotMatch(html, /name="photo"/);
+  assert.doesNotMatch(html, /<input[^>]*name="photo_[1-4]"[^>]*multiple/);
+});
+
+test('collection_save accepts the catalog form detail fields without rewriting photos', () => {
+  const sql = fs.readFileSync(new URL('../migrations/202609220004_collection_save_details_fields.sql', import.meta.url), 'utf8');
+  assert.match(sql, /create or replace function public\.collection_save/);
+  for (const key of ['owner_phone','owner_email','owner_address','cultural_history']) assert.match(sql, new RegExp(`'${key}'`));
+  assert.doesNotMatch(sql, /\b(delete|truncate)\b/i);
+  assert.doesNotMatch(sql, /collection_photos/);
+});
+
 test('invalid selection prevents saving the expediente, even after a valid selected image', async () => {
   const { ctx, calls } = context();
   const messages = [];
   const button = { disabled: false };
   Object.assign(ctx, {
-    form: { reportValidity: () => true, elements: { photo: { files: [jpeg, appleDouble] } }, querySelectorAll: () => [button] },
-    canWrite: true, saving: false, editing: null, base: [], more: [],
+    form: { reportValidity: () => true, elements: { photo_1: { files: [jpeg] }, photo_2: { files: [appleDouble] }, photo_3: { files: [] }, photo_4: { files: [] } }, querySelectorAll: () => [button] },
+    photoSlotIds: [1, 2, 3, 4], canWrite: true, saving: false, editing: null, base: [], more: [],
     say: message => messages.push(message),
     collectionSave: async () => { calls.push('save'); },
     collectionRows: async () => { calls.push('rows'); return []; }
@@ -74,4 +91,43 @@ test('invalid selection prevents saving the expediente, even after a valid selec
   assert.deepEqual(messages, [invalidMessage]);
   assert.equal(button.disabled, false);
   assert.equal(ctx.saving, false);
+});
+
+test('saves once then uploads remaining slots independently without duplicating a prior photo', async () => {
+  const { ctx, calls } = context();
+  const messages = [];
+  const button = { disabled: false };
+  const slot = (file) => ({ files: file ? [file] : [], value: file ? file.name : '' });
+  const slots = { photo_1: slot(jpeg), photo_2: slot(png), photo_3: slot(), photo_4: slot() };
+  Object.assign(ctx, {
+    form: {
+      reportValidity: () => true,
+      elements: { ...slots, reason: { value: 'Registro inicial' }, caption: { value: '' } },
+      querySelectorAll: () => [button]
+    },
+    photoSlotIds: [1, 2, 3, 4], canWrite: true, saving: false, editing: null, base: [], more: [],
+    say: message => messages.push(message),
+    renderPhotoSlot: n => { if (!slots[`photo_${n}`].files[0]) slots[`photo_${n}`].value = ''; },
+    collectionSave: async () => { calls.push('save'); return { id: 'piece', version: 1 }; },
+    collectionUpload: async (item, file) => {
+      calls.push(`upload:${file.name}`);
+      if (file === png) throw Error('fallo controlado de la fotografía 2');
+      return { id: item.id, version: item.version + 1 };
+    },
+    collectionRows: async () => [],
+    reset() {}, reload: async () => {}, show: async () => {}
+  });
+  const start = catalog.indexOf('  form.onsubmit = async event => {');
+  const end = catalog.indexOf('\n  try {\n    await reload();', start);
+  vm.runInContext(catalog.slice(start, end), ctx);
+  await ctx.form.onsubmit({ preventDefault() {} });
+  assert.deepEqual(calls, ['save', 'upload:photo.jpg', 'upload:photo.png']);
+  assert.equal(slots.photo_1.value, '');
+  assert.equal(slots.photo_2.files[0], png);
+  assert.match(messages[0], /ficha está guardada.*fotografía 2/i);
+  slots.photo_1.files = [];
+  ctx.editing = { id: 'piece', version: 2 };
+  ctx.collectionUpload = async (item, file) => { calls.push(`retry:${file.name}`); return { id: item.id, version: item.version + 1 }; };
+  await ctx.form.onsubmit({ preventDefault() {} });
+  assert.deepEqual(calls.slice(3), ['save', 'retry:photo.png']);
 });
