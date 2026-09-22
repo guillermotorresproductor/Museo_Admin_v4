@@ -3058,7 +3058,7 @@ function bindInventoryModule() {
         <div><dt>Categoría</dt><dd>${escapeHtml(record.category)}</dd></div><div><dt>Marca / modelo</dt><dd>${escapeHtml([record.brand, record.model].filter(Boolean).join(" · ") || "—")}</dd></div>
         <div><dt>Ubicación</dt><dd>${escapeHtml(record.location)}</dd></div><div><dt>Responsable</dt><dd>${escapeHtml(record.responsible || "—")}</dd></div>
         <div><dt>Condición</dt><dd>${escapeHtml(label(record.condition))}</dd></div><div><dt>Estado</dt><dd>${escapeHtml(record.archived_at ? "Archivado" : label(record.status))}</dd></div>
-        <div><dt>Orden / suplidor</dt><dd>${escapeHtml([record.purchase_order, record.supplier].filter(Boolean).join(" · ") || "—")}</dd></div><div><dt>Recibido / costo</dt><dd>${escapeHtml(formatDate(record.received_date))} · ${escapeHtml(formatMoney(record.cost))}</dd></div>
+        <div><dt>Orden / artista-representante</dt><dd>${escapeHtml([record.purchase_order, record.supplier].filter(Boolean).join(" · ") || "—")}</dd></div><div><dt>Recibido / costo</dt><dd>${escapeHtml(formatDate(record.received_date))} · ${escapeHtml(formatMoney(record.cost))}</dd></div>
         <div><dt>Garantía</dt><dd>${escapeHtml(record.warranty || "—")}</dd></div><div><dt>Versión</dt><dd>${Number(record.version)}</dd></div>
       </dl><p>${escapeHtml(record.description)}</p>`;
       detailDialog?.showModal();
