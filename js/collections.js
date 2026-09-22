@@ -92,16 +92,16 @@ async function bindCollectionsCatalog() {
     event.preventDefault(); if(saving || !canWrite || !form.reportValidity()) return;
     const files = [...form.elements.photo.files];
     if(files.length > 4) {say('Puede seleccionar un máximo de 4 fotografías.',true); return;}
-    if(files.some(file => !['image/png','image/jpeg','image/webp'].includes(file.type) || file.size>10485760 || !file.size)) {say('Cada fotografía debe ser JPG, PNG o WEBP y pesar hasta 10 MB.',true); return;}
-    if(files.length) {
-      const existingPhotos = editing ? await collectionRows('collection_photos',`&item_id=eq.${editing.id}`) : [];
-      if(existingPhotos.length + files.length > 4) {say(`Esta pieza ya tiene ${existingPhotos.length} fotografía(s). El máximo total es 4.`,true); return;}
-    }
     const item = Object.fromEntries(base.map(k=>[k,form.elements[k].value.trim()]));
     item.details = Object.fromEntries(more.map(k=>[k,form.elements[k].value.trim()]));
     saving = true; const buttons = [...form.querySelectorAll('button')]; buttons.forEach(b=>b.disabled=true);
     let saved = false;
     try {
+      for (const file of files) await collectionValidatePhoto(file);
+      if(files.length) {
+        const existingPhotos = editing ? await collectionRows('collection_photos',`&item_id=eq.${editing.id}`) : [];
+        if(existingPhotos.length + files.length > 4) {say(`Esta pieza ya tiene ${existingPhotos.length} fotografía(s). El máximo total es 4.`,true); return;}
+      }
       editing = await collectionSave(item,editing,form.elements.reason.value.trim()); saved = true;
       for (const file of files) editing = await collectionUpload(editing,file,form.elements.caption.value.trim());
       const savedId = editing.id; reset(); await reload(); say('Pieza guardada en Colecciones.');

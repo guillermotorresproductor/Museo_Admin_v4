@@ -38,9 +38,22 @@ async function collectionSave(item, previous, reason) {
     p_id: previous?.id || null, p_expected_version: previous?.version || null, p_item: item, p_reason: reason
   });
 }
+async function collectionValidatePhoto(file) {
+  const invalid = 'El archivo seleccionado no contiene una fotografía JPG, PNG o WEBP válida. Seleccione la imagen original e intente nuevamente.';
+  if (file.size > 10485760) throw Error('Cada fotografía debe pesar hasta 10 MB.');
+  if (!file.size) throw Error(invalid);
+  const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const matches = (signature, offset = 0) => signature.every((byte, index) => bytes[offset + index] === byte);
+  const format = matches([0xff, 0xd8, 0xff]) ? 'jpeg'
+    : matches([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) ? 'png'
+    : matches([0x52, 0x49, 0x46, 0x46]) && matches([0x57, 0x45, 0x42, 0x50], 8) ? 'webp' : null;
+  const extension = file.name.split('.').pop().toLowerCase();
+  if (!format || file.type !== `image/${format}` ||
+      !(format === 'jpeg' ? ['jpg', 'jpeg'].includes(extension) : extension === format)) throw Error(invalid);
+  return format === 'jpeg' ? 'jpg' : format;
+}
 async function collectionUpload(item, file, caption) {
-  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[file.type];
-  if (!ext || !file.size || file.size > 10485760) throw Error('Seleccione una imagen JPG, PNG o WEBP de hasta 10 MB.');
+  const ext = await collectionValidatePhoto(file);
   const id = crypto.randomUUID(), path = `${item.museum_id}/${item.id}/${id}.${ext}`;
   await collectionRequest(`/storage/v1/object/collection-photos/${path}`, file, 'POST', { 'Content-Type': file.type, 'x-upsert': 'false' });
   // Never overwrite or delete a previous image, including on a failed attachment.
