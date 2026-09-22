@@ -6,7 +6,8 @@ async function collectionRequest(path, body, method = 'POST', extraHeaders = {})
   });
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    const message = data?.code === '23505' ? 'Ese número de inventario ya existe. Consulte la pieza antes de crear otra.'
+    const message = data?.message?.includes('COLLECTION_PHOTO_LIMIT') ? 'Esta pieza ya tiene el máximo de 4 fotografías.'
+      : data?.code === '23505' ? 'Ese número de inventario ya existe. Consulte la pieza antes de crear otra.'
       : response.status === 409 || data?.code === 'PT409'
       ? 'Otra persona modificó esta pieza. Recargue antes de volver a guardar; sus cambios no se han sobrescrito.'
       : response.status === 403 || data?.code === '42501' ? 'Su cuenta no tiene permiso para esta operación de Colecciones.'
