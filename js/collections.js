@@ -8,7 +8,7 @@ async function bindCollectionsCatalog() {
   const status = document.querySelector('#collection-message'), list = document.querySelector('#collection-list');
   const detail = document.querySelector('#collection-detail'), dialog = document.querySelector('#collection-dialog');
   const search = document.querySelector('#collection-search');
-  let items = [], editing = null, saving = false;
+  let items = [], editing = null, saving = false, viewedItem = null, viewedQrDataUrl = '';
   const canWrite = canWriteCollections();
   const base = ['accession_number','title','description','category','location','condition','status'];
   const more = ['author','dating','materials','dimensions','provenance','owner','acquisition','custody','donor','owner_phone','owner_email','owner_address','lender','received_date','fmv','currency','loan_reference','notes','cultural_history'];
@@ -42,7 +42,22 @@ async function bindCollectionsCatalog() {
       return old === next ? [] : [`${labels[k]}: ${old || 'No registrado'} → ${next || 'No registrado'}`];
     }).join('\n');
   }
+  function printLabel() {
+    if (!viewedItem || !viewedQrDataUrl) return;
+    const label = document.createElement('section');
+    label.className = 'collection-print-label';
+    label.setAttribute('aria-hidden','true');
+    label.innerHTML = `<h1>Museo de la Música de Puerto Rico</h1><p><strong>N.º de inventario:</strong> ${esc(viewedItem.accession_number)}</p><p><strong>Pieza:</strong> ${esc(viewedItem.title)}</p><p><strong>Clasificación:</strong> ${esc(viewedItem.category)}</p><img src="${viewedQrDataUrl}" alt=""><p>Escanear para expediente interno</p>`;
+    document.body.append(label);
+    document.body.classList.add('collection-label-printing');
+    const cleanup = () => { document.body.classList.remove('collection-label-printing'); label.remove(); };
+    window.addEventListener('afterprint', cleanup, {once:true});
+    window.print();
+    window.setTimeout(() => { if(document.body.contains(label)) cleanup(); }, 3000);
+  }
   async function show(item) {
+    viewedItem = item; viewedQrDataUrl = '';
+    const printButton = document.querySelector('#collection-print-label'); if(printButton) printButton.disabled = true;
     dialog.showModal(); detail.textContent = 'Cargando expediente…';
     const [photos,history] = await Promise.all([collectionRows('collection_photos',`&item_id=eq.${item.id}`),collectionHistory(item.id)]);
     detail.innerHTML = `<h2>${esc(item.accession_number)} · ${esc(item.title)}</h2><dl class="collection-facts">${[...base,...more].map(k => `<div><dt>${esc(labels[k])}</dt><dd>${esc(base.includes(k) ? item[k] : item.details?.[k]) || 'No registrado'}</dd></div>`).join('')}</dl><h3>Fotografías conservadas</h3><div class="collection-gallery">${photos.map(p=>`<figure><img data-photo="${p.id}" alt="Fotografía de ${esc(item.title)}" loading="lazy"><figcaption>${esc(p.caption || 'Sin descripción')} · ${esc(new Date(p.created_at).toLocaleString('es-PR'))}</figcaption></figure>`).join('') || '<p>Sin fotografías registradas.</p>'}</div><h3>Historial</h3><ol>${history.map(h => `<li><strong>${esc(h.action)}</strong> · ${esc(new Date(h.occurred_at).toLocaleString('es-PR'))}<p>${esc(h.reason)}</p><small>Responsable: ${esc(h.actor_name || h.actor_id)}</small><details><summary>Ver cambios conservados</summary><pre>${esc(historyChanges(h))}</pre></details></li>`).join('')}</ol><p><a href="inventario-colecciones.html?pieza=${item.id}">Enlace permanente del expediente</a></p>`;
@@ -50,10 +65,12 @@ async function bindCollectionsCatalog() {
     permanent.searchParams.set('pieza',item.id);
     if(museoEnvironment.name==='staging') permanent.searchParams.set('environment','staging');
     const qr = qrcode(0,'M'); qr.addData(permanent.href); qr.make();
-    const code = document.createElement('figure');
-    const image = document.createElement('img'); image.src=qr.createDataURL(4,16); image.alt='Código QR del expediente';
+    viewedQrDataUrl = qr.createDataURL(4,16);
+    const code = document.createElement('figure'); code.className = 'collection-qr';
+    const image = document.createElement('img'); image.src=viewedQrDataUrl; image.alt='Código QR del expediente';
     const caption = document.createElement('figcaption'); caption.textContent='QR del expediente. Requiere acceso autorizado.';
     code.append(image,caption); detail.append(code);
+    if(printButton) printButton.disabled = false;
     await Promise.all(photos.map(async p => {
       try { const url = await collectionPhotoUrl(p.path); const img = detail.querySelector(`[data-photo="${p.id}"]`); if(img) img.src = url; }
       catch { const img = detail.querySelector(`[data-photo="${p.id}"]`); if(img) img.replaceWith(document.createTextNode('No se pudo cargar esta fotografía. Cierre y vuelva a abrir el expediente.')); }
@@ -63,6 +80,7 @@ async function bindCollectionsCatalog() {
   document.querySelector('#collection-new').onclick = () => edit(null);
   document.querySelector('#collection-cancel').onclick = () => { if(!saving) reset(); };
   document.querySelector('#collection-close').onclick = () => dialog.close();
+  document.querySelector('#collection-print-label').onclick = printLabel;
   document.querySelector('#collection-reload').onclick = () => reload().then(()=>say('Listado actualizado.')).catch(e=>say(e.message,true));
   search.oninput = render;
   list.onclick = event => {
