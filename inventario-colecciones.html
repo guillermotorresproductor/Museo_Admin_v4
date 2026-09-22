@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Museo Admin | Inventario de Colecciones</title>
-<link rel="stylesheet" href="css/main.css?v=instituva-catalog-20260729"><link rel="stylesheet" href="css/collections.css?v=collections-20260917a"></head>
+<link rel="stylesheet" href="css/main.css?v=instituva-catalog-20260729"><link rel="stylesheet" href="css/collections.css?v=collections-20260921b"></head>
 <body><div class="app-shell"><aside class="sidebar" data-sidebar></aside><div class="sidebar-backdrop" data-sidebar-backdrop></div><div class="main-area">
 <header class="site-header" data-header></header><main class="page-content">
 <section class="card panel section-stack"><p class="page-kicker">PATRIMONIO MUSEOGRÁFICO</p><h2>Inventario de Colecciones</h2>
@@ -15,16 +15,19 @@
 <fieldset><legend>Identificación de la pieza</legend><div class="form-row"><label class="field" for="collection-accession_number"><span>Número de inventario *</span><input id="collection-accession_number" name="accession_number" required type="text" maxlength="100"></label>
 <label class="field" for="collection-title"><span>Nombre o título *</span><input id="collection-title" name="title" required type="text" maxlength="300"></label>
 <label class="field" for="collection-description"><span>Descripción museográfica *</span><textarea id="collection-description" name="description" required rows="3" maxlength="10000"></textarea></label>
-<label class="field" for="collection-category"><span>Clasificación *</span><select id="collection-category" name="category" required><option value="">Seleccione una clasificación</option><option value="Instrumento musical">Instrumento musical</option><option value="Obra de arte">Obra de arte</option><option value="Fotografía patrimonial">Fotografía patrimonial</option><option value="Documento histórico">Documento histórico</option><option value="Vestuario">Vestuario</option><option value="Memorabilia">Memorabilia</option><option value="Otro bien patrimonial">Otro bien patrimonial</option></select></label>
+<label class="field" for="collection-category"><span>Clasificación *</span><select id="collection-category" name="category" required><option value="">Seleccione una clasificación</option><option value="Instrumento musical">Instrumento musical</option><option value="Documento">Documento</option><option value="Fotografía">Fotografía</option><option value="Objeto personal">Objeto personal</option><option value="Partitura">Partitura</option><option value="Vestuario">Vestuario</option><option value="Obra de arte">Obra de arte</option><option value="Otro">Otro</option></select></label>
 <label class="field" for="collection-author"><span>Autor / fabricante</span><input id="collection-author" name="author" type="text" maxlength="1000"></label>
 <label class="field" for="collection-dating"><span>Época / fecha de creación</span><input id="collection-dating" name="dating" type="text" maxlength="1000"></label>
-<label class="field" for="collection-materials"><span>Materiales y técnica</span><input id="collection-materials" name="materials" type="text" maxlength="1000"></label>
+<label class="field" for="collection-materials"><span>Material</span><input id="collection-materials" name="materials" type="text" maxlength="1000"></label>
 <label class="field" for="collection-dimensions"><span>Dimensiones</span><input id="collection-dimensions" name="dimensions" type="text" maxlength="1000"></label>
 <label class="field" for="collection-provenance"><span>Procedencia</span><textarea id="collection-provenance" name="provenance" rows="3" maxlength="10000"></textarea></label></div></fieldset>
 <fieldset><legend>Procedencia y custodia</legend><div class="form-row"><label class="field" for="collection-owner"><span>Titularidad</span><input id="collection-owner" name="owner" type="text" maxlength="1000"></label>
 <label class="field" for="collection-acquisition"><span>Forma de ingreso / adquisición</span><input id="collection-acquisition" name="acquisition" type="text" maxlength="1000"></label>
 <label class="field" for="collection-custody"><span>Condición de custodia</span><input id="collection-custody" name="custody" type="text" maxlength="1000"></label>
-<label class="field" for="collection-donor"><span>Donante</span><input id="collection-donor" name="donor" type="text" maxlength="1000"></label>
+<label class="field" for="collection-donor"><span>Donante / propietario</span><input id="collection-donor" name="donor" type="text" maxlength="1000"></label>
+<label class="field" for="collection-owner_phone"><span>Teléfono del donante / propietario</span><input id="collection-owner_phone" name="owner_phone" type="tel" maxlength="100"></label>
+<label class="field" for="collection-owner_email"><span>Email del donante / propietario</span><input id="collection-owner_email" name="owner_email" type="email" maxlength="300"></label>
+<label class="field" for="collection-owner_address"><span>Dirección del donante / propietario</span><textarea id="collection-owner_address" name="owner_address" rows="2" maxlength="2000"></textarea></label>
 <label class="field" for="collection-lender"><span>Prestamista</span><input id="collection-lender" name="lender" type="text" maxlength="1000"></label>
 <label class="field" for="collection-received_date"><span>Fecha de ingreso</span><input id="collection-received_date" name="received_date" type="date" maxlength="1000"></label>
 <label class="field" for="collection-loan_reference"><span>Referencia de préstamo / documento</span><input id="collection-loan_reference" name="loan_reference" type="text" maxlength="1000"></label>
@@ -33,12 +36,13 @@
 <label class="field" for="collection-status"><span>Estado del registro *</span><select id="collection-status" name="status" required><option value="ingreso">Ingreso / en documentación</option><option value="catalogada">Catalogada</option><option value="conservacion">En conservación</option><option value="restauracion">En restauración</option></select></label>
 <label class="field" for="collection-fmv"><span>Valor estimado (FMV)</span><input id="collection-fmv" name="fmv" type="number" min="0" max="999999999999.99" step="0.01"></label>
 <label class="field" for="collection-currency"><span>Moneda</span><select id="collection-currency" name="currency"><option value="USD">USD</option><option value="EUR">EUR</option><option value="Otra">Otra</option></select></label>
-<label class="field" for="collection-notes"><span>Observaciones</span><textarea id="collection-notes" name="notes" rows="3" maxlength="10000"></textarea></label></div></fieldset>
+<label class="field" for="collection-notes"><span>Observaciones / anotaciones</span><textarea id="collection-notes" name="notes" rows="3" maxlength="10000"></textarea></label>
+<label class="field" for="collection-history"><span>Historia / valor cultural</span><textarea id="collection-history" name="cultural_history" rows="4" maxlength="10000"></textarea></label></div></fieldset>
 <fieldset><legend>Fotografía y motivo</legend><label class="field" for="collection-photo"><span>Añadir fotografía (JPG, PNG o WEBP, hasta 10 MB)</span><input id="collection-photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
 <p>Las fotografías anteriores permanecen en el expediente.</p><label class="field" for="collection-caption"><span>Descripción de la fotografía</span><input id="collection-caption" name="caption" maxlength="1000"></label>
 <label class="field" for="collection-reason"><span>Motivo del registro o cambio *</span><textarea id="collection-reason" name="reason" required minlength="3" maxlength="2000" rows="2"></textarea></label></fieldset>
 <div class="collection-toolbar"><button class="button submit-button" type="submit">Guardar pieza</button><button class="button secondary" id="collection-cancel" type="button">Cancelar</button></div></form>
 <dialog id="collection-dialog" class="collection-dialog" aria-label="Expediente museográfico"><button id="collection-close" class="button secondary">Cerrar expediente</button><div id="collection-detail"></div></dialog>
 </main><footer class="site-footer" data-footer></footer></div></div>
-<script src="js/config.js"></script><script src="js/services/supabase.js?v=module-profiles-20260918"></script><script src="js/services/collections.js?v=collections-20260917a"></script><script src="js/vendor/qrcode-1.4.4.js"></script><script src="js/collections.js?v=collections-20260917a"></script><script src="js/app.js?v=module-profiles-20260918"></script>
+<script src="js/config.js"></script><script src="js/services/supabase.js?v=module-profiles-20260918"></script><script src="js/services/collections.js?v=collections-20260921b"></script><script src="js/vendor/qrcode-1.4.4.js"></script><script src="js/collections.js?v=collections-20260921b"></script><script src="js/app.js?v=module-profiles-20260918"></script>
 </body></html>
