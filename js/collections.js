@@ -72,7 +72,7 @@ async function bindCollectionsCatalog() {
     code.append(image,caption); detail.append(code);
     if(printButton) printButton.disabled = false;
     await Promise.all(photos.map(async p => {
-      try { const url = await collectionPhotoUrl(p.path); const img = detail.querySelector(`[data-photo="${p.id}"]`); if(img) img.src = url; }
+      try { const img = detail.querySelector(`[data-photo="${p.id}"]`); if(img) await collectionLoadPhoto(img,p.path); }
       catch { const img = detail.querySelector(`[data-photo="${p.id}"]`); if(img) img.replaceWith(document.createTextNode('No se pudo cargar esta fotografía. Cierre y vuelva a abrir el expediente.')); }
     }));
   }
