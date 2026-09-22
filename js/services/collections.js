@@ -50,7 +50,14 @@ async function collectionUpload(item, file, caption) {
 }
 async function collectionPhotoUrl(path) {
   const data = await collectionRequest(`/storage/v1/object/sign/collection-photos/${path}`, { expiresIn: 900 });
-  const signed = data?.signedURL || data?.signedUrl;
-  if (!signed?.startsWith('/object/sign/collection-photos/')) throw Error('No se pudo abrir la fotografía.');
-  return `${supabaseUrl}/storage/v1${signed}`;
+  const signed = data?.signedURL || data?.signedUrl || data?.signed_url;
+  if (!signed) throw Error('No se pudo abrir la fotografía.');
+  if (/^https:\/\//i.test(signed)) return signed;
+  const normalized = signed.startsWith('/storage/v1/')
+    ? signed
+    : signed.startsWith('/object/sign/collection-photos/')
+      ? `/storage/v1${signed}`
+      : null;
+  if (!normalized) throw Error('La dirección protegida de la fotografía no es válida.');
+  return `${supabaseUrl}${normalized}`;
 }
