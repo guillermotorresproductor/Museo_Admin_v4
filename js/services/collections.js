@@ -52,13 +52,25 @@ async function collectionValidatePhoto(file) {
       !(format === 'jpeg' ? ['jpg', 'jpeg'].includes(extension) : extension === format)) throw Error(invalid);
   return format === 'jpeg' ? 'jpg' : format;
 }
-async function collectionUpload(item, file, caption) {
+async function collectionStorePhoto(item, file) {
   const ext = await collectionValidatePhoto(file);
   const id = crypto.randomUUID(), path = `${item.museum_id}/${item.id}/${id}.${ext}`;
   await collectionRequest(`/storage/v1/object/collection-photos/${path}`, file, 'POST', { 'Content-Type': file.type, 'x-upsert': 'false' });
+  return { id, path };
+}
+async function collectionUpload(item, file, caption) {
+  const { id, path } = await collectionStorePhoto(item, file);
   // Never overwrite or delete a previous image, including on a failed attachment.
   return collectionRequest('/rest/v1/rpc/collection_attach_photo', {
     p_id: item.id, p_expected_version: item.version, p_photo_id: id, p_path: path, p_caption: caption
+  });
+}
+async function collectionReplacePhoto(item, previous, file, reason) {
+  if (!reason || reason.trim().length < 3 || reason.trim().length > 2000) throw Error('Indique la razón de la sustitución.');
+  const { id, path } = await collectionStorePhoto(item, file);
+  return collectionRequest('/rest/v1/rpc/collection_replace_photo', {
+    p_id: item.id, p_expected_version: item.version, p_old_photo_id: previous.id,
+    p_photo_id: id, p_path: path, p_reason: reason.trim()
   });
 }
 async function collectionPhotoUrl(path) {
