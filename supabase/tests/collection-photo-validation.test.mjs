@@ -17,6 +17,16 @@ const appleDouble = new File([appleBytes], 'photo.jpg', { type: 'image/jpeg' });
 const text = new File(['This is not a photograph.'], 'photo.jpg', { type: 'image/jpeg' });
 const oversized = new File([new Uint8Array(10485761)], 'photo.jpg', { type: 'image/jpeg' });
 
+function loadSubmit(ctx) {
+  const helperEnd = catalog.indexOf('const collectionReturnKey');
+  assert.ok(helperEnd > 0);
+  vm.runInContext(catalog.slice(0, helperEnd), ctx);
+  const start = catalog.indexOf('  form.onsubmit = async event => {');
+  const end = catalog.indexOf('\n  try {\n    await reload();', start);
+  assert.ok(start >= 0 && end > start);
+  vm.runInContext(catalog.slice(start, end), ctx);
+}
+
 function context() {
   const calls = [];
   const ctx = vm.createContext({ Uint8Array, Blob, crypto, fetch: () => { calls.push('fetch'); throw Error('Unexpected network request'); } });
@@ -82,10 +92,7 @@ test('invalid selection prevents saving the expediente, even after a valid selec
     collectionSave: async () => { calls.push('save'); },
     collectionRows: async () => { calls.push('rows'); return []; }
   });
-  const start = catalog.indexOf('  form.onsubmit = async event => {');
-  const end = catalog.indexOf('\n  try {\n    await reload();', start);
-  assert.ok(start >= 0 && end > start);
-  vm.runInContext(catalog.slice(start, end), ctx);
+  loadSubmit(ctx);
   await ctx.form.onsubmit({ preventDefault() {} });
   assert.deepEqual(calls, []);
   assert.deepEqual(messages, [invalidMessage]);
@@ -117,9 +124,7 @@ test('saves once then uploads remaining slots independently without duplicating 
     collectionRows: async () => [],
     reset() {}, reload: async () => {}, show: async () => {}
   });
-  const start = catalog.indexOf('  form.onsubmit = async event => {');
-  const end = catalog.indexOf('\n  try {\n    await reload();', start);
-  vm.runInContext(catalog.slice(start, end), ctx);
+  loadSubmit(ctx);
   await ctx.form.onsubmit({ preventDefault() {} });
   assert.deepEqual(calls, ['save', 'upload:photo.jpg', 'upload:photo.png']);
   assert.equal(slots.photo_1.value, '');
