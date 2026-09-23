@@ -1,3 +1,43 @@
+const collectionConditionalFields = Object.freeze({
+  personal_object_description: 'Objeto personal',
+  object_type_specification: 'Otro'
+});
+
+function collectionConditionalDetail(category, key, typed, saved) {
+  if (category === collectionConditionalFields[key]) return String(typed ?? '').trim();
+  return String(saved ?? '').trim();
+}
+
+function collectionDetailsPayload(category, keys, values, saved) {
+  const details = {};
+  for (const key of keys) {
+    if (Object.hasOwn(collectionConditionalFields, key)) {
+      const value = collectionConditionalDetail(category, key, values[key], saved?.[key]);
+      if (category === collectionConditionalFields[key] || value) details[key] = value;
+    } else details[key] = String(values[key] ?? '').trim();
+  }
+  return details;
+}
+
+function collectionFactVisible(item, key) {
+  const expected = collectionConditionalFields[key];
+  if (!expected) return true;
+  return item?.category === expected || Boolean(String(item?.details?.[key] ?? '').trim());
+}
+
+function syncCollectionCategoryFields(form, saved) {
+  const category = form.elements.category?.value || '';
+  for (const [key, expected] of Object.entries(collectionConditionalFields)) {
+    const input = form.elements[key];
+    if (!input) continue;
+    const visible = category === expected;
+    if (!visible) input.value = String(saved?.[key] ?? '').trim();
+    input.required = visible;
+    const field = input.closest?.('label');
+    if (field) field.hidden = !visible;
+  }
+}
+
 // Preserve only the requested piece ID across this module's login redirect.
 // No catalog record or photo is stored in browser storage.
 const collectionReturnKey = `museo-collection-return-${museoEnvironment.name}`;
@@ -13,8 +53,8 @@ async function bindCollectionsCatalog() {
   const canReplacePhoto = hasPermission('collections.write');
   let replacingPhoto = false;
   const base = ['accession_number','title','description','category','location','condition','status'];
-  const more = ['author','dating','materials','dimensions','provenance','owner','acquisition','custody','donor','owner_phone','owner_email','owner_address','lender','received_date','fmv','currency','loan_reference','notes','cultural_history'];
-  const labels = {accession_number:'Número de inventario',title:'Nombre o título',description:'Descripción museográfica',category:'Clasificación',location:'Ubicación',condition:'Estado de conservación',status:'Estado del registro',author:'Autor / fabricante',dating:'Época / fecha de creación',materials:'Material',dimensions:'Dimensiones',provenance:'Procedencia',owner:'Titularidad',acquisition:'Forma de ingreso / adquisición',custody:'Condición de custodia',donor:'Donante / propietario',lender:'Prestamista',received_date:'Fecha de ingreso',fmv:'Valor estimado (FMV)',currency:'Moneda',loan_reference:'Referencia de préstamo / documento',notes:'Observaciones / anotaciones',owner_phone:'Teléfono del donante / propietario',owner_email:'Email del donante / propietario',owner_address:'Dirección del donante / propietario',cultural_history:'Historia / valor cultural'};
+  const more = ['personal_object_description','object_type_specification','author','dating','materials','dimensions','provenance','owner','acquisition','custody','donor','owner_phone','owner_email','owner_address','lender','received_date','fmv','currency','loan_reference','notes','cultural_history'];
+  const labels = {accession_number:'Número de inventario',title:'Nombre o título',description:'Descripción museográfica',category:'Clasificación',location:'Ubicación',condition:'Estado de conservación',status:'Estado del registro',personal_object_description:'Descripción del objeto personal',object_type_specification:'Especifique el tipo de objeto',author:'Autor / fabricante',dating:'Época / fecha de creación',materials:'Material',dimensions:'Dimensiones',provenance:'Procedencia',owner:'Titularidad',acquisition:'Forma de ingreso / adquisición',custody:'Condición de custodia',donor:'Donante / propietario',lender:'Prestamista',received_date:'Fecha de ingreso',fmv:'Valor estimado (FMV)',currency:'Moneda',loan_reference:'Referencia de préstamo / documento',notes:'Observaciones / anotaciones',owner_phone:'Teléfono del donante / propietario',owner_email:'Email del donante / propietario',owner_address:'Dirección del donante / propietario',cultural_history:'Historia / valor cultural'};
   const say = (text, error = false) => { status.textContent = text; status.className = `form-message ${error ? 'error' : 'success'}`; };
   const esc = value => safeHtml(String(value ?? ''));
   const photoSlotIds = [1, 2, 3, 4];
@@ -37,21 +77,26 @@ async function bindCollectionsCatalog() {
     preview.hidden = false;
   }
   function resetPhotoSlots() { photoSlotIds.forEach(renderPhotoSlot); }
+  let syncingCategory = false;
+  function applyCategoryFields() {
+    if (!syncingCategory) syncCollectionCategoryFields(form, editing?.details);
+  }
   function reset() {
-    editing = null; form.reset(); resetPhotoSlots(); form.hidden = true;
+    editing = null; syncingCategory = true; form.reset(); resetPhotoSlots(); syncingCategory = false; applyCategoryFields(); form.hidden = true;
     document.querySelector('#collection-form-title').textContent = 'Registrar pieza';
   }
   function edit(item) {
     if (!canWrite || saving) return;
-    editing = item; form.reset(); resetPhotoSlots();
+    editing = item; syncingCategory = true; form.reset(); resetPhotoSlots();
     if (item) [...base,...more].forEach(key => { form.elements[key].value = base.includes(key) ? item[key] || '' : item.details?.[key] || ''; });
     form.elements.reason.value = item ? '' : 'Registro inicial';
+    syncingCategory = false; applyCategoryFields();
     document.querySelector('#collection-form-title').textContent = item ? `Editar ${item.accession_number}` : 'Registrar pieza';
     form.hidden = false; form.scrollIntoView({behavior:'smooth'}); form.elements.title.focus();
   }
   function render() {
     const term = search.value.trim().toLocaleLowerCase('es');
-    const selected = items.filter(i => [i.accession_number,i.title,i.description,i.category,i.location,i.details?.donor,i.details?.lender].join(' ').toLocaleLowerCase('es').includes(term));
+    const selected = items.filter(i => [i.accession_number,i.title,i.description,i.category,i.location,i.details?.donor,i.details?.lender,i.details?.personal_object_description,i.details?.object_type_specification].join(' ').toLocaleLowerCase('es').includes(term));
     document.querySelector('#collection-count').textContent = `${selected.length} de ${items.length} piezas`;
     list.innerHTML = selected.length ? selected.map(i => `<tr><td>${esc(i.accession_number)}</td><td>${esc(i.title)}</td><td>${esc(i.category)}</td><td>${esc(i.location)}</td><td>${esc(i.condition)}</td><td><button class="button secondary" data-piece-view="${i.id}">Ver expediente</button>${canWrite ? ` <button class="button secondary" data-piece-edit="${i.id}">Editar</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="6">No hay piezas que coincidan con la búsqueda.</td></tr>';
   }
@@ -83,7 +128,7 @@ async function bindCollectionsCatalog() {
     const printButton = document.querySelector('#collection-print-label'); if(printButton) printButton.disabled = true;
     dialog.showModal(); detail.textContent = 'Cargando expediente…';
     const [photos,history] = await Promise.all([collectionRows('collection_active_photos',`&item_id=eq.${item.id}`),collectionHistory(item.id)]);
-    detail.innerHTML = `<h2>${esc(item.accession_number)} · ${esc(item.title)}</h2><dl class="collection-facts">${[...base,...more].map(k => `<div><dt>${esc(labels[k])}</dt><dd>${esc(base.includes(k) ? item[k] : item.details?.[k]) || 'No registrado'}</dd></div>`).join('')}</dl><h3>Fotografías conservadas</h3><div class="collection-gallery">${photos.map(p=>`<figure><img data-photo="${p.id}" alt="Fotografía de ${esc(item.title)}" loading="lazy"><figcaption>${esc(p.caption || 'Sin descripción')} · ${esc(new Date(p.created_at).toLocaleString('es-PR'))}</figcaption></figure>`).join('') || '<p>Sin fotografías registradas.</p>'}</div><h3>Historial</h3><ol>${history.map(h => `<li><strong>${esc(h.action === 'sustitucion_fotografia' ? 'Sustitución de fotografía' : h.action)}</strong> · ${esc(new Date(h.occurred_at).toLocaleString('es-PR'))}<p>${esc(h.reason)}</p><small>Responsable: ${esc(h.actor_name || h.actor_id)}</small><details><summary>Ver cambios conservados</summary><pre>${esc(historyChanges(h))}</pre></details></li>`).join('')}</ol><p><a href="inventario-colecciones.html?pieza=${item.id}">Enlace permanente del expediente</a></p>`;
+    detail.innerHTML = `<h2>${esc(item.accession_number)} · ${esc(item.title)}</h2><dl class="collection-facts">${[...base,...more].filter(k => collectionFactVisible(item, k)).map(k => `<div><dt>${esc(labels[k])}</dt><dd>${esc(base.includes(k) ? item[k] : item.details?.[k]) || 'No registrado'}</dd></div>`).join('')}</dl><h3>Fotografías conservadas</h3><div class="collection-gallery">${photos.map(p=>`<figure><img data-photo="${p.id}" alt="Fotografía de ${esc(item.title)}" loading="lazy"><figcaption>${esc(p.caption || 'Sin descripción')} · ${esc(new Date(p.created_at).toLocaleString('es-PR'))}</figcaption></figure>`).join('') || '<p>Sin fotografías registradas.</p>'}</div><h3>Historial</h3><ol>${history.map(h => `<li><strong>${esc(h.action === 'sustitucion_fotografia' ? 'Sustitución de fotografía' : h.action)}</strong> · ${esc(new Date(h.occurred_at).toLocaleString('es-PR'))}<p>${esc(h.reason)}</p><small>Responsable: ${esc(h.actor_name || h.actor_id)}</small><details><summary>Ver cambios conservados</summary><pre>${esc(historyChanges(h))}</pre></details></li>`).join('')}</ol><p><a href="inventario-colecciones.html?pieza=${item.id}">Enlace permanente del expediente</a></p>`;
     if(canReplacePhoto) photos.forEach(photo => {
       const figure = detail.querySelector(`[data-photo="${photo.id}"]`).closest('figure');
       const replaceButton = document.createElement('button');
@@ -129,6 +174,7 @@ async function bindCollectionsCatalog() {
       catch { const img = detail.querySelector(`[data-photo="${p.id}"]`); if(img) img.replaceWith(document.createTextNode('No se pudo cargar esta fotografía. Cierre y vuelva a abrir el expediente.')); }
     }));
   }
+  form.elements.category.addEventListener('change', applyCategoryFields);
   form.addEventListener('change', event => {
     const n = Number(event.target?.name?.match(/^photo_([1-4])$/)?.[1]);
     if (n) renderPhotoSlot(n);
@@ -160,7 +206,7 @@ async function bindCollectionsCatalog() {
     const slots = photoSlotIds.map(n => ({ n, file: form.elements[`photo_${n}`]?.files?.[0] })).filter(slot => slot.file);
     if(slots.length > 4) {say('Puede seleccionar un máximo de 4 fotografías.',true); return;}
     const item = Object.fromEntries(base.map(k=>[k,form.elements[k].value.trim()]));
-    item.details = Object.fromEntries(more.map(k=>[k,form.elements[k].value.trim()]));
+    item.details = collectionDetailsPayload(item.category, more, Object.fromEntries(more.map(k => [k, form.elements[k].value.trim()])), editing?.details);
     saving = true; const buttons = [...form.querySelectorAll('button')]; buttons.forEach(b=>b.disabled=true);
     let saved = false, uploaded = 0, failedSlot = null;
     try {
