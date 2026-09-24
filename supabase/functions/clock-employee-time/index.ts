@@ -22,6 +22,7 @@ Deno.serve(async (req) => {
 
     const messages: Record<string, [string, number]> = {
         ACTIVE_EMPLOYEE_REQUIRED: ["No existe un expediente activo vinculado.", 403],
+        ATTENDANCE_NOT_REQUIRED: ["Este expediente no está sujeto a registro de asistencia.", 403],
         PRESENCE_NOT_CONFIGURED: ["La validacion de presencia aun no esta configurada. Contacte a Recursos Humanos.", 409],
         NO_ASSIGNED_SHIFT: ["No hay un turno asignado para este momento.", 409],
         TOO_EARLY: ["El turno aun no permite registrar asistencia.", 409],
