@@ -154,7 +154,7 @@ begin
     museum, employee_row.id, shift_row.id, original_id, p_event_type,
     p_proposed_occurred_at, trim(p_reason), auth.uid()
   ) returning * into request_row;
-  insert into public.audit_logs(museum_id, actor_user_id, action, table_name, record_id, new_value)
+  insert into public.audit_logs(museum_id, user_id, action, table_name, record_id, new_value)
   values (museum, auth.uid(), 'ATTENDANCE_CORRECTION_REQUESTED', 'attendance_correction_requests', request_row.id,
     jsonb_build_object('employee_id', employee_row.id, 'shift_id', shift_row.id, 'original_event_id', original_id,
       'requested_event_type', p_event_type, 'requested_occurred_at', p_proposed_occurred_at, 'reason', trim(p_reason)));
@@ -257,7 +257,7 @@ begin
        set status = 'rejected', decided_by = auth.uid(), decided_at = now(), decision_reason = trim(p_reason)
      where id = request_row.id and status = 'pending';
     if not found then raise exception 'CORRECTION_ALREADY_DECIDED' using errcode = 'P0001'; end if;
-    insert into public.audit_logs(museum_id, actor_user_id, action, table_name, record_id, old_value, new_value)
+    insert into public.audit_logs(museum_id, user_id, action, table_name, record_id, old_value, new_value)
     values (museum, auth.uid(), 'ATTENDANCE_CORRECTION_REJECTED', 'attendance_correction_requests', request_row.id,
       to_jsonb(request_row), jsonb_build_object('status','rejected','decision_reason', trim(p_reason)));
     return public.list_attendance_corrections();
@@ -374,7 +374,7 @@ begin
     elsif extra_minutes > threshold and review_id is null then
       insert into public.attendance_overtime_reviews(museum_id, employee_id, shift_id, clock_out_event_id, additional_minutes)
       values (museum, request_row.employee_id, shift_row.id, corrected_id, extra_minutes);
-      insert into public.audit_logs(museum_id, actor_user_id, action, table_name, record_id, new_value)
+      insert into public.audit_logs(museum_id, user_id, action, table_name, record_id, new_value)
       values (museum, auth.uid(), 'OVERTIME_REVIEW_OPENED_BY_CORRECTION', 'attendance_overtime_reviews', shift_row.id,
         jsonb_build_object('correction_request_id', request_row.id, 'additional_minutes', extra_minutes, 'status', 'pending'));
     elsif extra_minutes > threshold and review_status in ('pending','cancelled_by_correction') then
@@ -382,7 +382,7 @@ begin
          set status = 'pending', additional_minutes = extra_minutes, clock_out_event_id = corrected_id,
              approved_minutes = null, decided_by = null, decided_at = null, decision_reason = null
        where id = review_id;
-      insert into public.audit_logs(museum_id, actor_user_id, action, table_name, record_id, new_value)
+      insert into public.audit_logs(museum_id, user_id, action, table_name, record_id, new_value)
       values (museum, auth.uid(), 'OVERTIME_REVIEW_REOPENED_BY_CORRECTION', 'attendance_overtime_reviews', review_id,
         jsonb_build_object('correction_request_id', request_row.id, 'additional_minutes', extra_minutes, 'status', 'pending'));
     elsif review_status = 'pending' and extra_minutes <= threshold then
@@ -390,7 +390,7 @@ begin
          set status = 'cancelled_by_correction', decided_at = now(),
              decision_reason = 'La salida efectiva ya no genera horas extra.'
        where id = review_id and status = 'pending';
-      insert into public.audit_logs(museum_id, actor_user_id, action, table_name, record_id, new_value)
+      insert into public.audit_logs(museum_id, user_id, action, table_name, record_id, new_value)
       values (museum, auth.uid(), 'OVERTIME_REVIEW_CANCELLED_BY_CORRECTION', 'attendance_overtime_reviews', review_id,
         jsonb_build_object('correction_request_id', request_row.id, 'previous_minutes', review_minutes, 'status', 'cancelled_by_correction'));
     end if;
@@ -400,7 +400,7 @@ begin
     execute 'select public.reconcile_shift_attendance_alerts($1)' using shift_row.id;
   end if;
 
-  insert into public.audit_logs(museum_id, actor_user_id, action, table_name, record_id, old_value, new_value)
+  insert into public.audit_logs(museum_id, user_id, action, table_name, record_id, old_value, new_value)
   values (museum, auth.uid(), 'ATTENDANCE_CORRECTION_APPROVED', 'attendance_correction_requests', request_row.id,
     to_jsonb(request_row), jsonb_build_object(
       'status','approved','decision_reason', trim(p_reason),'corrected_event_id', corrected_id,

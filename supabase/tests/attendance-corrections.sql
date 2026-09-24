@@ -34,6 +34,39 @@ begin
   if to_regclass('public.finance_records') is not null then
     select count(*) into finance_before from public.finance_records;
   end if;
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'audit_logs' and column_name = 'actor_user_id'
+  ) and not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'audit_logs' and column_name = 'user_id'
+  ) then
+    alter table public.audit_logs rename column actor_user_id to user_id;
+  end if;
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'audit_logs' and column_name = 'user_id'
+  ) or exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'audit_logs' and column_name = 'actor_user_id'
+  ) then
+    raise exception 'AUDIT_LOGS_SCHEMA_NOT_PRODUCTION';
+  end if;
+  do $retarget$
+  declare r record; src text; patched text;
+  begin
+    for r in
+      select p.oid::regprocedure as proc
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.prokind = 'f' and pg_get_functiondef(p.oid) like '%audit_logs%actor_user_id%'
+    loop
+      src := pg_get_functiondef(r.proc);
+      patched := replace(replace(src, 'audit_logs(museum_id,actor_user_id', 'audit_logs(museum_id,user_id'), 'audit_logs(museum_id, actor_user_id', 'audit_logs(museum_id, user_id');
+      if patched <> src then execute patched; end if;
+    end loop;
+  end
+  $retarget$;
   alter table public.employees disable trigger protect_employee_module_profile;
   perform set_config('request.jwt.claim.sub', profile_user::text, true);
   museum := public.current_user_museum_id();
@@ -121,8 +154,11 @@ begin
   if to_regclass('public.attendance_incidents') is not null then
     if (select count(*) from public.attendance_incidents i where i.employee_id = eid) <> 0 then raise exception 'INCIDENT_CREATED'; end if;
   end if;
-  if (select count(*) from public.audit_logs where record_id = request_id and action in ('ATTENDANCE_CORRECTION_REQUESTED','ATTENDANCE_CORRECTION_APPROVED')) < 2 then
-    raise exception 'AUDIT_MISSING';
+  if (select a.user_id from public.audit_logs a where a.record_id = request_id and a.action = 'ATTENDANCE_CORRECTION_REQUESTED') <> employee_user then
+    raise exception 'REQUEST_AUDIT_ACTOR';
+  end if;
+  if (select a.user_id from public.audit_logs a where a.record_id = request_id and a.action = 'ATTENDANCE_CORRECTION_APPROVED') <> profile_user then
+    raise exception 'APPROVAL_AUDIT_ACTOR';
   end if;
   perform set_config('request.jwt.claim.sub', employee_user::text, true);
   request_id := (public.request_own_attendance_correction(sid, 'lunch_in', start_at + interval '5 hours', 'Falto el regreso')->>'id')::uuid;
@@ -172,7 +208,7 @@ begin
   perform public.decide_attendance_correction(reject_request, 'rejected', 'El horario no corresponde');
   if (select status from public.attendance_correction_requests where id = reject_request) <> 'rejected' then raise exception 'NOT_REJECTED'; end if;
   if (select count(*) from public.attendance_events e where e.shift_id = sid) <> events_before_reject then raise exception 'REJECT_CREATED_EVENT'; end if;
-  if (select count(*) from public.audit_logs a where a.record_id = reject_request and a.action = 'ATTENDANCE_CORRECTION_REJECTED') < 1 then raise exception 'REJECT_AUDIT_MISSING'; end if;
+  if (select a.user_id from public.audit_logs a where a.record_id = reject_request and a.action = 'ATTENDANCE_CORRECTION_REJECTED') <> profile_user then raise exception 'REJECT_AUDIT_ACTOR'; end if;
 
   perform set_config('request.jwt.claim.sub', employee_user::text, true);
   insert into public.employee_shifts(id, museum_id, employee_id, starts_at, ends_at, expected_lunch_minutes, status, created_by)
@@ -228,6 +264,7 @@ begin
     perform public.decide_attendance_correction(ot_request, 'approved', 'La salida extendida queda pendiente de horas extra');
     if (select r.status from public.attendance_overtime_reviews r where r.shift_id = ot_shift) <> 'pending' then raise exception 'OVERTIME_NOT_OPENED_PENDING'; end if;
     if (select r.additional_minutes from public.attendance_overtime_reviews r where r.shift_id = ot_shift) <> 30 then raise exception 'OVERTIME_MINUTES'; end if;
+    if (select a.user_id from public.audit_logs a where a.record_id = ot_shift and a.action = 'OVERTIME_REVIEW_OPENED_BY_CORRECTION') <> profile_user then raise exception 'OVERTIME_AUDIT_ACTOR'; end if;
 
     insert into public.employee_shifts(id, museum_id, employee_id, starts_at, ends_at, expected_lunch_minutes, status, created_by)
     values (block_shift, museum, eid, start_at - interval '3 days', end_at - interval '3 days', 0, 'scheduled', admin);
@@ -324,6 +361,37 @@ begin
   if exists (select 1 from public.employee_time_entries t where t.employee_id = eid and t.clock_in = start_at - interval '6 days') then raise exception 'MISSING_ENTRY_CREATED'; end if;
 
   if (select t.clock_out from public.employee_time_entries t where t.employee_id = eid and t.clock_in = start_at) <> end_at then raise exception 'OTHER_SHIFT_ENTRY_CHANGED'; end if;
+
+  perform set_config('request.jwt.claim.sub', employee_user::text, true);
+  insert into public.employee_shifts(id, museum_id, employee_id, starts_at, ends_at, expected_lunch_minutes, status, created_by)
+  values ('b3c00000-0000-4000-8000-000000000070', museum, eid, start_at - interval '7 days', end_at - interval '7 days', 0, 'scheduled', admin);
+  insert into public.attendance_attempts(id, museum_id, employee_id, shift_id, actor_user_id, requested_event, result)
+  values ('c3c00000-0000-4000-8000-000000000070', museum, eid, 'b3c00000-0000-4000-8000-000000000070', employee_user, 'clock_in', 'accepted');
+  insert into public.attendance_events(id, museum_id, employee_id, shift_id, attempt_id, event_type, occurred_at, classification, settings_version, created_by)
+  values ('e3c00000-0000-4000-8000-000000000070', museum, eid, 'b3c00000-0000-4000-8000-000000000070', 'c3c00000-0000-4000-8000-000000000070', 'clock_in', start_at - interval '7 days', 'on_time', 7, admin);
+  insert into public.employee_time_entries(museum_id, employee_id, clock_in, clock_out, source, sync_status, created_by)
+  values (museum, eid, start_at - interval '7 days', null, 'instituva', 'not_configured', admin);
+  request_id := (public.request_own_attendance_correction('b3c00000-0000-4000-8000-000000000070', 'clock_in', start_at - interval '7 days' + interval '5 minutes', 'Entrada para fallo de auditoria')->>'id')::uuid;
+  create or replace function public.fail_correction_audit_test()
+  returns trigger language plpgsql as $fail$
+  begin
+    if new.action = 'ATTENDANCE_CORRECTION_APPROVED' then
+      raise exception 'AUDIT_FORCED_FAILURE' using errcode = 'P0001';
+    end if;
+    return new;
+  end $fail$;
+  create trigger fail_correction_audit_test before insert on public.audit_logs
+  for each row execute function public.fail_correction_audit_test();
+  perform set_config('request.jwt.claim.sub', profile_user::text, true);
+  begin
+    perform public.decide_attendance_correction(request_id, 'approved', 'Esta auditoria debe fallar');
+    raise exception 'AUDIT_FAILURE_ALLOWED';
+  exception when sqlstate 'P0001' then
+    if sqlerrm not like '%AUDIT_FORCED_FAILURE%' then raise; end if;
+  end;
+  if (select status from public.attendance_correction_requests where id = request_id) <> 'pending' then raise exception 'AUDIT_FAILURE_COMMITTED'; end if;
+  if exists (select 1 from public.attendance_events e where e.correction_request_id = request_id) then raise exception 'AUDIT_FAILURE_CREATED_EVENT'; end if;
+  if (select t.clock_in from public.employee_time_entries t where t.employee_id = eid and t.clock_out is null and t.clock_in = start_at - interval '7 days') <> start_at - interval '7 days' then raise exception 'AUDIT_FAILURE_CHANGED_TIME'; end if;
 
   raise notice 'ATTENDANCE_CORRECTIONS_OK';
 end
