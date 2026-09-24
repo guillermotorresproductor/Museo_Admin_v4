@@ -52,7 +52,10 @@ begin
     ('a2000000-0000-4000-8000-000000000005',museum,'Almuerzo','Largo','alert-lunch-long@example.test','activo','empleado'),
     ('a2000000-0000-4000-8000-000000000006',museum,'Sin','Almuerzo','alert-no-lunch@example.test','activo','empleado'),
     ('a2000000-0000-4000-8000-000000000007',museum,'Salida','Temprana','alert-early@example.test','activo','empleado'),
-    ('a2000000-0000-4000-8000-000000000008',museum,'Mala','Secuencia','alert-bad@example.test','activo','empleado');
+    ('a2000000-0000-4000-8000-000000000008',museum,'Mala','Secuencia','alert-bad@example.test','activo','empleado'),
+    ('a2000000-0000-4000-8000-000000000009',museum,'Margen','Salida','alert-grace@example.test','activo','empleado'),
+    ('a2000000-0000-4000-8000-000000000010',museum,'Salida','Olvidada','alert-forgot@example.test','activo','empleado'),
+    ('a2000000-0000-4000-8000-000000000011',museum,'Rota','Salida','alert-both@example.test','activo','empleado');
 
   insert into public.employee_shifts(id,museum_id,employee_id,starts_at,ends_at,expected_lunch_minutes,status,created_by)
   select id, museum, emp, starts, ends, 60, 'scheduled', admin
@@ -64,7 +67,10 @@ begin
     ('b2000000-0000-4000-8000-000000000005','a2000000-0000-4000-8000-000000000005',start_at,end_at),
     ('b2000000-0000-4000-8000-000000000006','a2000000-0000-4000-8000-000000000006',start_at,past_end),
     ('b2000000-0000-4000-8000-000000000007','a2000000-0000-4000-8000-000000000007',start_at,end_at),
-    ('b2000000-0000-4000-8000-000000000008','a2000000-0000-4000-8000-000000000008',start_at,end_at)
+    ('b2000000-0000-4000-8000-000000000008','a2000000-0000-4000-8000-000000000008',start_at,end_at),
+    ('b2000000-0000-4000-8000-000000000009','a2000000-0000-4000-8000-000000000009',start_at,now()-interval '3 minutes'),
+    ('b2000000-0000-4000-8000-000000000010','a2000000-0000-4000-8000-000000000010',start_at,now()-interval '6 minutes'),
+    ('b2000000-0000-4000-8000-000000000011','a2000000-0000-4000-8000-000000000011',start_at,now()-interval '6 minutes')
   ) v(id,emp,starts,ends);
 
   insert into public.attendance_attempts(id,museum_id,employee_id,shift_id,actor_user_id,requested_event,result)
@@ -79,7 +85,11 @@ begin
     ('c2000000-0000-4000-8000-000000000008','a2000000-0000-4000-8000-000000000006','b2000000-0000-4000-8000-000000000006'),
     ('c2000000-0000-4000-8000-000000000009','a2000000-0000-4000-8000-000000000007','b2000000-0000-4000-8000-000000000007'),
     ('c2000000-0000-4000-8000-000000000010','a2000000-0000-4000-8000-000000000007','b2000000-0000-4000-8000-000000000007'),
-    ('c2000000-0000-4000-8000-000000000011','a2000000-0000-4000-8000-000000000008','b2000000-0000-4000-8000-000000000008')
+    ('c2000000-0000-4000-8000-000000000011','a2000000-0000-4000-8000-000000000008','b2000000-0000-4000-8000-000000000008'),
+    ('c2000000-0000-4000-8000-000000000014','a2000000-0000-4000-8000-000000000009','b2000000-0000-4000-8000-000000000009'),
+    ('c2000000-0000-4000-8000-000000000015','a2000000-0000-4000-8000-000000000010','b2000000-0000-4000-8000-000000000010'),
+    ('c2000000-0000-4000-8000-000000000016','a2000000-0000-4000-8000-000000000011','b2000000-0000-4000-8000-000000000011'),
+    ('c2000000-0000-4000-8000-000000000017','a2000000-0000-4000-8000-000000000011','b2000000-0000-4000-8000-000000000011')
   ) v(id,emp,shift);
 
   insert into public.attendance_events(museum_id,employee_id,shift_id,attempt_id,event_type,occurred_at,classification,settings_version,created_by)
@@ -93,7 +103,11 @@ begin
     (museum,'a2000000-0000-4000-8000-000000000006','b2000000-0000-4000-8000-000000000006','c2000000-0000-4000-8000-000000000008','clock_in',start_at,'on_time',1,admin),
     (museum,'a2000000-0000-4000-8000-000000000007','b2000000-0000-4000-8000-000000000007','c2000000-0000-4000-8000-000000000009','clock_in',start_at,'on_time',1,admin),
     (museum,'a2000000-0000-4000-8000-000000000007','b2000000-0000-4000-8000-000000000007','c2000000-0000-4000-8000-000000000010','clock_out',end_at-interval '30 minutes','standard',1,admin),
-    (museum,'a2000000-0000-4000-8000-000000000008','b2000000-0000-4000-8000-000000000008','c2000000-0000-4000-8000-000000000011','clock_out',end_at,'standard',1,admin);
+    (museum,'a2000000-0000-4000-8000-000000000008','b2000000-0000-4000-8000-000000000008','c2000000-0000-4000-8000-000000000011','clock_out',end_at,'standard',1,admin),
+    (museum,'a2000000-0000-4000-8000-000000000009','b2000000-0000-4000-8000-000000000009','c2000000-0000-4000-8000-000000000014','clock_in',start_at,'on_time',1,admin),
+    (museum,'a2000000-0000-4000-8000-000000000010','b2000000-0000-4000-8000-000000000010','c2000000-0000-4000-8000-000000000015','clock_in',start_at,'on_time',1,admin),
+    (museum,'a2000000-0000-4000-8000-000000000011','b2000000-0000-4000-8000-000000000011','c2000000-0000-4000-8000-000000000016','clock_in',start_at,'on_time',1,admin),
+    (museum,'a2000000-0000-4000-8000-000000000011','b2000000-0000-4000-8000-000000000011','c2000000-0000-4000-8000-000000000017','lunch_in',start_at+interval '5 hours','standard',1,admin);
 
   rows := public.sync_attendance_operational_alerts();
   if exists (select 1 from jsonb_array_elements(rows) r where r->>'name'='Puntual Hoy' and r->>'alert_type'='late') then raise exception 'TOLERANCE_ALERTED'; end if;
@@ -107,8 +121,15 @@ begin
   if (select count(*) from jsonb_array_elements(rows) r where r->>'name'='Sin Almuerzo' and r->>'alert_type' in ('missing_lunch','missing_clock_out') and r->>'status'='active') <> 2 then raise exception 'TWO_ALERTS'; end if;
   select r into rec from jsonb_array_elements(rows) r where r->>'name'='Salida Temprana' and r->>'alert_type'='early_clock_out';
   if rec->>'status' <> 'active' or (rec->'details'->>'early_minutes')::int <> 30 then raise exception 'EARLY_%', rec; end if;
-  select r into rec from jsonb_array_elements(rows) r where r->>'name'='Mala Secuencia';
-  if rec->>'alert_type' <> 'inconsistent_sequence' then raise exception 'BAD_%', rec->>'alert_type'; end if;
+  if (select count(*) from jsonb_array_elements(rows) r where r->>'name'='Mala Secuencia') <> 1
+     or exists (select 1 from jsonb_array_elements(rows) r where r->>'name'='Mala Secuencia' and r->>'alert_type' <> 'inconsistent_sequence') then
+    raise exception 'BAD_EXTRA';
+  end if;
+  if exists (select 1 from jsonb_array_elements(rows) r where r->>'name'='Margen Salida' and r->>'alert_type'='missing_clock_out') then raise exception 'GRACE_TOO_EARLY'; end if;
+  select r into rec from jsonb_array_elements(rows) r where r->>'name'='Salida Olvidada' and r->>'alert_type'='missing_clock_out';
+  if rec->>'status' <> 'active' then raise exception 'FORGOT_EXIT_%', rec->>'status'; end if;
+  if (select count(*) from jsonb_array_elements(rows) r where r->>'name'='Rota Salida' and r->>'alert_type' in ('inconsistent_sequence','missing_clock_out') and r->>'status'='active') <> 2 then raise exception 'BOTH_OBJECTIVE'; end if;
+  if exists (select 1 from jsonb_array_elements(rows) r where r->>'name'='Rota Salida' and r->>'alert_type' in ('late','lunch_exceeded','missing_lunch','early_clock_out','missing_clock_in')) then raise exception 'AMBIGUOUS_EXTRA'; end if;
 
   select count(*) into n from public.attendance_operational_alerts where employee_id::text like 'a2000000-%';
   perform public.sync_attendance_operational_alerts();
@@ -127,6 +148,13 @@ begin
   insert into public.attendance_events(museum_id,employee_id,shift_id,attempt_id,event_type,occurred_at,classification,settings_version,created_by)
   values (museum,'a2000000-0000-4000-8000-000000000005','b2000000-0000-4000-8000-000000000005','c2000000-0000-4000-8000-000000000013','lunch_in',now(),'standard',1,admin);
   rows := public.sync_attendance_operational_alerts();
+  insert into public.attendance_attempts(id,museum_id,employee_id,shift_id,actor_user_id,requested_event,result)
+  values ('c2000000-0000-4000-8000-000000000018',museum,'a2000000-0000-4000-8000-000000000010','b2000000-0000-4000-8000-000000000010',admin,'clock_out','accepted');
+  insert into public.attendance_events(museum_id,employee_id,shift_id,attempt_id,event_type,occurred_at,classification,settings_version,created_by)
+  values (museum,'a2000000-0000-4000-8000-000000000010','b2000000-0000-4000-8000-000000000010','c2000000-0000-4000-8000-000000000018','clock_out',now(),'overtime_pending',1,admin);
+  rows := public.sync_attendance_operational_alerts();
+  select r into rec from jsonb_array_elements(rows) r where r->>'name'='Salida Olvidada' and r->>'alert_type'='missing_clock_out';
+  if rec->>'status' <> 'auto_resolved' or rec->>'resolution_type' <> 'auto_clock_out' then raise exception 'AUTO_OUT_%', rec->>'status'; end if;
   select r into rec from jsonb_array_elements(rows) r where r->>'name'='Almuerzo Largo' and r->>'alert_type'='lunch_exceeded';
   if rec->>'status' <> 'auto_resolved' then raise exception 'AUTO_LUNCH_%', rec->>'status'; end if;
 

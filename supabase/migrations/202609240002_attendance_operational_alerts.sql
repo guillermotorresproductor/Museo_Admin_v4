@@ -92,6 +92,7 @@ declare
   museum uuid := public.current_user_museum_id();
   today date := (now() at time zone 'America/Puerto_Rico')::date;
   discarded integer;
+  exit_grace interval := interval '5 minutes';
 begin
   if auth.uid() is null or museum is null or not public.has_permission('attendance.alerts.read') then
     raise exception 'FORBIDDEN' using errcode = '42501';
@@ -187,16 +188,26 @@ begin
         ))
     ) as v(alert_type, target_status, resolution_type, details)
     where
-      (v.alert_type = 'late' and c.late_tolerance_minutes is not null and c.clock_in is not null and not c.inconsistent
+      (v.alert_type = 'late' and c.late_tolerance_minutes is not null and c.clock_in_count = 1
         and c.clock_in > c.starts_at + make_interval(mins => c.late_tolerance_minutes))
-      or (v.alert_type = 'missing_clock_in' and c.late_tolerance_minutes is not null and c.clock_in is null and not c.inconsistent
+      or (v.alert_type = 'missing_clock_in' and c.late_tolerance_minutes is not null
+        and c.clock_in_count = 0 and c.lunch_out_count = 0 and c.lunch_in_count = 0 and c.clock_out_count = 0 and c.unknown_count = 0
         and now() > c.starts_at + make_interval(mins => c.late_tolerance_minutes))
-      or (v.alert_type = 'lunch_exceeded' and c.expected_lunch_minutes > 0 and c.lunch_out is not null and not c.inconsistent
+      or (v.alert_type = 'lunch_exceeded' and c.expected_lunch_minutes > 0
+        and c.clock_in_count = 1 and c.lunch_out_count = 1 and c.lunch_in_count <= 1
+        and c.lunch_out >= c.clock_in and (c.lunch_in is null or c.lunch_in >= c.lunch_out)
         and c.lunch_end > c.lunch_out + make_interval(mins => c.expected_lunch_minutes))
-      or (v.alert_type = 'missing_lunch' and c.expected_lunch_minutes > 0 and c.clock_in is not null and not c.inconsistent
-        and c.lunch_out is null and c.lunch_in is null and now() >= c.ends_at)
-      or (v.alert_type = 'early_clock_out' and c.clock_out is not null and not c.inconsistent and c.clock_out < c.ends_at)
-      or (v.alert_type = 'missing_clock_out' and c.clock_in is not null and c.clock_out is null and not c.inconsistent and now() >= c.ends_at)
+      or (v.alert_type = 'missing_lunch' and c.expected_lunch_minutes > 0
+        and c.clock_in_count = 1 and c.lunch_out_count = 0 and c.lunch_in_count = 0
+        and now() >= c.ends_at)
+      or (v.alert_type = 'early_clock_out' and c.clock_in_count = 1 and c.clock_out_count = 1
+        and c.clock_out >= c.clock_in and c.clock_out < c.ends_at
+        and (
+          (c.lunch_out_count = 0 and c.lunch_in_count = 0)
+          or (c.lunch_out_count = 1 and c.lunch_in_count = 1 and c.lunch_out >= c.clock_in and c.lunch_in >= c.lunch_out and c.clock_out >= c.lunch_in)
+        ))
+      or (v.alert_type = 'missing_clock_out' and c.clock_in_count = 1 and c.clock_out_count = 0
+        and now() >= c.ends_at + exit_grace)
       or (v.alert_type = 'inconsistent_sequence' and c.inconsistent)
   ),
   upserted as (
