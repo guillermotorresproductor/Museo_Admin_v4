@@ -230,7 +230,8 @@ declare
   new_out timestamptz;
   new_lunch_out timestamptz;
   new_lunch_in timestamptz;
-  entry_id uuid;
+  entry_count integer;
+  settings_version integer;
   extra_minutes integer;
   review_status text;
   review_minutes integer;
@@ -263,13 +264,12 @@ begin
   end if;
 
   select * into shift_row from public.employee_shifts where id = request_row.shift_id and museum_id = museum;
-  select coalesce(overtime_review_threshold_minutes, 0), coalesce(late_tolerance_minutes, 5), coalesce(partial_absence_minutes, 30)
-    into threshold, tolerance, partial_absence
+  select coalesce(overtime_review_threshold_minutes, 0), coalesce(late_tolerance_minutes, 5),
+         coalesce(partial_absence_minutes, 30), version
+    into threshold, tolerance, partial_absence, settings_version
     from public.attendance_settings where museum_id = museum;
-  if not found then
-    threshold := 0;
-    tolerance := 5;
-    partial_absence := 30;
+  if not found or settings_version is null then
+    raise exception 'ATTENDANCE_SETTINGS_REQUIRED' using errcode = 'P0001';
   end if;
 
   select ev.id into original_still
@@ -323,17 +323,17 @@ begin
   end if;
 
   insert into public.attendance_attempts(
-    museum_id, employee_id, shift_id, actor_user_id, requested_event, occurred_at, result, presence_method, reason_code
+    museum_id, employee_id, shift_id, actor_user_id, requested_event, occurred_at, result, presence_method, reason_code, settings_version
   ) values (
     museum, request_row.employee_id, shift_row.id, auth.uid(), request_row.requested_event_type, now(),
-    'accepted', 'administrative_correction', 'APPROVED_CORRECTION'
+    'accepted', 'administrative_correction', 'APPROVED_CORRECTION', settings_version
   ) returning id into attempt_id;
   insert into public.attendance_events(
     museum_id, employee_id, shift_id, attempt_id, event_type, occurred_at, classification, settings_version,
     supersedes_event_id, correction_request_id, created_by
   ) values (
     museum, request_row.employee_id, shift_row.id, attempt_id, request_row.requested_event_type,
-    request_row.requested_occurred_at, classification, 1, request_row.original_event_id, request_row.id, auth.uid()
+    request_row.requested_occurred_at, classification, settings_version, request_row.original_event_id, request_row.id, auth.uid()
   ) returning id into corrected_id;
 
   update public.attendance_correction_requests
@@ -342,22 +342,28 @@ begin
    where id = request_row.id and status = 'pending';
   if not found then raise exception 'CORRECTION_ALREADY_DECIDED' using errcode = 'P0001'; end if;
 
-  if old_in is not null then
-    select id into entry_id from public.employee_time_entries
-     where museum_id = museum and employee_id = request_row.employee_id and clock_in = old_in
-     order by created_at desc limit 1;
-  end if;
-  if entry_id is null and new_in is not null then
-    select id into entry_id from public.employee_time_entries
-     where museum_id = museum and employee_id = request_row.employee_id and clock_out is null
-       and clock_in between shift_row.starts_at - interval '12 hours' and shift_row.ends_at + interval '12 hours'
-     order by clock_in desc limit 1;
-  end if;
-  if entry_id is not null and new_in is not null then
-    update public.employee_time_entries
+  if old_in is not null and (new_in is distinct from old_in or new_out is distinct from old_out) then
+    select count(*) into entry_count
+      from public.employee_time_entries t
+     where t.museum_id = museum and t.employee_id = request_row.employee_id
+       and t.clock_in = old_in and t.clock_out is not distinct from old_out;
+    if entry_count = 0 then
+      raise exception 'TIME_ENTRY_NOT_RECONCILABLE' using errcode = 'P0001';
+    elsif entry_count > 1 then
+      raise exception 'TIME_ENTRY_AMBIGUOUS' using errcode = 'P0001';
+    end if;
+    update public.employee_time_entries t
        set clock_in = new_in, clock_out = new_out, updated_at = now()
-     where id = entry_id;
-  elsif new_in is not null then
+     where t.museum_id = museum and t.employee_id = request_row.employee_id
+       and t.clock_in = old_in and t.clock_out is not distinct from old_out;
+  elsif old_in is null and request_row.requested_event_type = 'clock_in' and new_in is not null then
+    if exists (
+      select 1 from public.employee_time_entries t
+       where t.museum_id = museum and t.employee_id = request_row.employee_id
+         and (t.clock_out is null or t.clock_in = new_in)
+    ) then
+      raise exception 'TIME_ENTRY_NOT_RECONCILABLE' using errcode = 'P0001';
+    end if;
     insert into public.employee_time_entries(museum_id, employee_id, clock_in, clock_out, source, sync_status, created_by)
     values (museum, request_row.employee_id, new_in, new_out, 'instituva', 'not_configured', auth.uid());
   end if;

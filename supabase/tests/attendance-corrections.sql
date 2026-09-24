@@ -43,6 +43,9 @@ begin
   if not public.has_permission('attendance.corrections.request') then raise exception 'EMPLOYEE_CANNOT_REQUEST'; end if;
   if public.has_permission('attendance.corrections.decide') then raise exception 'EMPLOYEE_CAN_DECIDE'; end if;
   select id into eid from public.employees where profile_id = employee_user and museum_id = museum and status = 'activo';
+  insert into public.attendance_settings(museum_id, version, presence_required, updated_by)
+  values (museum, 7, false, admin)
+  on conflict (museum_id) do update set version = 7, presence_required = false;
   insert into public.employee_shifts(id, museum_id, employee_id, starts_at, ends_at, expected_lunch_minutes, status, created_by)
   values (sid, museum, eid, start_at, end_at, 60, 'scheduled', admin);
   insert into public.attendance_attempts(id, museum_id, employee_id, shift_id, actor_user_id, requested_event, result)
@@ -98,6 +101,7 @@ begin
   if (select occurred_at from public.attendance_events where id = original_id) <> end_at + interval '30 minutes' then raise exception 'ORIGINAL_CHANGED'; end if;
   select corrected_event_id into corrected_id from public.attendance_correction_requests where id = request_id;
   if (select supersedes_event_id from public.attendance_events where id = corrected_id) <> original_id then raise exception 'SUPERSEDE_MISSING'; end if;
+  if (select settings_version from public.attendance_events where id = corrected_id) <> 7 then raise exception 'SETTINGS_VERSION_ARBITRARY'; end if;
   if (select correction_request_id from public.attendance_events where id = corrected_id) <> request_id then raise exception 'REQUEST_LINK_MISSING'; end if;
   if (select t.clock_out from public.employee_time_entries t where t.employee_id = eid and t.clock_in = start_at) <> end_at then raise exception 'TIME_ENTRY_NOT_RECONCILED'; end if;
   select count(*) into after_events from public.attendance_events e where e.shift_id = sid;
@@ -179,6 +183,7 @@ begin
   if not exists (select 1 from public.attendance_events e where e.shift_id = add_shift and e.event_type = 'clock_in' and e.correction_request_id = add_request and e.supersedes_event_id is null) then
     raise exception 'MISSING_CLOCK_IN_NOT_ADDED';
   end if;
+  if (select count(*) from public.employee_time_entries t where t.employee_id = eid and t.clock_in = start_at - interval '1 day') <> 1 then raise exception 'MISSING_CLOCK_IN_ENTRY'; end if;
   perform set_config('request.jwt.claim.sub', employee_user::text, true);
   add_request := (public.request_own_attendance_correction(add_shift, 'lunch_out', start_at - interval '1 day' + interval '4 hours', 'Falto salida a almuerzo')->>'id')::uuid;
   perform set_config('request.jwt.claim.sub', profile_user::text, true);
@@ -215,6 +220,8 @@ begin
     insert into public.attendance_events(id, museum_id, employee_id, shift_id, attempt_id, event_type, occurred_at, classification, settings_version, created_by)
     values ('e3c00000-0000-4000-8000-000000000030', museum, eid, ot_shift, 'c3c00000-0000-4000-8000-000000000030', 'clock_in', start_at - interval '2 days', 'on_time', 1, admin),
            ('e3c00000-0000-4000-8000-000000000031', museum, eid, ot_shift, 'c3c00000-0000-4000-8000-000000000031', 'clock_out', end_at - interval '2 days', 'standard', 1, admin);
+    insert into public.employee_time_entries(museum_id, employee_id, clock_in, clock_out, source, sync_status, created_by)
+    values (museum, eid, start_at - interval '2 days', end_at - interval '2 days', 'instituva', 'not_configured', admin);
     perform set_config('request.jwt.claim.sub', employee_user::text, true);
     ot_request := (public.request_own_attendance_correction(ot_shift, 'clock_out', end_at - interval '2 days' + interval '30 minutes', 'Salida real treinta minutos despues')->>'id')::uuid;
     perform set_config('request.jwt.claim.sub', profile_user::text, true);
@@ -230,6 +237,8 @@ begin
     insert into public.attendance_events(id, museum_id, employee_id, shift_id, attempt_id, event_type, occurred_at, classification, settings_version, created_by)
     values ('e3c00000-0000-4000-8000-000000000040', museum, eid, block_shift, 'c3c00000-0000-4000-8000-000000000040', 'clock_in', start_at - interval '3 days', 'on_time', 1, admin),
            ('e3c00000-0000-4000-8000-000000000041', museum, eid, block_shift, 'c3c00000-0000-4000-8000-000000000041', 'clock_out', end_at - interval '3 days' + interval '30 minutes', 'overtime_pending', 1, admin);
+    insert into public.employee_time_entries(museum_id, employee_id, clock_in, clock_out, source, sync_status, created_by)
+    values (museum, eid, start_at - interval '3 days', end_at - interval '3 days' + interval '30 minutes', 'instituva', 'not_configured', admin);
     insert into public.attendance_overtime_reviews(museum_id, employee_id, shift_id, clock_out_event_id, additional_minutes, status, approved_minutes, decided_by, decided_at, decision_reason)
     values (museum, eid, block_shift, 'e3c00000-0000-4000-8000-000000000041', 30, 'approved', 30, admin, now(), 'Ya aprobado');
     perform set_config('request.jwt.claim.sub', employee_user::text, true);
@@ -270,6 +279,51 @@ begin
     perform public.reconcile_shift_attendance_alerts(sid);
     if (select count(*) from public.attendance_operational_alerts a where a.shift_id = sid) <> alert_count then raise exception 'ALERTS_DUPLICATED'; end if;
   end if;
+
+  perform set_config('request.jwt.claim.sub', employee_user::text, true);
+  insert into public.employee_shifts(id, museum_id, employee_id, starts_at, ends_at, expected_lunch_minutes, status, created_by)
+  values ('b3c00000-0000-4000-8000-000000000050', museum, eid, start_at - interval '5 days', end_at - interval '5 days', 0, 'scheduled', admin);
+  insert into public.attendance_attempts(id, museum_id, employee_id, shift_id, actor_user_id, requested_event, result)
+  values ('c3c00000-0000-4000-8000-000000000050', museum, eid, 'b3c00000-0000-4000-8000-000000000050', employee_user, 'clock_in', 'accepted'),
+         ('c3c00000-0000-4000-8000-000000000051', museum, eid, 'b3c00000-0000-4000-8000-000000000050', employee_user, 'clock_out', 'accepted');
+  insert into public.attendance_events(id, museum_id, employee_id, shift_id, attempt_id, event_type, occurred_at, classification, settings_version, created_by)
+  values ('e3c00000-0000-4000-8000-000000000050', museum, eid, 'b3c00000-0000-4000-8000-000000000050', 'c3c00000-0000-4000-8000-000000000050', 'clock_in', start_at - interval '5 days', 'on_time', 7, admin),
+         ('e3c00000-0000-4000-8000-000000000051', museum, eid, 'b3c00000-0000-4000-8000-000000000050', 'c3c00000-0000-4000-8000-000000000051', 'clock_out', end_at - interval '5 days', 'standard', 7, admin);
+  insert into public.employee_time_entries(museum_id, employee_id, clock_in, clock_out, source, sync_status, created_by)
+  values (museum, eid, start_at - interval '5 days', end_at - interval '5 days', 'instituva', 'not_configured', admin),
+         (museum, eid, start_at - interval '5 days', end_at - interval '5 days', 'instituva', 'not_configured', admin);
+  request_id := (public.request_own_attendance_correction('b3c00000-0000-4000-8000-000000000050', 'clock_out', end_at - interval '5 days' + interval '10 minutes', 'Salida ambigua')->>'id')::uuid;
+  perform set_config('request.jwt.claim.sub', profile_user::text, true);
+  begin
+    perform public.decide_attendance_correction(request_id, 'approved', 'No debe elegir un registro');
+    raise exception 'AMBIGUOUS_ENTRY_APPROVED';
+  exception when sqlstate 'P0001' then
+    if sqlerrm not like '%TIME_ENTRY_AMBIGUOUS%' then raise; end if;
+  end;
+  if (select status from public.attendance_correction_requests where id = request_id) <> 'pending' then raise exception 'AMBIGUOUS_REQUEST_CHANGED'; end if;
+  if (select count(*) from public.employee_time_entries t where t.employee_id = eid and t.clock_in = start_at - interval '5 days' and t.clock_out = end_at - interval '5 days') <> 2 then raise exception 'AMBIGUOUS_ROWS_CHANGED'; end if;
+
+  perform set_config('request.jwt.claim.sub', employee_user::text, true);
+  insert into public.employee_shifts(id, museum_id, employee_id, starts_at, ends_at, expected_lunch_minutes, status, created_by)
+  values ('b3c00000-0000-4000-8000-000000000060', museum, eid, start_at - interval '6 days', end_at - interval '6 days', 0, 'scheduled', admin);
+  insert into public.attendance_attempts(id, museum_id, employee_id, shift_id, actor_user_id, requested_event, result)
+  values ('c3c00000-0000-4000-8000-000000000060', museum, eid, 'b3c00000-0000-4000-8000-000000000060', employee_user, 'clock_in', 'accepted'),
+         ('c3c00000-0000-4000-8000-000000000061', museum, eid, 'b3c00000-0000-4000-8000-000000000060', employee_user, 'clock_out', 'accepted');
+  insert into public.attendance_events(id, museum_id, employee_id, shift_id, attempt_id, event_type, occurred_at, classification, settings_version, created_by)
+  values ('e3c00000-0000-4000-8000-000000000060', museum, eid, 'b3c00000-0000-4000-8000-000000000060', 'c3c00000-0000-4000-8000-000000000060', 'clock_in', start_at - interval '6 days', 'on_time', 7, admin),
+         ('e3c00000-0000-4000-8000-000000000061', museum, eid, 'b3c00000-0000-4000-8000-000000000060', 'c3c00000-0000-4000-8000-000000000061', 'clock_out', end_at - interval '6 days', 'standard', 7, admin);
+  request_id := (public.request_own_attendance_correction('b3c00000-0000-4000-8000-000000000060', 'clock_out', end_at - interval '6 days' + interval '10 minutes', 'Sin registro de tiempo')->>'id')::uuid;
+  perform set_config('request.jwt.claim.sub', profile_user::text, true);
+  begin
+    perform public.decide_attendance_correction(request_id, 'approved', 'No debe inventar el registro');
+    raise exception 'MISSING_ENTRY_APPROVED';
+  exception when sqlstate 'P0001' then
+    if sqlerrm not like '%TIME_ENTRY_NOT_RECONCILABLE%' then raise; end if;
+  end;
+  if (select status from public.attendance_correction_requests where id = request_id) <> 'pending' then raise exception 'MISSING_ENTRY_REQUEST_CHANGED'; end if;
+  if exists (select 1 from public.employee_time_entries t where t.employee_id = eid and t.clock_in = start_at - interval '6 days') then raise exception 'MISSING_ENTRY_CREATED'; end if;
+
+  if (select t.clock_out from public.employee_time_entries t where t.employee_id = eid and t.clock_in = start_at) <> end_at then raise exception 'OTHER_SHIFT_ENTRY_CHANGED'; end if;
 
   raise notice 'ATTENDANCE_CORRECTIONS_OK';
 end
