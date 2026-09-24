@@ -308,6 +308,11 @@ async function fetchOwnSupabaseNotifications(limit = 5) {
   return supabaseGet(`/rest/v1/employee_notifications?select=id,title,message,category,read_at,created_at&order=created_at.desc&limit=${safeLimit}`);
 }
 
+async function fetchTodayStaffStatus() {
+  const data = await supabasePost("/rest/v1/rpc/list_today_staff_status", {});
+  return Array.isArray(data) ? data : [];
+}
+
 async function fetchSupabaseAttendance({ from, to, employeeId } = {}) {
   const filters = ["select=id,employee_id,clock_in,clock_out,source,sync_status"];
   if (from) filters.push(`clock_in=gte.${encodeURIComponent(new Date(`${from}T00:00:00-04:00`).toISOString())}`);

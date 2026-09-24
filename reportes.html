@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Reportes</title>
-  <link rel="stylesheet" href="css/main.css?v=employee-sensitive-20260721">
+  <link rel="stylesheet" href="css/main.css?v=today-staff-20260924">
 </head>
 <body>
   <div class="app-shell">
@@ -31,17 +31,32 @@
           <a class="button submit-button" data-reports-login-fallback href="login.html">Entrar a mi cuenta</a>
         </section>
 
-        <section class="card panel placeholder-panel" data-reports-module hidden>
-          <span class="module-icon theme-blue" data-icon="chart"></span>
-          <h3>Reportes</h3>
-          <p>Este módulo queda reservado para programación próxima.</p>
+        <section class="card panel" data-reports-module hidden>
+          <div data-today-staff>
+            <div class="panel-heading-inline">
+              <div>
+                <p class="page-kicker">Reportes</p>
+                <h3>Estado del personal hoy</h3>
+                <p>Empleados activos con turno programado hoy, en hora de Puerto Rico.</p>
+              </div>
+              <button class="button secondary" type="button" data-today-refresh>Actualizar</button>
+            </div>
+            <div class="attendance-summary is-five" data-today-summary></div>
+            <p class="form-message" data-today-message></p>
+            <div class="table-wrap attendance-table-wrap">
+              <table class="data-table attendance-table">
+                <thead><tr><th>Empleado</th><th>Entrada</th><th>Estado actual</th><th>Inicio de almuerzo</th><th>Regreso</th><th>Salida</th><th>Horas trabajadas hoy</th></tr></thead>
+                <tbody data-today-body><tr><td colspan="7">Cargando estado de hoy...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=module-profiles-20260918"></script>
-  <script src="js/app.js?v=module-profiles-20260918"></script>
+  <script src="js/services/supabase.js?v=today-staff-20260924"></script>
+  <script src="js/app.js?v=today-staff-20260924"></script>
 </body>
 </html>
