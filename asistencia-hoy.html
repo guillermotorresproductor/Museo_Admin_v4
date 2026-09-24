@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Asistencia de hoy | Museo Admin</title>
+  <link rel="stylesheet" href="css/main.css?v=attendance-phase-1b">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" data-sidebar></aside>
+    <div class="sidebar-backdrop" data-sidebar-backdrop></div>
+    <div class="main-area">
+      <header class="site-header" data-header></header>
+      <main class="page-content">
+        <section class="card">
+          <h1>Asistencia de hoy</h1>
+          <p>Estado operacional. Ver esta lista no permite corregir ponches.</p>
+          <table data-attendance-board>
+            <thead><tr><th>Empleado</th><th>Cargo</th><th>Estado</th><th></th></tr></thead>
+            <tbody><tr><td colspan="4">Cargando...</td></tr></tbody>
+          </table>
+        </section>
+        <section class="card">
+          <h2>Feriado institucional</h2>
+          <form data-holiday-form>
+            <label>Fecha <input type="date" name="date" required></label>
+            <label>Nombre <input name="name" required minlength="2"></label>
+            <button type="submit">Guardar feriado</button>
+          </form>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/services/supabase.js?v=attendance-phase-1b"></script>
+  <script src="js/app.js?v=attendance-phase-1b"></script>
+</body>
+</html>

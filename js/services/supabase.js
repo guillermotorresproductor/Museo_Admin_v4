@@ -694,3 +694,7 @@ async function persistSupabaseEmployeePhoto(id, employee, museumId) {
   if (result?.saved !== true) throw new Error("No se confirmó la fotografía guardada.");
   employee.photoReference = path ? employeePhotoPrefix + path : "";
 }
+
+async function attendanceRpc(name, body = {}) {
+  return supabasePost("/rest/v1/rpc/" + name, body);
+}

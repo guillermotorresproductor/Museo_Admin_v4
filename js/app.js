@@ -67,6 +67,7 @@ const navigationGroups = [
       { href: "administracion.html", label: "Administración", icon: "shield", activePages: ["recursos-humanos.html", "perfil-empleado.html", "notificaciones.html", "reportes.html", "finanzas.html", "direccion-ejecutiva.html"] },
       { href: "boletin.html", label: "Boletín Board", icon: "megaphone" },
       { href: "inventario.html", label: appPages["inventario.html"].title, icon: "briefcase" },
+      { href: "asistencia-hoy.html", label: "Asistencia de hoy", icon: "calendar" },
       { href: "employee-portal.html", label: "Mi cuenta", icon: "users" }
     ]
   }
@@ -281,6 +282,7 @@ const hasPermission = (permission) => currentPermissions.has(permission);
 const hasModuleProfile = () => hasPermission("module_profiles.active");
 const profilePageModules = {
   "employee-portal.html": "personal",
+  "asistencia-hoy.html": "attendance_board",
   "departamento-museologico.html": "collections", "colecciones-museograficas.html": "collections",
   "inventario-colecciones.html": "collections", "recibo-prestamo.html": "collections",
   "calendario.html": "calendar", "renta-espacios.html": "rentals", "renta-espacio.html": "rentals", "solicitud-renta.html": "rentals",
@@ -333,6 +335,7 @@ const SENSITIVE_MODULE_ACCESS = {
 
 const moduleAccessChecks = {
   "employee-portal.html": () => canAccessPersonalSpace(),
+  "asistencia-hoy.html": () => hasPermission("attendance.board.read"),
   "departamento-museologico.html": () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.read") || hasPermission("collections.write"),
   "colecciones-museograficas.html": () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.read") || hasPermission("collections.write"),
   "inventario-colecciones.html": () => canReadCollections(),
@@ -6335,7 +6338,7 @@ async function bindEmployeePortal() {
   });
   document.querySelector("[data-portal-logout]")?.addEventListener("click", () => clearLoginState(true, "logout"));
   renderPortalTools();
-  await Promise.all([refresh(), hasPermission("notifications.read.self") ? fetchOwnSupabaseNotifications(5).then(renderPortalNotifications) : Promise.resolve(), employee && hasPermission("attendance.corrections.request") ? bindPortalAttendanceCorrections() : Promise.resolve()]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
+  await Promise.all([refresh(), hasPermission("notifications.read.self") ? fetchOwnSupabaseNotifications(5).then(renderPortalNotifications) : Promise.resolve(), employee && hasPermission("attendance.corrections.request") ? bindPortalAttendanceCorrections() : Promise.resolve(), bindPortalIncidents()]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
 }
 function ensureEnvironmentOnLocalAuthCallback() {
   // Never guess or change the Auth environment while handling credentials.
@@ -6441,7 +6444,69 @@ async function initApp() {
   bindCalendarModules();
   bindMembershipsModule();
   await bindEmployeePortal();
+  await bindAttendanceBoard();
   filterProfileModuleLinks();
+}
+
+const attendanceLabels = {
+  vacation: "Vacaciones", illness: "Enfermedad", authorized_day_off: "Día libre autorizado",
+  official_business: "Gestión oficial", unpaid_absence: "Ausencia sin paga",
+  pending_unexplained_absence: "Ausencia pendiente", other: "Otro",
+  pending: "Pendiente", employee_explained: "Explicada", hr_documented: "Documentada", resolved: "Resuelta"
+};
+
+function attendanceState(row) {
+  if (row.holiday) return "Feriado";
+  if (row.incident_status && row.incident_status !== "resolved") return attendanceLabels[row.incident_type] || "Incidencia";
+  if (row.incident_status === "resolved") return attendanceLabels[row.resolution] || attendanceLabels[row.incident_type] || "Resuelta";
+  if (row.event_type === "lunch_out") return "Almuerzo";
+  if (row.event_type === "clock_out") return "Salió";
+  if (row.event_type === "clock_in" || row.event_type === "lunch_in") return row.classification === "late" || row.classification === "partial_absence" ? "Tarde" : "Presente";
+  return "No ha llegado";
+}
+
+async function bindAttendanceBoard() {
+  const table = document.querySelector("[data-attendance-board]");
+  if (!table || !hasPermission("attendance.board.read")) return;
+  const body = table.querySelector("tbody");
+  const rows = await attendanceRpc("list_today_attendance");
+  const canDocument = hasPermission("attendance.incidents.document");
+  const canResolve = hasPermission("attendance.incidents.resolve");
+  body.innerHTML = (rows || []).map((row) => `<tr><td>${row.name}</td><td>${row.position || ""}</td><td>${attendanceState(row)}</td><td>${row.incident_id && row.incident_status !== "resolved" ? `${canDocument ? `<button type="button" data-document="${row.incident_id}">Documentar</button>` : ""} ${canResolve ? `<button type="button" data-resolve="${row.incident_id}">Resolver</button>` : ""}` : ""}</td></tr>`).join("") || `<tr><td colspan="4">No hay empleados obligados.</td></tr>`;
+  body.querySelectorAll("[data-document]").forEach((button) => button.addEventListener("click", async () => {
+    const notes = window.prompt("Notas de Recursos Humanos");
+    if (!notes) return;
+    await attendanceRpc("document_attendance_incident", { p_incident_id: button.dataset.document, p_notes: notes });
+    await bindAttendanceBoard();
+  }));
+  body.querySelectorAll("[data-resolve]").forEach((button) => button.addEventListener("click", async () => {
+    const resolution = window.prompt("Resolución: vacation, illness, authorized_day_off, official_business, unpaid_absence, other");
+    const comment = window.prompt("Comentario de la resolución");
+    if (!resolution || !comment) return;
+    await attendanceRpc("resolve_attendance_incident", { p_incident_id: button.dataset.resolve, p_resolution: resolution.trim(), p_comment: comment });
+    await bindAttendanceBoard();
+  }));
+  document.querySelector("[data-holiday-form]")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    await attendanceRpc("save_institutional_day", { p_date: data.get("date"), p_name: data.get("name") });
+    event.currentTarget.reset();
+  });
+}
+
+async function bindPortalIncidents() {
+  const list = document.querySelector("[data-incident-list]");
+  if (!list || !hasPermission("attendance.incidents.read.self")) {
+    document.querySelector("[data-portal-incidents]")?.setAttribute("hidden", "");
+    return;
+  }
+  const rows = await attendanceRpc("list_own_attendance_incidents");
+  list.innerHTML = (rows || []).map((row) => `<form data-incident="${row.id}"><p><strong>${row.incident_date}</strong> · ${attendanceLabels[row.incident_type] || row.incident_type} · ${attendanceLabels[row.status] || row.status}</p>${row.status === "resolved" ? `<p>${row.resolution_comment || ""}</p>` : `<label>Motivo<textarea name="explanation" minlength="5" required>${row.employee_explanation || ""}</textarea></label><button type="submit">Enviar explicación</button>`}</form>`).join("") || `<p class="portal-empty">No hay incidencias.</p>`;
+  list.querySelectorAll("form").forEach((form) => form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await attendanceRpc("explain_own_attendance_incident", { p_incident_id: form.dataset.incident, p_explanation: new FormData(form).get("explanation") });
+    await bindPortalIncidents();
+  }));
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
