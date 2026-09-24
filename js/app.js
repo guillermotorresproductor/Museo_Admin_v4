@@ -19,7 +19,7 @@ const appPages = {
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
   "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
   "notificaciones.html": { title: "Notificaciones", subtitle: "Alertas internas del sistema administrativo." },
-  "reportes.html": { title: "Reportes", subtitle: "Módulo pendiente para programación." },
+  "reportes.html": { title: "Reportes", subtitle: "Estado del personal hoy." },
   "finanzas.html": { title: "Finanzas", subtitle: "Acceso restringido pendiente para firewall." },
   "direccion-ejecutiva.html": { title: "Dirección Ejecutiva", subtitle: "Aprobaciones, seguimientos y supervisión operacional (INSTITUVA)." },
   "reglamento.html": { title: "Reglamento del Museo", subtitle: "Normas oficiales, impresión y descarga." },
@@ -301,7 +301,7 @@ function profilePageAllowed(page) {
     "perfil-empleado.html": () => canManageEmployees() || hasPermission("roles.assign"),
     "notificaciones.html": () => hasPermission("notifications.manage"),
     "finanzas.html": () => hasPermission("finance.read"),
-    "reportes.html": () => hasPermission("reports.read"),
+    "reportes.html": () => hasPermission("attendance.today.read"),
     "direccion-ejecutiva.html": () => hasPermission("executive.case.read"),
     "recibo-prestamo.html": () => canWriteCollections()
   };
@@ -327,8 +327,7 @@ const EXECUTIVE_MODULE_ACCESS = {
 const SENSITIVE_MODULE_ACCESS = {
   "finanzas.html": () => hasPermission("finance.read"),
   "direccion-ejecutiva.html": () => hasPermission("executive.case.read"),
-  // Compatibilidad: Reportes usa reports.read o, si no está desplegado, autoridad de administrador.
-  "reportes.html": () => hasPermission("reports.read") || hasPermission("system.configure")
+  "reportes.html": () => hasPermission("attendance.today.read")
 };
 
 const moduleAccessChecks = {
@@ -5078,16 +5077,79 @@ function bindReportsModule() {
   const loginFallback = document.querySelector("[data-reports-login-fallback]");
   if (!gate || !module) return;
 
-  const reportsPermission = hasPermission("reports.read") ? "reports.read" : "system.configure";
   bindSensitiveModuleGate({
     moduleId: "reports",
-    permission: reportsPermission,
+    permission: "attendance.today.read",
     gate,
     content: module,
     loginForm,
     loginMessage,
-    loginFallbackLink: loginFallback
+    loginFallbackLink: loginFallback,
+    onUnlock: bindTodayStaffStatus
   }).init();
+}
+
+function bindTodayStaffStatus() {
+  const root = document.querySelector("[data-today-staff]");
+  if (!root || root.dataset.bound === "1") return Promise.resolve();
+  root.dataset.bound = "1";
+  const summary = root.querySelector("[data-today-summary]");
+  const body = root.querySelector("[data-today-body]");
+  const message = root.querySelector("[data-today-message]");
+  const refreshButton = root.querySelector("[data-today-refresh]");
+  const labels = {
+    TRABAJANDO: "Trabajando",
+    ALMUERZO: "Almuerzo",
+    "JORNADA TERMINADA": "Jornada terminada",
+    "NO HA PONCHADO": "No ha ponchado",
+    INCONSISTENCIA: "Inconsistencia"
+  };
+  const statusClass = {
+    TRABAJANDO: "is-working",
+    ALMUERZO: "is-lunch",
+    "JORNADA TERMINADA": "is-done",
+    "NO HA PONCHADO": "is-absent",
+    INCONSISTENCIA: "is-alert"
+  };
+  let timer = 0;
+  let loading = false;
+  const clock = (value) => value ? formatPortalDate(value, { hour: "numeric", minute: "2-digit" }) : "—";
+  const hours = (minutes) => {
+    const total = Math.max(0, Math.round(Number(minutes) || 0));
+    return `${Math.floor(total / 60)} h ${String(total % 60).padStart(2, "0")} min`;
+  };
+  const setMessage = (text, type = "") => { message.textContent = text; message.className = `form-message ${type}`.trim(); };
+  const render = (rows) => {
+    const counts = { TRABAJANDO: 0, ALMUERZO: 0, "JORNADA TERMINADA": 0, "NO HA PONCHADO": 0, INCONSISTENCIA: 0 };
+    rows.forEach((row) => { if (counts[row.status] !== undefined) counts[row.status] += 1; });
+    summary.innerHTML = [
+      ["Trabajando", counts.TRABAJANDO],
+      ["En almuerzo", counts.ALMUERZO],
+      ["Jornada terminada", counts["JORNADA TERMINADA"]],
+      ["No han ponchado", counts["NO HA PONCHADO"]],
+      ["Inconsistencias", counts.INCONSISTENCIA]
+    ].map(([label, value]) => `<article><span>${label}</span><strong>${value}</strong></article>`).join("");
+    body.innerHTML = rows.length ? rows.map((row) => `<tr><td><strong>${safeHtml(row.name || "Empleado")}</strong></td><td>${clock(row.clock_in)}</td><td><span class="attendance-status ${statusClass[row.status] || ""}">${safeHtml(labels[row.status] || row.status)}</span></td><td>${clock(row.lunch_out)}</td><td>${clock(row.lunch_in)}</td><td>${clock(row.clock_out)}</td><td>${hours(row.worked_minutes)}</td></tr>`).join("") : `<tr><td colspan="7">No hay empleados activos con turno programado para hoy.</td></tr>`;
+  };
+  const load = async () => {
+    if (loading || !hasPermission("attendance.today.read")) return;
+    loading = true;
+    refreshButton.disabled = true;
+    try {
+      render(await fetchTodayStaffStatus());
+      setMessage("Estado actualizado.", "success");
+    } catch (error) {
+      body.innerHTML = `<tr><td colspan="7">No se pudo consultar el estado de hoy.</td></tr>`;
+      setMessage(error.message || "No se pudo consultar el estado de hoy.", "error");
+    } finally {
+      loading = false;
+      refreshButton.disabled = false;
+    }
+  };
+  refreshButton.addEventListener("click", load);
+  window.addEventListener("pagehide", () => { window.clearInterval(timer); timer = 0; }, { once: true });
+  timer = window.setInterval(load, 60000);
+  return load();
 }
 
 async function bindEmployeeProfile() {
