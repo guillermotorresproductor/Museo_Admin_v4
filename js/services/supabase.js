@@ -308,6 +308,19 @@ async function fetchOwnSupabaseNotifications(limit = 5) {
   return supabaseGet(`/rest/v1/employee_notifications?select=id,title,message,category,read_at,created_at&order=created_at.desc&limit=${safeLimit}`);
 }
 
+async function fetchOvertimeReviews() {
+  return supabasePost("/rest/v1/rpc/list_overtime_reviews", {});
+}
+
+async function decideOvertimeReview(reviewId, decision, approvedMinutes, reason) {
+  return supabasePost("/rest/v1/rpc/decide_overtime_review", {
+    p_review_id: reviewId,
+    p_decision: decision,
+    p_approved_minutes: approvedMinutes,
+    p_reason: reason
+  });
+}
+
 async function fetchAttendanceAlerts() {
   const data = await supabasePost("/rest/v1/rpc/sync_attendance_operational_alerts", {});
   return Array.isArray(data) ? data : [];

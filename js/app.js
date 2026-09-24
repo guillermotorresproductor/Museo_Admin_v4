@@ -6326,6 +6326,72 @@ function bindPortalAttendanceCorrections() {
   return load().catch((error) => { setMessage(error.message || "No se pudieron cargar las correcciones.", "error"); });
 }
 
+function bindOvertimeReviews() {
+  const root = document.querySelector("[data-overtime-reviews]");
+  if (!root || !hasPermission("attendance.overtime.decide")) return;
+  if (root.dataset.bound === "1") return;
+  root.dataset.bound = "1";
+  root.hidden = false;
+  const pending = root.querySelector("[data-overtime-pending]");
+  const recent = root.querySelector("[data-overtime-recent]");
+  const message = root.querySelector("[data-overtime-message]");
+  const refresh = root.querySelector("[data-overtime-refresh]");
+  const statusLabel = { pending: "Pendiente", approved: "Aprobado", partially_approved: "Parcialmente aprobado", rejected: "Rechazado" };
+  let timer = 0;
+  let loading = false;
+  const clock = (value) => value ? formatPortalDate(value, { hour: "numeric", minute: "2-digit" }) : "—";
+  const when = (value) => value ? formatPortalDate(value, { dateStyle: "medium", timeStyle: "short" }) : "";
+  const card = (row, actionable) => `<article class="portal-alert"><header><strong>${safeHtml(row.name || "Empleado")}</strong><span class="attendance-status ${row.status === "pending" ? "is-alert" : "is-done"}">${safeHtml(statusLabel[row.status] || row.status)}</span></header><p>Turno ${clock(row.starts_at)} – ${clock(row.ends_at)}. Salida real ${clock(row.clock_out)}.</p><small>Tiempo adicional detectado: ${row.additional_minutes} min.${row.approved_minutes === null || row.approved_minutes === undefined ? "" : ` Aprobados: ${row.approved_minutes} min.`}${row.decided_by_name ? ` Decidió ${safeHtml(row.decided_by_name)} ${when(row.decided_at)}.` : ""}${row.decision_reason ? ` ${safeHtml(row.decision_reason)}` : ""}</small>${actionable ? `<form data-overtime-decision="${row.id}"><input name="reason" required placeholder="Razón obligatoria"><input name="minutes" type="number" min="1" placeholder="Minutos parciales"><button class="portal-inline-button" type="submit" data-decision="approve_all">Aprobar todo</button><button class="portal-inline-button" type="submit" data-decision="approve_partial">Aprobar parcialmente</button><button class="portal-inline-button" type="submit" data-decision="reject">Rechazar</button></form>` : ""}</article>`;
+  const render = (payload) => {
+    const open = Array.isArray(payload?.pending) ? payload.pending : [];
+    const past = Array.isArray(payload?.recent) ? payload.recent : [];
+    pending.innerHTML = open.length ? open.map((row) => card(row, true)).join("") : `<p class="portal-empty">No hay horas extra pendientes.</p>`;
+    recent.innerHTML = past.length ? past.map((row) => card(row, false)).join("") : `<p class="portal-empty">No hay decisiones recientes.</p>`;
+  };
+  const load = async () => {
+    if (loading || !hasPermission("attendance.overtime.decide")) return;
+    loading = true;
+    refresh.disabled = true;
+    try {
+      render(await fetchOvertimeReviews());
+      message.textContent = "Horas extra actualizadas.";
+    } catch (error) {
+      message.textContent = error.message || "No se pudieron consultar las horas extra.";
+    } finally {
+      loading = false;
+      refresh.disabled = false;
+    }
+  };
+  const decisionError = (text) => {
+    if (text.includes("OVERTIME_ALREADY_DECIDED")) return "Esa revisión ya fue procesada. Se actualizó la información.";
+    if (text.includes("DECISION_REASON_REQUIRED")) return "Escribe una razón para la decisión.";
+    if (text.includes("PARTIAL_MINUTES_INVALID")) return "Los minutos parciales deben ser mayores que cero.";
+    if (text.includes("MINUTES_EXCEED_DETECTED")) return "No se pueden aprobar más minutos de los detectados.";
+    if (text.includes("USE_FULL_APPROVAL")) return "Esa cantidad es el total. Usa Aprobar todo.";
+    if (text.includes("FORBIDDEN")) return "No tienes autorización para decidir horas extra.";
+    return text || "No se pudo registrar la decisión.";
+  };
+  root.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-overtime-decision]");
+    if (!form) return;
+    event.preventDefault();
+    const decision = event.submitter?.dataset.decision;
+    const reason = new FormData(form).get("reason");
+    const minutes = new FormData(form).get("minutes");
+    try {
+      render(await decideOvertimeReview(form.dataset.overtimeDecision, decision, minutes === "" ? null : Number(minutes), reason));
+      message.textContent = "Decisión registrada.";
+    } catch (error) {
+      message.textContent = decisionError(error.message || "");
+      if ((error.message || "").includes("OVERTIME_ALREADY_DECIDED")) load();
+    }
+  });
+  refresh.addEventListener("click", load);
+  window.addEventListener("pagehide", () => { window.clearInterval(timer); timer = 0; }, { once: true });
+  timer = window.setInterval(load, 60000);
+  return load();
+}
+
 function bindAttendanceOperationalAlerts() {
   const root = document.querySelector("[data-attendance-alerts]");
   if (!root || !hasPermission("attendance.alerts.read")) return;
@@ -6416,6 +6482,7 @@ async function bindEmployeePortal() {
   document.querySelector("[data-portal-account]").textContent = employee ? [employeeDisplayName(employee), employee.correo, employee.telefono].filter(Boolean).join(" · ") : (profile.full_name || profile.email || "Mi cuenta");
   document.querySelector("[data-portal-date]").textContent = formatPortalDate(new Date(), { weekday: "long", month: "long", day: "numeric" });
   bindAttendanceOperationalAlerts();
+  bindOvertimeReviews();
   const button = document.querySelector("[data-portal-clock-button]");
   const status = document.querySelector("[data-portal-clock-status]");
   const message = document.querySelector("[data-portal-message]");
