@@ -172,7 +172,7 @@ const demoEmployeeProfiles = {
     condicion: "Ninguna registrada",
     posicion: "Administrador",
     departamento: "Administración",
-    horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
+    horario: "Lunes a viernes, 8:00 a. m. – 5:00 p. m.",
     notificaciones: "Recibe notificaciones administrativas, cambios de horario y alertas internas.",
     acceso: "Administrador",
     fechaContratacion: "2026-07-01",
@@ -192,7 +192,7 @@ const demoEmployeeProfiles = {
     condicion: "Ninguna registrada",
     posicion: "Mantenimiento",
     departamento: "Mantenimiento",
-    horario: "Lunes a viernes, 8:00 AM - 4:00 PM",
+    horario: "Lunes a viernes, 8:00 a. m. – 5:00 p. m.",
     notificaciones: "Recibe avisos de ruta digital, materiales y calendario de obras.",
     acceso: "Empleado",
     fechaContratacion: "2026-07-01",
@@ -212,7 +212,7 @@ const demoEmployeeProfiles = {
     condicion: "Ninguna registrada",
     posicion: "Mantenimiento",
     departamento: "Mantenimiento",
-    horario: "Martes a sábado, 8:00 AM - 4:00 PM",
+    horario: "Martes a sábado, 8:00 a. m. – 5:00 p. m.",
     notificaciones: "Recibe avisos de inspección, mantenimiento preventivo y tareas asignadas.",
     acceso: "Empleado",
     fechaContratacion: "2026-07-01",
@@ -3711,7 +3711,7 @@ function bindAttendanceScheduleAdmin(module, employeeMap) {
   const dayNames = { 1: "Lun", 2: "Mar", 3: "Mie", 4: "Jue", 5: "Vie", 6: "Sab", 7: "Dom" };
   let activeRules = [];
   const showMessage = (text, type = "") => { message.textContent = text; message.className = `form-message ${type}`.trim(); };
-  const resetEdit = () => { form.reset(); form.elements.effectiveFrom.value=today; form.elements.startsLocal.value="08:00"; form.elements.endsLocal.value="16:00"; form.elements.lunchMinutes.value="60"; form.elements.supersedesRuleId.value=""; region.querySelector("[data-schedule-submit]").textContent="Crear regla recurrente"; region.querySelector("[data-schedule-cancel-edit]").hidden=true; };
+  const resetEdit = () => { form.reset(); form.elements.effectiveFrom.value=today; form.elements.startsLocal.value="08:00"; form.elements.endsLocal.value="17:00"; form.elements.lunchMinutes.value="60"; form.elements.supersedesRuleId.value=""; region.querySelector("[data-schedule-submit]").textContent="Crear regla recurrente"; region.querySelector("[data-schedule-cancel-edit]").hidden=true; };
   const refreshRuleOptions = () => { const employeeId=exceptionForm.elements.employeeId.value; exceptionForm.elements.ruleId.innerHTML='<option value="">Seleccione una regla</option>'+activeRules.filter(r=>!employeeId||r.employee_id===employeeId).map(r=>`<option value="${safeHtml(r.id)}">${safeHtml((r.weekdays||[]).map(d=>dayNames[d]).join(", "))} · ${safeHtml(String(r.starts_local).slice(0,5))}-${safeHtml(String(r.ends_local).slice(0,5))}</option>`).join(""); };
   const load = async () => {
     try {
