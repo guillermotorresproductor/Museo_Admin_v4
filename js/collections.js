@@ -19,6 +19,10 @@ function collectionDetailsPayload(category, keys, values, saved) {
   return details;
 }
 
+function collectionCategoryLabel(value) {
+  return value === 'Otro' ? 'Otros' : value;
+}
+
 function collectionFactVisible(item, key) {
   const expected = collectionConditionalFields[key];
   if (!expected) return true;
@@ -54,7 +58,7 @@ async function bindCollectionsCatalog() {
   let replacingPhoto = false;
   const base = ['accession_number','title','description','category','location','condition','status'];
   const more = ['personal_object_description','object_type_specification','author','dating','materials','dimensions','provenance','owner','acquisition','custody','donor','owner_phone','owner_email','owner_address','lender','received_date','fmv','currency','loan_reference','notes','cultural_history'];
-  const labels = {accession_number:'Número de inventario',title:'Nombre o título',description:'Descripción museográfica',category:'Clasificación',location:'Ubicación',condition:'Estado de conservación',status:'Estado del registro',personal_object_description:'Descripción del objeto personal',object_type_specification:'Especifique el tipo de objeto',author:'Autor / fabricante',dating:'Época / fecha de creación',materials:'Material',dimensions:'Dimensiones',provenance:'Procedencia',owner:'Titularidad',acquisition:'Forma de ingreso / adquisición',custody:'Condición de custodia',donor:'Donante / propietario',lender:'Prestamista',received_date:'Fecha de ingreso',fmv:'Valor estimado (FMV)',currency:'Moneda',loan_reference:'Referencia de préstamo / documento',notes:'Observaciones / anotaciones',owner_phone:'Teléfono del donante / propietario',owner_email:'Email del donante / propietario',owner_address:'Dirección del donante / propietario',cultural_history:'Historia / valor cultural'};
+  const labels = {accession_number:'Número de inventario',title:'Nombre o título',description:'Descripción museográfica',category:'Clasificación',location:'Ubicación',condition:'Estado de conservación',status:'Estado del registro',personal_object_description:'Descripción del objeto personal',object_type_specification:'Tipo de objeto',author:'Autor / fabricante',dating:'Época / fecha de creación',materials:'Material',dimensions:'Dimensiones',provenance:'Procedencia',owner:'Titularidad',acquisition:'Forma de ingreso / adquisición',custody:'Condición de custodia',donor:'Donante / propietario',lender:'Prestamista',received_date:'Fecha de ingreso',fmv:'Valor estimado (FMV)',currency:'Moneda',loan_reference:'Referencia de préstamo / documento',notes:'Observaciones / anotaciones',owner_phone:'Teléfono del donante / propietario',owner_email:'Email del donante / propietario',owner_address:'Dirección del donante / propietario',cultural_history:'Historia / valor cultural'};
   const say = (text, error = false) => { status.textContent = text; status.className = `form-message ${error ? 'error' : 'success'}`; };
   const esc = value => safeHtml(String(value ?? ''));
   const photoSlotIds = [1, 2, 3, 4];
@@ -98,7 +102,7 @@ async function bindCollectionsCatalog() {
     const term = search.value.trim().toLocaleLowerCase('es');
     const selected = items.filter(i => [i.accession_number,i.title,i.description,i.category,i.location,i.details?.donor,i.details?.lender,i.details?.personal_object_description,i.details?.object_type_specification].join(' ').toLocaleLowerCase('es').includes(term));
     document.querySelector('#collection-count').textContent = `${selected.length} de ${items.length} piezas`;
-    list.innerHTML = selected.length ? selected.map(i => `<tr><td>${esc(i.accession_number)}</td><td>${esc(i.title)}</td><td>${esc(i.category)}</td><td>${esc(i.location)}</td><td>${esc(i.condition)}</td><td><button class="button secondary" data-piece-view="${i.id}">Ver expediente</button>${canWrite ? ` <button class="button secondary" data-piece-edit="${i.id}">Editar</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="6">No hay piezas que coincidan con la búsqueda.</td></tr>';
+    list.innerHTML = selected.length ? selected.map(i => `<tr><td>${esc(i.accession_number)}</td><td>${esc(i.title)}</td><td>${esc(collectionCategoryLabel(i.category))}</td><td>${esc(i.location)}</td><td>${esc(i.condition)}</td><td><button class="button secondary" data-piece-view="${i.id}">Ver expediente</button>${canWrite ? ` <button class="button secondary" data-piece-edit="${i.id}">Editar</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="6">No hay piezas que coincidan con la búsqueda.</td></tr>';
   }
   async function reload() { items = await collectionRows('collection_items'); render(); }
   function historyChanges(h) {
@@ -115,7 +119,7 @@ async function bindCollectionsCatalog() {
     const label = document.createElement('section');
     label.className = 'collection-print-label';
     label.setAttribute('aria-hidden','true');
-    label.innerHTML = `<h1>Museo de la Música de Puerto Rico</h1><p><strong>N.º de inventario:</strong> ${esc(viewedItem.accession_number)}</p><p><strong>Pieza:</strong> ${esc(viewedItem.title)}</p><p><strong>Clasificación:</strong> ${esc(viewedItem.category)}</p><img src="${viewedQrDataUrl}" alt=""><p>Escanear para expediente interno</p>`;
+    label.innerHTML = `<h1>Museo de la Música de Puerto Rico</h1><p><strong>N.º de inventario:</strong> ${esc(viewedItem.accession_number)}</p><p><strong>Pieza:</strong> ${esc(viewedItem.title)}</p><p><strong>Clasificación:</strong> ${esc(collectionCategoryLabel(viewedItem.category))}</p><img src="${viewedQrDataUrl}" alt=""><p>Escanear para expediente interno</p>`;
     document.body.append(label);
     document.body.classList.add('collection-label-printing');
     const cleanup = () => { document.body.classList.remove('collection-label-printing'); label.remove(); };
@@ -128,7 +132,7 @@ async function bindCollectionsCatalog() {
     const printButton = document.querySelector('#collection-print-label'); if(printButton) printButton.disabled = true;
     dialog.showModal(); detail.textContent = 'Cargando expediente…';
     const [photos,history] = await Promise.all([collectionRows('collection_active_photos',`&item_id=eq.${item.id}`),collectionHistory(item.id)]);
-    detail.innerHTML = `<h2>${esc(item.accession_number)} · ${esc(item.title)}</h2><dl class="collection-facts">${[...base,...more].filter(k => collectionFactVisible(item, k)).map(k => `<div><dt>${esc(labels[k])}</dt><dd>${esc(base.includes(k) ? item[k] : item.details?.[k]) || 'No registrado'}</dd></div>`).join('')}</dl><h3>Fotografías conservadas</h3><div class="collection-gallery">${photos.map(p=>`<figure><img data-photo="${p.id}" alt="Fotografía de ${esc(item.title)}" loading="lazy"><figcaption>${esc(p.caption || 'Sin descripción')} · ${esc(new Date(p.created_at).toLocaleString('es-PR'))}</figcaption></figure>`).join('') || '<p>Sin fotografías registradas.</p>'}</div><h3>Historial</h3><ol>${history.map(h => `<li><strong>${esc(h.action === 'sustitucion_fotografia' ? 'Sustitución de fotografía' : h.action)}</strong> · ${esc(new Date(h.occurred_at).toLocaleString('es-PR'))}<p>${esc(h.reason)}</p><small>Responsable: ${esc(h.actor_name || h.actor_id)}</small><details><summary>Ver cambios conservados</summary><pre>${esc(historyChanges(h))}</pre></details></li>`).join('')}</ol><p><a href="inventario-colecciones.html?pieza=${item.id}">Enlace permanente del expediente</a></p>`;
+    detail.innerHTML = `<h2>${esc(item.accession_number)} · ${esc(item.title)}</h2><dl class="collection-facts">${[...base,...more].filter(k => collectionFactVisible(item, k)).map(k => `<div><dt>${esc(labels[k])}</dt><dd>${esc(k === 'category' ? collectionCategoryLabel(item.category) : (base.includes(k) ? item[k] : item.details?.[k])) || 'No registrado'}</dd></div>`).join('')}</dl><h3>Fotografías conservadas</h3><div class="collection-gallery">${photos.map(p=>`<figure><img data-photo="${p.id}" alt="Fotografía de ${esc(item.title)}" loading="lazy"><figcaption>${esc(p.caption || 'Sin descripción')} · ${esc(new Date(p.created_at).toLocaleString('es-PR'))}</figcaption></figure>`).join('') || '<p>Sin fotografías registradas.</p>'}</div><h3>Historial</h3><ol>${history.map(h => `<li><strong>${esc(h.action === 'sustitucion_fotografia' ? 'Sustitución de fotografía' : h.action)}</strong> · ${esc(new Date(h.occurred_at).toLocaleString('es-PR'))}<p>${esc(h.reason)}</p><small>Responsable: ${esc(h.actor_name || h.actor_id)}</small><details><summary>Ver cambios conservados</summary><pre>${esc(historyChanges(h))}</pre></details></li>`).join('')}</ol><p><a href="inventario-colecciones.html?pieza=${item.id}">Enlace permanente del expediente</a></p>`;
     if(canReplacePhoto) photos.forEach(photo => {
       const figure = detail.querySelector(`[data-photo="${photo.id}"]`).closest('figure');
       const replaceButton = document.createElement('button');
