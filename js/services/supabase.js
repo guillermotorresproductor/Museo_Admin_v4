@@ -296,7 +296,24 @@ async function manageSupabaseAttendanceCorrection(action, payload = {}) {
 }
 
 async function requestSupabaseAttendanceCorrection(payload) {
-  return manageSupabaseAttendanceCorrection("request", payload);
+  return supabasePost("/rest/v1/rpc/request_own_attendance_correction", {
+    p_shift_id: payload.shift_id,
+    p_event_type: payload.event_type,
+    p_proposed_occurred_at: payload.proposed_occurred_at,
+    p_reason: payload.reason
+  });
+}
+
+async function fetchAttendanceCorrections() {
+  return supabasePost("/rest/v1/rpc/list_attendance_corrections", {});
+}
+
+async function decideAttendanceCorrection(requestId, decision, reason) {
+  return supabasePost("/rest/v1/rpc/decide_attendance_correction", {
+    p_request_id: requestId,
+    p_decision: decision,
+    p_reason: reason
+  });
 }
 
 async function decideSupabaseAttendanceCorrection(requestId, decision, reason) {

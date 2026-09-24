@@ -6318,12 +6318,71 @@ function bindPortalAttendanceCorrections() {
     try {
       await requestSupabaseAttendanceCorrection({ shift_id: shiftId, original_event_id: original?.id || null, event_type: eventType, proposed_occurred_at: new Date(String(data.get("proposedAt"))).toISOString(), reason: String(data.get("reason") || "") });
       form.reset(); form.hidden = true; toggle.hidden = false;
-      setMessage("Solicitud enviada al supervisor. El registro original no fue modificado.", "success");
+      setMessage("Solicitud enviada. El registro original no fue modificado.", "success");
       await load();
-    } catch (error) { setMessage(error.message || "No se pudo enviar la solicitud.", "error"); }
+    } catch (error) {
+      const text = error.message || "";
+      setMessage(text.includes("PENDING_CORRECTION_EXISTS") ? "Ya existe una solicitud pendiente para ese ponche." : text.includes("REASON_REQUIRED") ? "La razón debe tener al menos 5 caracteres." : text.includes("SHIFT_OUTSIDE_WINDOW") ? "Ese turno está fuera del período permitido." : text.includes("INVALID_EVENT_TYPE") ? "Ese tipo de ponche no se puede corregir." : (text || "No se pudo enviar la solicitud."), "error");
+    }
     finally { submit.disabled = false; }
   });
   return load().catch((error) => { setMessage(error.message || "No se pudieron cargar las correcciones.", "error"); });
+}
+
+function bindPunchCorrections() {
+  const root = document.querySelector("[data-punch-corrections]");
+  if (!root || !hasPermission("attendance.corrections.decide")) return;
+  if (root.dataset.bound === "1") return;
+  root.dataset.bound = "1";
+  root.hidden = false;
+  const pending = root.querySelector("[data-punch-corrections-pending]");
+  const recent = root.querySelector("[data-punch-corrections-recent]");
+  const message = root.querySelector("[data-punch-corrections-message]");
+  const refresh = root.querySelector("[data-punch-corrections-refresh]");
+  const labels = { clock_in: "Entrada", lunch_out: "Salida a almuerzo", lunch_in: "Regreso de almuerzo", clock_out: "Salida" };
+  const statusLabel = { approved: "Aprobada", rejected: "Rechazada" };
+  let timer = 0;
+  let loading = false;
+  const clock = (value) => value ? formatPortalDate(value, { hour: "numeric", minute: "2-digit" }) : "—";
+  const when = (value) => value ? formatPortalDate(value, { dateStyle: "medium", timeStyle: "short" }) : "";
+  const card = (row, actionable) => `<article class="portal-alert"><header><strong>${safeHtml(row.name || "Empleado")}</strong><span>${safeHtml(labels[row.requested_event_type] || row.requested_event_type)}</span></header><p>Turno ${clock(row.starts_at)} – ${clock(row.ends_at)}. ${row.original_at ? `Original ${clock(row.original_at)}. ` : "Sin ponche original. "}Propuesta ${clock(row.proposed_at)}.${row.difference_minutes === null || row.difference_minutes === undefined ? "" : ` Diferencia ${row.difference_minutes} min.`}</p><small>${safeHtml(row.reason || "")}${row.decided_by_name ? ` Decidió ${safeHtml(row.decided_by_name)} ${when(row.decided_at)}. ${safeHtml(row.decision_reason || "")}` : ""}${row.status && statusLabel[row.status] ? ` ${statusLabel[row.status]}.` : ""}</small>${actionable ? `<form data-punch-correction="${row.id}"><input name="reason" required placeholder="Comentario obligatorio"><button class="portal-inline-button" type="submit" data-decision="approved">Aprobar</button><button class="portal-inline-button" type="submit" data-decision="rejected">Rechazar</button></form>` : ""}</article>`;
+  const render = (payload) => {
+    const open = Array.isArray(payload?.pending) ? payload.pending : [];
+    const past = Array.isArray(payload?.recent) ? payload.recent : [];
+    pending.innerHTML = open.length ? open.map((row) => card(row, true)).join("") : `<p class="portal-empty">No hay correcciones pendientes.</p>`;
+    recent.innerHTML = past.length ? past.map((row) => card(row, false)).join("") : `<p class="portal-empty">No hay decisiones recientes.</p>`;
+  };
+  const load = async () => {
+    if (loading || !hasPermission("attendance.corrections.decide")) return;
+    loading = true;
+    refresh.disabled = true;
+    try {
+      render(await fetchAttendanceCorrections());
+      message.textContent = "Correcciones actualizadas.";
+    } catch (error) {
+      message.textContent = error.message || "No se pudieron consultar las correcciones.";
+    } finally {
+      loading = false;
+      refresh.disabled = false;
+    }
+  };
+  root.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-punch-correction]");
+    if (!form) return;
+    event.preventDefault();
+    try {
+      render(await decideAttendanceCorrection(form.dataset.punchCorrection, event.submitter?.dataset.decision, new FormData(form).get("reason")));
+      message.textContent = "Decisión registrada.";
+    } catch (error) {
+      const text = error.message || "";
+      message.textContent = text.includes("CORRECTION_ALREADY_DECIDED") ? "Esa solicitud ya fue procesada." : text.includes("OVERTIME_DECISION_CONFLICT") ? "Hay una decisión de horas extra ya cerrada. La corrección sigue pendiente." : text.includes("INVALID_CORRECTION_SEQUENCE") ? "Esa hora dejaría una secuencia imposible. La solicitud sigue pendiente." : text.includes("SELF_APPROVAL_FORBIDDEN") ? "No puedes decidir tu propia solicitud." : (text || "No se pudo registrar la decisión.");
+      if (text.includes("CORRECTION_ALREADY_DECIDED") || text.includes("OVERTIME_DECISION_CONFLICT") || text.includes("INVALID_CORRECTION_SEQUENCE")) load();
+    }
+  });
+  refresh.addEventListener("click", load);
+  window.addEventListener("pagehide", () => { window.clearInterval(timer); timer = 0; }, { once: true });
+  timer = window.setInterval(load, 60000);
+  return load();
 }
 
 function bindOvertimeReviews() {
@@ -6482,6 +6541,7 @@ async function bindEmployeePortal() {
   document.querySelector("[data-portal-account]").textContent = employee ? [employeeDisplayName(employee), employee.correo, employee.telefono].filter(Boolean).join(" · ") : (profile.full_name || profile.email || "Mi cuenta");
   document.querySelector("[data-portal-date]").textContent = formatPortalDate(new Date(), { weekday: "long", month: "long", day: "numeric" });
   bindAttendanceOperationalAlerts();
+  bindPunchCorrections();
   bindOvertimeReviews();
   const button = document.querySelector("[data-portal-clock-button]");
   const status = document.querySelector("[data-portal-clock-status]");
