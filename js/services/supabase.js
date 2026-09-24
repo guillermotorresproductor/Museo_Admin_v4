@@ -308,6 +308,16 @@ async function fetchOwnSupabaseNotifications(limit = 5) {
   return supabaseGet(`/rest/v1/employee_notifications?select=id,title,message,category,read_at,created_at&order=created_at.desc&limit=${safeLimit}`);
 }
 
+async function fetchAttendanceAlerts() {
+  const data = await supabasePost("/rest/v1/rpc/sync_attendance_operational_alerts", {});
+  return Array.isArray(data) ? data : [];
+}
+
+async function reviewAttendanceAlert(alertId, comment) {
+  const data = await supabasePost("/rest/v1/rpc/review_attendance_operational_alert", { p_alert_id: alertId, p_comment: comment || null });
+  return Array.isArray(data) ? data : [];
+}
+
 async function fetchTodayStaffStatus() {
   const data = await supabasePost("/rest/v1/rpc/list_today_staff_status", {});
   return Array.isArray(data) ? data : [];
