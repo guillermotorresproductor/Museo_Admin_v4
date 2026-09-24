@@ -29,6 +29,34 @@ function collectionFactVisible(item, key) {
   return item?.category === expected || Boolean(String(item?.details?.[key] ?? '').trim());
 }
 
+function collectionDraftKey() {
+  return `museo-collection-draft-${museoEnvironment.name}`;
+}
+
+function collectionReadDraft() {
+  try {
+    const draft = JSON.parse(localStorage.getItem(collectionDraftKey()) || 'null');
+    if (!draft || typeof draft.fields !== 'object' || !draft.fields) return null;
+    return draft;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
+function collectionWriteDraft(draft) {
+  localStorage.setItem(collectionDraftKey(), JSON.stringify(draft));
+}
+
+function collectionClearDraft() {
+  localStorage.removeItem(collectionDraftKey());
+}
+
+function collectionRecentPiece(row, now = Date.now()) {
+  const updated = Date.parse(row?.updated_at || '');
+  return Number.isFinite(updated) && now - updated >= 0 && now - updated < 120000;
+}
+
 function syncCollectionCategoryFields(form, saved) {
   const category = form.elements.category?.value || '';
   for (const [key, expected] of Object.entries(collectionConditionalFields)) {
@@ -50,6 +78,7 @@ if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reque
 async function bindCollectionsCatalog() {
   const form = document.querySelector('#collection-form'); if (!form) return;
   const status = document.querySelector('#collection-message'), list = document.querySelector('#collection-list');
+  form.noValidate = true;
   const detail = document.querySelector('#collection-detail'), dialog = document.querySelector('#collection-dialog');
   const search = document.querySelector('#collection-search');
   let items = [], editing = null, saving = false, viewedItem = null, viewedQrDataUrl = '';
@@ -84,6 +113,106 @@ async function bindCollectionsCatalog() {
   let syncingCategory = false;
   function applyCategoryFields() {
     if (!syncingCategory) syncCollectionCategoryFields(form, editing?.details);
+  }
+  const draftFields = [...base, ...more, 'reason', 'caption'];
+  const draftNotice = document.querySelector('#collection-draft');
+  const submitButton = form.querySelector('[type="submit"]');
+  const submitLabel = submitButton.textContent;
+  let draftTimer = 0;
+  function fieldSnapshot() {
+    return Object.fromEntries(draftFields.map(key => [key, form.elements[key]?.value ?? '']));
+  }
+  function photosSelected() {
+    return photoSlotIds.some(n => form.elements[`photo_${n}`]?.files?.[0]);
+  }
+  function refreshDraftNotice() {
+    if (draftNotice) draftNotice.hidden = !collectionReadDraft();
+  }
+  function rememberDraft() {
+    if (!canWrite || saving) return;
+    const existing = collectionReadDraft();
+    const currentId = editing?.id || null;
+    if (existing && (existing.collectionId || null) !== currentId) {
+      refreshDraftNotice();
+      return;
+    }
+    const fields = fieldSnapshot();
+    const meaningful = Object.entries(fields).some(([key, value]) => {
+      if (key === 'reason' && value === 'Registro inicial') return false;
+      if (key === 'status' && value === 'ingreso') return false;
+      if (key === 'currency' && value === 'USD') return false;
+      return String(value).trim() !== '';
+    });
+    if (!meaningful && !existing?.collectionId) {
+      if (existing) collectionClearDraft();
+      refreshDraftNotice();
+      return;
+    }
+    collectionWriteDraft({
+      updatedAt: new Date().toISOString(),
+      mode: currentId ? 'edit' : 'new',
+      collectionId: currentId,
+      version: editing?.version ?? null,
+      accessionNumber: fields.accession_number || '',
+      hadPhotos: photosSelected() || Boolean(existing?.hadPhotos && existing.collectionId === currentId),
+      confirmed: Boolean(existing?.confirmed && existing.collectionId === currentId),
+      fields
+    });
+    refreshDraftNotice();
+  }
+  function scheduleDraft() {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(rememberDraft, 400);
+  }
+  function markConfirmed(row) {
+    editing = row;
+    const fields = fieldSnapshot();
+    collectionWriteDraft({
+      updatedAt: new Date().toISOString(),
+      mode: 'edit',
+      collectionId: row.id,
+      version: row.version,
+      accessionNumber: row.accession_number || fields.accession_number || '',
+      hadPhotos: photosSelected(),
+      confirmed: true,
+      fields
+    });
+    refreshDraftNotice();
+  }
+  function setBusy(busy) {
+    saving = busy;
+    submitButton.disabled = busy;
+    submitButton.textContent = busy ? 'Guardando...' : submitLabel;
+    form.querySelectorAll('button').forEach(button => { if (button !== submitButton) button.disabled = busy; });
+  }
+  function focusInvalid() {
+    const invalid = [...form.elements].find(element => element.willValidate && !element.disabled && !element.checkValidity());
+    if (!invalid) return true;
+    const field = invalid.closest('label');
+    if (field?.hidden) field.hidden = false;
+    invalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    invalid.focus();
+    const visible = field?.querySelector('span')?.textContent?.replace(/\s*\*\s*$/, '').trim();
+    say(`Falta completar: ${visible || labels[invalid.name] || 'un campo obligatorio'}.`, true);
+    return false;
+  }
+  async function adoptRecentPiece(accessionNumber) {
+    const rows = await collectionRows('collection_items', `&accession_number=eq.${encodeURIComponent(accessionNumber)}`);
+    return rows.find(row => row.accession_number === accessionNumber && collectionRecentPiece(row)) || null;
+  }
+  function restoreDraft() {
+    const draft = collectionReadDraft();
+    if (!draft || saving) return;
+    const item = draft.collectionId
+      ? (items.find(row => row.id === draft.collectionId) || { id: draft.collectionId, version: draft.version, accession_number: draft.accessionNumber, details: {} })
+      : null;
+    edit(item);
+    syncingCategory = true;
+    draftFields.forEach(key => { if (form.elements[key] && draft.fields[key] != null) form.elements[key].value = draft.fields[key]; });
+    syncingCategory = false;
+    applyCategoryFields();
+    if (draft.hadPhotos) say('El borrador fue recuperado. Por seguridad del navegador, deberá seleccionar nuevamente las fotografías.', true);
+    else say('Se encontró un borrador sin guardar.');
   }
   function reset() {
     editing = null; syncingCategory = true; form.reset(); resetPhotoSlots(); syncingCategory = false; applyCategoryFields(); form.hidden = true;
@@ -130,7 +259,7 @@ async function bindCollectionsCatalog() {
   async function show(item) {
     viewedItem = item; viewedQrDataUrl = '';
     const printButton = document.querySelector('#collection-print-label'); if(printButton) printButton.disabled = true;
-    dialog.showModal(); detail.textContent = 'Cargando expediente…';
+    if (!dialog.open) dialog.showModal(); detail.textContent = 'Cargando expediente…';
     const [photos,history] = await Promise.all([collectionRows('collection_active_photos',`&item_id=eq.${item.id}`),collectionHistory(item.id)]);
     detail.innerHTML = `<h2>${esc(item.accession_number)} · ${esc(item.title)}</h2><dl class="collection-facts">${[...base,...more].filter(k => collectionFactVisible(item, k)).map(k => `<div><dt>${esc(labels[k])}</dt><dd>${esc(k === 'category' ? collectionCategoryLabel(item.category) : (base.includes(k) ? item[k] : item.details?.[k])) || 'No registrado'}</dd></div>`).join('')}</dl><h3>Fotografías conservadas</h3><div class="collection-gallery">${photos.map(p=>`<figure><img data-photo="${p.id}" alt="Fotografía de ${esc(item.title)}" loading="lazy"><figcaption>${esc(p.caption || 'Sin descripción')} · ${esc(new Date(p.created_at).toLocaleString('es-PR'))}</figcaption></figure>`).join('') || '<p>Sin fotografías registradas.</p>'}</div><h3>Historial</h3><ol>${history.map(h => `<li><strong>${esc(h.action === 'sustitucion_fotografia' ? 'Sustitución de fotografía' : h.action)}</strong> · ${esc(new Date(h.occurred_at).toLocaleString('es-PR'))}<p>${esc(h.reason)}</p><small>Responsable: ${esc(h.actor_name || h.actor_id)}</small><details><summary>Ver cambios conservados</summary><pre>${esc(historyChanges(h))}</pre></details></li>`).join('')}</ol><p><a href="inventario-colecciones.html?pieza=${item.id}">Enlace permanente del expediente</a></p>`;
     if(canReplacePhoto) photos.forEach(photo => {
@@ -179,9 +308,11 @@ async function bindCollectionsCatalog() {
     }));
   }
   form.elements.category.addEventListener('change', applyCategoryFields);
+  form.addEventListener('input', scheduleDraft);
   form.addEventListener('change', event => {
     const n = Number(event.target?.name?.match(/^photo_([1-4])$/)?.[1]);
     if (n) renderPhotoSlot(n);
+    scheduleDraft();
   });
   form.addEventListener('click', event => {
     const pick = Number(event.target.closest('[data-photo-pick]')?.dataset.photoPick);
@@ -205,41 +336,87 @@ async function bindCollectionsCatalog() {
     const item = items.find(i => i.id === (view?.dataset.pieceView || editButton?.dataset.pieceEdit));
     if (item) { if(view) show(item).catch(e=>{detail.textContent=e.message;}); else edit(item); }
   };
+  document.querySelector('#collection-draft-restore').onclick = restoreDraft;
+  document.querySelector('#collection-draft-discard').onclick = () => {
+    if (saving) return;
+    collectionClearDraft();
+    refreshDraftNotice();
+  };
+  window.addEventListener('beforeunload', event => {
+    if (!collectionReadDraft()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
   form.onsubmit = async event => {
-    event.preventDefault(); if(saving || !canWrite || !form.reportValidity()) return;
+    event.preventDefault();
+    if (saving || !canWrite) return;
+    if (!focusInvalid()) return;
     const slots = photoSlotIds.map(n => ({ n, file: form.elements[`photo_${n}`]?.files?.[0] })).filter(slot => slot.file);
-    if(slots.length > 4) {say('Puede seleccionar un máximo de 4 fotografías.',true); return;}
-    const item = Object.fromEntries(base.map(k=>[k,form.elements[k].value.trim()]));
-    item.details = collectionDetailsPayload(item.category, more, Object.fromEntries(more.map(k => [k, form.elements[k].value.trim()])), editing?.details);
-    saving = true; const buttons = [...form.querySelectorAll('button')]; buttons.forEach(b=>b.disabled=true);
-    let saved = false, uploaded = 0, failedSlot = null;
+    if (slots.length > 4) { say('Puede seleccionar un máximo de 4 fotografías.', true); return; }
+    rememberDraft();
+    const item = Object.fromEntries(base.map(key => [key, form.elements[key].value.trim()]));
+    item.details = collectionDetailsPayload(item.category, more, Object.fromEntries(more.map(key => [key, form.elements[key].value.trim()])), editing?.details);
+    const reason = form.elements.reason.value.trim();
+    setBusy(true);
+    say('Guardando...');
+    let saved = false, uploaded = 0, failedSlot = null, photoFailed = false;
     try {
       for (const slot of slots) await collectionValidatePhoto(slot.file);
-      if(slots.length) {
-        const existingPhotos = editing ? await collectionRows('collection_active_photos',`&item_id=eq.${editing.id}`) : [];
-        if(existingPhotos.length + slots.length > 4) {say(`Esta pieza ya tiene ${existingPhotos.length} fotografía(s). El máximo total es 4.`,true); return;}
+      if (slots.length && editing?.id) {
+        const existingPhotos = await collectionRows('collection_active_photos', `&item_id=eq.${editing.id}`);
+        if (existingPhotos.length + slots.length > 4) { say(`Esta pieza ya tiene ${existingPhotos.length} fotografía(s). El máximo total es 4.`, true); return; }
       }
-      editing = await collectionSave(item,editing,form.elements.reason.value.trim()); saved = true;
+      if (!editing?.id) {
+        try {
+          editing = await collectionSave(item, null, reason);
+        } catch (error) {
+          if (!error.timeout) throw error;
+          console.error(error);
+          const found = await adoptRecentPiece(item.accession_number).catch(lookupError => { console.error(lookupError); return null; });
+          if (!found) throw error;
+          editing = found;
+        }
+      } else {
+        editing = await collectionSave(item, editing, reason);
+      }
+      markConfirmed(editing);
+      saved = true;
       for (const slot of slots) {
         failedSlot = slot.n;
-        editing = await collectionUpload(editing,slot.file,form.elements.caption.value.trim());
+        try {
+          editing = await collectionUpload(editing, slot.file, form.elements.caption.value.trim());
+        } catch (error) {
+          photoFailed = true;
+          throw error;
+        }
+        markConfirmed(editing);
         uploaded += 1;
         const input = form.elements[`photo_${slot.n}`];
         if (input) input.value = '';
         renderPhotoSlot(slot.n);
         failedSlot = null;
       }
-      const savedId = editing.id; reset(); await reload(); say('Pieza guardada en Colecciones.');
-      await show(items.find(i=>i.id===savedId));
-    } catch(e) {
-      const photoNote = failedSlot ? ` La fotografía ${failedSlot} no se adjuntó${uploaded ? `; se conservaron ${uploaded}.` : '.'}` : '';
-      say(`${saved ? 'La ficha está guardada; no cree otra pieza.' : ''}${photoNote} ${e.message}`.trim(),true);
-      if(saved) await reload().catch(()=>{});
-    } finally {saving=false;buttons.forEach(b=>b.disabled=false);}
+      const savedId = editing.id;
+      await reload();
+      const recognized = items.find(row => row.id === savedId);
+      if (!recognized) throw new Error('La ficha fue guardada, pero no apareció en el listado.');
+      await show(recognized);
+      collectionClearDraft();
+      refreshDraftNotice();
+      reset();
+      say('Guardado correctamente.');
+    } catch (error) {
+      console.error(error);
+      if (photoFailed) say('La ficha fue guardada, pero una fotografía no pudo adjuntarse.', true);
+      else if (saved) say('La ficha fue guardada, pero no se pudo confirmar en el listado. Sus datos permanecen en este formulario.', true);
+      else say('No se pudo completar el guardado. Sus datos permanecen en este formulario.', true);
+      if (saved) await reload().catch(reloadError => console.error(reloadError));
+    } finally { setBusy(false); }
   };
   try {
     await reload(); say(canWrite ? 'Catálogo sincronizado. Puede registrar y editar piezas.' : 'Consulta del catálogo. Su cuenta no tiene permiso de edición.');
+    refreshDraftNotice();
     const id = requestedCollectionId || sessionStorage.getItem(collectionReturnKey); sessionStorage.removeItem(collectionReturnKey);
-    const item = items.find(i=>i.id===id); if(item) await show(item);
-  } catch(e) {say(e.message,true); document.querySelector('#collection-new').disabled=true;}
+    const item = items.find(i => i.id === id); if (item) await show(item);
+  } catch (e) { say(e.message, true); document.querySelector('#collection-new').disabled = true; }
 }

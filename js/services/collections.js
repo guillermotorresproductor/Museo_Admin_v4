@@ -1,9 +1,25 @@
-/* Uses the existing authenticated session; no local persistence of catalog records. */
-async function collectionRequest(path, body, method = 'POST', extraHeaders = {}) {
-  const response = await fetch(supabaseUrl + path, {
-    method, headers: { ...(await supabaseAuthHeaders()), ...extraHeaders },
-    body: body === undefined ? undefined : body instanceof Blob ? body : JSON.stringify(body)
-  });
+/* Uses the existing authenticated session. Text drafts stay in the browser; this module does not store them. */
+const collectionSaveTimeoutMs = 30000;
+const collectionPhotoUploadTimeoutMs = 60000;
+const collectionPhotoAttachTimeoutMs = 30000;
+
+async function collectionRequest(path, body, method = 'POST', extraHeaders = {}, timeoutMs = 0) {
+  const timeout = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined;
+  let response;
+  try {
+    response = await fetch(supabaseUrl + path, {
+      method, signal: timeout, headers: { ...(await supabaseAuthHeaders()), ...extraHeaders },
+      body: body === undefined ? undefined : body instanceof Blob ? body : JSON.stringify(body)
+    });
+  } catch (error) {
+    if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+      const timeoutError = new Error('La conexión tardó demasiado.');
+      timeoutError.timeout = true;
+      throw timeoutError;
+    }
+    console.error(error);
+    throw new Error('No se pudo completar el guardado. Sus datos permanecen en este formulario.');
+  }
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     const message = data?.message?.includes('COLLECTION_PHOTO_LIMIT') ? 'Esta pieza ya tiene el máximo de 4 fotografías.'
@@ -16,6 +32,7 @@ async function collectionRequest(path, body, method = 'POST', extraHeaders = {})
       : response.status === 403 || data?.code === '42501' ? 'Su cuenta no tiene permiso para esta operación de Colecciones.'
       : response.status === 401 ? 'La sesión venció. Vuelva a iniciar sesión.'
       : 'No se pudo completar la operación en Colecciones. Revise los campos e intente nuevamente.';
+    console.error(data || response.status);
     const error = new Error(message); error.status = response.status; error.code = data?.code; throw error;
   }
   return data;
@@ -39,7 +56,7 @@ async function collectionHistory(id) {
 async function collectionSave(item, previous, reason) {
   return collectionRequest('/rest/v1/rpc/collection_save', {
     p_id: previous?.id || null, p_expected_version: previous?.version || null, p_item: item, p_reason: reason
-  });
+  }, 'POST', {}, collectionSaveTimeoutMs);
 }
 async function collectionValidatePhoto(file) {
   const invalid = 'El archivo seleccionado no contiene una fotografía JPG, PNG o WEBP válida. Seleccione la imagen original e intente nuevamente.';
@@ -58,7 +75,7 @@ async function collectionValidatePhoto(file) {
 async function collectionStorePhoto(item, file) {
   const ext = await collectionValidatePhoto(file);
   const id = crypto.randomUUID(), path = `${item.museum_id}/${item.id}/${id}.${ext}`;
-  await collectionRequest(`/storage/v1/object/collection-photos/${path}`, file, 'POST', { 'Content-Type': file.type, 'x-upsert': 'false' });
+  await collectionRequest(`/storage/v1/object/collection-photos/${path}`, file, 'POST', { 'Content-Type': file.type, 'x-upsert': 'false' }, collectionPhotoUploadTimeoutMs);
   return { id, path };
 }
 async function collectionUpload(item, file, caption) {
@@ -66,7 +83,7 @@ async function collectionUpload(item, file, caption) {
   // Never overwrite or delete a previous image, including on a failed attachment.
   return collectionRequest('/rest/v1/rpc/collection_attach_photo', {
     p_id: item.id, p_expected_version: item.version, p_photo_id: id, p_path: path, p_caption: caption
-  });
+  }, 'POST', {}, collectionPhotoAttachTimeoutMs);
 }
 async function collectionReplacePhoto(item, previous, file, reason) {
   if (!reason || reason.trim().length < 3 || reason.trim().length > 2000) throw Error('Indique la razón de la sustitución.');

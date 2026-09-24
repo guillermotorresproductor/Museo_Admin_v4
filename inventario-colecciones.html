@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Museo Admin | Inventario de Colecciones</title>
-<link rel="stylesheet" href="css/main.css?v=instituva-catalog-20260729"><link rel="stylesheet" href="css/collections.css?v=collections-20260924a"></head>
+<link rel="stylesheet" href="css/main.css?v=instituva-catalog-20260729"><link rel="stylesheet" href="css/collections.css?v=collections-20260924c"></head>
 <body><div class="app-shell"><aside class="sidebar" data-sidebar></aside><div class="sidebar-backdrop" data-sidebar-backdrop></div><div class="main-area">
 <header class="site-header" data-header></header><main class="page-content">
 <section class="card panel section-stack"><p class="page-kicker">PATRIMONIO MUSEOGRÁFICO</p><h2>Inventario de Colecciones</h2>
@@ -9,7 +9,8 @@
 <div class="collection-toolbar"><label class="field" for="collection-search"><span>Buscar piezas</span><input id="collection-search" type="search" placeholder="Número, título, ubicación, donante o prestamista"></label>
 <button class="button secondary" id="collection-reload">Actualizar listado</button><button class="button submit-button" id="collection-new" hidden>Registrar pieza</button>
 <a class="button secondary" href="recibo-prestamo.html">Formulario de préstamo</a></div>
-<p id="collection-message" class="form-message" role="status" aria-live="polite">Cargando catálogo…</p><p id="collection-count"></p>
+<p id="collection-message" class="form-message" role="status" aria-live="polite">Cargando catálogo…</p>
+<p id="collection-draft" class="collection-draft" hidden>Se encontró un borrador sin guardar. <button class="button secondary" id="collection-draft-restore" type="button">Recuperar borrador</button> <button class="button secondary" id="collection-draft-discard" type="button">Descartar borrador</button></p><p id="collection-count"></p>
 <div class="table-wrap"><table class="data-table"><thead><tr><th>Número</th><th>Pieza</th><th>Clasificación</th><th>Ubicación</th><th>Conservación</th><th>Expediente</th></tr></thead><tbody id="collection-list"></tbody></table></div></section>
 <form id="collection-form" class="card panel application-form collection-form" hidden><h2 id="collection-form-title">Registrar pieza</h2><p>Los campos con * son obligatorios. La titularidad, el ingreso y la custodia se documentan por separado.</p>
 <fieldset><legend>Identificación de la pieza</legend><div class="form-row"><label class="field" for="collection-accession_number"><span>Número de inventario *</span><input id="collection-accession_number" name="accession_number" required type="text" maxlength="100"></label>
@@ -53,5 +54,5 @@
 <div class="collection-toolbar"><button class="button submit-button" type="submit">Guardar pieza</button><button class="button secondary" id="collection-cancel" type="button">Cancelar</button></div></form>
 <dialog id="collection-dialog" class="collection-dialog" aria-label="Expediente museográfico"><div class="collection-dialog-actions"><button id="collection-print-label" class="button secondary" type="button" disabled>Imprimir etiqueta</button><button id="collection-close" class="button secondary" type="button">Cerrar expediente</button></div><div id="collection-detail"></div></dialog>
 </main><footer class="site-footer" data-footer></footer></div></div>
-<script src="js/config.js"></script><script src="js/services/supabase.js?v=module-profiles-20260918"></script><script src="js/services/collections.js?v=collections-20260924a"></script><script src="js/vendor/qrcode-1.4.4.js"></script><script src="js/collections.js?v=collections-20260924b"></script><script src="js/app.js?v=idle-15m-20260922"></script>
+<script src="js/config.js"></script><script src="js/services/supabase.js?v=module-profiles-20260918"></script><script src="js/services/collections.js?v=collections-20260924c"></script><script src="js/vendor/qrcode-1.4.4.js"></script><script src="js/collections.js?v=collections-20260924c"></script><script src="js/app.js?v=idle-15m-20260922"></script>
 </body></html>
