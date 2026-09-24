@@ -139,12 +139,14 @@ begin
           when c.inconsistent or c.clock_in is null then 0
           else
             greatest(0, floor(extract(epoch from (
-              least(coalesce(c.lunch_out, coalesce(c.clock_out, now())), coalesce(c.clock_out, now()))
+              least(coalesce(c.lunch_out, coalesce(c.clock_out, now())), coalesce(c.clock_out, now()), c.ends_at)
               - greatest(c.clock_in, c.starts_at)
             )) / 60))::integer
             + case
-                when c.lunch_in is null then 0
-                else greatest(0, floor(extract(epoch from (coalesce(c.clock_out, now()) - c.lunch_in)) / 60))::integer
+                when c.lunch_in is null or c.lunch_in >= c.ends_at then 0
+                else greatest(0, floor(extract(epoch from (
+                  least(coalesce(c.clock_out, now()), c.ends_at) - greatest(c.lunch_in, c.starts_at)
+                )) / 60))::integer
               end
         end as worked_minutes
       from classified c
