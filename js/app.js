@@ -6326,6 +6326,72 @@ function bindPortalAttendanceCorrections() {
   return load().catch((error) => { setMessage(error.message || "No se pudieron cargar las correcciones.", "error"); });
 }
 
+function bindAttendanceOperationalAlerts() {
+  const root = document.querySelector("[data-attendance-alerts]");
+  if (!root || !hasPermission("attendance.alerts.read")) return;
+  if (root.dataset.bound === "1") return;
+  root.dataset.bound = "1";
+  root.hidden = false;
+  const list = root.querySelector("[data-alerts-list]");
+  const message = root.querySelector("[data-alerts-message]");
+  const refresh = root.querySelector("[data-alerts-refresh]");
+  const labels = {
+    late: "Tardanza",
+    missing_clock_in: "No ha ponchado entrada",
+    lunch_exceeded: "Almuerzo excedido",
+    missing_lunch: "Falta registro de almuerzo",
+    early_clock_out: "Salida temprana",
+    missing_clock_out: "Falta ponche de salida",
+    inconsistent_sequence: "Secuencia de ponches inconsistente"
+  };
+  const statusLabel = { active: "Activa", auto_resolved: "Resuelta automáticamente", reviewed: "Revisada" };
+  let timer = 0;
+  let loading = false;
+  const detail = (row) => {
+    const d = row.details || {};
+    const clock = (value) => value ? formatPortalDate(value, { hour: "numeric", minute: "2-digit" }) : "";
+    if (row.alert_type === "late") return `Entrada ${clock(d.clock_in)}. Tardanza de ${d.late_minutes} min.`;
+    if (row.alert_type === "lunch_exceeded") return `Excede el almuerzo por ${d.exceeded_minutes} min.`;
+    if (row.alert_type === "early_clock_out") return `Salió ${d.early_minutes} min antes del fin del turno.`;
+    if (row.alert_type === "missing_clock_in") return "El turno ya pasó la tolerancia y no hay entrada.";
+    if (row.alert_type === "missing_lunch") return "El turno terminó sin registros de almuerzo.";
+    if (row.alert_type === "missing_clock_out") return "El turno terminó y no hay salida.";
+    return "La secuencia de ponches no es válida.";
+  };
+  const render = (rows) => {
+    list.innerHTML = rows.length ? rows.map((row) => `<article class="portal-alert"><header><strong>${safeHtml(row.name || "Empleado")}</strong><span class="attendance-status ${row.status === "active" ? "is-alert" : "is-done"}">${safeHtml(statusLabel[row.status] || row.status)}</span></header><p>${safeHtml(labels[row.alert_type] || row.alert_type)}</p><small>${safeHtml(detail(row))}${row.review_comment ? ` Comentario: ${row.review_comment}` : ""}</small>${row.status === "reviewed" ? "" : `<form data-alert-review="${row.id}"><input name="comment" maxlength="500" placeholder="Comentario opcional"><button class="portal-inline-button" type="submit">Revisada</button></form>`}</article>`).join("") : `<p class="portal-empty">No hay alertas operativas para hoy.</p>`;
+  };
+  const load = async () => {
+    if (loading || !hasPermission("attendance.alerts.read")) return;
+    loading = true;
+    refresh.disabled = true;
+    try {
+      render(await fetchAttendanceAlerts());
+      message.textContent = "Alertas actualizadas.";
+    } catch (error) {
+      message.textContent = error.message || "No se pudieron consultar las alertas.";
+    } finally {
+      loading = false;
+      refresh.disabled = false;
+    }
+  };
+  list.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-alert-review]");
+    if (!form) return;
+    event.preventDefault();
+    try {
+      render(await reviewAttendanceAlert(form.dataset.alertReview, new FormData(form).get("comment")));
+      message.textContent = "Alerta marcada como revisada.";
+    } catch (error) {
+      message.textContent = error.message || "No se pudo revisar la alerta.";
+    }
+  });
+  refresh.addEventListener("click", load);
+  window.addEventListener("pagehide", () => { window.clearInterval(timer); timer = 0; }, { once: true });
+  timer = window.setInterval(load, 60000);
+  return load();
+}
+
 async function bindEmployeePortal() {
   if (!document.querySelector("[data-employee-portal]")) return;
   const session = getSupabaseSession();
@@ -6349,6 +6415,7 @@ async function bindEmployeePortal() {
   document.querySelector("[data-portal-time-list]").closest(".portal-section").hidden = !personal.attendance;
   document.querySelector("[data-portal-account]").textContent = employee ? [employeeDisplayName(employee), employee.correo, employee.telefono].filter(Boolean).join(" · ") : (profile.full_name || profile.email || "Mi cuenta");
   document.querySelector("[data-portal-date]").textContent = formatPortalDate(new Date(), { weekday: "long", month: "long", day: "numeric" });
+  bindAttendanceOperationalAlerts();
   const button = document.querySelector("[data-portal-clock-button]");
   const status = document.querySelector("[data-portal-clock-status]");
   const message = document.querySelector("[data-portal-message]");
