@@ -28,6 +28,14 @@
     })();
   </script>
   <title>Acceso privado | Museo de la Música</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Museo Música">
+  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">
+  <link rel="icon" href="/assets/icons/icon-192.png" type="image/png" sizes="192x192">
   <link rel="stylesheet" href="css/main.css?v=invite-mobile-20260918">
 </head>
 <body class="login-page">
@@ -110,6 +118,11 @@
   <script src="js/config.js?v=private-login-20260903"></script>
   <script src="js/services/supabase.js?v=module-profiles-20260918"></script>
   <script src="js/app.js?v=module-profiles-20260918"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    }
+  </script>
 </body>
 </html>
 
