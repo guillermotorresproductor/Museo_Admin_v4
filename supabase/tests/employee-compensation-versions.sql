@@ -78,6 +78,11 @@ begin
   insert into public.user_permissions(museum_id, user_id, permission_id, effect)
   values (museum, profile_user, perm, 'deny');
   if public.has_permission('compensation.manage') then raise exception 'DENY_IGNORED'; end if;
+  begin
+    perform public.save_employee_compensation(target, 'hourly', 25, null, null, null, 40, true, 'none', null, null, null, date '2027-03-01');
+    raise exception 'DENY_WRITE_ALLOWED';
+  exception when sqlstate '42501' then null;
+  end;
   delete from public.user_permissions where user_id = profile_user and permission_id = perm;
 
   update public.employees set access_profile = 'director_ejecutivo' where profile_id = profile_user;
