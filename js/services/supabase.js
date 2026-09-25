@@ -353,6 +353,10 @@ async function fetchTodayStaffStatus() {
   return Array.isArray(data) ? data : [];
 }
 
+async function fetchAttendanceHistory(from, to) {
+  return supabasePost("/rest/v1/rpc/list_attendance_history", { p_from: from, p_to: to });
+}
+
 async function fetchSupabaseAttendance({ from, to, employeeId } = {}) {
   const filters = ["select=id,employee_id,clock_in,clock_out,source,sync_status"];
   if (from) filters.push(`clock_in=gte.${encodeURIComponent(new Date(`${from}T00:00:00-04:00`).toISOString())}`);
