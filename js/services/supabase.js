@@ -357,6 +357,18 @@ async function fetchAttendanceHistory(from, to) {
   return supabasePost("/rest/v1/rpc/list_attendance_history", { p_from: from, p_to: to });
 }
 
+async function fetchShiftPunchEditor(employeeId, shiftDate) {
+  return supabasePost("/rest/v1/rpc/list_shift_punch_editor", { p_employee_id: employeeId, p_shift_date: shiftDate });
+}
+
+async function fetchShiftPunchHistory(employeeId, shiftDate) {
+  return supabasePost("/rest/v1/rpc/list_shift_punch_history", { p_employee_id: employeeId, p_shift_date: shiftDate });
+}
+
+async function correctShiftAttendancePunches(shiftId, reason, changes) {
+  return supabasePost("/rest/v1/rpc/correct_shift_attendance_punches", { p_shift_id: shiftId, p_reason: reason, p_changes: changes });
+}
+
 async function fetchSupabaseAttendance({ from, to, employeeId } = {}) {
   const filters = ["select=id,employee_id,clock_in,clock_out,source,sync_status"];
   if (from) filters.push(`clock_in=gte.${encodeURIComponent(new Date(`${from}T00:00:00-04:00`).toISOString())}`);

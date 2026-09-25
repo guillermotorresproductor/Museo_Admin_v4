@@ -5311,10 +5311,12 @@ function bindAttendanceHistory() {
     const end = text.format(new Date(`${range.to}T12:00:00Z`));
     return range.from === range.to ? start : `${start} – ${end}`;
   };
-  const renderDays = (days) => days.map((day) => `<tr><td>${safeHtml(day.shift_date)}</td><td>${clock(day.clock_in)}</td><td>${clock(day.lunch_out)}</td><td>${clock(day.lunch_in)}</td><td>${clock(day.clock_out)}</td><td>${hours(day.regular_minutes)}</td><td>${hours(day.approved_overtime_minutes)}</td><td>${safeHtml(statusLabel[day.status] || day.status)}${day.late ? " · Tardanza" : ""}</td><td>${day.corrected ? "Corregido" : "—"}</td></tr>`).join("");
+  const canCorrect = hasPermission("attendance.punches.correct");
+  const punchTime = (value) => value ? new Intl.DateTimeFormat("en-GB", { timeZone: "America/Puerto_Rico", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value)) : "";
+  const renderDays = (days, employeeId) => days.map((day) => `<tr><td>${safeHtml(day.shift_date)}</td><td>${clock(day.clock_in)}</td><td>${clock(day.lunch_out)}</td><td>${clock(day.lunch_in)}</td><td>${clock(day.clock_out)}</td><td>${hours(day.regular_minutes)}</td><td>${hours(day.approved_overtime_minutes)}</td><td>${safeHtml(statusLabel[day.status] || day.status)}${day.late ? " · Tardanza" : ""}</td><td>${day.corrected ? "Corregido" : "—"}${canCorrect ? ` <button class="button secondary" type="button" data-punch-edit data-employee="${safeHtml(employeeId)}" data-date="${safeHtml(day.shift_date)}">Revisar / Editar ponches</button>` : ""}${day.corrected ? ` <button class="button secondary" type="button" data-punch-history data-employee="${safeHtml(employeeId)}" data-date="${safeHtml(day.shift_date)}">Ver historial</button>` : ""}</td></tr>`).join("");
   const render = (payload) => {
     const rows = Array.isArray(payload?.employees) ? payload.employees : [];
-    body.innerHTML = rows.length ? rows.map((row) => `<tr data-history-employee="${safeHtml(row.employee_id)}"><td><strong>${safeHtml(row.name || "Empleado")}</strong></td><td>${row.scheduled_days}</td><td>${row.days_with_punches}</td><td>${hours(row.regular_minutes)}</td><td>${hours(row.approved_overtime_minutes)}</td><td>${row.late_days}</td><td>${row.incident_days}</td><td>${row.corrected_days}</td><td><button class="button secondary" type="button" data-history-open>Ver días</button></td></tr><tr hidden data-history-detail="${safeHtml(row.employee_id)}"><td colspan="9"><table class="data-table"><thead><tr><th>Fecha</th><th>Entrada</th><th>Salida almuerzo</th><th>Regreso</th><th>Salida</th><th>Horas regulares</th><th>Horas extra aprobadas</th><th>Estado</th><th>Corrección</th></tr></thead><tbody>${renderDays(row.days || [])}</tbody></table></td></tr>`).join("") : `<tr><td colspan="9">No hay turnos programados en este período.</td></tr>`;
+    body.innerHTML = rows.length ? rows.map((row) => `<tr data-history-employee="${safeHtml(row.employee_id)}"><td><strong>${safeHtml(row.name || "Empleado")}</strong></td><td>${row.scheduled_days}</td><td>${row.days_with_punches}</td><td>${hours(row.regular_minutes)}</td><td>${hours(row.approved_overtime_minutes)}</td><td>${row.late_days}</td><td>${row.incident_days}</td><td>${row.corrected_days}</td><td><button class="button secondary" type="button" data-history-open>Ver días</button></td></tr><tr hidden data-history-detail="${safeHtml(row.employee_id)}"><td colspan="9"><table class="data-table"><thead><tr><th>Fecha</th><th>Entrada</th><th>Salida almuerzo</th><th>Regreso</th><th>Salida</th><th>Horas regulares</th><th>Horas extra aprobadas</th><th>Estado</th><th>Corrección</th></tr></thead><tbody>${renderDays(row.days || [], row.employee_id)}</tbody></table></td></tr>`).join("") : `<tr><td colspan="9">No hay turnos programados en este período.</td></tr>`;
     body.querySelectorAll("[data-history-open]").forEach((button) => {
       button.addEventListener("click", () => {
         const id = button.closest("[data-history-employee]").dataset.historyEmployee;
@@ -5322,6 +5324,64 @@ function bindAttendanceHistory() {
         detail.hidden = !detail.hidden;
       });
     });
+    body.querySelectorAll("[data-punch-edit], [data-punch-history]").forEach((button) => {
+      button.addEventListener("click", () => openPunchEditor(button.dataset.employee, button.dataset.date, button.hasAttribute("data-punch-history")));
+    });
+  };
+  const editor = history.querySelector("[data-punch-editor]");
+  const punchError = (error) => {
+    const text = error.message || "";
+    if (text.includes("ATTENDANCE_CHANGED_RELOAD")) return "Los ponches cambiaron. Vuelva a abrir la jornada.";
+    if (text.includes("OVERTIME_DECISION_CONFLICT")) return "La salida no coincide con una decisión de horas extra ya tomada.";
+    if (text.includes("INVALID_CORRECTION_SEQUENCE")) return "La secuencia de ponches no es válida.";
+    if (text.includes("LUNCH_PAIR_INCOMPLETE")) return "El almuerzo debe tener salida y regreso, o ninguno de los dos.";
+    if (text.includes("REASON_REQUIRED")) return "Escriba un motivo de al menos 5 caracteres.";
+    if (text.includes("TIME_ENTRY_AMBIGUOUS") || text.includes("TIME_ENTRY_NOT_RECONCILABLE")) return "No se pudo conciliar el fichaje. No se guardó ningún cambio.";
+    return text || "No se pudo guardar la corrección.";
+  };
+  const openPunchEditor = async (employeeId, shiftDate, historyOnly) => {
+    editor.hidden = false;
+    editor.innerHTML = "<p>Cargando jornada...</p>";
+    try {
+      const detail = historyOnly ? await fetchShiftPunchHistory(employeeId, shiftDate) : await fetchShiftPunchEditor(employeeId, shiftDate);
+      const events = detail.events || {};
+      const fields = [["clock_in", "Entrada"], ["lunch_out", "Salida almuerzo"], ["lunch_in", "Regreso"], ["clock_out", "Salida"]];
+      const historyRows = (detail.history || []).map((item) => `<tr><td>${safeHtml(item.event_type)}</td><td>${clock(item.original_at)}</td><td>${clock(item.corrected_at)}</td><td>${safeHtml(item.corrected_by || "—")}</td><td>${clock(item.corrected_on)}</td><td>${safeHtml(item.reason || "")}</td></tr>`).join("");
+      editor.innerHTML = `<h3>${historyOnly ? "Historial de ponches" : "Revisar / Editar ponches"}</h3><p>${safeHtml(shiftDate)} · Programado ${clock(detail.starts_at)} – ${clock(detail.ends_at)}</p>${historyOnly ? "" : `<form data-punch-form><div class="form-row">${fields.map(([key, name]) => `<label class="field"><span>${name}</span><input type="time" name="${key}" value="${punchTime(events[key]?.occurred_at)}" data-event-id="${safeHtml(events[key]?.id || "")}" data-original="${punchTime(events[key]?.occurred_at)}"></label>`).join("")}</div><label class="field"><span>Motivo</span><textarea name="reason" required></textarea></label><div class="attendance-period-nav"><button class="button" type="submit">Guardar corrección</button><button class="button secondary" type="button" data-punch-cancel>Cancelar</button></div><p class="form-message" data-punch-message></p></form>`}<table class="data-table"><thead><tr><th>Ponche</th><th>Original</th><th>Corregido</th><th>Quién</th><th>Cuándo</th><th>Motivo</th></tr></thead><tbody>${historyRows || "<tr><td colspan=\"6\">Sin correcciones anteriores.</td></tr>"}</tbody></table>`;
+      editor.querySelector("[data-punch-cancel]")?.addEventListener("click", () => { editor.hidden = true; });
+      editor.querySelector("[data-punch-form]")?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const note = form.querySelector("[data-punch-message]");
+        const cleared = fields.some(([key]) => {
+          const input = form.querySelector(`[name=${key}]`);
+          return Boolean(input.dataset.original) && !input.value;
+        });
+        if (cleared) {
+          note.textContent = "Para eliminar un ponche debe utilizarse la función de anulación, que todavía no está disponible.";
+          note.className = "form-message error";
+          return;
+        }
+        const changes = fields.flatMap(([key]) => {
+          const input = form.querySelector(`[name=${key}]`);
+          if (!input.value || input.value === input.dataset.original) return [];
+          return [{ event_type: key, occurred_at: new Date(`${shiftDate}T${input.value}:00-04:00`).toISOString(), expected_event_id: input.dataset.eventId || null }];
+        });
+        if (!changes.length) { note.textContent = "No hay cambios para guardar."; return; }
+        note.textContent = "Guardando...";
+        try {
+          await correctShiftAttendancePunches(detail.shift_id, form.reason.value, changes);
+          note.textContent = "Corrección guardada.";
+          await load();
+          await openPunchEditor(employeeId, shiftDate, false);
+        } catch (error) {
+          note.textContent = punchError(error);
+          note.className = "form-message error";
+        }
+      });
+    } catch (error) {
+      editor.innerHTML = `<p>${safeHtml(punchError(error))}</p>`;
+    }
   };
   const load = async () => {
     const kind = period.value;
