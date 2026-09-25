@@ -135,10 +135,16 @@
               <fieldset data-compensation-editor hidden>
               <legend>Nueva vigencia</legend>
               <p class="field-hint">Establece una vigencia nueva. La anterior permanece guardada.</p>
-              <div class="form-row"><label class="field"><span>Tipo de compensación</span><select name="compensationType"><option value="hourly" selected>Por hora</option><option value="salary">Salario fijo</option></select></label></div>
-              <div class="form-row" data-compensation-hourly><label class="field"><span>Tarifa por hora ($)</span><input type="number" name="hourlyRate" min="0.01" step="0.01"></label></div>
-              <div class="form-row" data-compensation-salary hidden><label class="field"><span>Salario base ($)</span><input type="number" name="salaryAmount" min="0.01" step="0.01"></label></div>
-              <div class="form-row"><label class="field"><span data-compensation-schedule-label>Frecuencia de pago</span><select name="compensationSchedule"><option value="">Seleccione...</option></select></label><label class="field"><span>Vigente desde</span><input type="date" name="compensationEffectiveFrom"></label></div>
+              <div data-compensation-hourly>
+                <p class="page-kicker">Por hora</p>
+                <div class="form-row"><label class="field"><span>Tarifa por hora ($)</span><input type="number" name="hourlyRate" min="0.01" step="0.01"></label><label class="field"><span>Frecuencia de pago</span><select name="compensationSchedule"><option value="">Seleccione...</option></select></label></div>
+                <div class="form-row"><label class="field"><span>Vigente desde</span><input type="date" name="compensationEffectiveFrom"></label></div>
+              </div>
+              <div data-compensation-salary>
+                <p class="page-kicker">Sueldo fijo</p>
+                <div class="form-row"><label class="field"><span>Salario base ($)</span><input type="number" name="salaryAmount" min="0.01" step="0.01"></label><label class="field"><span>Frecuencia / período</span><select name="compensationSalarySchedule"><option value="">Seleccione...</option></select></label></div>
+                <div class="form-row"><label class="field"><span>Vigente desde</span><input type="date" name="compensationSalaryEffectiveFrom"></label></div>
+              </div>
               </fieldset>
             </section>
             <section class="employee-sensitive-section" data-emergency-section hidden>
@@ -257,7 +263,7 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/services/supabase.js?v=compensation-versions-20260925"></script>
-  <script src="js/app.js?v=compensation-form-20260925"></script>
+  <script src="js/app.js?v=compensation-salary-region-20260925"></script>
 </body>
 </html>
 
