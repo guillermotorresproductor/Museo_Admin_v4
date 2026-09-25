@@ -7,10 +7,19 @@ insert into public.permissions(code, description, sensitivity) values
   ('compensation.manage', 'Establecer una nueva vigencia de compensación', 'critical')
 on conflict (code) do update set description = excluded.description, sensitivity = excluded.sensitivity;
 
-delete from public.role_permissions rp
-using public.permissions p
-where rp.permission_id = p.id
-  and p.code in ('compensation.read', 'compensation.manage');
+do $role_grant_cleanup$
+begin
+  if to_regclass('public.role_permissions') is null then
+    return;
+  end if;
+  execute $cleanup$
+    delete from public.role_permissions rp
+    using public.permissions p
+    where rp.permission_id = p.id
+      and p.code in ('compensation.read', 'compensation.manage')
+  $cleanup$;
+end
+$role_grant_cleanup$;
 
 do $patch$
 declare src text; patched text; pos integer;
