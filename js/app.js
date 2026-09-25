@@ -6470,6 +6470,13 @@ function bindAttendanceOperationalAlerts() {
     inconsistent_sequence: "Secuencia de ponches inconsistente"
   };
   const statusLabel = { active: "Activa", auto_resolved: "Resuelta automáticamente", reviewed: "Revisada" };
+  const operationalDay = (date = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico" }).format(date);
+  const alertDayLabel = (value) => {
+    const [year, month, day] = String(value || "").slice(0, 10).split("-").map(Number);
+    if (!year || !month || !day) return "";
+    return new Intl.DateTimeFormat("es-PR", { timeZone: "America/Puerto_Rico", day: "numeric", month: "short", year: "numeric" }).format(new Date(Date.UTC(year, month - 1, day, 16, 0, 0)));
+  };
+  let shownDay = operationalDay();
   let timer = 0;
   let loading = false;
   const detail = (row) => {
@@ -6484,9 +6491,15 @@ function bindAttendanceOperationalAlerts() {
     return "La secuencia de ponches no es válida.";
   };
   const render = (rows) => {
-    list.innerHTML = rows.length ? rows.map((row) => `<article class="portal-alert"><header><strong>${safeHtml(row.name || "Empleado")}</strong><span class="attendance-status ${row.status === "active" ? "is-alert" : "is-done"}">${safeHtml(statusLabel[row.status] || row.status)}</span></header><p>${safeHtml(labels[row.alert_type] || row.alert_type)}</p><small>${safeHtml(detail(row))}${row.review_comment ? ` Comentario: ${row.review_comment}` : ""}</small>${row.status === "reviewed" ? "" : `<form data-alert-review="${row.id}"><input name="comment" maxlength="500" placeholder="Comentario opcional"><button class="portal-inline-button" type="submit">Revisada</button></form>`}</article>`).join("") : `<p class="portal-empty">No hay alertas operativas para hoy.</p>`;
+    list.innerHTML = rows.length ? rows.map((row) => `<article class="portal-alert"><header><strong>${safeHtml(row.name || "Empleado")}</strong><span class="attendance-status ${row.status === "active" ? "is-alert" : "is-done"}">${safeHtml(statusLabel[row.status] || row.status)}</span></header><p>${safeHtml(labels[row.alert_type] || row.alert_type)}</p><small>${safeHtml(alertDayLabel(row.alert_date))}. ${safeHtml(detail(row))}${row.review_comment ? ` Comentario: ${row.review_comment}` : ""}</small>${row.status === "reviewed" ? "" : `<form data-alert-review="${row.id}"><input name="comment" maxlength="500" placeholder="Comentario opcional"><button class="portal-inline-button" type="submit">Revisada</button></form>`}</article>`).join("") : `<p class="portal-empty">No hay alertas operativas para hoy.</p>`;
   };
   const load = async () => {
+    const day = operationalDay();
+    if (day !== shownDay) {
+      shownDay = day;
+      const date = document.querySelector("[data-portal-date]");
+      if (date) date.textContent = formatPortalDate(new Date(), { weekday: "long", month: "long", day: "numeric" });
+    }
     if (loading || !hasPermission("attendance.alerts.read")) return;
     loading = true;
     refresh.disabled = true;
