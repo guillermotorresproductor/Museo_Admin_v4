@@ -382,20 +382,28 @@ async function fetchSupabaseUpcomingShifts(limit = 30) {
   return supabaseGet(`/rest/v1/employee_shifts?select=id,employee_id,starts_at,ends_at,shift_type,status,schedule_rule_id&starts_at=gte.${now}&status=eq.scheduled&order=starts_at.asc&limit=${Math.min(Math.max(Number(limit)||30,1),100)}`);
 }
 
-async function fetchSupabaseEmployeeSensitiveDetails(employeeId) {
-  const id = encodeURIComponent(employeeId);
-  const [compensation, emergencyContacts] = await Promise.all([
-    supabaseGet(`/rest/v1/employee_compensation?select=*&employee_id=eq.${id}&limit=1`),
-    supabaseGet(`/rest/v1/employee_emergency_contacts?select=*&employee_id=eq.${id}&limit=1`)
-  ]);
-  return { compensation: compensation[0] || null, emergencyContact: emergencyContacts[0] || null };
+async function fetchEmployeeCompensation(employeeId, onDate) {
+  return supabasePost("/rest/v1/rpc/get_employee_compensation", {
+    p_employee_id: employeeId,
+    p_on: onDate || null
+  });
 }
 
-async function saveSupabaseEmployeeSensitiveDetails(employeeId, compensation, emergencyContact) {
-  return supabasePost("/rest/v1/rpc/save_employee_sensitive_details", {
-    target_employee_id: employeeId,
-    compensation,
-    emergency_contact: emergencyContact
+async function saveEmployeeCompensation(employeeId, compensation) {
+  return supabasePost("/rest/v1/rpc/save_employee_compensation", {
+    p_employee_id: employeeId,
+    p_compensation_type: compensation.compensation_type,
+    p_hourly_rate: compensation.hourly_rate === "" ? null : compensation.hourly_rate,
+    p_salary_amount: compensation.salary_amount === "" ? null : compensation.salary_amount,
+    p_salary_period: compensation.salary_period || null,
+    p_pay_frequency: compensation.pay_frequency || null,
+    p_standard_hours_week: compensation.standard_hours_week === "" ? null : compensation.standard_hours_week,
+    p_overtime_eligible: compensation.overtime_eligible !== "false",
+    p_bonus_type: compensation.bonus_type || null,
+    p_bonus_amount: compensation.bonus_amount === "" ? null : compensation.bonus_amount,
+    p_bonus_percent: compensation.bonus_percent === "" ? null : compensation.bonus_percent,
+    p_other_description: compensation.other_description || null,
+    p_effective_from: compensation.effective_from
   });
 }
 
