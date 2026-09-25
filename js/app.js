@@ -5343,7 +5343,7 @@ function bindAttendanceHistory() {
     editor.hidden = false;
     editor.innerHTML = "<p>Cargando jornada...</p>";
     try {
-      const detail = await fetchShiftPunchEditor(employeeId, shiftDate);
+      const detail = historyOnly ? await fetchShiftPunchHistory(employeeId, shiftDate) : await fetchShiftPunchEditor(employeeId, shiftDate);
       const events = detail.events || {};
       const fields = [["clock_in", "Entrada"], ["lunch_out", "Salida almuerzo"], ["lunch_in", "Regreso"], ["clock_out", "Salida"]];
       const historyRows = (detail.history || []).map((item) => `<tr><td>${safeHtml(item.event_type)}</td><td>${clock(item.original_at)}</td><td>${clock(item.corrected_at)}</td><td>${safeHtml(item.corrected_by || "—")}</td><td>${clock(item.corrected_on)}</td><td>${safeHtml(item.reason || "")}</td></tr>`).join("");
@@ -5352,12 +5352,21 @@ function bindAttendanceHistory() {
       editor.querySelector("[data-punch-form]")?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const form = event.currentTarget;
+        const note = form.querySelector("[data-punch-message]");
+        const cleared = fields.some(([key]) => {
+          const input = form.querySelector(`[name=${key}]`);
+          return Boolean(input.dataset.original) && !input.value;
+        });
+        if (cleared) {
+          note.textContent = "Para eliminar un ponche debe utilizarse la función de anulación, que todavía no está disponible.";
+          note.className = "form-message error";
+          return;
+        }
         const changes = fields.flatMap(([key]) => {
           const input = form.querySelector(`[name=${key}]`);
           if (!input.value || input.value === input.dataset.original) return [];
           return [{ event_type: key, occurred_at: new Date(`${shiftDate}T${input.value}:00-04:00`).toISOString(), expected_event_id: input.dataset.eventId || null }];
         });
-        const note = form.querySelector("[data-punch-message]");
         if (!changes.length) { note.textContent = "No hay cambios para guardar."; return; }
         note.textContent = "Guardando...";
         try {

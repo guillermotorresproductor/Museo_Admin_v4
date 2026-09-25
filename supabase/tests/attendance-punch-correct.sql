@@ -55,6 +55,9 @@ begin
   update public.employees set access_profile = 'administrador_general' where id = employee;
   begin perform public.correct_shift_attendance_punches(shift, 'No debe poder', jsonb_build_array(jsonb_build_object('event_type','clock_out','occurred_at', (date '2026-08-20' + time '17:00') at time zone 'America/Puerto_Rico', 'expected_event_id', null))); raise exception 'CASE_3';
   exception when insufficient_privilege then null; end;
+  begin perform public.list_shift_punch_editor(other, date '2026-08-20'); raise exception 'EDITOR_OPEN';
+  exception when insufficient_privilege then null; end;
+  if jsonb_typeof(public.list_shift_punch_history(shift)) is distinct from 'array' then raise exception 'HISTORY_READ'; end if;
   update public.employees set access_profile = null where id = employee;
   update public.profiles set role = 'administrador' where id = actor;
   begin perform public.correct_shift_attendance_punches(shift, 'No debe poder', jsonb_build_array(jsonb_build_object('event_type','clock_out','occurred_at', (date '2026-08-20' + time '17:00') at time zone 'America/Puerto_Rico', 'expected_event_id', null))); raise exception 'CASE_4';
@@ -167,6 +170,18 @@ begin
       perform public.correct_shift_attendance_punches('e2500000-0000-4000-8000-000000000099', 'Otro museo', jsonb_build_array(jsonb_build_object('event_type','clock_in','occurred_at', (date '2026-08-21' + time '08:00') at time zone 'America/Puerto_Rico', 'expected_event_id', null)));
       raise exception 'CASE_28_ALLOWED';
     exception when sqlstate 'P0001' then null; end;
+    begin
+      perform public.list_shift_punch_history('e2500000-0000-4000-8000-000000000099'::uuid);
+      raise exception 'HISTORY_OTHER_MUSEUM';
+    exception when sqlstate 'P0001' then
+      if sqlerrm <> 'SHIFT_NOT_FOUND' then raise; end if;
+    end;
+    begin
+      perform public.list_shift_punch_editor((select employee_id from public.employee_shifts where id = 'e2500000-0000-4000-8000-000000000099'), date '2026-08-21');
+      raise exception 'EDITOR_OTHER_MUSEUM';
+    exception when sqlstate 'P0001' then
+      if sqlerrm <> 'SHIFT_NOT_FOUND' then raise; end if;
+    end;
   end if;
 
   if to_regprocedure('public.request_own_attendance_correction(uuid,text,timestamptz,text)') is not null

@@ -320,8 +320,7 @@ declare
   museum uuid := public.current_user_museum_id();
   shift_id uuid;
 begin
-  if auth.uid() is null or museum is null
-     or not (public.has_permission('attendance.punches.correct') or public.has_permission('attendance.history.read')) then
+  if auth.uid() is null or museum is null or not public.has_permission('attendance.punches.correct') then
     raise exception 'FORBIDDEN' using errcode = '42501';
   end if;
   select s.id into shift_id
@@ -352,4 +351,36 @@ grant execute on function public.list_shift_punch_editor(uuid, date) to authenti
 revoke all on function public.list_shift_punch_history(uuid) from public, anon;
 revoke all on function public.correct_shift_attendance_punches(uuid, text, jsonb) from public, anon;
 grant execute on function public.list_shift_punch_history(uuid) to authenticated;
+
+create or replace function public.list_shift_punch_history(p_employee_id uuid, p_shift_date date)
+returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  museum uuid := public.current_user_museum_id();
+  shift_id uuid;
+begin
+  if auth.uid() is null or museum is null
+     or not (public.has_permission('attendance.punches.correct') or public.has_permission('attendance.history.read')) then
+    raise exception 'FORBIDDEN' using errcode = '42501';
+  end if;
+  select s.id into shift_id
+  from public.employee_shifts s
+  where s.museum_id = museum and s.employee_id = p_employee_id and s.status = 'scheduled'
+    and (s.starts_at at time zone 'America/Puerto_Rico')::date = p_shift_date
+  order by s.starts_at
+  limit 1;
+  if shift_id is null then raise exception 'SHIFT_NOT_FOUND' using errcode = 'P0001'; end if;
+  return (
+    select jsonb_build_object(
+      'starts_at', s.starts_at,
+      'ends_at', s.ends_at,
+      'history', public.list_shift_punch_history(s.id)
+    )
+    from public.employee_shifts s
+    where s.id = shift_id and s.museum_id = museum
+  );
+end $$;
+
+revoke all on function public.list_shift_punch_history(uuid, date) from public, anon;
+grant execute on function public.list_shift_punch_history(uuid, date) to authenticated;
 grant execute on function public.correct_shift_attendance_punches(uuid, text, jsonb) to authenticated;

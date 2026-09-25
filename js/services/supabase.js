@@ -361,6 +361,10 @@ async function fetchShiftPunchEditor(employeeId, shiftDate) {
   return supabasePost("/rest/v1/rpc/list_shift_punch_editor", { p_employee_id: employeeId, p_shift_date: shiftDate });
 }
 
+async function fetchShiftPunchHistory(employeeId, shiftDate) {
+  return supabasePost("/rest/v1/rpc/list_shift_punch_history", { p_employee_id: employeeId, p_shift_date: shiftDate });
+}
+
 async function correctShiftAttendancePunches(shiftId, reason, changes) {
   return supabasePost("/rest/v1/rpc/correct_shift_attendance_punches", { p_shift_id: shiftId, p_reason: reason, p_changes: changes });
 }
