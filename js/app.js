@@ -3879,22 +3879,24 @@ function compensationOwnerId(employee) {
 }
 
 function compensationDraft(input) {
-  const type = input.type === "salary" ? "salary" : input.type === "hourly" ? "hourly" : "";
-  const schedule = input.schedule || "";
-  const started = Boolean(input.effective || schedule || input.hourly || input.salary);
-  if (!input.required && !started) return { compensation: null };
-  if (!type) return { error: "Selecciona por hora o salario fijo." };
-  const allowed = type === "salary" ? compensationSalaryPeriods : compensationPayFrequencies;
-  if (!allowed.includes(schedule)) return { error: type === "salary" ? "Selecciona la frecuencia o el período." : "Selecciona la frecuencia de pago." };
-  if (!input.effective) return { error: "Indica la fecha de la nueva vigencia de compensación." };
-  const blank = { standard_hours_week: "", overtime_eligible: "true", bonus_type: "", bonus_amount: "", bonus_percent: "", other_description: "", effective_from: input.effective };
-  if (type === "hourly") {
+  const hourlyStarted = Boolean(String(input.hourly || "").trim() || input.hourlySchedule || input.hourlyEffective);
+  const salaryStarted = Boolean(String(input.salary || "").trim() || input.salarySchedule || input.salaryEffective);
+  if (!input.required && !hourlyStarted && !salaryStarted) return { compensation: null };
+  if (hourlyStarted && salaryStarted) return { error: "Completa solo una vigencia: por hora o sueldo fijo." };
+  const salary = salaryStarted;
+  const schedule = salary ? (input.salarySchedule || "") : (input.hourlySchedule || "");
+  const effective = salary ? (input.salaryEffective || "") : (input.hourlyEffective || "");
+  const allowed = salary ? compensationSalaryPeriods : compensationPayFrequencies;
+  if (!allowed.includes(schedule)) return { error: salary ? "Selecciona la frecuencia o el período del sueldo fijo." : "Selecciona la frecuencia de pago." };
+  if (!effective) return { error: "Indica la fecha de la nueva vigencia de compensación." };
+  const blank = { standard_hours_week: "", overtime_eligible: "true", bonus_type: "", bonus_amount: "", bonus_percent: "", other_description: "", effective_from: effective };
+  if (!salary) {
     const rate = Number(input.hourly);
     if (!(rate > 0) || !/^\d+(\.\d{1,2})?$/.test(String(input.hourly).trim())) return { error: "Indica una tarifa por hora mayor que cero, con hasta dos decimales." };
     return { compensation: { ...blank, compensation_type: "hourly", hourly_rate: String(input.hourly).trim(), salary_amount: "", salary_period: "", pay_frequency: schedule } };
   }
   const amount = Number(input.salary);
-  if (!(amount > 0) || !/^\d+(\.\d{1,2})?$/.test(String(input.salary).trim())) return { error: "Indica un salario base mayor que cero, con hasta dos decimales." };
+  if (!(amount > 0) || !/^\d+(\.\d{1,2})?$/.test(String(input.salary).trim())) return { error: "Indica un sueldo fijo mayor que cero, con hasta dos decimales." };
   return { compensation: { ...blank, compensation_type: "salary", hourly_rate: "", salary_amount: String(input.salary).trim(), salary_period: schedule, pay_frequency: schedule === "annual" ? "" : schedule } };
 }
 
@@ -3910,7 +3912,7 @@ function bindEmployeeCompensation(scope) {
   const saveButton = scope.querySelector("[data-compensation-save]");
   const form = editor?.closest("form") || scope.querySelector("form");
   const field = (name) => form?.elements?.[name] || scope.querySelector(`[name="${name}"]`);
-  const labels = { unconfigured: "Pendiente de configurar", hourly: "Por hora", salary: "Salario fijo", commission: "Comisión", mixed: "Mixto", stipend: "Estipendio", other: "Otro" };
+  const labels = { unconfigured: "Pendiente de configurar", hourly: "Por hora", salary: "Sueldo fijo", commission: "Comisión", mixed: "Mixto", stipend: "Estipendio", other: "Otro" };
   const money = (value) => value === null || value === undefined || value === "" ? "—" : Number(value).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   let actorId = "";
   let currentEmployee = null;
@@ -3927,34 +3929,24 @@ function bindEmployeeCompensation(scope) {
     const schedule = scheduleLabel(row.compensation_type === "hourly" ? (row.pay_frequency || row.salary_period) : (row.salary_period || row.pay_frequency));
     const lines = [`<p><strong>Tipo de compensación:</strong> ${safeHtml(labels[row.compensation_type] || row.compensation_type)}</p>`];
     if (row.compensation_type === "hourly") lines.push(`<p><strong>Tarifa por hora:</strong> ${safeHtml(money(row.hourly_rate))}</p>`);
-    else lines.push(`<p><strong>Salario base:</strong> ${safeHtml(money(row.salary_amount))}</p>`);
+    else lines.push(`<p><strong>Sueldo fijo:</strong> ${safeHtml(money(row.salary_amount))}</p>`);
     if (schedule) lines.push(`<p><strong>${row.compensation_type === "salary" ? "Frecuencia / período" : "Frecuencia de pago"}:</strong> ${safeHtml(schedule)}</p>`);
     lines.push(`<p><strong>Vigente desde:</strong> ${safeHtml(when)}</p>`);
     summary.innerHTML = lines.join("");
   };
+  const fillSchedule = (name, choices) => {
+    const select = field(name);
+    if (!select) return;
+    const previous = select.value || "";
+    select.innerHTML = `<option value="">Seleccione...</option>${choices.map((code) => `<option value="${code}">${compensationScheduleLabels[code]}</option>`).join("")}`;
+    select.value = choices.includes(previous) ? previous : "";
+  };
   const syncSchedule = () => {
-    const type = field("compensationType")?.value === "salary" ? "salary" : "hourly";
-    const select = field("compensationSchedule");
-    const previous = select?.value || "";
-    const choices = type === "salary" ? compensationSalaryPeriods : compensationPayFrequencies;
-    if (select) {
-      select.innerHTML = `<option value="">Seleccione...</option>${choices.map((code) => `<option value="${code}">${compensationScheduleLabels[code]}</option>`).join("")}`;
-      select.value = choices.includes(previous) ? previous : "";
-    }
-    const hourlyBlock = scope.querySelector("[data-compensation-hourly]");
-    const salaryBlock = scope.querySelector("[data-compensation-salary]");
-    const scheduleName = scope.querySelector("[data-compensation-schedule-label]");
-    if (hourlyBlock) hourlyBlock.hidden = type !== "hourly";
-    if (salaryBlock) salaryBlock.hidden = type !== "salary";
-    if (scheduleName) scheduleName.textContent = type === "salary" ? "Frecuencia / período" : "Frecuencia de pago";
-    if (type !== "hourly" && field("hourlyRate")) field("hourlyRate").value = "";
-    if (type !== "salary" && field("salaryAmount")) field("salaryAmount").value = "";
+    fillSchedule("compensationSchedule", compensationPayFrequencies);
+    fillSchedule("compensationSalarySchedule", compensationSalaryPeriods);
   };
   const resetEditor = () => {
-    if (field("compensationType")) field("compensationType").value = "hourly";
-    if (field("hourlyRate")) field("hourlyRate").value = "";
-    if (field("salaryAmount")) field("salaryAmount").value = "";
-    if (field("compensationEffectiveFrom")) field("compensationEffectiveFrom").value = "";
+    ["hourlyRate", "salaryAmount", "compensationEffectiveFrom", "compensationSalaryEffectiveFrom"].forEach((name) => { if (field(name)) field(name).value = ""; });
     syncSchedule();
   };
   const prepare = (employee) => {
@@ -3965,13 +3957,13 @@ function bindEmployeeCompensation(scope) {
   };
   const readInput = (required) => compensationDraft({
     required,
-    type: field("compensationType")?.value,
-    schedule: field("compensationSchedule")?.value,
     hourly: field("hourlyRate")?.value,
+    hourlySchedule: field("compensationSchedule")?.value,
+    hourlyEffective: field("compensationEffectiveFrom")?.value,
     salary: field("salaryAmount")?.value,
-    effective: field("compensationEffectiveFrom")?.value
+    salarySchedule: field("compensationSalarySchedule")?.value,
+    salaryEffective: field("compensationSalaryEffectiveFrom")?.value
   });
-  field("compensationType")?.addEventListener("change", syncSchedule);
   syncSchedule();
   saveButton?.addEventListener("click", async () => {
     if (!currentEmployee || !editor || editor.hidden || !canManage()) return;
