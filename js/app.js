@@ -4373,6 +4373,16 @@ function bindNotificationsModule() {
   loadPreferences();
 }
 
+function commitFinanceCellAmount(raw, badInput) {
+  if (badInput) return { ok: false };
+  const text = String(raw ?? "").trim();
+  if (!text) return { ok: true, amount: 0 };
+  if (!/^\d+(\.\d{1,2})?$/.test(text)) return { ok: false };
+  const amount = Number(text);
+  if (!Number.isFinite(amount) || amount < 0) return { ok: false };
+  return { ok: true, amount };
+}
+
 function bindFinanceModule() {
   const module = document.querySelector("[data-finance-module]");
   const gate = document.querySelector("[data-finance-gate]");
@@ -4802,15 +4812,38 @@ function bindFinanceModule() {
     });
   });
 
+  const financeCellMessage = (text) => {
+    panel.querySelector("[data-finance-cell-message]")?.remove();
+    if (!text) return;
+    panel.insertAdjacentHTML("afterbegin", `<p class="form-message error" data-finance-cell-message>${safeHtml(text)}</p>`);
+  };
+  panel.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    const input = event.target.closest("[data-finance-row]");
+    if (!input || input.disabled || input.dataset.financeSaving === "1") return;
+    event.preventDefault();
+    input.blur();
+  });
   panel.addEventListener("change", async (event) => {
     const input = event.target.closest("[data-finance-row]");
-    if (!input || !canWrite()) return;
+    if (!input || !canWrite() || input.disabled || input.dataset.financeSaving === "1") return;
     const row = rows.find((item) => item.id === input.dataset.financeRow);
     const monthIndex = Number(input.dataset.financeMonth);
     if (!row || Number.isNaN(monthIndex)) return;
     const previousValue = Number(row.values[monthIndex] || 0);
-    const nextValue = Number(input.value);
-    if (!input.value.trim() || !Number.isFinite(nextValue) || nextValue<0 || Math.abs(nextValue*100-Math.round(nextValue*100))>0.000001) { input.value=previousValue; return; }
+    const decision = commitFinanceCellAmount(input.value, input.validity?.badInput);
+    if (!decision.ok) {
+      input.value = previousValue;
+      financeCellMessage("Esa cantidad no es válida. Usa un número de 0 en adelante, con hasta dos decimales. Se conservó el último valor guardado.");
+      return;
+    }
+    if (Math.round(decision.amount * 100) === Math.round(previousValue * 100)) {
+      input.value = previousValue;
+      financeCellMessage("");
+      return;
+    }
+    const nextValue = decision.amount;
+    input.dataset.financeSaving = "1";
     input.disabled = true;
     setSyncStatus("checking", "Guardando en Supabase", `${row.concept} · ${financeMonths[monthIndex]}`);
     try {
@@ -4818,12 +4851,14 @@ function bindFinanceModule() {
       if (!savedInSupabase) throw new Error("Supabase no confirmó el guardado.");
       row.values[monthIndex] = nextValue;
       addAudit(row, monthIndex, previousValue, nextValue);
+      financeCellMessage("");
       renderPanel();
     } catch (error) {
       input.value = previousValue;
+      delete input.dataset.financeSaving;
       input.disabled = false;
       setSyncStatus("error", "Cambio no guardado", "Supabase no confirmó la operación.");
-      panel.insertAdjacentHTML("afterbegin", `<p class="form-message error">El cambio no se guardó. Supabase no confirmó la operación: ${safeHtml(error.message || "revise su sesión o conexión")}.</p>`);
+      financeCellMessage(`El cambio no se guardó. Supabase no confirmó la operación: ${error.message || "revise su sesión o conexión"}`);
     }
   });
 
