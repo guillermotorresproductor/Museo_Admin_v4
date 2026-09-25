@@ -365,8 +365,19 @@ async function fetchShiftPunchHistory(employeeId, shiftDate) {
   return supabasePost("/rest/v1/rpc/list_shift_punch_history", { p_employee_id: employeeId, p_shift_date: shiftDate });
 }
 
-async function correctShiftAttendancePunches(shiftId, reason, changes) {
-  return supabasePost("/rest/v1/rpc/correct_shift_attendance_punches", { p_shift_id: shiftId, p_reason: reason, p_changes: changes });
+async function fetchAttendanceCorrectionAuthorizers() {
+  const data = await supabasePost("/rest/v1/rpc/list_attendance_correction_authorizers", {});
+  return Array.isArray(data) ? data : [];
+}
+
+async function correctShiftAttendancePunches(shiftId, motive, explanation, authorizedEmployeeId, changes) {
+  return supabasePost("/rest/v1/rpc/correct_shift_attendance_punches", {
+    p_shift_id: shiftId,
+    p_motive: motive,
+    p_explanation: explanation,
+    p_authorized_employee_id: authorizedEmployeeId,
+    p_changes: changes
+  });
 }
 
 async function fetchSupabaseAttendance({ from, to, employeeId } = {}) {

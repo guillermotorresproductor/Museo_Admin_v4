@@ -5335,7 +5335,11 @@ function bindAttendanceHistory() {
     if (text.includes("OVERTIME_DECISION_CONFLICT")) return "La salida no coincide con una decisión de horas extra ya tomada.";
     if (text.includes("INVALID_CORRECTION_SEQUENCE")) return "La secuencia de ponches no es válida.";
     if (text.includes("LUNCH_PAIR_INCOMPLETE")) return "El almuerzo debe tener salida y regreso, o ninguno de los dos.";
-    if (text.includes("REASON_REQUIRED")) return "Escriba un motivo de al menos 5 caracteres.";
+    if (text.includes("REASON_REQUIRED")) return "Seleccione un motivo.";
+    if (text.includes("REASON_NOT_ALLOWED")) return "El motivo no es válido.";
+    if (text.includes("EXPLANATION_REQUIRED")) return "Escriba la explicación.";
+    if (text.includes("AUTHORIZER_REQUIRED")) return "Seleccione quién autorizó.";
+    if (text.includes("AUTHORIZER_NOT_FOUND")) return "La persona que autoriza no pertenece a este museo.";
     if (text.includes("TIME_ENTRY_AMBIGUOUS") || text.includes("TIME_ENTRY_NOT_RECONCILABLE")) return "No se pudo conciliar el fichaje. No se guardó ningún cambio.";
     return text || "No se pudo guardar la corrección.";
   };
@@ -5343,11 +5347,17 @@ function bindAttendanceHistory() {
     editor.hidden = false;
     editor.innerHTML = "<p>Cargando jornada...</p>";
     try {
-      const detail = historyOnly ? await fetchShiftPunchHistory(employeeId, shiftDate) : await fetchShiftPunchEditor(employeeId, shiftDate);
+      const [detail, authorizers] = historyOnly
+        ? [await fetchShiftPunchHistory(employeeId, shiftDate), []]
+        : await Promise.all([fetchShiftPunchEditor(employeeId, shiftDate), fetchAttendanceCorrectionAuthorizers()]);
       const events = detail.events || {};
       const fields = [["clock_in", "Entrada"], ["lunch_out", "Salida almuerzo"], ["lunch_in", "Regreso"], ["clock_out", "Salida"]];
-      const historyRows = (detail.history || []).map((item) => `<tr><td>${safeHtml(item.event_type)}</td><td>${clock(item.original_at)}</td><td>${clock(item.corrected_at)}</td><td>${safeHtml(item.corrected_by || "—")}</td><td>${clock(item.corrected_on)}</td><td>${safeHtml(item.reason || "")}</td></tr>`).join("");
-      editor.innerHTML = `<h3>${historyOnly ? "Historial de ponches" : "Revisar / Editar ponches"}</h3><p>${safeHtml(shiftDate)} · Programado ${clock(detail.starts_at)} – ${clock(detail.ends_at)}</p>${historyOnly ? "" : `<form data-punch-form><div class="form-row">${fields.map(([key, name]) => `<label class="field"><span>${name}</span><input type="time" name="${key}" value="${punchTime(events[key]?.occurred_at)}" data-event-id="${safeHtml(events[key]?.id || "")}" data-original="${punchTime(events[key]?.occurred_at)}"></label>`).join("")}</div><label class="field"><span>Motivo</span><textarea name="reason" required></textarea></label><div class="attendance-period-nav"><button class="button" type="submit">Guardar corrección</button><button class="button secondary" type="button" data-punch-cancel>Cancelar</button></div><p class="form-message" data-punch-message></p></form>`}<table class="data-table"><thead><tr><th>Ponche</th><th>Original</th><th>Corregido</th><th>Quién</th><th>Cuándo</th><th>Motivo</th></tr></thead><tbody>${historyRows || "<tr><td colspan=\"6\">Sin correcciones anteriores.</td></tr>"}</tbody></table>`;
+      const motives = [["", "Seleccione un motivo"], ["missed_clock_in", "No ponchó en la hora de entrada laboral"], ["missed_lunch_out", "No ponchó en la salida del período de almuerzo"], ["missed_lunch_in", "No ponchó en la entrada del período de almuerzo"], ["missed_clock_out", "No ponchó en la hora de salida"], ["other", "Otro"]];
+      const motiveLabel = Object.fromEntries(motives.filter(([value]) => value));
+      const punchLabel = Object.fromEntries(fields);
+      const historyRows = (detail.history || []).map((item) => `<tr><td>${safeHtml(punchLabel[item.event_type] || item.event_type || "—")}</td><td>${clock(item.original_at)}</td><td>${clock(item.corrected_at)}</td><td>${safeHtml(motiveLabel[item.motive] || "—")}</td><td>${safeHtml(item.explanation || "—")}</td><td>${safeHtml(item.authorized_by || "—")}</td><td>${safeHtml(item.corrected_by || "—")}</td><td>${clock(item.corrected_on)}</td></tr>`).join("");
+      const authorizerOptions = [`<option value="">Seleccione quién autorizó</option>`].concat((authorizers || []).map((person) => `<option value="${safeHtml(person.id)}">${safeHtml(person.name || "Empleado")}</option>`)).join("");
+      editor.innerHTML = `<h3>${historyOnly ? "Historial de ponches" : "Revisar / Editar ponches"}</h3><p>${safeHtml(shiftDate)} · Programado ${clock(detail.starts_at)} – ${clock(detail.ends_at)}</p>${historyOnly ? "" : `<form class="punch-correct-form" data-punch-form><div class="form-row">${fields.map(([key, name]) => `<label class="field"><span>${name}</span><input type="time" name="${key}" value="${punchTime(events[key]?.occurred_at)}" data-event-id="${safeHtml(events[key]?.id || "")}" data-original="${punchTime(events[key]?.occurred_at)}"></label>`).join("")}</div><label class="field"><span>Motivo</span><select name="motive">${motives.map(([value, label]) => `<option value="${safeHtml(value)}">${safeHtml(label)}</option>`).join("")}</select></label><label class="field"><span>Explicación</span><textarea name="explanation"></textarea></label><label class="field"><span>Autorizado por</span><select name="authorizedBy">${authorizerOptions}</select></label><div class="attendance-period-nav"><button class="button" type="submit">Guardar corrección</button><button class="button secondary" type="button" data-punch-cancel>Cancelar</button></div><p class="form-message" data-punch-message></p></form>`}<div class="punch-history-wrap"><table class="data-table"><thead><tr><th>Ponche</th><th>Original</th><th>Corregido</th><th>Motivo</th><th>Explicación</th><th>Autorizado por</th><th>Corregido por</th><th>Fecha y hora</th></tr></thead><tbody>${historyRows || "<tr><td colspan=\"8\">Sin correcciones anteriores.</td></tr>"}</tbody></table></div>`;
       editor.querySelector("[data-punch-cancel]")?.addEventListener("click", () => { editor.hidden = true; });
       editor.querySelector("[data-punch-form]")?.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -5368,9 +5378,24 @@ function bindAttendanceHistory() {
           return [{ event_type: key, occurred_at: new Date(`${shiftDate}T${input.value}:00-04:00`).toISOString(), expected_event_id: input.dataset.eventId || null }];
         });
         if (!changes.length) { note.textContent = "No hay cambios para guardar."; return; }
+        if (!form.motive.value) {
+          note.textContent = "Seleccione un motivo.";
+          note.className = "form-message error";
+          return;
+        }
+        if (form.motive.value === "other" && !form.explanation.value.trim()) {
+          note.textContent = "Escriba la explicación.";
+          note.className = "form-message error";
+          return;
+        }
+        if (!form.authorizedBy.value) {
+          note.textContent = "Seleccione quién autorizó.";
+          note.className = "form-message error";
+          return;
+        }
         note.textContent = "Guardando...";
         try {
-          await correctShiftAttendancePunches(detail.shift_id, form.reason.value, changes);
+          await correctShiftAttendancePunches(detail.shift_id, form.motive.value, form.explanation.value.trim(), form.authorizedBy.value, changes);
           note.textContent = "Corrección guardada.";
           await load();
           await openPunchEditor(employeeId, shiftDate, false);
