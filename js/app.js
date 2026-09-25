@@ -301,7 +301,7 @@ function profilePageAllowed(page) {
     "perfil-empleado.html": () => canManageEmployees() || hasPermission("roles.assign"),
     "notificaciones.html": () => hasPermission("notifications.manage"),
     "finanzas.html": () => hasPermission("finance.read"),
-    "reportes.html": () => hasPermission("attendance.today.read"),
+    "reportes.html": () => hasPermission("attendance.today.read") || hasPermission("attendance.history.read"),
     "direccion-ejecutiva.html": () => hasPermission("executive.case.read"),
     "recibo-prestamo.html": () => canWriteCollections()
   };
@@ -327,7 +327,7 @@ const EXECUTIVE_MODULE_ACCESS = {
 const SENSITIVE_MODULE_ACCESS = {
   "finanzas.html": () => hasPermission("finance.read"),
   "direccion-ejecutiva.html": () => hasPermission("executive.case.read"),
-  "reportes.html": () => hasPermission("attendance.today.read")
+  "reportes.html": () => hasPermission("attendance.today.read") || hasPermission("attendance.history.read")
 };
 
 const moduleAccessChecks = {
@@ -691,7 +691,7 @@ function bindSensitiveModuleGate({
       }
       await signInWithSupabase(email, password);
       await refreshCurrentPermissions();
-      if (!hasPermission(permission)) {
+      if (!hasPermission(permission) && !(moduleId === "reports" && hasPermission("attendance.today.read"))) {
         void recordSecurityAuditEvent("SENSITIVE_REAUTH_DENIED", moduleId, "denied", {
           reason: "missing_permission",
           permission
@@ -723,7 +723,7 @@ function bindSensitiveModuleGate({
       }
       return;
     }
-    if (!hasPermission(permission)) {
+    if (!hasPermission(permission) && !(moduleId === "reports" && hasPermission("attendance.today.read"))) {
       void recordSecurityAuditEvent("MODULE_ACCESS_DENIED", moduleId, "denied", {
         reason: "missing_permission",
         permission
@@ -5271,7 +5271,7 @@ function bindReportsModule() {
 
   bindSensitiveModuleGate({
     moduleId: "reports",
-    permission: "attendance.today.read",
+    permission: "attendance.history.read",
     gate,
     content: module,
     loginForm,
@@ -5425,7 +5425,12 @@ function bindTodayStaffStatus() {
     body.innerHTML = rows.length ? rows.map((row) => `<tr><td><strong>${safeHtml(row.name || "Empleado")}</strong></td><td>${clock(row.clock_in)}</td><td><span class="attendance-status ${statusClass[row.status] || ""}">${safeHtml(labels[row.status] || row.status)}</span></td><td>${clock(row.lunch_out)}</td><td>${clock(row.lunch_in)}</td><td>${clock(row.clock_out)}</td><td>${hours(row.worked_minutes)}</td></tr>`).join("") : `<tr><td colspan="7">No hay empleados activos con turno programado para hoy.</td></tr>`;
   };
   const load = async () => {
-    if (loading || !hasPermission("attendance.today.read")) return;
+    if (loading) return;
+    if (!hasPermission("attendance.today.read")) {
+      body.innerHTML = `<tr><td colspan="7">Esta cuenta no tiene la consulta del estado de hoy.</td></tr>`;
+      setMessage("");
+      return;
+    }
     loading = true;
     refreshButton.disabled = true;
     try {
