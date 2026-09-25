@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Reportes</title>
-  <link rel="stylesheet" href="css/main.css?v=today-staff-20260924">
+  <link rel="stylesheet" href="css/main.css?v=attendance-history-20260925">
 </head>
 <body>
   <div class="app-shell">
@@ -32,6 +32,28 @@
         </section>
 
         <section class="card panel" data-reports-module hidden>
+          <div class="attendance-period" data-attendance-period>
+            <div class="form-row">
+              <label class="field"><span>Período</span>
+                <select name="attendancePeriod">
+                  <option value="day" selected>Diario</option>
+                  <option value="week">Semanal</option>
+                  <option value="semimonth">Quincenal</option>
+                  <option value="month">Mensual</option>
+                  <option value="custom">Personalizado</option>
+                </select>
+              </label>
+              <label class="field" data-period-anchor><span>Fecha</span><input type="date" name="anchor"></label>
+              <label class="field" data-period-custom hidden><span>Fecha inicial</span><input type="date" name="from"></label>
+              <label class="field" data-period-custom hidden><span>Fecha final</span><input type="date" name="to"></label>
+            </div>
+            <div class="attendance-period-nav" data-period-nav>
+              <button class="button secondary" type="button" data-period-step="-1">Período anterior</button>
+              <button class="button secondary" type="button" data-period-today>Período actual</button>
+              <button class="button secondary" type="button" data-period-step="1">Período siguiente</button>
+            </div>
+            <p class="page-kicker" data-period-label></p>
+          </div>
           <div data-today-staff>
             <div class="panel-heading-inline">
               <div>
@@ -50,13 +72,22 @@
               </table>
             </div>
           </div>
+          <div data-attendance-history hidden>
+            <p class="form-message" data-history-message></p>
+            <div class="table-wrap attendance-table-wrap">
+              <table class="data-table attendance-table">
+                <thead><tr><th>Empleado</th><th>Días programados</th><th>Días con ponches</th><th>Horas regulares</th><th>Horas extra aprobadas</th><th>Tardanzas</th><th>Incidencias</th><th>Correcciones</th><th></th></tr></thead>
+                <tbody data-history-body><tr><td colspan="9">Seleccione un período.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=today-staff-20260924"></script>
-  <script src="js/app.js?v=today-staff-20260924"></script>
+  <script src="js/services/supabase.js?v=attendance-history-20260925"></script>
+  <script src="js/app.js?v=attendance-history-20260925"></script>
 </body>
 </html>

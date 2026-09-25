@@ -5214,6 +5214,53 @@ function bindExecutiveDirectionModule() {
   }).init();
 }
 
+function puertoRicoToday() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Puerto_Rico", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+
+function shiftIsoDate(iso, days) {
+  const [year, month, day] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function monthEnd(iso) {
+  const [year, month] = iso.split("-").map(Number);
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function attendancePeriodBounds(kind, anchor) {
+  const [year, month, day] = anchor.split("-").map(Number);
+  const pad = (value) => String(value).padStart(2, "0");
+  if (kind === "day") return { from: anchor, to: anchor };
+  if (kind === "week") {
+    const date = new Date(Date.UTC(year, month - 1, day));
+    const mondayOffset = (date.getUTCDay() + 6) % 7;
+    const from = shiftIsoDate(anchor, -mondayOffset);
+    return { from, to: shiftIsoDate(from, 6) };
+  }
+  if (kind === "month") {
+    const from = `${year}-${pad(month)}-01`;
+    return { from, to: `${year}-${pad(month)}-${pad(monthEnd(anchor))}` };
+  }
+  if (kind === "semimonth") {
+    if (day <= 15) return { from: `${year}-${pad(month)}-01`, to: `${year}-${pad(month)}-15` };
+    return { from: `${year}-${pad(month)}-16`, to: `${year}-${pad(month)}-${pad(monthEnd(anchor))}` };
+  }
+  return null;
+}
+
+function stepAttendancePeriod(kind, bounds, direction) {
+  if (kind === "week") return attendancePeriodBounds("week", shiftIsoDate(bounds.from, direction * 7));
+  if (kind === "month") return attendancePeriodBounds("month", shiftIsoDate(bounds.from, direction > 0 ? 32 : -1));
+  if (kind === "semimonth") {
+    if (direction < 0) return attendancePeriodBounds("semimonth", shiftIsoDate(bounds.from, -1));
+    return attendancePeriodBounds("semimonth", shiftIsoDate(bounds.to, 1));
+  }
+  return bounds;
+}
+
 function bindReportsModule() {
   const gate = document.querySelector("[data-reports-gate]");
   const module = document.querySelector("[data-reports-module]");
@@ -5230,8 +5277,109 @@ function bindReportsModule() {
     loginForm,
     loginMessage,
     loginFallbackLink: loginFallback,
-    onUnlock: bindTodayStaffStatus
+    onUnlock: () => {
+      bindTodayStaffStatus();
+      bindAttendanceHistory();
+    }
   }).init();
+}
+
+function bindAttendanceHistory() {
+  const root = document.querySelector("[data-attendance-period]");
+  const today = document.querySelector("[data-today-staff]");
+  const history = document.querySelector("[data-attendance-history]");
+  if (!root || !today || !history || root.dataset.bound === "1") return;
+  root.dataset.bound = "1";
+  const period = root.querySelector("[name=attendancePeriod]");
+  const anchor = root.querySelector("[name=anchor]");
+  const fromInput = root.querySelector("[name=from]");
+  const toInput = root.querySelector("[name=to]");
+  const label = root.querySelector("[data-period-label]");
+  const nav = root.querySelector("[data-period-nav]");
+  const message = history.querySelector("[data-history-message]");
+  const body = history.querySelector("[data-history-body]");
+  const statusLabel = { COMPLETA: "Completa", INCOMPLETA: "Incompleta", "SIN PONCHAR": "Sin ponchar", INCONSISTENCIA: "Inconsistencia", "EN CURSO": "En curso" };
+  let bounds = null;
+  const hours = (minutes) => {
+    const total = Math.max(0, Math.round(Number(minutes) || 0));
+    return `${Math.floor(total / 60)} h ${String(total % 60).padStart(2, "0")} min`;
+  };
+  const clock = (value) => value ? formatPortalDate(value, { hour: "numeric", minute: "2-digit" }) : "—";
+  const title = (range) => {
+    const text = new Intl.DateTimeFormat("es-PR", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+    const start = text.format(new Date(`${range.from}T12:00:00Z`));
+    const end = text.format(new Date(`${range.to}T12:00:00Z`));
+    return range.from === range.to ? start : `${start} – ${end}`;
+  };
+  const renderDays = (days) => days.map((day) => `<tr><td>${safeHtml(day.shift_date)}</td><td>${clock(day.clock_in)}</td><td>${clock(day.lunch_out)}</td><td>${clock(day.lunch_in)}</td><td>${clock(day.clock_out)}</td><td>${hours(day.regular_minutes)}</td><td>${hours(day.approved_overtime_minutes)}</td><td>${safeHtml(statusLabel[day.status] || day.status)}${day.late ? " · Tardanza" : ""}</td><td>${day.corrected ? "Corregido" : "—"}</td></tr>`).join("");
+  const render = (payload) => {
+    const rows = Array.isArray(payload?.employees) ? payload.employees : [];
+    body.innerHTML = rows.length ? rows.map((row) => `<tr data-history-employee="${safeHtml(row.employee_id)}"><td><strong>${safeHtml(row.name || "Empleado")}</strong></td><td>${row.scheduled_days}</td><td>${row.days_with_punches}</td><td>${hours(row.regular_minutes)}</td><td>${hours(row.approved_overtime_minutes)}</td><td>${row.late_days}</td><td>${row.incident_days}</td><td>${row.corrected_days}</td><td><button class="button secondary" type="button" data-history-open>Ver días</button></td></tr><tr hidden data-history-detail="${safeHtml(row.employee_id)}"><td colspan="9"><table class="data-table"><thead><tr><th>Fecha</th><th>Entrada</th><th>Salida almuerzo</th><th>Regreso</th><th>Salida</th><th>Horas regulares</th><th>Horas extra aprobadas</th><th>Estado</th><th>Corrección</th></tr></thead><tbody>${renderDays(row.days || [])}</tbody></table></td></tr>`).join("") : `<tr><td colspan="9">No hay turnos programados en este período.</td></tr>`;
+    body.querySelectorAll("[data-history-open]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.closest("[data-history-employee]").dataset.historyEmployee;
+        const detail = body.querySelector(`[data-history-detail="${id}"]`);
+        detail.hidden = !detail.hidden;
+      });
+    });
+  };
+  const load = async () => {
+    const kind = period.value;
+    const daily = kind === "day";
+    today.hidden = !daily;
+    history.hidden = daily;
+    nav.hidden = daily || kind === "custom";
+    root.querySelector("[data-period-anchor]").hidden = kind === "custom";
+    root.querySelectorAll("[data-period-custom]").forEach((field) => { field.hidden = kind !== "custom"; });
+    if (daily) {
+      label.textContent = "Hoy";
+      return;
+    }
+    if (!hasPermission("attendance.history.read")) {
+      label.textContent = "";
+      body.innerHTML = `<tr><td colspan="9">No tiene permiso para consultar el historial.</td></tr>`;
+      return;
+    }
+    if (kind === "custom") {
+      bounds = fromInput.value && toInput.value ? { from: fromInput.value, to: toInput.value } : null;
+    } else {
+      bounds = attendancePeriodBounds(kind, anchor.value || puertoRicoToday());
+    }
+    if (!bounds?.from || !bounds?.to || bounds.to < bounds.from) {
+      label.textContent = "Indique la fecha inicial y la fecha final.";
+      return;
+    }
+    label.textContent = title(bounds);
+    message.textContent = "Consultando historial...";
+    try {
+      render(await fetchAttendanceHistory(bounds.from, bounds.to));
+      message.textContent = "Historial actualizado.";
+      message.className = "form-message success";
+    } catch (error) {
+      const text = error.message || "";
+      body.innerHTML = `<tr><td colspan="9">No se pudo consultar el historial.</td></tr>`;
+      message.textContent = text.includes("RANGE_TOO_LONG") ? "El período personalizado no puede pasar de 366 días." : (text || "No se pudo consultar el historial.");
+      message.className = "form-message error";
+    }
+  };
+  anchor.value = puertoRicoToday();
+  fromInput.value = puertoRicoToday();
+  toInput.value = puertoRicoToday();
+  period.addEventListener("change", load);
+  anchor.addEventListener("change", load);
+  fromInput.addEventListener("change", load);
+  toInput.addEventListener("change", load);
+  nav.addEventListener("click", (event) => {
+    const step = event.target.closest("[data-period-step]");
+    const current = event.target.closest("[data-period-today]");
+    if (!step && !current) return;
+    const kind = period.value;
+    const next = current ? attendancePeriodBounds(kind, puertoRicoToday()) : stepAttendancePeriod(kind, bounds || attendancePeriodBounds(kind, anchor.value || puertoRicoToday()), Number(step.dataset.periodStep));
+    anchor.value = next.from;
+    bounds = next;
+    load();
+  });
+  load();
 }
 
 function bindTodayStaffStatus() {
