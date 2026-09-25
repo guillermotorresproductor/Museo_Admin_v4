@@ -318,17 +318,17 @@ returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 declare
   museum uuid := public.current_user_museum_id();
-  shift_id uuid;
+  target_shift uuid;
 begin
   if auth.uid() is null or museum is null or not public.has_permission('attendance.punches.correct') then
     raise exception 'FORBIDDEN' using errcode = '42501';
   end if;
-  select s.id into shift_id
+  select s.id into target_shift
   from public.employee_shifts s
   where s.museum_id = museum and s.employee_id = p_employee_id and s.status = 'scheduled'
     and (s.starts_at at time zone 'America/Puerto_Rico')::date = p_shift_date
   order by s.starts_at limit 1;
-  if shift_id is null then raise exception 'SHIFT_NOT_FOUND' using errcode = 'P0001'; end if;
+  if target_shift is null then raise exception 'SHIFT_NOT_FOUND' using errcode = 'P0001'; end if;
   return (
     select jsonb_build_object(
       'shift_id', s.id,
@@ -341,7 +341,7 @@ begin
     left join public.attendance_events ev on ev.shift_id = s.id and ev.museum_id = museum
       and not exists (select 1 from public.attendance_events newer where newer.supersedes_event_id = ev.id)
       and ev.event_type in ('clock_in','lunch_out','lunch_in','clock_out')
-    where s.id = shift_id
+    where s.id = target_shift
     group by s.id, s.starts_at, s.ends_at
   );
 end $$;
@@ -357,19 +357,19 @@ returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 declare
   museum uuid := public.current_user_museum_id();
-  shift_id uuid;
+  target_shift uuid;
 begin
   if auth.uid() is null or museum is null
      or not (public.has_permission('attendance.punches.correct') or public.has_permission('attendance.history.read')) then
     raise exception 'FORBIDDEN' using errcode = '42501';
   end if;
-  select s.id into shift_id
+  select s.id into target_shift
   from public.employee_shifts s
   where s.museum_id = museum and s.employee_id = p_employee_id and s.status = 'scheduled'
     and (s.starts_at at time zone 'America/Puerto_Rico')::date = p_shift_date
   order by s.starts_at
   limit 1;
-  if shift_id is null then raise exception 'SHIFT_NOT_FOUND' using errcode = 'P0001'; end if;
+  if target_shift is null then raise exception 'SHIFT_NOT_FOUND' using errcode = 'P0001'; end if;
   return (
     select jsonb_build_object(
       'starts_at', s.starts_at,
@@ -377,7 +377,7 @@ begin
       'history', public.list_shift_punch_history(s.id)
     )
     from public.employee_shifts s
-    where s.id = shift_id and s.museum_id = museum
+    where s.id = target_shift and s.museum_id = museum
   );
 end $$;
 
