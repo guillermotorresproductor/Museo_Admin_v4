@@ -3,10 +3,12 @@
 -- Does not rewrite 202609250006. Existing rows keep the new columns null.
 --
 -- Autorizado por is employees.id. The person must be an active employee of the
--- session museum whose access_profile includes the administration module.
--- That catalog set is asistente_administrativa, director_ejecutivo,
--- administrador_general, gerente_administrativo, and it_programador.
--- A null access_profile is not classified by the catalog, so it is not listed.
+-- session museum whose access_profile is director_ejecutivo or
+-- gerente_administrativo. Those are the only profiles that can decide an
+-- attendance correction, correct punches, or decide overtime. Sharing the
+-- administration module is not enough: administrador_general can consult
+-- attendance, and asistente_administrativa and it_programador are not
+-- attendance approvers.
 -- Corregido por remains auth.uid(), stored in requested_by and decided_by.
 
 alter table public.attendance_correction_requests
@@ -62,7 +64,7 @@ end $$;
 
 drop function if exists public.correct_shift_attendance_punches(uuid, text, jsonb);
 
-create function public.correct_shift_attendance_punches(
+create or replace function public.correct_shift_attendance_punches(
   p_shift_id uuid,
   p_motive text,
   p_explanation text,
@@ -123,9 +125,8 @@ begin
   end if;
   if not exists (
     select 1 from public.employees e
-    join public.employee_module_profiles mp on mp.code = e.access_profile
     where e.id = p_authorized_employee_id and e.museum_id = museum and e.status = 'activo'
-      and 'administration' = any(mp.modules)
+      and e.access_profile in ('director_ejecutivo','gerente_administrativo')
   ) then
     raise exception 'AUTHORIZER_NOT_FOUND' using errcode = 'P0001';
   end if;
@@ -323,8 +324,8 @@ begin
   return coalesce((
     select jsonb_agg(jsonb_build_object('id', e.id, 'name', trim(e.first_name || ' ' || e.last_name)) order by e.last_name, e.first_name, e.id)
     from public.employees e
-    join public.employee_module_profiles mp on mp.code = e.access_profile
-    where e.museum_id = museum and e.status = 'activo' and 'administration' = any(mp.modules)
+    where e.museum_id = museum and e.status = 'activo'
+      and e.access_profile in ('director_ejecutivo','gerente_administrativo')
   ), '[]'::jsonb);
 end $$;
 

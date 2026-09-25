@@ -9,9 +9,8 @@ declare authorizer uuid;
 begin
   select e.id into authorizer
   from public.employees e
-  join public.employee_module_profiles mp on mp.code = e.access_profile
   where e.museum_id = public.current_user_museum_id() and e.profile_id = auth.uid()
-    and e.status = 'activo' and 'administration' = any(mp.modules)
+    and e.status = 'activo' and e.access_profile in ('director_ejecutivo','gerente_administrativo')
   limit 1;
   return public.correct_shift_attendance_punches(p_shift_id, 'missed_clock_in', nullif(trim(coalesce(p_reason, '')), ''), authorizer, p_changes);
 end $$;
@@ -30,6 +29,8 @@ declare
   clock_out_id uuid;
   alert_resolved boolean;
   second uuid;
+  it_person uuid;
+  assistant uuid;
   form_shift uuid := 'e2500000-0000-4000-8000-000000000004';
   history jsonb;
   effective_id uuid;
@@ -285,6 +286,30 @@ begin
   if not exists (
     select 1 from jsonb_array_elements(public.list_attendance_correction_authorizers()) item where item->>'id' = second::text
   ) then raise exception 'AUTHORIZER_LIST_MEMBER'; end if;
+  if (select access_profile from public.employees where id = employee) is distinct from 'gerente_administrativo' then raise exception 'GERENTE_PROFILE'; end if;
+  if not exists (
+    select 1 from jsonb_array_elements(public.list_attendance_correction_authorizers()) item where item->>'id' = employee::text
+  ) then raise exception 'GERENTE_MISSING'; end if;
+  insert into public.employees(museum_id, first_name, last_name, email, access_profile)
+  values (museum, 'Perfil', 'Tecnico', 'attendance-form-it-' || gen_random_uuid()::text || '@example.invalid', 'it_programador')
+  returning id into it_person;
+  insert into public.employees(museum_id, first_name, last_name, email, access_profile)
+  values (museum, 'Perfil', 'Asistente', 'attendance-form-assistant-' || gen_random_uuid()::text || '@example.invalid', 'asistente_administrativa')
+  returning id into assistant;
+  if exists (
+    select 1 from jsonb_array_elements(public.list_attendance_correction_authorizers()) item
+    where item->>'id' in (it_person::text, assistant::text)
+  ) then raise exception 'UNAUTHORIZED_PROFILE_LISTED'; end if;
+  select count(*) into before_events from public.attendance_events where shift_id = form_shift;
+  begin
+    perform public.correct_shift_attendance_punches(form_shift, 'missed_clock_in', null, it_person, jsonb_build_array(jsonb_build_object('event_type','clock_in','occurred_at', (date '2026-08-22' + time '08:06') at time zone 'America/Puerto_Rico', 'expected_event_id', effective_id)));
+    raise exception 'IT_ALLOWED';
+  exception when sqlstate 'P0001' then if sqlerrm <> 'AUTHORIZER_NOT_FOUND' then raise; end if; end;
+  begin
+    perform public.correct_shift_attendance_punches(form_shift, 'missed_clock_in', null, assistant, jsonb_build_array(jsonb_build_object('event_type','clock_in','occurred_at', (date '2026-08-22' + time '08:06') at time zone 'America/Puerto_Rico', 'expected_event_id', effective_id)));
+    raise exception 'ASSISTANT_ALLOWED';
+  exception when sqlstate 'P0001' then if sqlerrm <> 'AUTHORIZER_NOT_FOUND' then raise; end if; end;
+  if (select count(*) from public.attendance_events where shift_id = form_shift) <> before_events then raise exception 'UNAUTHORIZED_MUTATED'; end if;
 
   if to_regprocedure('public.request_own_attendance_correction(uuid,text,timestamptz,text)') is not null
      and to_regprocedure('public.decide_attendance_correction(uuid,text,text)') is not null then
