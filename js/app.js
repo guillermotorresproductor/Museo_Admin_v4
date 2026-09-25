@@ -3870,8 +3870,32 @@ function setEmployeeCategorySelection(select, role = null) {
     ? "Conservar configuración actual" : "Seleccione una categoría";
 }
 
+const compensationScheduleLabels = { weekly: "Semanal", biweekly: "Bisemanal", semimonthly: "Quincenal", monthly: "Mensual", annual: "Anual" };
+const compensationPayFrequencies = ["weekly", "biweekly", "semimonthly", "monthly"];
+const compensationSalaryPeriods = ["weekly", "biweekly", "semimonthly", "monthly", "annual"];
+
 function compensationOwnerId(employee) {
   return employee?.profile_id || employee?.authUserId || "";
+}
+
+function compensationDraft(input) {
+  const type = input.type === "salary" ? "salary" : input.type === "hourly" ? "hourly" : "";
+  const schedule = input.schedule || "";
+  const started = Boolean(input.effective || schedule || input.hourly || input.salary);
+  if (!input.required && !started) return { compensation: null };
+  if (!type) return { error: "Selecciona por hora o salario fijo." };
+  const allowed = type === "salary" ? compensationSalaryPeriods : compensationPayFrequencies;
+  if (!allowed.includes(schedule)) return { error: type === "salary" ? "Selecciona la frecuencia o el período." : "Selecciona la frecuencia de pago." };
+  if (!input.effective) return { error: "Indica la fecha de la nueva vigencia de compensación." };
+  const blank = { standard_hours_week: "", overtime_eligible: "true", bonus_type: "", bonus_amount: "", bonus_percent: "", other_description: "", effective_from: input.effective };
+  if (type === "hourly") {
+    const rate = Number(input.hourly);
+    if (!(rate > 0) || !/^\d+(\.\d{1,2})?$/.test(String(input.hourly).trim())) return { error: "Indica una tarifa por hora mayor que cero, con hasta dos decimales." };
+    return { compensation: { ...blank, compensation_type: "hourly", hourly_rate: String(input.hourly).trim(), salary_amount: "", salary_period: "", pay_frequency: schedule } };
+  }
+  const amount = Number(input.salary);
+  if (!(amount > 0) || !/^\d+(\.\d{1,2})?$/.test(String(input.salary).trim())) return { error: "Indica un salario base mayor que cero, con hasta dos decimales." };
+  return { compensation: { ...blank, compensation_type: "salary", hourly_rate: "", salary_amount: String(input.salary).trim(), salary_period: schedule, pay_frequency: schedule === "annual" ? "" : schedule } };
 }
 
 function bindEmployeeCompensation(scope) {
@@ -3895,20 +3919,43 @@ function bindEmployeeCompensation(scope) {
     message.textContent = text;
     message.className = `form-message ${type}`.trim();
   };
+  const scheduleLabel = (code) => compensationScheduleLabels[code] || "";
   const render = (row) => {
     if (!summary) return;
     if (!row) { summary.innerHTML = '<p class="field-hint">Sin compensación vigente.</p>'; return; }
-    const payLabel = row.compensation_type === "hourly" ? "Tarifa por hora" : "Salario";
-    const pay = row.compensation_type === "hourly" ? money(row.hourly_rate) : money(row.salary_amount);
     const when = row.effective_from ? new Intl.DateTimeFormat("es-PR", { timeZone: "America/Puerto_Rico", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${row.effective_from}T16:00:00Z`)) : "—";
-    summary.innerHTML = `<p><strong>Tipo de compensación:</strong> ${safeHtml(labels[row.compensation_type] || row.compensation_type)}</p><p><strong>${payLabel}:</strong> ${safeHtml(pay)}</p><p><strong>Vigente desde:</strong> ${safeHtml(when)}</p>`;
+    const schedule = scheduleLabel(row.compensation_type === "hourly" ? (row.pay_frequency || row.salary_period) : (row.salary_period || row.pay_frequency));
+    const lines = [`<p><strong>Tipo de compensación:</strong> ${safeHtml(labels[row.compensation_type] || row.compensation_type)}</p>`];
+    if (row.compensation_type === "hourly") lines.push(`<p><strong>Tarifa por hora:</strong> ${safeHtml(money(row.hourly_rate))}</p>`);
+    else lines.push(`<p><strong>Salario base:</strong> ${safeHtml(money(row.salary_amount))}</p>`);
+    if (schedule) lines.push(`<p><strong>${row.compensation_type === "salary" ? "Frecuencia / período" : "Frecuencia de pago"}:</strong> ${safeHtml(schedule)}</p>`);
+    lines.push(`<p><strong>Vigente desde:</strong> ${safeHtml(when)}</p>`);
+    summary.innerHTML = lines.join("");
+  };
+  const syncSchedule = () => {
+    const type = field("compensationType")?.value === "salary" ? "salary" : "hourly";
+    const select = field("compensationSchedule");
+    const previous = select?.value || "";
+    const choices = type === "salary" ? compensationSalaryPeriods : compensationPayFrequencies;
+    if (select) {
+      select.innerHTML = `<option value="">Seleccione...</option>${choices.map((code) => `<option value="${code}">${compensationScheduleLabels[code]}</option>`).join("")}`;
+      select.value = choices.includes(previous) ? previous : "";
+    }
+    const hourlyBlock = scope.querySelector("[data-compensation-hourly]");
+    const salaryBlock = scope.querySelector("[data-compensation-salary]");
+    const scheduleName = scope.querySelector("[data-compensation-schedule-label]");
+    if (hourlyBlock) hourlyBlock.hidden = type !== "hourly";
+    if (salaryBlock) salaryBlock.hidden = type !== "salary";
+    if (scheduleName) scheduleName.textContent = type === "salary" ? "Frecuencia / período" : "Frecuencia de pago";
+    if (type !== "hourly" && field("hourlyRate")) field("hourlyRate").value = "";
+    if (type !== "salary" && field("salaryAmount")) field("salaryAmount").value = "";
   };
   const resetEditor = () => {
-    ["compensationType","hourlyRate","salaryAmount","salaryPeriod","payFrequency","standardHoursWeek","overtimeEligible","bonusType","bonusAmount","bonusPercent","compensationOther","compensationEffectiveFrom"].forEach((name) => {
-      const input = field(name);
-      if (input) input.value = name === "compensationType" ? "hourly" : name === "overtimeEligible" ? "true" : name === "bonusType" ? "none" : "";
-    });
-    if (field("monthlyEquivalent")) field("monthlyEquivalent").value = "";
+    if (field("compensationType")) field("compensationType").value = "hourly";
+    if (field("hourlyRate")) field("hourlyRate").value = "";
+    if (field("salaryAmount")) field("salaryAmount").value = "";
+    if (field("compensationEffectiveFrom")) field("compensationEffectiveFrom").value = "";
+    syncSchedule();
   };
   const prepare = (employee) => {
     if (!editor) return;
@@ -3916,36 +3963,23 @@ function bindEmployeeCompensation(scope) {
     editor.hidden = !canManage() || Boolean(ownerId && actorId && ownerId === actorId);
     resetEditor();
   };
-  const updateMonthly = () => {
-    const rate = Number(field("hourlyRate")?.value || 0), hours = Number(field("standardHoursWeek")?.value || 0), salary = Number(field("salaryAmount")?.value || 0), period = field("salaryPeriod")?.value;
-    const factors = { weekly: 52 / 12, biweekly: 26 / 12, semimonthly: 2, monthly: 1, annual: 1 / 12 };
-    const value = field("compensationType")?.value === "hourly" ? rate * hours * 52 / 12 : salary * (factors[period] || 0);
-    if (field("monthlyEquivalent")) field("monthlyEquivalent").value = value ? value.toLocaleString("es-PR", { style: "currency", currency: "USD" }) : "";
-  };
-  ["compensationType","hourlyRate","standardHoursWeek","salaryAmount","salaryPeriod"].forEach((name) => field(name)?.addEventListener("input", updateMonthly));
-  const payload = () => ({
-    compensation_type: field("compensationType")?.value,
-    hourly_rate: field("hourlyRate")?.value,
-    salary_amount: field("salaryAmount")?.value,
-    salary_period: field("salaryPeriod")?.value,
-    pay_frequency: field("payFrequency")?.value,
-    standard_hours_week: field("standardHoursWeek")?.value,
-    overtime_eligible: field("overtimeEligible")?.value,
-    bonus_type: field("bonusType")?.value,
-    bonus_amount: field("bonusAmount")?.value,
-    bonus_percent: field("bonusPercent")?.value,
-    other_description: field("compensationOther")?.value,
-    effective_from: field("compensationEffectiveFrom")?.value
+  const readInput = (required) => compensationDraft({
+    required,
+    type: field("compensationType")?.value,
+    schedule: field("compensationSchedule")?.value,
+    hourly: field("hourlyRate")?.value,
+    salary: field("salaryAmount")?.value,
+    effective: field("compensationEffectiveFrom")?.value
   });
+  field("compensationType")?.addEventListener("change", syncSchedule);
+  syncSchedule();
   saveButton?.addEventListener("click", async () => {
     if (!currentEmployee || !editor || editor.hidden || !canManage()) return;
-    if (!field("compensationEffectiveFrom")?.value) {
-      setMessage("Indica la fecha de la nueva vigencia de compensación.", "error");
-      return;
-    }
+    const draft = readInput(true);
+    if (draft.error) { setMessage(draft.error, "error"); return; }
     saveButton.disabled = true;
     try {
-      await saveEmployeeCompensation(currentEmployee.id, payload());
+      await saveEmployeeCompensation(currentEmployee.id, draft.compensation);
       setMessage("Nueva vigencia registrada. La anterior permanece guardada.", "success");
       render(await fetchEmployeeCompensation(currentEmployee.id));
       resetEditor();
@@ -3956,6 +3990,7 @@ function bindEmployeeCompensation(scope) {
     }
   });
   return {
+    readInput: () => readInput(false),
     async load(employee) {
       currentEmployee = employee;
       if (!canRead() || !employee?.id) return;
@@ -3986,10 +4021,6 @@ function bindHumanResourcesModule() {
   const compensationPanel = bindEmployeeCompensation(module);
   module.querySelector("[data-emergency-section]").hidden = !hasPermission("emergency_contact.read");
 
-  const sensitiveEmployeePayload = (data) => ({
-    compensation: { compensation_type:data.get("compensationType"),hourly_rate:data.get("hourlyRate"),salary_amount:data.get("salaryAmount"),salary_period:data.get("salaryPeriod"),pay_frequency:data.get("payFrequency"),standard_hours_week:data.get("standardHoursWeek"),overtime_eligible:data.get("overtimeEligible"),bonus_type:data.get("bonusType"),bonus_amount:data.get("bonusAmount"),bonus_percent:data.get("bonusPercent"),other_description:data.get("compensationOther"),effective_from:data.get("compensationEffectiveFrom") },
-    emergencyContact: { full_name:data.get("emergencyName"),relationship:data.get("emergencyRelationship"),primary_phone:data.get("emergencyPrimaryPhone"),alternate_phone:data.get("emergencyAlternatePhone"),email:data.get("emergencyEmail"),notes:data.get("emergencyNotes") }
-  });
 
   const loadCompensation = (employee) => compensationPanel.load(employee);
 
@@ -4247,10 +4278,10 @@ function bindHumanResourcesModule() {
           formServerLevel = { role: assigned.role, conflicting: false };
         }
         const editor = module.querySelector("[data-compensation-editor]");
-        if (canManageCompensation() && editor && !editor.hidden && data.get("compensationEffectiveFrom")) {
-          await saveEmployeeCompensation(savedEmployeeId, sensitiveEmployeePayload(data).compensation);
-        } else if (canManageCompensation() && editor && !editor.hidden && (data.get("hourlyRate") || data.get("salaryAmount")) && !data.get("compensationEffectiveFrom")) {
-          throw new Error("Indica la fecha de la nueva vigencia de compensación.");
+        if (canManageCompensation() && editor && !editor.hidden) {
+          const draft = compensationPanel.readInput();
+          if (draft.error) throw new Error(draft.error);
+          if (draft.compensation) await saveEmployeeCompensation(savedEmployeeId, draft.compensation);
         }
 
         const syncedRecords = await fetchSupabaseEmployees();
