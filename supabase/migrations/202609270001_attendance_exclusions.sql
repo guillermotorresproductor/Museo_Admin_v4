@@ -799,6 +799,36 @@ $guard$;
     end if;
   end if;
 
+  if to_regprocedure('public.decide_attendance_correction(uuid,uuid,uuid,text,text)') is not null then
+    src := replace(pg_get_functiondef('public.decide_attendance_correction(uuid,uuid,uuid,text,text)'::regprocedure), E'\r\n', E'\n');
+    if position('EXCLUSION_ACTIVE' in src) = 0 then
+      old := E'  if decision=''approved'' then\n    select * into shift_row from public.employee_shifts where id=request_row.shift_id;';
+      new := $guard$  if decision='approved' and (
+    public.attendance_is_excluded(request_row.shift_id, null)
+    or (request_row.original_event_id is not null and public.attendance_is_excluded(request_row.shift_id, request_row.original_event_id))
+    or exists (
+      select 1 from public.attendance_events ev
+      where ev.shift_id = request_row.shift_id
+        and ev.museum_id = actor_museum_id
+        and ev.event_type = request_row.requested_event_type
+        and not exists (select 1 from public.attendance_events newer where newer.supersedes_event_id = ev.id)
+        and public.attendance_is_excluded(ev.shift_id, ev.id)
+    )
+  ) then
+    raise exception 'EXCLUSION_ACTIVE' using errcode = 'P0001';
+  end if;
+
+  if decision='approved' then
+    select * into shift_row from public.employee_shifts where id=request_row.shift_id;$guard$;
+      patched := replace(src, old, new);
+      if position('EXCLUSION_ACTIVE' in patched) = 0
+         or (length(patched) - length(replace(patched, 'if decision=''approved'' then', ''))) / length('if decision=''approved'' then') < 1 then
+        raise exception 'PATCH_FAILED_DECIDE_LEGACY';
+      end if;
+      execute patched;
+    end if;
+  end if;
+
   if to_regprocedure('public.record_employee_attendance(uuid,uuid,text,jsonb)') is not null then
     src := replace(pg_get_functiondef('public.record_employee_attendance(uuid,uuid,text,jsonb)'::regprocedure), E'\r\n', E'\n');
     if position('excluded_at' in src) = 0 then

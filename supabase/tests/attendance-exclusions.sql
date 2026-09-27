@@ -258,6 +258,16 @@ begin
   if (select count(*) from public.attendance_exclusions where shift_id = pending_shift) <> rows_before then raise exception 'PENDING_WROTE'; end if;
 
   perform public.set_attendance_exclusion(full_shift, null, 'exclude', 'system_test', 'Jornada de prueba controlada');
+  if (
+    select max(acted_at) filter (where action = 'exclude')
+    from public.attendance_exclusions where shift_id = full_shift
+  ) <= (
+    select max(acted_at) filter (where action = 'restore')
+    from public.attendance_exclusions where shift_id = full_shift
+  ) then raise exception 'ACTED_AT_ORDER'; end if;
+  if (select count(*) from public.attendance_exclusions where shift_id = full_shift) < 2 then
+    raise exception 'RESTORE_HISTORY_MISSING';
+  end if;
   begin
     perform public.correct_shift_attendance_punches(full_shift, 'missed_clock_in', null, manager, jsonb_build_array(jsonb_build_object(
       'event_type','clock_in','occurred_at', start_at + interval '5 minutes','expected_event_id', clock_in_id::text
@@ -289,6 +299,84 @@ begin
   exception when sqlstate 'P0001' then
     if sqlerrm <> 'EXCLUSION_ACTIVE' then raise; end if;
   end;
+  if (select status from public.attendance_correction_requests where shift_id = full_shift and requested_by = subject_user order by requested_at desc limit 1) <> 'pending' then
+    raise exception 'APPROVAL_MUTATED_PENDING';
+  end if;
+
+  if to_regprocedure('public.decide_attendance_correction(uuid,uuid,uuid,text,text)') is not null then
+    insert into public.user_permissions(user_id, museum_id, permission_id, effect)
+    select actor, museum, id, 'allow' from public.permissions
+     where code in ('attendance.corrections.approve', 'time.read.all');
+    begin
+      perform public.decide_attendance_correction(actor, museum, (
+        select id from public.attendance_correction_requests
+        where shift_id = full_shift and status = 'pending' and requested_by = subject_user
+        order by requested_at desc limit 1
+      ), 'approved', 'No debe aprobarse');
+      raise exception 'LEGACY_DECIDE_ALLOWED';
+    exception when sqlstate 'P0001' then
+      if sqlerrm <> 'EXCLUSION_ACTIVE' then raise; end if;
+    end;
+    if (select status from public.attendance_correction_requests where shift_id = full_shift and requested_by = subject_user order by requested_at desc limit 1) <> 'pending' then
+      raise exception 'LEGACY_APPROVAL_MUTATED';
+    end if;
+    perform public.decide_attendance_correction(actor, museum, (
+      select id from public.attendance_correction_requests
+      where shift_id = full_shift and status = 'pending' and requested_by = subject_user
+      order by requested_at desc limit 1
+    ), 'rejected', 'Rechazo permitido');
+    if (select status from public.attendance_correction_requests where shift_id = full_shift and requested_by = subject_user order by requested_at desc limit 1) <> 'rejected' then
+      raise exception 'LEGACY_REJECT_BLOCKED';
+    end if;
+    if not public.attendance_is_excluded(full_shift, null) then raise exception 'REJECT_CLEARED_EXCLUSION'; end if;
+    if position('decision=''approved'' and (' in pg_get_functiondef('public.decide_attendance_correction(uuid,uuid,uuid,text,text)'::regprocedure)) = 0
+       or position('EXCLUSION_ACTIVE' in pg_get_functiondef('public.decide_attendance_correction(uuid,uuid,uuid,text,text)'::regprocedure)) = 0 then
+      raise exception 'DECIDE_GUARD_MISSING';
+    end if;
+  end if;
+
+  if position('p_decision = ''approved'' and (' in pg_get_functiondef('public.decide_attendance_correction(uuid,text,text)'::regprocedure)) = 0
+     or position('EXCLUSION_ACTIVE' in pg_get_functiondef('public.decide_attendance_correction(uuid,text,text)'::regprocedure)) = 0 then
+    raise exception 'DECIDE_GUARD_MISSING';
+  end if;
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'audit_logs' and column_name = 'user_id'
+  ) then
+    insert into public.attendance_correction_requests(
+      museum_id, employee_id, shift_id, original_event_id, requested_event_type, requested_occurred_at, reason, requested_by
+    ) values (
+      museum, subject, full_shift, clock_in_id, 'clock_in', start_at + interval '6 minutes', 'Segunda solicitud sobre excluido', subject_user
+    );
+    perform public.decide_attendance_correction((
+      select id from public.attendance_correction_requests
+      where shift_id = full_shift and status = 'pending' and requested_event_type = 'clock_in'
+      order by requested_at desc limit 1
+    ), 'rejected', 'Rechazo de tres argumentos');
+    if (select status from public.attendance_correction_requests where shift_id = full_shift and requested_event_type = 'clock_in' and requested_by = subject_user order by requested_at desc limit 1) <> 'rejected' then
+      raise exception 'SESSION_REJECT_BLOCKED';
+    end if;
+  end if;
+
+  if exists (
+    select 1
+    from pg_proc a
+    join pg_proc b on b.pronamespace = a.pronamespace and b.proname = a.proname and b.oid > a.oid
+    join pg_namespace n on n.oid = a.pronamespace
+    where n.nspname = 'public'
+      and a.proname in ('decide_attendance_correction', 'set_attendance_exclusion')
+      and a.proargnames && b.proargnames
+  ) then raise exception 'POSTGREST_AMBIGUOUS'; end if;
+  if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'set_attendance_exclusion') <> 1 then
+    raise exception 'EXCLUSION_RPC_OVERLOAD';
+  end if;
+  if position('excluded_at' in pg_get_functiondef('public.list_attendance_history(date,date)'::regprocedure)) > 0
+     or position('attendance_is_excluded' in pg_get_functiondef('public.list_attendance_history(date,date)'::regprocedure)) = 0
+     or position('excluded_at' in pg_get_functiondef('public.list_today_staff_status()'::regprocedure)) > 0
+     or position('attendance_is_excluded' in pg_get_functiondef('public.sync_attendance_operational_alerts()'::regprocedure)) = 0
+     or position('attendance_is_excluded' in pg_get_functiondef('public.reconcile_shift_attendance_alerts(uuid)'::regprocedure)) = 0 then
+    raise exception 'EVENT_AUTHORITY_DRIFT';
+  end if;
 
   insert into public.attendance_attempts(id, museum_id, employee_id, shift_id, actor_user_id, requested_event, result)
   values ('e2700000-0000-4000-8000-000000000123', museum, subject, ot_shift, actor, 'clock_out', 'accepted');
