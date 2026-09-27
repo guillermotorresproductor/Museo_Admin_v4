@@ -3692,6 +3692,147 @@ function bindDigitalRouteModule() {
   (async()=>{try{records=await fetchSupabaseMaintenanceTasks("route_inspection");setMessage("Ruta Digital sincronizada con Supabase.","success");}catch(error){records=[];setMessage(error.message||"No se pudo cargar Ruta Digital.","error");}render();})();
 }
 
+function assignedShiftMessage(error, fallback) {
+  const code = String(error?.message || "");
+  const messages = {
+    SHIFT_CHANGED_RELOAD: "Otro administrador cambió este horario. Consúltelo de nuevo.",
+    SHIFT_LOCKED: "Este turno ya comenzó o tiene asistencia. No se puede modificar.",
+    SHIFT_SELF_FORBIDDEN: "No puede modificar su propio turno.",
+    SHIFT_OVERLAP: "Ese horario se solapa con otro turno del empleado.",
+    DAY_OFF_CONFLICT: "Ese día ya tiene un día libre o un turno programado.",
+    DAY_OFF_EXISTS: "Ese día ya está marcado como libre.",
+    SHIFT_TIMEZONE_NOT_CONFIGURED: "El museo no tiene zona horaria configurada.",
+    FORBIDDEN: "No tiene permiso para administrar horarios.",
+    REASON_REQUIRED: "Indique un motivo de al menos 3 caracteres.",
+    INVALID_SHIFT_HOURS: "La salida tiene que ser distinta de la entrada.",
+    EMPLOYEE_NOT_FOUND: "No se encontró el empleado en este museo.",
+    SHIFT_NOT_FOUND: "No se encontró el turno."
+  };
+  const known = Object.keys(messages).find((item) => code.includes(item));
+  return known ? messages[known] : providerNeutralMessage(error, fallback);
+}
+
+function describeAssignedShift(shift) {
+  if (!shift || shift.status === "day_off") return "Libre";
+  const hours = `${shift.local_start || ""}–${shift.local_end || ""}`;
+  const overnight = shift.crosses_midnight ? " (+1)" : "";
+  if (shift.status === "cancelled") return `Cancelado · ${hours}`;
+  return `${hours}${overnight}`;
+}
+
+function bindAssignedShiftAdmin() {
+  const region = document.querySelector("[data-assigned-shifts]");
+  if (!region || !hasPermission("schedules.manage")) return;
+  region.hidden = false;
+  const query = region.querySelector("[data-assigned-shifts-query]");
+  const form = region.querySelector("[data-assigned-shifts-edit]");
+  const list = region.querySelector("[data-assigned-shifts-list]");
+  const message = region.querySelector("[data-assigned-shifts-message]");
+  const showMessage = (text, type = "") => { message.textContent = text; message.className = `form-message ${type}`.trim(); };
+  let loaded = null;
+  const selectedEmployee = () => query.elements.employeeId.value;
+  const selectedDate = () => query.elements.shiftDate.value;
+  const resetEditor = () => {
+    form.elements.shiftId.value = "";
+    form.elements.expectedUpdatedAt.value = "";
+    form.elements.startsLocal.value = "";
+    form.elements.endsLocal.value = "";
+    form.elements.lunchMinutes.value = "";
+    form.elements.reason.value = "";
+    region.querySelector("[data-assigned-cancel]").hidden = true;
+    region.querySelector("[data-assigned-save]").textContent = "Guardar turno";
+  };
+  const render = () => {
+    const day = loaded?.days?.[0];
+    const shifts = day?.shifts || [];
+    const withdrawn = day?.withdrawn || [];
+    if (!day) { list.innerHTML = ""; return; }
+    const rows = [];
+    if (day.day_off) rows.push(`<article class="assigned-shift-item"><strong>Libre</strong></article>`);
+    shifts.forEach((shift) => {
+      rows.push(`<article class="assigned-shift-item"><div><strong>${safeHtml(describeAssignedShift(shift))}</strong><small>${safeHtml(shift.shift_type || "")}${shift.expected_lunch_minutes == null ? "" : ` · almuerzo ${Number(shift.expected_lunch_minutes)} min`}</small></div><button class="button secondary" type="button" data-edit-shift="${safeHtml(shift.id)}">Editar</button></article>`);
+    });
+    withdrawn.forEach((shift) => {
+      rows.push(`<article class="assigned-shift-item"><div><strong>${safeHtml(describeAssignedShift(shift))}</strong></div></article>`);
+    });
+    if (!rows.length) rows.push(`<article class="assigned-shift-item"><strong>Sin turno asignado</strong></article>`);
+    list.innerHTML = rows.join("");
+  };
+  const load = async () => {
+    const employeeId = selectedEmployee();
+    const shiftDate = selectedDate();
+    if (!employeeId || !shiftDate) return;
+    loaded = await listEmployeeShifts(employeeId, shiftDate, shiftDate);
+    form.hidden = Boolean(loaded.self);
+    if (loaded.self) showMessage("No puede modificar su propio turno.", "error");
+    render();
+    resetEditor();
+  };
+  (async () => {
+    const employees = getEmployeeRecords().filter((employee) => employee.estado !== "Inactivo" && employee.source === "supabase");
+    const source = employees.length ? employees : (await fetchSupabaseEmployees()).filter((employee) => employee.estado !== "Inactivo");
+    query.elements.employeeId.innerHTML = `<option value="">Seleccione un empleado</option>${source.map((employee) => `<option value="${safeHtml(employee.id)}">${safeHtml(employeeDisplayName(employee))}</option>`).join("")}`;
+  })().catch((error) => showMessage(assignedShiftMessage(error, "No se pudieron cargar los empleados."), "error"));
+  query.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try { await load(); if (!loaded?.self) showMessage("Turnos de la fecha cargados.", "success"); }
+    catch (error) { showMessage(assignedShiftMessage(error, "No se pudieron consultar los turnos."), "error"); }
+  });
+  list.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-edit-shift]");
+    if (!button || loaded?.self) return;
+    const shift = (loaded?.days?.[0]?.shifts || []).find((item) => item.id === button.dataset.editShift);
+    if (!shift) return;
+    form.hidden = false;
+    form.elements.shiftId.value = shift.id;
+    form.elements.expectedUpdatedAt.value = shift.updated_at;
+    form.elements.startsLocal.value = shift.local_start || "";
+    form.elements.endsLocal.value = shift.local_end || "";
+    form.elements.lunchMinutes.value = shift.expected_lunch_minutes ?? "";
+    form.elements.reason.value = "";
+    region.querySelector("[data-assigned-cancel]").hidden = false;
+    region.querySelector("[data-assigned-save]").textContent = "Guardar cambios";
+  });
+  region.querySelector("[data-assigned-new]").addEventListener("click", () => { resetEditor(); form.hidden = Boolean(loaded?.self); });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (loaded?.self) return;
+    const lunch = form.elements.lunchMinutes.value;
+    try {
+      await scheduleEmployeeShift({
+        employeeId: selectedEmployee(),
+        shiftDate: selectedDate(),
+        startsLocal: form.elements.startsLocal.value,
+        endsLocal: form.elements.endsLocal.value,
+        shiftId: form.elements.shiftId.value,
+        setLunch: lunch !== "",
+        lunchMinutes: lunch === "" ? null : Number(lunch),
+        expectedUpdatedAt: form.elements.expectedUpdatedAt.value,
+        reason: form.elements.reason.value
+      });
+      showMessage("Turno guardado.", "success");
+      await load();
+    } catch (error) { showMessage(assignedShiftMessage(error, "No se pudo guardar el turno."), "error"); }
+  });
+  region.querySelector("[data-assigned-cancel]").addEventListener("click", async () => {
+    if (!form.elements.shiftId.value || loaded?.self) return;
+    try {
+      await cancelEmployeeShift(form.elements.shiftId.value, form.elements.expectedUpdatedAt.value, form.elements.reason.value);
+      showMessage("Turno cancelado. Se conservó su horario.", "success");
+      await load();
+    } catch (error) { showMessage(assignedShiftMessage(error, "No se pudo cancelar el turno."), "error"); }
+  });
+  region.querySelector("[data-assigned-day-off]").addEventListener("click", async () => {
+    if (loaded?.self) return;
+    const expected = (loaded?.days?.[0]?.shifts || []).map((shift) => ({ id: shift.id, updated_at: shift.updated_at }));
+    try {
+      await setEmployeeDayOff(selectedEmployee(), selectedDate(), form.elements.reason.value, expected);
+      showMessage("Día libre guardado.", "success");
+      await load();
+    } catch (error) { showMessage(assignedShiftMessage(error, "No se pudo marcar el día libre."), "error"); }
+  });
+}
+
 function bindAttendanceScheduleAdmin(module, employeeMap) {
   const region = module.querySelector("[data-schedule-admin]");
   if (!region || (!hasPermission("time.read.all") && !hasPermission("schedules.manage"))) return;
@@ -4354,6 +4495,7 @@ function bindHumanResourcesModule() {
   renderDirectory();
   syncDirectoryFromSupabase();
   bindHrAttendanceView();
+  bindAssignedShiftAdmin();
 }
 
 function populateSystemDataSelects() {
@@ -6984,6 +7126,61 @@ function bindAttendanceOperationalAlerts() {
   return load();
 }
 
+function calendarDateLabel(iso) {
+  const [year, month, day] = String(iso || "").split("-").map(Number);
+  if (!year || !month || !day) return "";
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("es-PR", {
+    weekday: "long", day: "numeric", month: "short", timeZone: "UTC"
+  });
+}
+
+function addCalendarDays(iso, days) {
+  const [year, month, day] = String(iso || "").split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}
+
+function bindMyAssignedShifts(employee) {
+  const section = document.querySelector("[data-my-shifts]");
+  if (!section) return;
+  const habitual = section.querySelector("[data-portal-habitual]");
+  if (habitual) habitual.textContent = employee?.horario || "Sin horario habitual en el expediente";
+  const assigned = section.querySelector("[data-my-shifts-assigned]");
+  if (!employee || !hasPermission("schedules.read.self")) {
+    if (assigned) assigned.hidden = true;
+    return;
+  }
+  const list = section.querySelector("[data-my-shifts-list]");
+  const label = section.querySelector("[data-my-shifts-label]");
+  let weekFrom = null;
+  let weekTo = null;
+  const renderDay = (day) => {
+    const lines = [];
+    if (day.day_off) lines.push("<span>Libre</span>");
+    (day.shifts || []).forEach((shift) => lines.push(`<span>${safeHtml(describeAssignedShift(shift))}</span>`));
+    (day.withdrawn || []).forEach((shift) => lines.push(`<span>${safeHtml(describeAssignedShift(shift))}</span>`));
+    if (!day.day_off && !(day.shifts || []).length) lines.push("<span>Sin turno asignado</span>");
+    return `<article class="portal-shift-day"><strong>${safeHtml(calendarDateLabel(day.shift_date))}</strong>${lines.join("")}</article>`;
+  };
+  const load = async (from, to) => {
+    const data = await listMyAssignedShifts(from, to);
+    weekFrom = data.from;
+    weekTo = data.to;
+    if (habitual && data.habitual) habitual.textContent = data.habitual;
+    label.textContent = `${calendarDateLabel(weekFrom)} – ${calendarDateLabel(weekTo)}`;
+    list.innerHTML = (data.days || []).map(renderDay).join("") || `<p class="portal-empty">Sin turno asignado</p>`;
+  };
+  section.querySelector("[data-my-shifts-prev]").addEventListener("click", () => {
+    if (!weekFrom || !weekTo) return;
+    load(addCalendarDays(weekFrom, -7), addCalendarDays(weekTo, -7)).catch((error) => { list.innerHTML = `<p class="portal-empty">${safeHtml(assignedShiftMessage(error, "No se pudo cargar el horario."))}</p>`; });
+  });
+  section.querySelector("[data-my-shifts-next]").addEventListener("click", () => {
+    if (!weekFrom || !weekTo) return;
+    load(addCalendarDays(weekFrom, 7), addCalendarDays(weekTo, 7)).catch((error) => { list.innerHTML = `<p class="portal-empty">${safeHtml(assignedShiftMessage(error, "No se pudo cargar el horario."))}</p>`; });
+  });
+  load(null, null).catch((error) => { list.innerHTML = `<p class="portal-empty">${safeHtml(assignedShiftMessage(error, "No se pudo cargar el horario."))}</p>`; });
+}
+
 async function bindEmployeePortal() {
   if (!document.querySelector("[data-employee-portal]")) return;
   const session = getSupabaseSession();
@@ -6992,7 +7189,7 @@ async function bindEmployeePortal() {
   const employee = await fetchOwnSupabaseEmployee();
   document.querySelector("[data-portal-name]").textContent = employee ? employeeDisplayName(employee) : (profile?.full_name || session.user?.email || "Usuario");
   document.querySelector("[data-portal-role]").textContent = employee?.posicion || (hasPermission("attendance.corrections.approve") ? "Recursos Humanos" : "Usuario autorizado");
-  document.querySelector("[data-portal-schedule]").textContent = employee?.horario || "Sin jornada de empleado vinculada";
+  bindMyAssignedShifts(employee);
   if (!employee) {
     document.querySelector(".portal-clock-card")?.setAttribute("hidden", "");
     document.querySelector("[data-portal-time-list]")?.closest(".portal-section")?.setAttribute("hidden", "");
@@ -7003,7 +7200,6 @@ async function bindEmployeePortal() {
   document.querySelector("[data-portal-corrections]").hidden = !employee || !hasPermission("attendance.corrections.request");
   document.querySelector("[data-portal-notifications]").closest(".portal-section").hidden = !hasPermission("notifications.read.self");
   document.querySelector("[data-portal-clock-button]").hidden = !personal.clock;
-  document.querySelector(".portal-schedule").hidden = !personal.schedule;
   document.querySelector("[data-portal-time-list]").closest(".portal-section").hidden = !personal.attendance;
   document.querySelector("[data-portal-account]").textContent = employee ? [employeeDisplayName(employee), employee.correo, employee.telefono].filter(Boolean).join(" · ") : (profile.full_name || profile.email || "Mi cuenta");
   document.querySelector("[data-portal-date]").textContent = formatPortalDate(new Date(), { weekday: "long", month: "long", day: "numeric" });

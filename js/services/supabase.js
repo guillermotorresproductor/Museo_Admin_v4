@@ -414,6 +414,53 @@ async function manageSupabaseSchedule(action, payload = {}) {
 async function createSupabaseScheduleRule(rule) { return manageSupabaseSchedule(rule.supersedes_rule_id ? "revise_rule" : "create_rule", { rule }); }
 async function deactivateSupabaseScheduleRule(ruleId, reason) { return manageSupabaseSchedule("deactivate_rule", { rule_id: ruleId, reason }); }
 async function createSupabaseScheduleException(exception) { return manageSupabaseSchedule("create_exception", { exception }); }
+async function listEmployeeShifts(employeeId, from, to) {
+  return supabasePost("/rest/v1/rpc/list_employee_shifts", {
+    p_employee_id: employeeId,
+    p_from: from || null,
+    p_to: to || null
+  });
+}
+
+async function listMyAssignedShifts(from, to) {
+  return supabasePost("/rest/v1/rpc/list_my_assigned_shifts", {
+    p_from: from || null,
+    p_to: to || null
+  });
+}
+
+async function scheduleEmployeeShift(shift) {
+  return supabasePost("/rest/v1/rpc/schedule_employee_shift", {
+    p_employee_id: shift.employeeId,
+    p_shift_date: shift.shiftDate,
+    p_starts_local: shift.startsLocal,
+    p_ends_local: shift.endsLocal,
+    p_shift_id: shift.shiftId || null,
+    p_expected_lunch_minutes: shift.setLunch ? shift.lunchMinutes : null,
+    p_set_lunch: Boolean(shift.setLunch),
+    p_shift_type: shift.shiftType || null,
+    p_expected_updated_at: shift.expectedUpdatedAt || null,
+    p_reason: shift.reason || null
+  });
+}
+
+async function cancelEmployeeShift(shiftId, expectedUpdatedAt, reason) {
+  return supabasePost("/rest/v1/rpc/cancel_employee_shift", {
+    p_shift_id: shiftId,
+    p_expected_updated_at: expectedUpdatedAt,
+    p_reason: reason
+  });
+}
+
+async function setEmployeeDayOff(employeeId, shiftDate, reason, expectedShifts) {
+  return supabasePost("/rest/v1/rpc/set_employee_day_off", {
+    p_employee_id: employeeId,
+    p_shift_date: shiftDate,
+    p_reason: reason,
+    p_expected_shifts: expectedShifts || []
+  });
+}
+
 async function fetchSupabaseUpcomingShifts(limit = 30) {
   const now = encodeURIComponent(new Date().toISOString());
   return supabaseGet(`/rest/v1/employee_shifts?select=id,employee_id,starts_at,ends_at,shift_type,status,schedule_rule_id&starts_at=gte.${now}&status=eq.scheduled&order=starts_at.asc&limit=${Math.min(Math.max(Number(limit)||30,1),100)}`);

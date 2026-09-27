@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Recursos Humanos</title>
-  <link rel="stylesheet" href="css/main.css?v=attendance-exclusion-20260927">
+  <link rel="stylesheet" href="css/main.css?v=assigned-shifts-20260928">
 </head>
 <body>
   <div class="app-shell">
@@ -194,6 +194,32 @@
             <div class="employee-list section-stack" aria-label="Directorio de empleados" data-employee-directory></div>
           </section>
 
+          <section class="section-stack assigned-shifts" data-assigned-shifts hidden aria-labelledby="assigned-shifts-title">
+            <p class="page-kicker">Horarios</p>
+            <h3 id="assigned-shifts-title">Turnos asignados</h3>
+            <p>Este es el horario que usa la asistencia. El horario habitual del expediente es solo referencia.</p>
+            <p>Puede haber más de un turno en la misma fecha. El ponche y el editor de ponches todavía eligen un solo turno; conectar los turnos partidos queda pendiente.</p>
+            <form class="assigned-shift-query" data-assigned-shifts-query>
+              <label class="field"><span>Empleado</span><select name="employeeId" required><option value="">Seleccione un empleado</option></select></label>
+              <label class="field"><span>Fecha</span><input type="date" name="shiftDate" required></label>
+              <button class="button" type="submit">Consultar</button>
+            </form>
+            <p class="form-message" data-assigned-shifts-message></p>
+            <div class="assigned-shift-list" data-assigned-shifts-list></div>
+            <form class="assigned-shift-form" data-assigned-shifts-edit hidden>
+              <input type="hidden" name="shiftId">
+              <input type="hidden" name="expectedUpdatedAt">
+              <label class="field"><span>Entrada</span><input type="time" name="startsLocal" required></label>
+              <label class="field"><span>Salida</span><input type="time" name="endsLocal" required></label>
+              <label class="field"><span>Almuerzo en minutos</span><input type="number" name="lunchMinutes" min="0" step="1"><small class="field-hint">Vacío conserva el almuerzo actual o hereda el del empleado.</small></label>
+              <label class="field"><span>Motivo</span><input type="text" name="reason" maxlength="240"><small class="field-hint">Obligatorio para cambiar, cancelar o marcar día libre. Si la salida es menor que la entrada, el turno termina al día siguiente.</small></label>
+              <button class="button" type="submit" data-assigned-save>Guardar turno</button>
+              <button class="button secondary" type="button" data-assigned-new>Nuevo turno</button>
+              <button class="button secondary" type="button" data-assigned-day-off>Día libre</button>
+              <button class="button secondary" type="button" data-assigned-cancel hidden>Cancelar turno</button>
+            </form>
+          </section>
+
           <section class="hr-attendance section-stack" data-attendance-module hidden aria-labelledby="attendance-title">
             <div class="panel-heading-inline">
               <div>
@@ -262,8 +288,8 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=attendance-exclusion-20260927"></script>
-  <script src="js/app.js?v=attendance-exclusion-20260927"></script>
+  <script src="js/services/supabase.js?v=assigned-shifts-20260928"></script>
+  <script src="js/app.js?v=assigned-shifts-20260928"></script>
 </body>
 </html>
 
