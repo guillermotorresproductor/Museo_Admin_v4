@@ -3803,8 +3803,9 @@ function bindHrAttendanceView() {
   const setMessage = (text, type = "") => { message.textContent = text; message.className = `form-message ${type}`.trim(); };
 
   const render = (entries) => {
-    const completed = entries.filter((entry) => entry.clock_out);
-    const open = entries.length - completed.length;
+    const counting = entries.filter((entry) => !entry.excluded_at);
+    const completed = counting.filter((entry) => entry.clock_out);
+    const open = counting.length - completed.length;
     const totalHours = completed.reduce((total, entry) => total + durationHours(entry), 0);
     const employees = new Set(entries.map((entry) => entry.employee_id)).size;
     summary.innerHTML = [
@@ -3820,8 +3821,9 @@ function bindHrAttendanceView() {
     body.innerHTML = entries.map((entry) => {
       const employee = employeeMap.get(entry.employee_id);
       const name = employee ? employeeDisplayName(employee) : "Empleado no disponible";
-      const duration = entry.clock_out ? `${durationHours(entry).toLocaleString("es-PR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h` : "En curso";
-      return `<tr><td><strong>${safeHtml(name)}</strong></td><td>${formatDate(entry.clock_in)}</td><td>${formatTime(entry.clock_in)}</td><td>${formatTime(entry.clock_out)}</td><td>${duration}</td><td><span class="attendance-status ${entry.clock_out ? "is-complete" : "is-open"}">${entry.clock_out ? "Completado" : "Activo"}</span></td></tr>`;
+      const duration = entry.excluded_at ? "—" : entry.clock_out ? `${durationHours(entry).toLocaleString("es-PR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} h` : "En curso";
+      const status = entry.excluded_at ? "EXCLUIDO — NO COMPUTA" : entry.clock_out ? "Completado" : "Activo";
+      return `<tr><td><strong>${safeHtml(name)}</strong></td><td>${formatDate(entry.clock_in)}</td><td>${formatTime(entry.clock_in)}</td><td>${formatTime(entry.clock_out)}</td><td>${duration}</td><td><span class="attendance-status ${entry.excluded_at ? "is-excluded" : entry.clock_out ? "is-complete" : "is-open"}">${status}</span></td></tr>`;
     }).join("");
   };
 
@@ -5312,8 +5314,20 @@ function bindAttendanceHistory() {
     return range.from === range.to ? start : `${start} – ${end}`;
   };
   const canCorrect = hasPermission("attendance.punches.correct");
+  const canExclude = hasPermission("attendance.exclusions.manage");
+  const excludedMark = "EXCLUIDO — NO COMPUTA";
+  const exclusionMotives = [["", "Seleccione un motivo"], ["system_test", "Prueba del sistema"], ["duplicate_punch", "Ponche duplicado"], ["mistaken_punch", "Ponche realizado por error"], ["incorrect_admin_record", "Registro administrativo incorrecto"], ["other", "Otro"]];
   const punchTime = (value) => value ? new Intl.DateTimeFormat("en-GB", { timeZone: "America/Puerto_Rico", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value)) : "";
-  const renderDays = (days, employeeId) => days.map((day) => `<tr><td>${safeHtml(day.shift_date)}</td><td>${clock(day.clock_in)}</td><td>${clock(day.lunch_out)}</td><td>${clock(day.lunch_in)}</td><td>${clock(day.clock_out)}</td><td>${hours(day.regular_minutes)}</td><td>${hours(day.approved_overtime_minutes)}</td><td>${safeHtml(statusLabel[day.status] || day.status)}${day.late ? " · Tardanza" : ""}</td><td>${day.corrected ? "Corregido" : "—"}${canCorrect ? ` <button class="button secondary" type="button" data-punch-edit data-employee="${safeHtml(employeeId)}" data-date="${safeHtml(day.shift_date)}">Revisar / Editar ponches</button>` : ""}${day.corrected ? ` <button class="button secondary" type="button" data-punch-history data-employee="${safeHtml(employeeId)}" data-date="${safeHtml(day.shift_date)}">Ver historial</button>` : ""}</td></tr>`).join("");
+  const shownTime = (value, excluded) => `${clock(value)}${value && excluded ? ` <span class="attendance-excluded">${excludedMark}</span>` : ""}`;
+  const renderDays = (days, employeeId) => days.map((day) => {
+    const shiftButton = canExclude && day.shift_id
+      ? `<button class="button secondary" type="button" data-shift-exclusion data-shift="${safeHtml(day.shift_id)}" data-action="${day.shift_excluded ? "restore" : "exclude"}">${day.shift_excluded ? "Restaurar jornada" : "Excluir jornada"}</button>`
+      : "";
+    const status = day.shift_excluded
+      ? `<span class="attendance-excluded">${excludedMark}</span>`
+      : `${safeHtml(statusLabel[day.status] || day.status)}${day.late ? " · Tardanza" : ""}`;
+    return `<tr><td>${safeHtml(day.shift_date)}</td><td>${shownTime(day.clock_in, day.clock_in_excluded)}</td><td>${shownTime(day.lunch_out, day.lunch_out_excluded)}</td><td>${shownTime(day.lunch_in, day.lunch_in_excluded)}</td><td>${shownTime(day.clock_out, day.clock_out_excluded)}</td><td>${hours(day.regular_minutes)}</td><td>${hours(day.approved_overtime_minutes)}</td><td>${status}</td><td>${day.corrected ? "Corregido" : "—"}${canCorrect || canExclude ? ` <button class="button secondary" type="button" data-punch-edit data-employee="${safeHtml(employeeId)}" data-date="${safeHtml(day.shift_date)}">Revisar / Editar ponches</button>` : ""}${day.corrected ? ` <button class="button secondary" type="button" data-punch-history data-employee="${safeHtml(employeeId)}" data-date="${safeHtml(day.shift_date)}">Ver historial</button>` : ""} ${shiftButton}</td></tr>`;
+  }).join("");
   const render = (payload) => {
     const rows = Array.isArray(payload?.employees) ? payload.employees : [];
     body.innerHTML = rows.length ? rows.map((row) => `<tr data-history-employee="${safeHtml(row.employee_id)}"><td><strong>${safeHtml(row.name || "Empleado")}</strong></td><td>${row.scheduled_days}</td><td>${row.days_with_punches}</td><td>${hours(row.regular_minutes)}</td><td>${hours(row.approved_overtime_minutes)}</td><td>${row.late_days}</td><td>${row.incident_days}</td><td>${row.corrected_days}</td><td><button class="button secondary" type="button" data-history-open>Ver días</button></td></tr><tr hidden data-history-detail="${safeHtml(row.employee_id)}"><td colspan="9"><table class="data-table"><thead><tr><th>Fecha</th><th>Entrada</th><th>Salida almuerzo</th><th>Regreso</th><th>Salida</th><th>Horas regulares</th><th>Horas extra aprobadas</th><th>Estado</th><th>Corrección</th></tr></thead><tbody>${renderDays(row.days || [], row.employee_id)}</tbody></table></td></tr>`).join("") : `<tr><td colspan="9">No hay turnos programados en este período.</td></tr>`;
@@ -5326,6 +5340,9 @@ function bindAttendanceHistory() {
     });
     body.querySelectorAll("[data-punch-edit], [data-punch-history]").forEach((button) => {
       button.addEventListener("click", () => openPunchEditor(button.dataset.employee, button.dataset.date, button.hasAttribute("data-punch-history")));
+    });
+    body.querySelectorAll("[data-shift-exclusion]").forEach((button) => {
+      button.addEventListener("click", () => applyExclusion(button.dataset.shift, null, button.dataset.action));
     });
   };
   const editor = history.querySelector("[data-punch-editor]");
@@ -5341,15 +5358,62 @@ function bindAttendanceHistory() {
     if (text.includes("AUTHORIZER_REQUIRED")) return "Seleccione quién autorizó.";
     if (text.includes("AUTHORIZER_NOT_FOUND")) return "La persona que autoriza no pertenece a este museo.";
     if (text.includes("TIME_ENTRY_AMBIGUOUS") || text.includes("TIME_ENTRY_NOT_RECONCILABLE")) return "No se pudo conciliar el fichaje. No se guardó ningún cambio.";
+    if (text.includes("TIME_ENTRY_OPEN_CONFLICT")) return "Restaurar dejaría dos fichajes abiertos. No se guardó ningún cambio.";
+    if (text.includes("PENDING_CORRECTION")) return "Hay una corrección pendiente en esta jornada. Decídala antes de excluir.";
+    if (text.includes("EXCLUSION_ACTIVE")) return "La jornada o el ponche está excluido.";
+    if (text.includes("INVALID_EXCLUSION_SEQUENCE")) return "Esa exclusión dejaría una secuencia de ponches inválida. No se guardó ningún cambio.";
+    if (text.includes("ALREADY_EXCLUDED")) return "Ya está excluido.";
+    if (text.includes("NOT_EXCLUDED")) return "No está excluido.";
+    if (text.includes("SHIFT_EXCLUDED")) return "La jornada está excluida. Restaure la jornada primero.";
     return text || "No se pudo guardar la corrección.";
+  };
+  const askExclusion = () => new Promise((resolve) => {
+    let form = history.querySelector("[data-exclusion-form]");
+    if (!form) {
+      form = document.createElement("form");
+      form.className = "punch-correct-form";
+      form.dataset.exclusionForm = "";
+      form.innerHTML = `<h3>Excluir o restaurar</h3><label class="field"><span>Motivo</span><select name="motive">${exclusionMotives.map(([value, label]) => `<option value="${safeHtml(value)}">${safeHtml(label)}</option>`).join("")}</select></label><label class="field"><span>Explicación</span><textarea name="explanation"></textarea></label><div class="attendance-period-nav"><button class="button" type="submit">Confirmar</button><button class="button secondary" type="button" data-exclusion-cancel>Cancelar</button></div><p class="form-message" data-exclusion-message></p>`;
+      history.appendChild(form);
+    }
+    form.hidden = false;
+    form.motive.value = "";
+    form.explanation.value = "";
+    const note = form.querySelector("[data-exclusion-message]");
+    note.textContent = "";
+    note.className = "form-message";
+    form.querySelector("[data-exclusion-cancel]").onclick = () => { form.hidden = true; resolve(null); };
+    form.onsubmit = (event) => {
+      event.preventDefault();
+      if (!form.motive.value) { note.textContent = "Seleccione un motivo."; note.className = "form-message error"; return; }
+      if (form.motive.value === "other" && !form.explanation.value.trim()) { note.textContent = "Escriba la explicación."; note.className = "form-message error"; return; }
+      form.hidden = true;
+      resolve({ motive: form.motive.value, explanation: form.explanation.value.trim() });
+    };
+  });
+  const applyExclusion = async (shiftId, eventId, action, employeeId, shiftDate) => {
+    const answer = await askExclusion();
+    if (!answer || !shiftId) return;
+    message.textContent = "Guardando...";
+    try {
+      await setAttendanceExclusion(shiftId, eventId, action, answer.motive, answer.explanation);
+      message.textContent = action === "restore" ? "Restauración guardada." : "Exclusión guardada.";
+      message.className = "form-message success";
+      await load();
+      if (employeeId && shiftDate) await openPunchEditor(employeeId, shiftDate, false);
+    } catch (error) {
+      message.textContent = punchError(error);
+      message.className = "form-message error";
+    }
   };
   const openPunchEditor = async (employeeId, shiftDate, historyOnly) => {
     editor.hidden = false;
     editor.innerHTML = "<p>Cargando jornada...</p>";
     try {
-      const [detail, authorizers] = historyOnly
-        ? [await fetchShiftPunchHistory(employeeId, shiftDate), []]
-        : await Promise.all([fetchShiftPunchEditor(employeeId, shiftDate), fetchAttendanceCorrectionAuthorizers()]);
+      const detail = historyOnly
+        ? await fetchShiftPunchHistory(employeeId, shiftDate)
+        : await fetchShiftPunchEditor(employeeId, shiftDate);
+      const authorizers = !historyOnly && canCorrect ? await fetchAttendanceCorrectionAuthorizers() : [];
       const events = detail.events || {};
       const fields = [["clock_in", "Entrada"], ["lunch_out", "Salida almuerzo"], ["lunch_in", "Regreso"], ["clock_out", "Salida"]];
       const motives = [["", "Seleccione un motivo"], ["missed_clock_in", "No ponchó en la hora de entrada laboral"], ["missed_lunch_out", "No ponchó en la salida del período de almuerzo"], ["missed_lunch_in", "No ponchó en la entrada del período de almuerzo"], ["missed_clock_out", "No ponchó en la hora de salida"], ["other", "Otro"]];
@@ -5357,8 +5421,14 @@ function bindAttendanceHistory() {
       const punchLabel = Object.fromEntries(fields);
       const historyRows = (detail.history || []).map((item) => `<tr><td>${safeHtml(punchLabel[item.event_type] || item.event_type || "—")}</td><td>${clock(item.original_at)}</td><td>${clock(item.corrected_at)}</td><td>${safeHtml(motiveLabel[item.motive] || "—")}</td><td>${safeHtml(item.explanation || "—")}</td><td>${safeHtml(item.authorized_by || "—")}</td><td>${safeHtml(item.corrected_by || "—")}</td><td>${clock(item.corrected_on)}</td></tr>`).join("");
       const authorizerOptions = [`<option value="">Seleccione quién autorizó</option>`].concat((authorizers || []).map((person) => `<option value="${safeHtml(person.id)}">${safeHtml(person.name || "Empleado")}</option>`)).join("");
-      editor.innerHTML = `<h3>${historyOnly ? "Historial de ponches" : "Revisar / Editar ponches"}</h3><p>${safeHtml(shiftDate)} · Programado ${clock(detail.starts_at)} – ${clock(detail.ends_at)}</p>${historyOnly ? "" : `<form class="punch-correct-form" data-punch-form><div class="form-row">${fields.map(([key, name]) => `<label class="field"><span>${name}</span><input type="time" name="${key}" value="${punchTime(events[key]?.occurred_at)}" data-event-id="${safeHtml(events[key]?.id || "")}" data-original="${punchTime(events[key]?.occurred_at)}"></label>`).join("")}</div><label class="field"><span>Motivo</span><select name="motive">${motives.map(([value, label]) => `<option value="${safeHtml(value)}">${safeHtml(label)}</option>`).join("")}</select></label><label class="field"><span>Explicación</span><textarea name="explanation"></textarea></label><label class="field"><span>Autorizado por</span><select name="authorizedBy">${authorizerOptions}</select></label><div class="attendance-period-nav"><button class="button" type="submit">Guardar corrección</button><button class="button secondary" type="button" data-punch-cancel>Cancelar</button></div><p class="form-message" data-punch-message></p></form>`}<div class="punch-history-wrap"><table class="data-table"><thead><tr><th>Ponche</th><th>Original</th><th>Corregido</th><th>Motivo</th><th>Explicación</th><th>Autorizado por</th><th>Corregido por</th><th>Fecha y hora</th></tr></thead><tbody>${historyRows || "<tr><td colspan=\"8\">Sin correcciones anteriores.</td></tr>"}</tbody></table></div>`;
+      const punchButtons = canExclude && !historyOnly && !detail.shift_excluded
+        ? fields.filter(([key]) => events[key]?.id).map(([key, name]) => `<button class="button secondary" type="button" data-event-exclusion data-event="${safeHtml(events[key].id)}" data-action="${events[key].excluded ? "restore" : "exclude"}">${events[key].excluded ? "Restaurar ponche" : "Excluir ponche"} · ${safeHtml(name)}</button>`).join("")
+        : "";
+      editor.innerHTML = `<h3>${historyOnly ? "Historial de ponches" : "Revisar / Editar ponches"}</h3><p>${safeHtml(shiftDate)} · Programado ${clock(detail.starts_at)} – ${clock(detail.ends_at)}</p>${detail.shift_excluded ? `<p class="attendance-excluded">${excludedMark}</p>` : ""}${historyOnly || !canCorrect ? "" : `<form class="punch-correct-form" data-punch-form><div class="form-row">${fields.map(([key, name]) => `<label class="field"><span>${name}${events[key]?.excluded ? ` <span class="attendance-excluded">${excludedMark}</span>` : ""}</span><input type="time" name="${key}" value="${punchTime(events[key]?.occurred_at)}" data-event-id="${safeHtml(events[key]?.id || "")}" data-original="${punchTime(events[key]?.occurred_at)}"${events[key]?.excluded ? " disabled" : ""}></label>`).join("")}</div><label class="field"><span>Motivo</span><select name="motive">${motives.map(([value, label]) => `<option value="${safeHtml(value)}">${safeHtml(label)}</option>`).join("")}</select></label><label class="field"><span>Explicación</span><textarea name="explanation"></textarea></label><label class="field"><span>Autorizado por</span><select name="authorizedBy">${authorizerOptions}</select></label><div class="attendance-period-nav"><button class="button" type="submit">Guardar corrección</button><button class="button secondary" type="button" data-punch-cancel>Cancelar</button></div><p class="form-message" data-punch-message></p></form>`}${punchButtons ? `<div class="attendance-period-nav">${punchButtons}</div>` : ""}<div class="punch-history-wrap"><table class="data-table"><thead><tr><th>Ponche</th><th>Original</th><th>Corregido</th><th>Motivo</th><th>Explicación</th><th>Autorizado por</th><th>Corregido por</th><th>Fecha y hora</th></tr></thead><tbody>${historyRows || "<tr><td colspan=\"8\">Sin correcciones anteriores.</td></tr>"}</tbody></table></div>`;
       editor.querySelector("[data-punch-cancel]")?.addEventListener("click", () => { editor.hidden = true; });
+      editor.querySelectorAll("[data-event-exclusion]").forEach((button) => {
+        button.addEventListener("click", () => applyExclusion(detail.shift_id, button.dataset.event, button.dataset.action, employeeId, shiftDate));
+      });
       editor.querySelector("[data-punch-form]")?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const form = event.currentTarget;
@@ -5368,7 +5438,7 @@ function bindAttendanceHistory() {
           return Boolean(input.dataset.original) && !input.value;
         });
         if (cleared) {
-          note.textContent = "Para eliminar un ponche debe utilizarse la función de anulación, que todavía no está disponible.";
+          note.textContent = "Para que un ponche deje de computar, use Excluir ponche.";
           note.className = "form-message error";
           return;
         }
@@ -6636,7 +6706,7 @@ function renderPortalTimeEntries(entries) {
   list.innerHTML = entries.map((entry) => `
     <article class="portal-entry">
       <div><strong>${formatPortalDate(entry.clock_in, { weekday: "short", month: "short", day: "numeric" })}</strong><span>${formatPortalDate(entry.clock_in, { hour: "numeric", minute: "2-digit" })} – ${entry.clock_out ? formatPortalDate(entry.clock_out, { hour: "numeric", minute: "2-digit" }) : "En curso"}</span></div>
-      <span class="portal-entry-status ${entry.clock_out ? "" : "is-open"}">${entry.clock_out ? "Completado" : "Activo"}</span>
+      <span class="portal-entry-status ${entry.excluded_at ? "is-excluded" : entry.clock_out ? "" : "is-open"}">${entry.excluded_at ? "EXCLUIDO — NO COMPUTA" : entry.clock_out ? "Completado" : "Activo"}</span>
     </article>`).join("");
 }
 

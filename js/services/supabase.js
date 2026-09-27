@@ -202,7 +202,7 @@ async function reactivateSupabaseEmployeeAccess(employeeId) {
 
 async function fetchOwnSupabaseTimeEntries(limit = 7, employeeId) {
   const safeLimit = Math.min(Math.max(Number(limit) || 7, 1), 30);
-  return supabaseGet(`/rest/v1/employee_time_entries?employee_id=eq.${encodeURIComponent(employeeId || (await fetchOwnSupabaseEmployee())?.id || "00000000-0000-0000-0000-000000000000")}&select=id,clock_in,clock_out,source,sync_status&order=clock_in.desc&limit=${safeLimit}`);
+  return supabaseGet(`/rest/v1/employee_time_entries?employee_id=eq.${encodeURIComponent(employeeId || (await fetchOwnSupabaseEmployee())?.id || "00000000-0000-0000-0000-000000000000")}&select=id,clock_in,clock_out,source,sync_status,excluded_at&order=clock_in.desc&limit=${safeLimit}`);
 }
 
 async function fetchOwnSupabaseAttendanceEvents(limit = 28, employeeId) {
@@ -380,8 +380,18 @@ async function correctShiftAttendancePunches(shiftId, motive, explanation, autho
   });
 }
 
+async function setAttendanceExclusion(shiftId, eventId, action, motive, explanation) {
+  return supabasePost("/rest/v1/rpc/set_attendance_exclusion", {
+    p_shift_id: shiftId,
+    p_event_id: eventId,
+    p_action: action,
+    p_motive: motive,
+    p_explanation: explanation
+  });
+}
+
 async function fetchSupabaseAttendance({ from, to, employeeId } = {}) {
-  const filters = ["select=id,employee_id,clock_in,clock_out,source,sync_status"];
+  const filters = ["select=id,employee_id,clock_in,clock_out,source,sync_status,excluded_at"];
   if (from) filters.push(`clock_in=gte.${encodeURIComponent(new Date(`${from}T00:00:00-04:00`).toISOString())}`);
   if (to) filters.push(`clock_in=lte.${encodeURIComponent(new Date(`${to}T23:59:59-04:00`).toISOString())}`);
   if (employeeId) filters.push(`employee_id=eq.${encodeURIComponent(employeeId)}`);
