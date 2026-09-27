@@ -3,6 +3,13 @@
 -- shift. Several non-overlapping shifts may be stored; those two readers are
 -- unchanged and are not split-shift aware yet.
 
+-- permissions.code is UNIQUE (permissions_code_key). Staging already has this
+-- row with sensitivity sensitive. Production does not. ON CONFLICT leaves the
+-- existing id and any user_permissions that point at it.
+insert into public.permissions(code, description, sensitivity)
+values ('schedules.manage', 'Administrar horarios', 'sensitive')
+on conflict (code) do nothing;
+
 do $patch$
 declare
   src text;

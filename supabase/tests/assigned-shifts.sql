@@ -107,23 +107,47 @@ begin
   perform set_config('request.jwt.claim.sub', actor::text, true);
   perform set_config('request.jwt.claims', json_build_object('sub', actor, 'role', 'authenticated')::text, true);
 
-  update public.employees set access_profile = 'gerente_administrativo' where id = manager;
+  if (select count(*) from public.permissions where code = 'schedules.manage') <> 1 then
+    raise exception 'PERMISSION_MISSING';
+  end if;
   delete from public.user_permissions
    where user_id = actor and museum_id = museum
      and permission_id = (select id from public.permissions where code = 'schedules.manage');
+
+  update public.employees set access_profile = 'director_ejecutivo' where id = manager;
   insert into public.user_permissions(user_id, museum_id, permission_id, effect)
   select actor, museum, id, 'deny' from public.permissions where code = 'schedules.manage';
-  if public.has_permission('schedules.manage') then raise exception 'DENY_IGNORED'; end if;
+  if not exists (
+    select 1 from public.user_permissions u
+    join public.permissions p on p.id = u.permission_id
+    where u.user_id = actor and u.museum_id = museum and u.effect = 'deny' and p.code = 'schedules.manage'
+  ) then raise exception 'DENY_WRONG_PERMISSION'; end if;
+  if public.has_permission('schedules.manage') then raise exception 'DIRECTOR_DENY_IGNORED'; end if;
   begin
     perform public.schedule_employee_shift(subject, monday, time '08:00', time '17:00');
-    raise exception 'DENY_WRITE_ALLOWED';
+    raise exception 'DIRECTOR_DENY_WRITE_ALLOWED';
   exception when insufficient_privilege then
     if sqlerrm <> 'FORBIDDEN' then raise; end if;
   end;
   delete from public.user_permissions
    where user_id = actor and museum_id = museum
      and permission_id = (select id from public.permissions where code = 'schedules.manage');
-  if not public.has_permission('schedules.manage') then raise exception 'DENY_STUCK'; end if;
+  if not public.has_permission('schedules.manage') then raise exception 'DIRECTOR_DENY_STUCK'; end if;
+
+  update public.employees set access_profile = 'gerente_administrativo' where id = manager;
+  insert into public.user_permissions(user_id, museum_id, permission_id, effect)
+  select actor, museum, id, 'deny' from public.permissions where code = 'schedules.manage';
+  if public.has_permission('schedules.manage') then raise exception 'MANAGER_DENY_IGNORED'; end if;
+  begin
+    perform public.schedule_employee_shift(subject, monday, time '08:00', time '17:00');
+    raise exception 'MANAGER_DENY_WRITE_ALLOWED';
+  exception when insufficient_privilege then
+    if sqlerrm <> 'FORBIDDEN' then raise; end if;
+  end;
+  delete from public.user_permissions
+   where user_id = actor and museum_id = museum
+     and permission_id = (select id from public.permissions where code = 'schedules.manage');
+  if not public.has_permission('schedules.manage') then raise exception 'MANAGER_DENY_STUCK'; end if;
 
   update public.employees set access_profile = 'director_ejecutivo' where id = manager;
   result := public.schedule_employee_shift(subject, monday, time '08:00', time '17:00');
@@ -444,6 +468,29 @@ begin
   exception when sqlstate 'P0002' then
     if sqlerrm <> 'EMPLOYEE_NOT_FOUND' then raise; end if;
   end;
+  insert into public.user_permissions(user_id, museum_id, permission_id, effect)
+  select actor, foreign_museum, id, 'deny' from public.permissions where code = 'schedules.manage';
+  if not public.has_permission('schedules.manage') then raise exception 'FOREIGN_DENY_BLOCKED_HOME'; end if;
+  delete from public.user_permissions
+   where user_id = actor and museum_id = foreign_museum
+     and permission_id = (select id from public.permissions where code = 'schedules.manage');
+  alter table public.profiles disable trigger profiles_protect_security;
+  alter table public.employees disable trigger employees_protect_sensitive;
+  update public.profiles set museum_id = foreign_museum where id = actor;
+  update public.employees set museum_id = foreign_museum where id = manager;
+  if public.current_user_museum_id() is distinct from foreign_museum then raise exception 'FOREIGN_SESSION_MISSING'; end if;
+  if not public.has_permission('schedules.manage') then raise exception 'FOREIGN_PROFILE_DENIED'; end if;
+  begin
+    perform public.schedule_employee_shift(subject, date '2027-07-12', time '08:00', time '17:00');
+    raise exception 'FOREIGN_MUSEUM_MANAGED_HOME';
+  exception when sqlstate 'P0002' then
+    if sqlerrm <> 'EMPLOYEE_NOT_FOUND' then raise; end if;
+  end;
+  update public.employees set museum_id = museum where id = manager;
+  update public.profiles set museum_id = museum where id = actor;
+  alter table public.employees enable trigger employees_protect_sensitive;
+  alter table public.profiles enable trigger profiles_protect_security;
+  if public.current_user_museum_id() is distinct from museum then raise exception 'HOME_MUSEUM_NOT_RESTORED'; end if;
 
   begin
     perform public.schedule_employee_shift(manager, date '2027-07-13', time '08:00', time '17:00');
