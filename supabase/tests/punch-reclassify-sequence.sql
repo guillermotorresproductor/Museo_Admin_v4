@@ -36,6 +36,16 @@ declare
   original_at timestamptz;
   original_supersedes uuid;
   new_event uuid;
+  real_out uuid;
+  lunch_out_id uuid;
+  lunch_in_id uuid;
+  moved_lunch uuid;
+  index_before text;
+  index_after text;
+  real_at timestamptz := (date '2027-11-02' + time '17:00:00') at time zone 'America/Puerto_Rico';
+  lunch_out_at timestamptz := (date '2027-11-02' + time '12:00:00') at time zone 'America/Puerto_Rico';
+  lunch_in_at timestamptz := (date '2027-11-02' + time '13:00:00') at time zone 'America/Puerto_Rico';
+  moved_lunch_at timestamptz := (date '2027-11-02' + time '12:05:00') at time zone 'America/Puerto_Rico';
 begin
   if not exists (
     select 1 from information_schema.columns
@@ -52,6 +62,9 @@ begin
    limit 1;
   if actor is null then raise exception 'FIXTURE_MANAGER'; end if;
   select public.attendance_shift_timezone(museum) into tz;
+  select indexdef into index_before from pg_indexes
+   where schemaname = 'public' and indexname = 'attendance_events_original_type_idx';
+  if index_before is null then raise exception 'INDEX_MISSING'; end if;
   select s.geofence_radius_meters, s.latitude, s.longitude
     into radius, lat, lng
     from public.attendance_settings s
@@ -218,6 +231,118 @@ begin
   if history is null or history->>'authorized_by' is null or history->>'explanation' is null then
     raise exception 'HISTORY %', history;
   end if;
+
+  perform public.correct_shift_attendance_punches(
+    wrong_shift, 'missed_lunch_out', null, manager,
+    jsonb_build_array(
+      jsonb_build_object('event_type', 'lunch_out', 'occurred_at', lunch_out_at, 'expected_event_id', null),
+      jsonb_build_object('event_type', 'lunch_in', 'occurred_at', lunch_in_at, 'expected_event_id', null)
+    )
+  );
+  result := public.correct_shift_attendance_punches(
+    wrong_shift, 'missed_clock_out', null, manager,
+    jsonb_build_array(jsonb_build_object('event_type', 'clock_out', 'occurred_at', real_at, 'expected_event_id', null))
+  );
+  if (result->>'clock_out')::timestamptz is distinct from real_at then raise exception 'REAL_CLOCK_OUT %', result; end if;
+  select ev.id into real_out
+    from public.attendance_events ev
+   where ev.shift_id = wrong_shift and ev.event_type = 'clock_out' and ev.occurred_at = real_at
+     and ev.supersedes_event_id = wrong_event;
+  if real_out is null then raise exception 'REAL_CLOCK_OUT_LINK'; end if;
+  if exists (
+    select 1 from public.attendance_events newer where newer.supersedes_event_id = real_out
+  ) then raise exception 'REAL_CLOCK_OUT_NOT_OPERATIVE'; end if;
+  select ev.event_type, ev.occurred_at, ev.supersedes_event_id
+    into original_type, original_at, original_supersedes
+    from public.attendance_events ev where ev.id = wrong_event;
+  if original_type is distinct from 'clock_out' or original_at is distinct from wrong_at or original_supersedes is not null then
+    raise exception 'ORIGINAL_CHANGED_AFTER_REAL_EXIT';
+  end if;
+  if (select ev.correction_request_id from public.attendance_events ev where ev.id = wrong_event) is not null then
+    raise exception 'ORIGINAL_REQUEST_WRITTEN';
+  end if;
+  if (
+    select count(*) from public.attendance_events ev
+     where ev.shift_id = wrong_shift and ev.event_type = 'clock_out' and ev.supersedes_event_id is null
+  ) <> 1 then raise exception 'SECOND_ORIGINAL_CLOCK_OUT'; end if;
+  select ev.id into lunch_out_id
+    from public.attendance_events ev
+   where ev.shift_id = wrong_shift and ev.event_type = 'lunch_out'
+     and not exists (select 1 from public.attendance_events newer where newer.supersedes_event_id = ev.id);
+  select ev.id into lunch_in_id
+    from public.attendance_events ev
+   where ev.shift_id = wrong_shift and ev.event_type = 'lunch_in'
+     and not exists (select 1 from public.attendance_events newer where newer.supersedes_event_id = ev.id);
+  if (select ev.occurred_at from public.attendance_events ev where ev.id = new_event) <> corrected_at
+     or (select ev.occurred_at from public.attendance_events ev where ev.id = lunch_out_id) <> lunch_out_at
+     or (select ev.occurred_at from public.attendance_events ev where ev.id = lunch_in_id) <> lunch_in_at
+     or (select ev.occurred_at from public.attendance_events ev where ev.id = real_out) <> real_at
+     or corrected_at >= lunch_out_at or lunch_out_at >= lunch_in_at or lunch_in_at >= real_at then
+    raise exception 'EFFECTIVE_SEQUENCE';
+  end if;
+  if not exists (
+    select 1 from public.employee_time_entries t
+     where t.employee_id = puncher and t.clock_in = corrected_at and t.clock_out = real_at and t.excluded_at is null
+  ) then raise exception 'TIME_ENTRY_NOT_CLOSED'; end if;
+  if (select t.clock_out is null and t.excluded_at is not null from public.employee_time_entries t where t.id = excluded_entry) is not true then
+    raise exception 'EXCLUDED_ENTRY_CHANGED_LATER';
+  end if;
+  if not exists (
+    select 1 from public.attendance_correction_requests r
+     where r.corrected_event_id = real_out and r.original_event_id = wrong_event
+       and r.requested_event_type = 'clock_out' and r.status = 'approved' and r.direct_admin
+       and r.correction_motive = 'missed_clock_out' and r.authorized_employee_id = manager
+  ) then raise exception 'REAL_EXIT_REQUEST'; end if;
+  if not exists (
+    select 1 from public.attendance_attempts a
+     where a.id = (select ev.attempt_id from public.attendance_events ev where ev.id = real_out)
+       and a.presence_method = 'administrative_correction' and a.reason_code = 'APPROVED_CORRECTION'
+       and a.requested_event = 'clock_out' and a.result = 'accepted'
+  ) then raise exception 'REAL_EXIT_ATTEMPT'; end if;
+  if not exists (
+    select 1 from public.audit_logs al
+     where al.action = 'ATTENDANCE_ADMIN_PUNCH_CORRECTED'
+       and al.new_value->>'corrected_event_id' = real_out::text
+       and al.old_value->>'original_event_id' = wrong_event::text
+  ) then raise exception 'REAL_EXIT_AUDIT'; end if;
+  select item into history
+    from jsonb_array_elements(public.list_shift_punch_history(wrong_shift)) item
+   where item->>'event_type' = 'clock_out' and item->>'motive' = 'missed_clock_out';
+  if (history->>'original_at')::timestamptz is distinct from wrong_at
+     or (history->>'corrected_at')::timestamptz is distinct from real_at
+     or history->>'authorized_by' is null then
+    raise exception 'REAL_EXIT_HISTORY %', history;
+  end if;
+
+  perform public.correct_shift_attendance_punches(
+    wrong_shift, 'missed_lunch_out', null, manager,
+    jsonb_build_array(jsonb_build_object('event_type', 'lunch_out', 'occurred_at', moved_lunch_at, 'expected_event_id', lunch_out_id))
+  );
+  select ev.id into moved_lunch
+    from public.attendance_events ev
+   where ev.supersedes_event_id = lunch_out_id and ev.event_type = 'lunch_out' and ev.occurred_at = moved_lunch_at;
+  if moved_lunch is null then raise exception 'SAME_TYPE_CORRECTION'; end if;
+  if (
+    select count(*) from public.attendance_events ev
+     where ev.shift_id = wrong_shift and ev.event_type = 'lunch_out'
+       and not exists (select 1 from public.attendance_events newer where newer.supersedes_event_id = ev.id)
+  ) <> 1 or (
+    select count(*) from public.attendance_events ev
+     where ev.shift_id = wrong_shift and ev.event_type = 'clock_out'
+       and not exists (select 1 from public.attendance_events newer where newer.supersedes_event_id = ev.id)
+  ) <> 1 then raise exception 'TWO_OPERATIVE'; end if;
+  begin
+    perform public.correct_shift_attendance_punches(
+      wrong_shift, 'missed_clock_out', null, manager,
+      jsonb_build_array(jsonb_build_object('event_type', 'clock_out', 'occurred_at', real_at + interval '5 minutes', 'expected_event_id', null))
+    );
+    raise exception 'SECOND_OPERATIVE_ALLOWED';
+  exception when sqlstate 'P0001' then
+    if sqlerrm <> 'ATTENDANCE_CHANGED_RELOAD' then raise; end if;
+  end;
+  select indexdef into index_after from pg_indexes
+   where schemaname = 'public' and indexname = 'attendance_events_original_type_idx';
+  if index_after is distinct from index_before then raise exception 'INDEX_CHANGED'; end if;
 
   select count(*) into others_after from public.attendance_events ev where ev.employee_id <> puncher;
   if others_after <> others_before then raise exception 'OTHER_EMPLOYEES_CHANGED'; end if;
