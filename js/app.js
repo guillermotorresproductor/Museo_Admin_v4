@@ -5466,7 +5466,7 @@ function bindAttendanceHistory() {
       ? `<button class="button secondary" type="button" data-shift-exclusion data-shift="${safeHtml(day.shift_id)}" data-action="${day.shift_excluded ? "restore" : "exclude"}">${day.shift_excluded ? "Restaurar jornada" : "Excluir jornada"}</button>`
       : "";
     const status = day.shift_excluded
-      ? `<span class="attendance-excluded">${excludedMark}</span>`
+      ? `<span class="attendance-excluded">${excludedMark}</span>${day.status === "INCONSISTENCIA" ? " · Inconsistencia" : ""}`
       : `${safeHtml(statusLabel[day.status] || day.status)}${day.late ? " · Tardanza" : ""}`;
     return `<tr><td>${safeHtml(day.shift_date)}</td><td>${shownTime(day.clock_in, day.clock_in_excluded)}</td><td>${shownTime(day.lunch_out, day.lunch_out_excluded)}</td><td>${shownTime(day.lunch_in, day.lunch_in_excluded)}</td><td>${shownTime(day.clock_out, day.clock_out_excluded)}</td><td>${hours(day.regular_minutes)}</td><td>${hours(day.approved_overtime_minutes)}</td><td>${status}</td><td>${day.corrected ? "Corregido" : "—"}${canCorrect || canExclude ? ` <button class="button secondary" type="button" data-punch-edit data-employee="${safeHtml(employeeId)}" data-date="${safeHtml(day.shift_date)}">Revisar / Editar ponches</button>` : ""}${day.corrected ? ` <button class="button secondary" type="button" data-punch-history data-employee="${safeHtml(employeeId)}" data-date="${safeHtml(day.shift_date)}">Ver historial</button>` : ""} ${shiftButton}</td></tr>`;
   }).join("");
@@ -7215,9 +7215,22 @@ async function bindEmployeePortal() {
     lunch_in: "Regreso de almuerzo",
     clock_out: "Registrar salida"
   };
-  const nextAction = (events) => {
-    const latest = events[0]?.event_type;
-    return latest === "clock_in" ? "lunch_out" : latest === "lunch_out" ? "lunch_in" : latest === "lunch_in" ? "clock_out" : "clock_in";
+  const currentShiftPunchAction = (events) => {
+    const operative = [...(events || [])].sort((a, b) => new Date(a.occurred_at) - new Date(b.occurred_at));
+    const latest = operative[operative.length - 1]?.event_type;
+    if (!latest) return "clock_in";
+    if (latest === "clock_in") return "lunch_out";
+    if (latest === "lunch_out") return "lunch_in";
+    if (latest === "lunch_in") return "clock_out";
+    return null;
+  };
+  const historicalShiftNote = (openShifts) => {
+    const prior = (openShifts || [])[0];
+    if (!prior?.shift_date) return "";
+    const label = new Intl.DateTimeFormat("es-PR", { timeZone: "UTC", day: "numeric", month: "long" }).format(new Date(`${prior.shift_date}T12:00:00Z`));
+    return prior.excluded
+      ? `Jornada del ${label} inconsistente y excluida. No afecta el ponche de hoy.`
+      : `Jornada del ${label} inconsistente. No afecta el ponche de hoy.`;
   };
   const requestPresence = () => new Promise((resolve, reject) => {
     if (!navigator.geolocation) { reject(new Error("Este dispositivo no permite validar la ubicacion.")); return; }
@@ -7228,17 +7241,35 @@ async function bindEmployeePortal() {
     );
   });
   const refresh = async () => {
-    const [entries, events] = await Promise.all([personal.attendance ? fetchOwnSupabaseTimeEntries(7, employee.id) : [], personal.attendance ? fetchOwnSupabaseAttendanceEvents(28, employee.id) : []]);
+    const [entries, state] = await Promise.all([
+      personal.attendance ? fetchOwnSupabaseTimeEntries(7, employee.id) : [],
+      personal.clock ? fetchMyCurrentPunchState() : { events: [], historical_open: [] }
+    ]);
     renderPortalTimeEntries(entries);
-    const action = nextAction(events);
-    button.dataset.action = action;
-    button.textContent = actionLabels[action];
-    button.classList.toggle("is-clocked-in", action !== "clock_in");
-    const latest = events[0];
-    status.textContent = latest && action !== "clock_in" ? `Ultimo registro: ${formatPortalDate(latest.occurred_at, { hour: "numeric", minute: "2-digit" })}` : "Fuera de turno";
+    const events = state?.events || [];
+    const action = currentShiftPunchAction(events);
+    const latest = [...events].sort((a, b) => new Date(a.occurred_at) - new Date(b.occurred_at));
+    const lastEvent = latest[latest.length - 1];
+    const note = document.querySelector("[data-portal-shift-note]");
+    button.hidden = !personal.clock;
+    button.disabled = !action;
+    if (action) {
+      button.dataset.action = action;
+      button.textContent = actionLabels[action];
+    } else {
+      delete button.dataset.action;
+      button.textContent = "Jornada completada";
+    }
+    button.classList.toggle("is-clocked-in", action && action !== "clock_in");
+    status.textContent = lastEvent ? `Ultimo registro: ${formatPortalDate(lastEvent.occurred_at, { hour: "numeric", minute: "2-digit" })}` : "Fuera de turno";
+    if (note) {
+      const text = historicalShiftNote(state?.historical_open);
+      note.hidden = !text;
+      note.textContent = text;
+    }
   };
   button.addEventListener("click", async () => {
-    if (!personal.clock) return;
+    if (!personal.clock || !button.dataset.action) return;
     button.disabled = true;
     message.textContent = "Validando presencia fisica...";
     try {
@@ -7250,7 +7281,7 @@ async function bindEmployeePortal() {
     } catch (error) {
       message.textContent = error.message || "No se pudo registrar el ponche.";
       message.className = "portal-message error";
-    } finally { button.disabled = false; }
+    } finally { button.disabled = !button.dataset.action; }
   });
   document.querySelector("[data-portal-logout]")?.addEventListener("click", () => clearLoginState(true, "logout"));
   renderPortalTools();

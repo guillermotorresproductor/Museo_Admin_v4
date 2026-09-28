@@ -429,6 +429,10 @@ async function listMyAssignedShifts(from, to) {
   });
 }
 
+async function fetchMyCurrentPunchState() {
+  return supabasePost("/rest/v1/rpc/my_current_punch_state", {});
+}
+
 async function scheduleEmployeeShift(shift) {
   return supabasePost("/rest/v1/rpc/schedule_employee_shift", {
     p_employee_id: shift.employeeId,
