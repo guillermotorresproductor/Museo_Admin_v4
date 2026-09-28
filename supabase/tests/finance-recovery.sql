@@ -13,9 +13,14 @@ insert into public.user_permissions(museum_id,user_id,permission_id,effect)
 insert into public.user_permissions(museum_id,user_id,permission_id,effect)
  select pr.museum_id,pr.id,p.id,'allow' from public.profiles pr cross join public.permissions p
  where pr.id='f5180000-0000-4000-8000-000000000003' and p.code='finance.read';
-insert into public.finance_records(id,museum_id,record_type,category,concept,month,year,amount)
- select id,museum_id,'income','TEST ONLY','ROLLBACK TEST','Septiembre',2026,123.45 from public.profiles
+insert into public.finance_budget_lines(museum_id,record_type,category,name,sort_order,counts_in_operating_balance)
+ select museum_id,'income','TEST ONLY','ROLLBACK TEST',1,true from public.profiles
  where id in ('f5180000-0000-4000-8000-000000000001','f5180000-0000-4000-8000-000000000002');
+insert into public.finance_records(id,museum_id,record_type,category,concept,month,year,amount,budget_line_id)
+ select pr.id,pr.museum_id,'income','TEST ONLY','ROLLBACK TEST','Septiembre',2026,123.45,l.id
+ from public.profiles pr
+ join public.finance_budget_lines l on l.museum_id=pr.museum_id and l.name='ROLLBACK TEST'
+ where pr.id in ('f5180000-0000-4000-8000-000000000001','f5180000-0000-4000-8000-000000000002');
 create temporary table finance_test_results(check_name text,passed boolean);
 grant all on finance_test_results to authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);

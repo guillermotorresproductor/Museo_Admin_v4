@@ -984,7 +984,6 @@ function updateCurrentUserFromEmployeeCache() {
   }
 }
 
-const financeMonths = ["Septiembre", "Octubre", "Noviembre", "Diciembre", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto"];
 const legacyFinanceProjectionRows = [
   { id: "ing-aportacion", type: "income", category: "Ingresos", concept: "Aportación Municipal", values: [100000,0,0,0,0,0,0,0,0,0,0,0] },
   { id: "ing-adultos", type: "income", category: "Entradas al Museo", concept: "Entradas Adultos", values: [0,0,26000,26000,26000,26000,26000,26000,26000,26000,26000,26000] },
@@ -999,8 +998,6 @@ const legacyFinanceProjectionRows = [
   { id: "ing-galas", type: "income", category: "Ingresos", concept: "Galas de Recaudación", values: [0,0,0,0,0,0,0,0,0,0,0,20000] },
   { id: "ing-donaciones", type: "income", category: "Ingresos", concept: "Donaciones", values: Array(12).fill(0) },
   { id: "ing-otros", type: "income", category: "Ingresos", concept: "Otros Ingresos", values: Array(12).fill(0) },
-  { id: "exp-director", type: "expense", category: "Nómina", concept: "Director", values: Array(12).fill(4000) },
-  { id: "exp-admin", type: "expense", category: "Nómina", concept: "Artegrafiko", values: Array(12).fill(3000) },
   { id: "exp-asistente-ejecutivo-1", type: "expense", category: "Nómina", concept: "Asistente Ejecutivo 1", values: Array(12).fill(0) },
   { id: "exp-asistente-ejecutivo-2", type: "expense", category: "Nómina", concept: "Asistente Ejecutivo 2", values: Array(12).fill(0) },
   { id: "exp-asistente-ejecutivo-3", type: "expense", category: "Nómina", concept: "Asistente Ejecutivo 3", values: Array(12).fill(0) },
@@ -1038,14 +1035,14 @@ const legacyFinanceProjectionRows = [
   { id: "exp-publicidad", type: "expense", category: "Gastos Operacionales", concept: "Publicidad", values: Array(12).fill(5000) },
   { id: "exp-reparaciones", type: "expense", category: "Gastos Operacionales", concept: "Reparaciones", values: [0,0,0,0,0,2000,0,0,0,0,0,2000] },
   { id: "exp-seguros", type: "expense", category: "Gastos Operacionales", concept: "Seguros", values: Array(12).fill(1400) },
+  { id: "exp-director", type: "expense", category: "Servicios Contratados", concept: "ArtBiz", values: Array(12).fill(4000) },
+  { id: "exp-admin", type: "expense", category: "Servicios Contratados", concept: "ArteGrafiko", values: Array(12).fill(3000) },
   { id: "exp-miscelaneos", type: "expense", category: "Otros Gastos", concept: "Misceláneos", values: [0,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500] },
   { id: "exp-reserva", type: "expense", category: "Otros Gastos", concept: "Gastos de representación", values: [0,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000,3000] }
 ];
 
 // Preserve the historical template and defaults as reference; never seed or overwrite stored amounts.
 const defaultFinanceRows = legacyFinanceProjectionRows;
-
-const excludedFinanceConcepts = new Set(["Contingencia", "Ahorros"]);
 
 const rentalGeneralRules = [
   "Toda solicitud requiere la aprobación previa del Municipio Autónomo de Guaynabo y se formalizará mediante el documento correspondiente.",
@@ -4666,6 +4663,8 @@ function bindFinanceModule() {
   let currentUser = "";
   let currentProfile = null;
   const financeYear = 2026;
+  let fiscalYearStartMonth = null;
+  let financeMonths = [];
   let rows = [];
   let auditEntries = [];
   const quickBooksCategories = [
@@ -4704,7 +4703,7 @@ function bindFinanceModule() {
   const saveAudit = (entries) => {
     auditEntries = entries.slice(-250);
   };
-  const rowsFromFinanceRecords = records => financeRowsFromRecords(records,defaultFinanceRows,financeMonths,excludedFinanceConcepts);
+  const rowsFromFinanceRecords = records => financeRowsFromRecords(records, defaultFinanceRows, financeMonths);
   const loadAudit = async () => {
     const entries = await supabasePost("/rest/v1/rpc/finance_audit_history", {p_year:financeYear});
     auditEntries = entries.slice().reverse().map(entry => ({
@@ -4728,12 +4727,32 @@ function bindFinanceModule() {
     }
 
     currentUser = currentProfile.full_name || localStorage.getItem(currentUserKey) || "Usuario";
+    const museumRows = await supabaseGet(`/rest/v1/museums?select=fiscal_year_start_month&id=eq.${encodeURIComponent(currentProfile.museum_id)}&limit=1`);
+    fiscalYearStartMonth = Number(museumRows[0]?.fiscal_year_start_month);
+    financeMonths = financeMonthsFor(fiscalYearStartMonth);
     setSyncStatus("checking", "Leyendo Supabase", `Usuario: ${currentUser}`);
     const records = [];
-    for (let offset=0;;offset+=1000) {
-      const page = await supabaseGet(`/rest/v1/finance_records?select=id,record_type,category,concept,month,year,amount&museum_id=eq.${encodeURIComponent(currentProfile.museum_id)}&year=eq.${financeYear}&order=id.asc&limit=1000&offset=${offset}`);
-      records.push(...page);
-      if(page.length<1000)break;
+    for (let offset = 0; ; offset += 1000) {
+      const page = await supabaseGet(`/rest/v1/finance_records?select=id,month,year,amount,budget_line_id,finance_budget_lines(record_type,category,name,sort_order,counts_in_operating_balance)&museum_id=eq.${encodeURIComponent(currentProfile.museum_id)}&year=eq.${financeYear}&order=id.asc&limit=1000&offset=${offset}`);
+      records.push(...page.map((record) => {
+        const line = record.finance_budget_lines;
+        if (!line || !line.name || !line.category || !line.record_type || typeof line.counts_in_operating_balance !== "boolean") {
+          throw new Error("Hay una celda presupuestaria sin renglón canónico.");
+        }
+        return {
+          id: record.id,
+          month: record.month,
+          year: record.year,
+          amount: record.amount,
+          budget_line_id: record.budget_line_id,
+          record_type: line.record_type,
+          category: line.category,
+          concept: line.name,
+          sort_order: line.sort_order,
+          counts_in_operating_balance: line.counts_in_operating_balance
+        };
+      }));
+      if (page.length < 1000) break;
     }
     rows = rowsFromFinanceRecords(records);
     await loadAudit();
@@ -4842,7 +4861,7 @@ function bindFinanceModule() {
 
   const renderExpenseSummaryTable = () => {
     return renderFinanceTable("Gastos", (row) =>
-      row.type === "expense" && ["Gastos Operacionales", "Otros Gastos"].includes(row.category)
+      row.type === "expense" && ["Gastos Operacionales", "Servicios Contratados", "Otros Gastos"].includes(row.category)
     );
   };
 
@@ -4935,7 +4954,7 @@ function bindFinanceModule() {
     URL.revokeObjectURL(link.href);
   };
 
-  const monthDate = index => financePeriodDate(financeYear,index);
+  const monthDate = index => financePeriodDate(financeYear, index, fiscalYearStartMonth);
 
   const accountingCategoryForConcept = (concept = "") => {
     const text = concept.toLowerCase();
@@ -4948,6 +4967,7 @@ function bindFinanceModule() {
     return "Otros Ingresos";
   };
 
+  // Historical QuickBooks labels. Not a ledger, and not updated for Servicios Contratados.
   const expenseCategoryForConcept = (row) => {
     const concept = row.concept.toLowerCase();
     const category = row.category.toLowerCase();
@@ -5219,7 +5239,7 @@ function bindFinanceBudgetPreview() {
     activeVersionId = version.id;
     const editable = canWrite() && version.status === "draft";
     const options = snapshot.versions.map((item) => `<option value="${item.id}" ${item.id === version.id ? "selected" : ""}>v${item.version_number} · ${safeHtml(item.title)} · ${safeHtml(item.status)}</option>`).join("");
-    const header = financeMonths.map((month) => `<th scope="col">${month}</th>`).join("");
+    const header = periodStarts.map((period) => `<th scope="col">${period.slice(0, 7)}</th>`).join("");
     const rows = (version.lines || []).map((line) => {
       const amounts = new Map((line.amounts || []).map((amount) => [amount.period_start, amount.amount]));
       const cells = periodStarts.map((period) => `<td><input class="finance-cell" type="number" min="0" step="0.01"
