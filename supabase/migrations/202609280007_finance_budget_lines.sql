@@ -389,7 +389,7 @@ begin
     'insert into public.audit_logs (museum_id, %I, action, table_name, record_id, old_value, new_value)
      select b.museum_id, null, ''finance_budget_line_reclassify'', ''finance_records'', b.id,
             jsonb_build_object(''record_type'', b.record_type, ''category'', b.category, ''concept'', b.concept, ''month'', b.month, ''year'', b.year, ''amount'', b.amount),
-            jsonb_build_object(''actor'', ''system_migration'', ''migration'', ''202609280004_finance_budget_lines'', ''record_type'', r.record_type, ''category'', r.category, ''concept'', r.concept, ''month'', r.month, ''year'', r.year, ''amount'', r.amount)
+            jsonb_build_object(''actor'', ''system_migration'', ''migration'', ''202609280007_finance_budget_lines'', ''record_type'', r.record_type, ''category'', r.category, ''concept'', r.concept, ''month'', r.month, ''year'', r.year, ''amount'', r.amount)
      from pg_temp.finance_reclass_before b
      join public.finance_records r on r.id = b.id
      where r.amount is not distinct from b.amount

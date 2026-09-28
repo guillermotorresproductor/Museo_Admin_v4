@@ -1,4 +1,4 @@
--- Read-only. Run against production before applying 202609280004.
+-- Read-only. Run against production before applying 202609280007.
 -- Aborts when the approved empty chart has drifted. Does not update anything.
 -- Do not run this file on staging: that database is not the production chart.
 
