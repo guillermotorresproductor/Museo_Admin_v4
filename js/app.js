@@ -15,11 +15,11 @@ const appPages = {
   "departamento-museologico.html": { title: "Departamento Museológico", subtitle: "Museología, salas, colecciones y formularios museográficos." },
   "colecciones-museograficas.html": { title: "Colecciones museográficas", subtitle: "Registro, documentación, conservación y gestión de colecciones." },
   "inventario-colecciones.html": { title: "Inventario de Colecciones", subtitle: "Expedientes de piezas y patrimonio museográfico." },
-  "administracion.html": { title: "Administración", subtitle: "Dirección ejecutiva, recursos humanos, notificaciones, reportes y finanzas." },
+  "administracion.html": { title: "Administración", subtitle: "Dirección ejecutiva, recursos humanos, notificaciones, nómina y finanzas." },
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
   "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
   "notificaciones.html": { title: "Notificaciones", subtitle: "Alertas internas del sistema administrativo." },
-  "reportes.html": { title: "Reportes", subtitle: "Estado del personal hoy." },
+  "reportes.html": { title: "Nómina", subtitle: "Estado del personal hoy." },
   "finanzas.html": { title: "Finanzas", subtitle: "Acceso restringido pendiente para firewall." },
   "direccion-ejecutiva.html": { title: "Dirección Ejecutiva", subtitle: "Aprobaciones, seguimientos y supervisión operacional (INSTITUVA)." },
   "reglamento.html": { title: "Reglamento del Museo", subtitle: "Normas oficiales, impresión y descarga." },
@@ -105,7 +105,7 @@ const moduleShortcutGroups = [
       { href: "direccion-ejecutiva.html", label: "Dirección Ejecutiva", icon: "briefcase" },
       { href: "recursos-humanos.html", label: "Recursos Humanos", icon: "users" },
       { href: "notificaciones.html", label: "Notificaciones", icon: "bell" },
-      { href: "reportes.html", label: "Reportes", icon: "chart" },
+      { href: "reportes.html", label: "Nómina", icon: "chart" },
       { href: "finanzas.html", label: "Finanzas", icon: "dollar" }
     ]
   }
@@ -5504,8 +5504,19 @@ function bindReportsModule() {
     onUnlock: () => {
       bindTodayStaffStatus();
       bindAttendanceHistory();
+      showExistingPayroll();
     }
   }).init();
+}
+
+function showExistingPayroll() {
+  const host = document.querySelector("[data-payroll-host]");
+  if (!host || host.dataset.mounted === "1" || typeof renderPayrollActualShell !== "function") return;
+  host.dataset.mounted = "1";
+  host.innerHTML = renderPayrollActualShell();
+  host.querySelector("[data-payroll-assign]")?.remove();
+  host.querySelector("[data-payroll-assignments]")?.remove();
+  if (host.querySelector("[data-payroll-actual]") && typeof bindPayrollActual === "function") bindPayrollActual();
 }
 
 function bindAttendanceHistory() {
