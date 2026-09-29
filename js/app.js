@@ -4898,7 +4898,10 @@ function bindFinanceModule() {
     if (activeTab === "resumen") panel.innerHTML = `<p class="page-kicker">Resumen</p><h3>Balance Neto</h3>${renderNetSummary()}`;
     if (activeTab === "ingresos") panel.innerHTML = renderFinanceTable("Ingresos", (row) => row.type === "income");
     if (activeTab === "gastos") panel.innerHTML = renderExpenseSummaryTable();
-    if (activeTab === "nomina") panel.innerHTML = renderFinanceTable("Nómina presupuestada", (row) => row.category === "Nómina" || row.category === "Beneficios");
+    if (activeTab === "nomina") {
+      panel.innerHTML = renderFinanceTable("Nómina presupuestada", (row) => row.category === "Nómina" || row.category === "Beneficios") + renderPayrollActualShell();
+      bindPayrollActual();
+    }
     if (activeTab === "reportes") panel.innerHTML = renderReports();
     if (activeTab === "configuracion") panel.innerHTML = renderConfiguration();
   };
