@@ -353,8 +353,12 @@ async function fetchTodayStaffStatus() {
   return Array.isArray(data) ? data : [];
 }
 
-async function fetchAttendanceHistory(from, to) {
-  return supabasePost("/rest/v1/rpc/list_attendance_history", { p_from: from, p_to: to });
+async function fetchAttendanceHistory(from, to, includeFormer = false) {
+  return supabasePost("/rest/v1/rpc/list_attendance_history", {
+    p_from: from,
+    p_to: to,
+    p_include_former: Boolean(includeFormer)
+  });
 }
 
 async function fetchShiftPunchEditor(employeeId, shiftDate) {
