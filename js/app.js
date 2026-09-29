@@ -4029,7 +4029,11 @@ function compensationDraft(input) {
   const allowed = salary ? compensationSalaryPeriods : compensationPayFrequencies;
   if (!allowed.includes(schedule)) return { error: salary ? "Selecciona la frecuencia o el período del sueldo fijo." : "Selecciona la frecuencia de pago." };
   if (!effective) return { error: "Indica la fecha de la nueva vigencia de compensación." };
-  const blank = { standard_hours_week: "", overtime_eligible: "true", bonus_type: "", bonus_amount: "", bonus_percent: "", other_description: "", effective_from: effective };
+  const hoursRaw = String(input.standardHours || "").trim();
+  if (hoursRaw && (!/^\d+(\.\d{1,2})?$/.test(hoursRaw) || Number(hoursRaw) > 168)) {
+    return { error: "Indica las horas semanales de referencia entre 0 y 168." };
+  }
+  const blank = { standard_hours_week: hoursRaw, overtime_eligible: "true", bonus_type: "", bonus_amount: "", bonus_percent: "", other_description: "", effective_from: effective };
   if (!salary) {
     const rate = Number(input.hourly);
     if (!(rate > 0) || !/^\d+(\.\d{1,2})?$/.test(String(input.hourly).trim())) return { error: "Indica una tarifa por hora mayor que cero, con hasta dos decimales." };
@@ -4071,7 +4075,17 @@ function bindEmployeeCompensation(scope) {
     if (row.compensation_type === "hourly") lines.push(`<p><strong>Tarifa por hora:</strong> ${safeHtml(money(row.hourly_rate))}</p>`);
     else lines.push(`<p><strong>Sueldo fijo:</strong> ${safeHtml(money(row.salary_amount))}</p>`);
     if (schedule) lines.push(`<p><strong>${row.compensation_type === "salary" ? "Frecuencia / período" : "Frecuencia de pago"}:</strong> ${safeHtml(schedule)}</p>`);
+    const referenceHours = row.standard_hours_week === null || row.standard_hours_week === undefined || row.standard_hours_week === "" ? null : Number(row.standard_hours_week);
+    lines.push(`<p><strong>Horas semanales de referencia:</strong> ${referenceHours === null ? "—" : safeHtml(String(referenceHours))}</p>`);
+    if (row.compensation_type === "hourly" && row.hourly_rate !== null && row.hourly_rate !== undefined && row.hourly_rate !== "") {
+      const weekly = referenceHours === null ? 40 : referenceHours;
+      const equivalent = Math.round(Number(row.hourly_rate) * weekly * 52 / 12 * 100) / 100;
+      lines.push(`<p><strong>Equivalente mensual informativo:</strong> ${safeHtml(money(equivalent))}</p>`);
+    }
     lines.push(`<p><strong>Vigente desde:</strong> ${safeHtml(when)}</p>`);
+    if (field("standardHoursWeek") && document.activeElement !== field("standardHoursWeek")) {
+      field("standardHoursWeek").value = referenceHours === null ? "" : String(referenceHours);
+    }
     summary.innerHTML = lines.join("");
   };
   const fillSchedule = (name, choices) => {
@@ -4098,6 +4112,7 @@ function bindEmployeeCompensation(scope) {
   const readInput = (required) => compensationDraft({
     required,
     hourly: field("hourlyRate")?.value,
+    standardHours: field("standardHoursWeek")?.value,
     hourlySchedule: field("compensationSchedule")?.value,
     hourlyEffective: field("compensationEffectiveFrom")?.value,
     salary: field("salaryAmount")?.value,

@@ -125,6 +125,7 @@
               <fieldset data-compensation-editor hidden>
                 <legend>Nueva vigencia</legend>
                 <p class="field-hint">Establece una vigencia nueva. La anterior permanece guardada.</p>
+                <div class="form-row"><label class="field"><span>Horas semanales de referencia</span><input type="number" name="standardHoursWeek" min="0" max="168" step="0.25"></label></div>
                 <div data-compensation-hourly>
                   <p class="page-kicker">Por hora</p>
                   <div class="form-row"><label class="field"><span>Tarifa por hora ($)</span><input type="number" name="hourlyRate" min="0.01" step="0.01"></label><label class="field"><span>Frecuencia de pago</span><select name="compensationSchedule"><option value="">Seleccione...</option></select></label></div>
@@ -173,7 +174,7 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/services/supabase.js?v=compensation-profile-20260925"></script>
-  <script src="js/app.js?v=compensation-salary-region-20260925"></script>
+  <script src="js/app.js?v=compensation-history-20260929"></script>
 </body>
 </html>
 
