@@ -28,6 +28,7 @@ function renderPayrollActualShell() {
   if (!hasPermission("compensation.read") || !hasPermission("attendance.history.read")) return "";
   const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Puerto_Rico" }));
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const fullMonth = payrollMonthRange(now.getFullYear(), now.getMonth() + 1, "month");
   return `
     <section class="payroll-actual" data-payroll-actual>
       <p class="page-kicker">Nómina real</p>
@@ -35,8 +36,8 @@ function renderPayrollActualShell() {
       <p>Se calcula al consultar. No modifica el presupuesto.</p>
       <div class="finance-actions">
         <label>Mes <input type="month" data-payroll-month value="${month}"></label>
-        <button class="button secondary" type="button" data-payroll-period="first">1–15</button>
-        <button class="button secondary" type="button" data-payroll-period="second">16–fin</button>
+        <label>Desde <input type="date" data-payroll-from value="${fullMonth.from}"></label>
+        <label>Hasta <input type="date" data-payroll-to value="${fullMonth.to}"></label>
         <button class="button secondary" type="button" data-payroll-period="month">Mes completo</button>
         <button class="button secondary" type="button" data-payroll-refresh>Actualizar</button>
       </div>
@@ -74,18 +75,24 @@ function renderPayrollResults(payload) {
       </ul>
     </article>
   `).join("");
+  const totals = employees.reduce((sum, person) => {
+    sum.worked += Number(person.worked_minutes || 0);
+    sum.payable += Number(person.payable_minutes || 0);
+    sum.amount += Number(person.actual_amount || 0);
+    return sum;
+  }, { worked: 0, payable: 0, amount: 0 });
+  totals.amount = Math.round(totals.amount * 100) / 100;
   const rows = employees.map((person) => `
     <tr>
       <td><button class="button secondary" type="button" data-payroll-open="${person.employee_id}">${safeHtml(person.name)}</button>${payrollEmploymentLabel(person.employment_status) ? ` <span class="status-badge">Exempleado</span>` : ""}</td>
       <td>${safeHtml(person.position || "")}</td>
       <td>${safeHtml(person.plaza_name || "Sin plaza presupuestaria asignada")}</td>
       <td>${safeHtml(payrollTypeLabel(person.compensation_type))}</td>
-      <td>${person.hourly_rate == null ? "—" : payrollMoney(person.hourly_rate)}</td>
-      <td>${person.monthly_equivalent == null ? "—" : payrollMoney(person.monthly_equivalent)}</td>
-      <td>${payrollHours(person.worked_minutes)}</td>
-      <td>${payrollHours(person.payable_minutes)}</td>
-      <td>${payrollHours(person.over_limit_minutes)}</td>
-      <td>${payrollMoney(person.actual_amount)}</td>
+      <td class="payroll-key">${person.hourly_rate == null ? "—" : payrollMoney(person.hourly_rate)}</td>
+      <td class="payroll-key">${payrollHours(person.worked_minutes)}</td>
+      <td class="payroll-key">${payrollHours(person.payable_minutes)}</td>
+      <td class="payroll-key">${payrollHours(person.over_limit_minutes)}</td>
+      <td class="payroll-key">${payrollMoney(person.actual_amount)}</td>
       <td>${safeHtml(person.state || "")}</td>
     </tr>
   `).join("");
@@ -99,15 +106,21 @@ function renderPayrollResults(payload) {
         ${(unassigned.employees || []).map((person) => `<li>${safeHtml(person.name)} ${payrollMoney(person.actual_amount)}</li>`).join("") || "<li>Nadie</li>"}
       </ul>
     </article>
+    <div class="payroll-summary">
+      <p><strong>Período:</strong> ${payrollDateLabel(payload.from)} – ${payrollDateLabel(payload.to)}</p>
+      <p><strong>Total horas trabajadas:</strong> ${payrollHours(totals.worked)}</p>
+      <p><strong>Total horas pagables:</strong> ${payrollHours(totals.payable)}</p>
+      <p><strong>Total nómina acumulada:</strong> ${payrollMoney(totals.amount)}</p>
+    </div>
     <div class="table-wrap">
       <table class="data-table">
         <thead>
           <tr>
-            <th>Empleado</th><th>Posición</th><th>Plaza</th><th>Tipo</th><th>Tarifa</th><th>Equivalente mensual</th>
-            <th>Horas trabajadas</th><th>Horas pagables</th><th>Horas sobre límite</th><th>Nómina acumulada</th><th>Estado</th>
+            <th>Empleado</th><th>Posición</th><th>Plaza</th><th>Tipo</th><th class="payroll-key">Tarifa</th>
+            <th class="payroll-key">Horas trabajadas</th><th class="payroll-key">Horas pagables</th><th class="payroll-key">Horas sobre límite</th><th class="payroll-key">Nómina acumulada</th><th>Estado</th>
           </tr>
         </thead>
-        <tbody>${rows || `<tr><td colspan="11">No hay actividad en este período.</td></tr>`}</tbody>
+        <tbody>${rows || `<tr><td colspan="10">No hay actividad en este período.</td></tr>`}</tbody>
       </table>
     </div>
     <div data-payroll-detail></div>
@@ -197,19 +210,25 @@ async function bindPayrollActual(museumId) {
   const message = root.querySelector("[data-payroll-message]");
   const results = root.querySelector("[data-payroll-results]");
   const monthInput = root.querySelector("[data-payroll-month]");
+  const fromInput = root.querySelector("[data-payroll-from]");
+  const toInput = root.querySelector("[data-payroll-to]");
   let payload = null;
-  let kind = "month";
   const showMessage = (text, isError) => {
     message.textContent = text || "";
     message.className = isError ? "form-message error" : "form-message";
   };
   const load = async () => {
-    const [year, month] = monthInput.value.split("-").map(Number);
-    if (!year || !month) return;
-    const range = payrollMonthRange(year, month, kind);
+    const from = fromInput.value;
+    const to = toInput.value;
+    if (!from || !to) return;
+    if (from > to) {
+      results.innerHTML = "";
+      showMessage("El período indicado no es válido.", true);
+      return;
+    }
     showMessage("Consultando nómina real…", false);
     try {
-      payload = await supabasePost("/rest/v1/rpc/payroll_actual", { p_from: range.from, p_to: range.to });
+      payload = await supabasePost("/rest/v1/rpc/payroll_actual", { p_from: from, p_to: to });
       results.innerHTML = renderPayrollResults(payload);
       showMessage("", false);
     } catch (error) {
@@ -217,14 +236,17 @@ async function bindPayrollActual(museumId) {
       showMessage(payrollConsultText(error), true);
     }
   };
-  root.querySelectorAll("[data-payroll-period]").forEach((button) => {
-    button.addEventListener("click", () => {
-      kind = button.dataset.payrollPeriod;
-      load();
-    });
+  root.querySelector("[data-payroll-period='month']")?.addEventListener("click", () => {
+    const [year, month] = monthInput.value.split("-").map(Number);
+    if (!year || !month) return;
+    const range = payrollMonthRange(year, month, "month");
+    fromInput.value = range.from;
+    toInput.value = range.to;
+    load();
   });
   root.querySelector("[data-payroll-refresh]")?.addEventListener("click", load);
-  monthInput.addEventListener("change", load);
+  fromInput.addEventListener("change", load);
+  toInput.addEventListener("change", load);
   results.addEventListener("click", (event) => {
     const button = event.target.closest("[data-payroll-open]");
     if (!button || !payload) return;
