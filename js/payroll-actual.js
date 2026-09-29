@@ -61,66 +61,40 @@ function renderPayrollActualShell() {
   `;
 }
 function renderPayrollResults(payload) {
-  const plazas = payload.plazas || [];
-  const unassigned = payload.unassigned || { actual_amount: 0, employees: [] };
   const employees = payload.employees || [];
-  const plazaCards = plazas.map((plaza) => `
-    <article class="card panel">
-      <h3>${safeHtml(plaza.name)}</h3>
-      <p>Presupuesto del mes ${payrollMoney(plaza.budget_amount)}</p>
-      <p>Nómina acumulada ${payrollMoney(plaza.actual_amount)}</p>
-      <p>${payload.full_month ? `Disponible ${payrollMoney(plaza.difference)}` : "La diferencia se calcula en el mes completo."}</p>
-      <ul>
-        ${(plaza.employees || []).map((person) => `<li>${safeHtml(person.name)} ${payrollMoney(person.actual_amount)}</li>`).join("") || "<li>Vacante</li>"}
-      </ul>
-    </article>
-  `).join("");
   const totals = employees.reduce((sum, person) => {
     sum.worked += Number(person.worked_minutes || 0);
-    sum.payable += Number(person.payable_minutes || 0);
     sum.amount += Number(person.actual_amount || 0);
     return sum;
-  }, { worked: 0, payable: 0, amount: 0 });
+  }, { worked: 0, amount: 0 });
   totals.amount = Math.round(totals.amount * 100) / 100;
   const rows = employees.map((person) => `
     <tr>
       <td><button class="button secondary" type="button" data-payroll-open="${person.employee_id}">${safeHtml(person.name)}</button>${payrollEmploymentLabel(person.employment_status) ? ` <span class="status-badge">Exempleado</span>` : ""}</td>
       <td>${safeHtml(person.position || "")}</td>
-      <td>${safeHtml(person.plaza_name || "Sin plaza presupuestaria asignada")}</td>
       <td>${safeHtml(payrollTypeLabel(person.compensation_type))}</td>
       <td class="payroll-key">${person.hourly_rate == null ? "—" : payrollMoney(person.hourly_rate)}</td>
       <td class="payroll-key">${payrollHours(person.worked_minutes)}</td>
-      <td class="payroll-key">${payrollHours(person.payable_minutes)}</td>
       <td class="payroll-key">${payrollHours(person.over_limit_minutes)}</td>
       <td class="payroll-key">${payrollMoney(person.actual_amount)}</td>
       <td>${safeHtml(person.state || "")}</td>
     </tr>
   `).join("");
   return `
-    <p>${payrollDateLabel(payload.from)} – ${payrollDateLabel(payload.to)}. Presupuesto de referencia: ${safeHtml(payload.budget_month)} ${payload.budget_year}.</p>
-    <div class="payroll-plazas">${plazaCards}</div>
-    <article class="card panel">
-      <h3>Sin plaza presupuestaria asignada</h3>
-      <p>Nómina acumulada ${payrollMoney(unassigned.actual_amount)}</p>
-      <ul>
-        ${(unassigned.employees || []).map((person) => `<li>${safeHtml(person.name)} ${payrollMoney(person.actual_amount)}</li>`).join("") || "<li>Nadie</li>"}
-      </ul>
-    </article>
     <div class="payroll-summary">
       <p><strong>Período:</strong> ${payrollDateLabel(payload.from)} – ${payrollDateLabel(payload.to)}</p>
       <p><strong>Total horas trabajadas:</strong> ${payrollHours(totals.worked)}</p>
-      <p><strong>Total horas pagables:</strong> ${payrollHours(totals.payable)}</p>
       <p><strong>Total nómina acumulada:</strong> ${payrollMoney(totals.amount)}</p>
     </div>
     <div class="table-wrap">
       <table class="data-table">
         <thead>
           <tr>
-            <th>Empleado</th><th>Posición</th><th>Plaza</th><th>Tipo</th><th class="payroll-key">Tarifa</th>
-            <th class="payroll-key">Horas trabajadas</th><th class="payroll-key">Horas pagables</th><th class="payroll-key">Horas sobre límite</th><th class="payroll-key">Nómina acumulada</th><th>Estado</th>
+            <th>Empleado</th><th>Posición</th><th>Tipo</th><th class="payroll-key">Tarifa</th>
+            <th class="payroll-key">Horas trabajadas</th><th class="payroll-key">Horas sobre límite</th><th class="payroll-key">Nómina acumulada</th><th>Estado</th>
           </tr>
         </thead>
-        <tbody>${rows || `<tr><td colspan="10">No hay actividad en este período.</td></tr>`}</tbody>
+        <tbody>${rows || `<tr><td colspan="8">No hay actividad en este período.</td></tr>`}</tbody>
       </table>
     </div>
     <div data-payroll-detail></div>
