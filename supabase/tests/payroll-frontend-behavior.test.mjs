@@ -368,11 +368,11 @@ test("finance and human resources pages keep their existing modules", () => {
   const hr = fs.readFileSync("recursos-humanos.html", "utf8");
   const reports = fs.readFileSync("reportes.html", "utf8");
   assert.match(finance, /Nómina presupuestada|data-finance/);
-  assert.match(finance, /js\/payroll-actual\.js\?v=payroll-table-20260929/);
+  assert.match(finance, /js\/payroll-actual\.js\?v=payroll-dates-20260929/);
   assert.match(hr, /data-compensation-save/);
   assert.match(hr, /data-hr-module/);
   assert.match(reports, /name="includeFormer"/);
-  assert.match(reports, /js\/payroll-actual\.js\?v=payroll-table-20260929/);
+  assert.match(reports, /js\/payroll-actual\.js\?v=payroll-dates-20260929/);
   assert.match(reports, /Nómina/);
   assert.doesNotMatch(fs.readFileSync("js/payroll-actual.js", "utf8"), /finance_records|resolve_employee_compensation|save_employee_sensitive_details/);
   assert.doesNotMatch(fs.readFileSync("js/app.js", "utf8"), /save_employee_sensitive_details|resolve_employee_compensation/);

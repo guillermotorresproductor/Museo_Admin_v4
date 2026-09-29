@@ -27,7 +27,6 @@ function payrollMonthRange(year, month, kind) {
 function renderPayrollActualShell() {
   if (!hasPermission("compensation.read") || !hasPermission("attendance.history.read")) return "";
   const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Puerto_Rico" }));
-  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const fullMonth = payrollMonthRange(now.getFullYear(), now.getMonth() + 1, "month");
   return `
     <section class="payroll-actual" data-payroll-actual>
@@ -35,11 +34,8 @@ function renderPayrollActualShell() {
       <h3>Nómina real / acumulada</h3>
       <p>Se calcula al consultar. No modifica el presupuesto.</p>
       <div class="finance-actions">
-        <label>Mes <input type="month" data-payroll-month value="${month}"></label>
         <label>Desde <input type="date" data-payroll-from value="${fullMonth.from}"></label>
         <label>Hasta <input type="date" data-payroll-to value="${fullMonth.to}"></label>
-        <button class="button secondary" type="button" data-payroll-period="month">Mes completo</button>
-        <button class="button secondary" type="button" data-payroll-refresh>Actualizar</button>
       </div>
       <p class="form-message" data-payroll-message></p>
       <div data-payroll-results></div>
@@ -183,10 +179,10 @@ async function bindPayrollActual(museumId) {
   root.dataset.bound = "1";
   const message = root.querySelector("[data-payroll-message]");
   const results = root.querySelector("[data-payroll-results]");
-  const monthInput = root.querySelector("[data-payroll-month]");
   const fromInput = root.querySelector("[data-payroll-from]");
   const toInput = root.querySelector("[data-payroll-to]");
   let payload = null;
+  let activePeriod = "";
   const showMessage = (text, isError) => {
     message.textContent = text || "";
     message.className = isError ? "form-message error" : "form-message";
@@ -194,33 +190,34 @@ async function bindPayrollActual(museumId) {
   const load = async () => {
     const from = fromInput.value;
     const to = toInput.value;
-    if (!from || !to) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return;
     if (from > to) {
+      activePeriod = "";
       results.innerHTML = "";
       showMessage("El período indicado no es válido.", true);
       return;
     }
+    const period = `${from}|${to}`;
+    if (period === activePeriod) return;
+    activePeriod = period;
     showMessage("Consultando nómina real…", false);
     try {
-      payload = await supabasePost("/rest/v1/rpc/payroll_actual", { p_from: from, p_to: to });
+      const next = await supabasePost("/rest/v1/rpc/payroll_actual", { p_from: from, p_to: to });
+      if (`${fromInput.value}|${toInput.value}` !== period) return;
+      payload = next;
       results.innerHTML = renderPayrollResults(payload);
       showMessage("", false);
     } catch (error) {
+      if (`${fromInput.value}|${toInput.value}` !== period) return;
+      activePeriod = "";
       results.innerHTML = "";
       showMessage(payrollConsultText(error), true);
     }
   };
-  root.querySelector("[data-payroll-period='month']")?.addEventListener("click", () => {
-    const [year, month] = monthInput.value.split("-").map(Number);
-    if (!year || !month) return;
-    const range = payrollMonthRange(year, month, "month");
-    fromInput.value = range.from;
-    toInput.value = range.to;
-    load();
+  ["input", "change"].forEach((eventName) => {
+    fromInput.addEventListener(eventName, load);
+    toInput.addEventListener(eventName, load);
   });
-  root.querySelector("[data-payroll-refresh]")?.addEventListener("click", load);
-  fromInput.addEventListener("change", load);
-  toInput.addEventListener("change", load);
   results.addEventListener("click", (event) => {
     const button = event.target.closest("[data-payroll-open]");
     if (!button || !payload) return;
