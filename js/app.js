@@ -4915,7 +4915,7 @@ function bindFinanceModule() {
     if (activeTab === "gastos") panel.innerHTML = renderExpenseSummaryTable();
     if (activeTab === "nomina") {
       panel.innerHTML = renderFinanceTable("Nómina presupuestada", (row) => row.category === "Nómina" || row.category === "Beneficios") + renderPayrollActualShell();
-      bindPayrollActual();
+      bindPayrollActual(currentProfile.museum_id);
     }
     if (activeTab === "reportes") panel.innerHTML = renderReports();
     if (activeTab === "configuracion") panel.innerHTML = renderConfiguration();

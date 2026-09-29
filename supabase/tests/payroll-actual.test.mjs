@@ -23,6 +23,20 @@ test("payroll is calculated on read and ignores approved overtime pay", () => {
   assert.doesNotMatch(migration, /approved_overtime_minutes \*/);
 });
 
+test("plaza assignment uses the museum Finanzas already loaded", () => {
+  assert.match(finance, /bindPayrollActual\(currentProfile\.museum_id\)/);
+  assert.match(page, /async function bindPayrollActual\(museumId\)/);
+  assert.doesNotMatch(page, /currentProfile/);
+  assert.match(page, /category=eq\.\$\{encodeURIComponent\("Nómina"\)\}/);
+  assert.match(page, /\/rest\/v1\/rpc\/assign_employee_budget_line/);
+  assert.match(page, /\/rest\/v1\/rpc\/close_employee_budget_assignment/);
+  assert.match(page, /Cerrar asignación/);
+  assert.match(page, /EMPLOYEE_PLAZA_OVERLAP/);
+  assert.match(page, /console\.error\("Asignación de plaza:"/);
+  assert.match(page, /\/rest\/v1\/employee_budget_assignments\?select=/);
+  assert.doesNotMatch(page, /insert into public\.employee_budget_assignments/);
+});
+
 test("the finance screen keeps the budget grid and only displays the server result", () => {
   assert.match(finance, /Nómina presupuestada/);
   assert.match(finance, /renderPayrollActualShell\(\)/);

@@ -45,11 +45,16 @@ function renderPayrollActualShell() {
       ${hasPermission("compensation.manage") ? `
         <form class="form-grid" data-payroll-assign>
           <h3>Asignar plaza</h3>
-          <div class="field"><label>Empleado<select data-payroll-employee-choice></select></label></div>
-          <div class="field"><label>Plaza<select data-payroll-line-choice></select></label></div>
-          <div class="field"><label>Desde<input type="date" data-payroll-assign-from required></label></div>
+          <p class="form-message" data-payroll-admin-message></p>
+          <div class="field"><label>Empleado<select data-payroll-employee-choice required><option value="">Seleccione un empleado</option></select></label></div>
+          <div class="field"><label>Plaza<select data-payroll-line-choice required><option value="">Seleccione una plaza</option></select></label></div>
+          <div class="field"><label>Vigente desde<input type="date" data-payroll-assign-from required></label></div>
           <button class="button secondary" type="submit">Asignar</button>
-        </form>` : ""}
+        </form>
+        <section class="payroll-assignments" data-payroll-assignments>
+          <h3>Asignaciones de plaza</h3>
+          <div data-payroll-assignment-list></div>
+        </section>` : ""}
     </section>
   `;
 }
@@ -140,7 +145,18 @@ function renderPayrollDetail(person) {
     </div>
   `;
 }
-async function bindPayrollActual() {
+function payrollAdminText(error) {
+  const detail = String(error?.message || error || "");
+  console.error("Asignación de plaza:", detail);
+  if (detail.includes("EMPLOYEE_PLAZA_OVERLAP")) return "Ese empleado ya tiene una plaza en esas fechas.";
+  if (detail.includes("OPEN_ASSIGNMENT_NOT_FOUND")) return "No hay una asignación abierta para cerrar en esa fecha.";
+  if (detail.includes("FORBIDDEN") || detail.includes("42501")) return "No tiene permiso para administrar plazas.";
+  if (detail.includes("PAYROLL_LINE_NOT_FOUND")) return "Esa plaza no pertenece a la nómina de este museo.";
+  if (detail.includes("EMPLOYEE_NOT_FOUND")) return "Ese empleado no pertenece a este museo.";
+  if (detail.includes("EFFECTIVE_FROM_REQUIRED") || detail.includes("EFFECTIVE_UNTIL_REQUIRED")) return "Indique la fecha de vigencia.";
+  return detail || "No se pudo completar la operación.";
+}
+async function bindPayrollActual(museumId) {
   const root = document.querySelector("[data-payroll-actual]");
   if (!root || root.dataset.bound === "1") return;
   root.dataset.bound = "1";
@@ -183,33 +199,120 @@ async function bindPayrollActual() {
     if (person && detail) detail.innerHTML = renderPayrollDetail(person);
   });
   const assignForm = root.querySelector("[data-payroll-assign]");
-  if (assignForm && currentProfile?.museum_id) {
-    try {
-      const [employees, lines] = await Promise.all([
-        supabaseGet(`/rest/v1/employees?select=id,first_name,last_name&museum_id=eq.${encodeURIComponent(currentProfile.museum_id)}&status=eq.activo&order=last_name.asc`),
-        supabaseGet(`/rest/v1/finance_budget_lines?select=id,name&museum_id=eq.${encodeURIComponent(currentProfile.museum_id)}&category=eq.${encodeURIComponent("Nómina")}&order=name.asc`)
-      ]);
-      const employeeChoice = assignForm.querySelector("[data-payroll-employee-choice]");
-      const lineChoice = assignForm.querySelector("[data-payroll-line-choice]");
-      employeeChoice.innerHTML = employees.map((person) => `<option value="${person.id}">${safeHtml(`${person.first_name} ${person.last_name}`)}</option>`).join("");
-      lineChoice.innerHTML = lines.map((line) => `<option value="${line.id}">${safeHtml(line.name)}</option>`).join("");
-      assignForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        try {
-          await supabasePost("/rest/v1/rpc/assign_employee_budget_line", {
-            p_employee_id: employeeChoice.value,
-            p_budget_line_id: lineChoice.value,
-            p_effective_from: assignForm.querySelector("[data-payroll-assign-from]").value
-          });
-          showMessage("Plaza asignada.", false);
-          await load();
-        } catch (error) {
-          showMessage(error.message || "No se pudo asignar la plaza.", true);
+  const adminMessage = root.querySelector("[data-payroll-admin-message]");
+  const assignmentList = root.querySelector("[data-payroll-assignment-list]");
+  const showAdmin = (text, isError) => {
+    if (!adminMessage) return;
+    adminMessage.textContent = text || "";
+    adminMessage.className = isError ? "form-message error" : "form-message";
+  };
+  if (assignForm) {
+    const employeeChoice = assignForm.querySelector("[data-payroll-employee-choice]");
+    const lineChoice = assignForm.querySelector("[data-payroll-line-choice]");
+    const museum = String(museumId || "");
+    let directory = [];
+    let lines = [];
+    const personName = (id) => {
+      const person = directory.find((item) => item.id === id);
+      return person ? `${person.first_name} ${person.last_name}` : "Empleado";
+    };
+    const lineName = (id) => lines.find((item) => item.id === id)?.name || "Plaza";
+    const renderAssignments = (rows) => {
+      const ordered = [...rows].sort((a, b) => Number(Boolean(a.effective_until)) - Number(Boolean(b.effective_until))
+        || String(b.effective_from).localeCompare(String(a.effective_from)));
+      assignmentList.innerHTML = ordered.length ? `
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Empleado</th><th>Plaza</th><th>Vigente desde</th><th>Estado</th><th></th></tr></thead>
+            <tbody>
+              ${ordered.map((row) => `
+                <tr>
+                  <td>${safeHtml(personName(row.employee_id))}</td>
+                  <td>${safeHtml(lineName(row.budget_line_id))}</td>
+                  <td>${payrollDateLabel(row.effective_from)}</td>
+                  <td>${row.effective_until ? `Cerrada · ${payrollDateLabel(row.effective_until)}` : "Vigente"}</td>
+                  <td>${row.effective_until ? "" : `
+                    <div class="payroll-close">
+                      <input type="date" data-payroll-close-until aria-label="Fecha de cierre">
+                      <button class="button secondary" type="button" data-payroll-close="${row.employee_id}">Cerrar asignación</button>
+                    </div>`}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>` : "<p>No hay asignaciones.</p>";
+    };
+    const loadAssignments = async () => {
+      if (!museum) {
+        showAdmin("No se encontró el museo de esta sesión.", true);
+        console.error("Asignación de plaza: Finanzas no entregó el museo ya cargado.");
+        return;
+      }
+      try {
+        const [people, payrollLines, assignments] = await Promise.all([
+          supabaseGet(`/rest/v1/employees?select=id,first_name,last_name,status&museum_id=eq.${encodeURIComponent(museum)}&order=last_name.asc`),
+          supabaseGet(`/rest/v1/finance_budget_lines?select=id,name&museum_id=eq.${encodeURIComponent(museum)}&category=eq.${encodeURIComponent("Nómina")}&order=name.asc`),
+          supabaseGet(`/rest/v1/employee_budget_assignments?select=employee_id,budget_line_id,effective_from,effective_until&museum_id=eq.${encodeURIComponent(museum)}&order=effective_from.desc`)
+        ]);
+        if (!Array.isArray(people) || !Array.isArray(payrollLines) || !Array.isArray(assignments)) {
+          throw new Error("La respuesta de asignaciones no tiene el formato esperado.");
         }
-      });
-    } catch (error) {
-      assignForm.hidden = true;
-    }
+        directory = people;
+        lines = payrollLines;
+        const active = people.filter((person) => person.status === "activo");
+        employeeChoice.innerHTML = `<option value="">${active.length ? "Seleccione un empleado" : "No hay empleados activos"}</option>`
+          + active.map((person) => `<option value="${person.id}">${safeHtml(`${person.first_name} ${person.last_name}`)}</option>`).join("");
+        lineChoice.innerHTML = `<option value="">${lines.length ? "Seleccione una plaza" : "No hay plazas de nómina"}</option>`
+          + lines.map((line) => `<option value="${line.id}">${safeHtml(line.name)}</option>`).join("");
+        renderAssignments(assignments);
+      } catch (error) {
+        employeeChoice.innerHTML = `<option value="">No se pudieron cargar los empleados</option>`;
+        lineChoice.innerHTML = `<option value="">No se pudieron cargar las plazas</option>`;
+        assignmentList.innerHTML = "";
+        showAdmin(payrollAdminText(error), true);
+      }
+    };
+    assignForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const effectiveFrom = assignForm.querySelector("[data-payroll-assign-from]").value;
+      if (!employeeChoice.value || !lineChoice.value || !effectiveFrom) {
+        showAdmin("Seleccione el empleado, la plaza y la fecha de vigencia.", true);
+        return;
+      }
+      try {
+        await supabasePost("/rest/v1/rpc/assign_employee_budget_line", {
+          p_employee_id: employeeChoice.value,
+          p_budget_line_id: lineChoice.value,
+          p_effective_from: effectiveFrom
+        });
+        showAdmin("Plaza asignada.", false);
+        await loadAssignments();
+        await load();
+      } catch (error) {
+        showAdmin(payrollAdminText(error), true);
+      }
+    });
+    assignmentList.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-payroll-close]");
+      if (!button) return;
+      const until = button.parentElement.querySelector("[data-payroll-close-until]").value;
+      if (!until) {
+        showAdmin("Indique hasta qué fecha queda vigente la asignación.", true);
+        return;
+      }
+      try {
+        await supabasePost("/rest/v1/rpc/close_employee_budget_assignment", {
+          p_employee_id: button.dataset.payrollClose,
+          p_effective_until: until
+        });
+        showAdmin("Asignación cerrada. El historial se conserva.", false);
+        await loadAssignments();
+        await load();
+      } catch (error) {
+        showAdmin(payrollAdminText(error), true);
+      }
+    });
+    loadAssignments();
   }
   load();
 }
