@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Museo Admin v4.0 | Reportes</title>
-  <link rel="stylesheet" href="css/main.css?v=payroll-frontend-20260929">
+  <title>Museo Admin v4.0 | Nómina</title>
+  <link rel="stylesheet" href="css/main.css?v=nomina-module-20260929">
 </head>
 <body>
   <div class="app-shell">
@@ -15,7 +15,7 @@
       <main class="page-content">
         <section class="finance-gate card panel" data-reports-gate>
           <span class="module-icon theme-blue" data-icon="chart"></span>
-          <h3>Acceso a Reportes</h3>
+          <h3>Acceso a Nómina</h3>
           <p class="form-message" data-reports-login-message></p>
           <form class="form-grid finance-login" data-reports-login hidden>
             <div class="field">
@@ -63,7 +63,7 @@
           <div data-today-staff>
             <div class="panel-heading-inline">
               <div>
-                <p class="page-kicker">Reportes</p>
+                <p class="page-kicker">Nómina</p>
                 <h3>Estado del personal hoy</h3>
                 <p>Empleados activos con turno programado hoy, en hora de Puerto Rico.</p>
               </div>
@@ -88,6 +88,7 @@
             </div>
             <div data-punch-editor hidden></div>
           </div>
+          <div data-payroll-host></div>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
@@ -95,6 +96,7 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/services/supabase.js?v=payroll-frontend-20260929"></script>
-  <script src="js/app.js?v=payroll-frontend-20260929"></script>
+  <script src="js/payroll-actual.js?v=payroll-table-20260929"></script>
+  <script src="js/app.js?v=nomina-module-20260929"></script>
 </body>
 </html>
