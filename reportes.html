@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Reportes</title>
-  <link rel="stylesheet" href="css/main.css?v=attendance-exclusion-20260927">
+  <link rel="stylesheet" href="css/main.css?v=payroll-frontend-20260929">
 </head>
 <body>
   <div class="app-shell">
@@ -41,6 +41,12 @@
                   <option value="semimonth">Quincenal</option>
                   <option value="month">Mensual</option>
                   <option value="custom">Personalizado</option>
+                </select>
+              </label>
+              <label class="field"><span>Personal</span>
+                <select name="includeFormer">
+                  <option value="0" selected>Solo empleados activos</option>
+                  <option value="1">Incluir exempleados</option>
                 </select>
               </label>
               <label class="field" data-period-anchor><span>Fecha</span><input type="date" name="anchor"></label>
@@ -88,7 +94,7 @@
     </div>
   </div>
   <script src="js/config.js"></script>
-  <script src="js/services/supabase.js?v=attendance-exclusion-20260927"></script>
-  <script src="js/app.js?v=attendance-exclusion-20260927"></script>
+  <script src="js/services/supabase.js?v=payroll-frontend-20260929"></script>
+  <script src="js/app.js?v=payroll-frontend-20260929"></script>
 </body>
 </html>

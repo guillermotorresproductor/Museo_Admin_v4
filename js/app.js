@@ -4044,6 +4044,20 @@ function compensationDraft(input) {
   return { compensation: { ...blank, compensation_type: "salary", hourly_rate: "", salary_amount: String(input.salary).trim(), salary_period: schedule, pay_frequency: schedule === "annual" ? "" : schedule } };
 }
 
+function compensationAdminText(error) {
+  const detail = String(error?.message || "");
+  if (/SELF_COMPENSATION_FORBIDDEN/i.test(detail)) return "No puede registrar su propia compensación.";
+  if (/FORBIDDEN|42501/i.test(detail)) return "No tiene permiso para modificar la compensación.";
+  if (/Ya existe una compensación/i.test(detail)) return "Ya existe una compensación para esa fecha. Elija otra fecha de vigencia.";
+  if (/EFFECTIVE_FROM_REQUIRED/i.test(detail)) return "Indique la fecha de vigencia.";
+  if (/INVALID_COMPENSATION_TYPE/i.test(detail)) return "Seleccione por hora o sueldo fijo, no ambas.";
+  if (/INVALID_STANDARD_HOURS/i.test(detail)) return "Indique las horas semanales de referencia entre 0 y 168.";
+  if (/EMPLOYEE_NOT_FOUND/i.test(detail)) return "Ese empleado no pertenece a este museo.";
+  if (/COMPENSATION_HISTORY_IMMUTABLE/i.test(detail)) return "La compensación ya registrada no se modifica. Registre una vigencia nueva.";
+  if (/failed to fetch|networkerror|network request failed|load failed/i.test(detail)) return "No hubo conexión. Los datos que escribió siguen en el formulario.";
+  return "No se pudo registrar la vigencia. Los datos que escribió siguen en el formulario.";
+}
+
 function bindEmployeeCompensation(scope) {
   const section = scope.querySelector("[data-compensation-section]");
   if (!section) return { load: async () => {} };
@@ -4060,6 +4074,7 @@ function bindEmployeeCompensation(scope) {
   const money = (value) => value === null || value === undefined || value === "" ? "—" : Number(value).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   let actorId = "";
   let currentEmployee = null;
+  let savingCompensation = false;
   const setMessage = (text, type = "") => {
     if (!message) return;
     message.textContent = text;
@@ -4071,7 +4086,7 @@ function bindEmployeeCompensation(scope) {
     if (!row) { summary.innerHTML = '<p class="field-hint">Sin compensación vigente.</p>'; return; }
     const when = row.effective_from ? new Intl.DateTimeFormat("es-PR", { timeZone: "America/Puerto_Rico", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${row.effective_from}T16:00:00Z`)) : "—";
     const schedule = scheduleLabel(row.compensation_type === "hourly" ? (row.pay_frequency || row.salary_period) : (row.salary_period || row.pay_frequency));
-    const lines = [`<p><strong>Tipo de compensación:</strong> ${safeHtml(labels[row.compensation_type] || row.compensation_type)}</p>`];
+    const lines = [`<p><strong>Tipo de compensación:</strong> ${safeHtml(labels[row.compensation_type] || "Compensación registrada")}</p>`];
     if (row.compensation_type === "hourly") lines.push(`<p><strong>Tarifa por hora:</strong> ${safeHtml(money(row.hourly_rate))}</p>`);
     else lines.push(`<p><strong>Sueldo fijo:</strong> ${safeHtml(money(row.salary_amount))}</p>`);
     if (schedule) lines.push(`<p><strong>${row.compensation_type === "salary" ? "Frecuencia / período" : "Frecuencia de pago"}:</strong> ${safeHtml(schedule)}</p>`);
@@ -4121,29 +4136,50 @@ function bindEmployeeCompensation(scope) {
   });
   syncSchedule();
   saveButton?.addEventListener("click", async () => {
-    if (!currentEmployee || !editor || editor.hidden || !canManage()) return;
+    if (savingCompensation || section.dataset.compensationBusy === "1" || !currentEmployee || !editor || editor.hidden || !canManage()) return;
     const draft = readInput(true);
     if (draft.error) { setMessage(draft.error, "error"); return; }
+    savingCompensation = true;
+    section.dataset.compensationBusy = "1";
     saveButton.disabled = true;
     try {
       await saveEmployeeCompensation(currentEmployee.id, draft.compensation);
-      setMessage("Nueva vigencia registrada. La anterior permanece guardada.", "success");
-      render(await fetchEmployeeCompensation(currentEmployee.id));
       resetEditor();
+      setMessage("Nueva vigencia registrada. La anterior permanece guardada.", "success");
+      try {
+        render(await fetchEmployeeCompensation(currentEmployee.id));
+      } catch (error) {
+        console.error("Compensación:", error);
+        setMessage("La vigencia quedó registrada. Vuelva a abrir el expediente para verla.", "success");
+      }
     } catch (error) {
-      setMessage(error.message || "No se pudo registrar la vigencia.", "error");
+      setMessage(compensationAdminText(error), "error");
     } finally {
+      savingCompensation = false;
+      delete section.dataset.compensationBusy;
       saveButton.disabled = false;
     }
   });
   return {
-    readInput: () => readInput(false),
+    readInput: () => savingCompensation || section.dataset.compensationBusy === "1"
+      ? { error: "Espere a que termine el registro de la compensación." }
+      : readInput(false),
     async load(employee) {
       currentEmployee = employee;
-      if (!canRead() || !employee?.id) return;
-      if (!actorId) actorId = (await fetchSupabaseProfile())?.id || "";
-      render(await fetchEmployeeCompensation(employee.id));
-      prepare(employee);
+      if (!canRead() || !employee?.id) {
+        section.hidden = true;
+        return;
+      }
+      section.hidden = false;
+      try {
+        if (!actorId) actorId = (await fetchSupabaseProfile())?.id || "";
+        render(await fetchEmployeeCompensation(employee.id));
+        prepare(employee);
+      } catch (error) {
+        console.error("Compensación:", error);
+        if (summary) summary.innerHTML = '<p class="field-hint">No se pudo consultar la compensación.</p>';
+        setMessage("No se pudo consultar la compensación de este empleado.", "error");
+      }
     }
   };
 }
@@ -4428,7 +4464,13 @@ function bindHumanResourcesModule() {
         if (canManageCompensation() && editor && !editor.hidden) {
           const draft = compensationPanel.readInput();
           if (draft.error) throw new Error(draft.error);
-          if (draft.compensation) await saveEmployeeCompensation(savedEmployeeId, draft.compensation);
+          if (draft.compensation) {
+            try {
+              await saveEmployeeCompensation(savedEmployeeId, draft.compensation);
+            } catch (error) {
+              throw new Error(compensationAdminText(error));
+            }
+          }
         }
 
         const syncedRecords = await fetchSupabaseEmployees();
@@ -5473,6 +5515,7 @@ function bindAttendanceHistory() {
   if (!root || !today || !history || root.dataset.bound === "1") return;
   root.dataset.bound = "1";
   const period = root.querySelector("[name=attendancePeriod]");
+  const includeFormerInput = root.querySelector("[name=includeFormer]");
   const anchor = root.querySelector("[name=anchor]");
   const fromInput = root.querySelector("[name=from]");
   const toInput = root.querySelector("[name=to]");
@@ -5508,9 +5551,16 @@ function bindAttendanceHistory() {
       : `${safeHtml(statusLabel[day.status] || day.status)}${day.late ? " · Tardanza" : ""}`;
     return `<tr><td>${safeHtml(day.shift_date)}</td><td>${shownTime(day.clock_in, day.clock_in_excluded)}</td><td>${shownTime(day.lunch_out, day.lunch_out_excluded)}</td><td>${shownTime(day.lunch_in, day.lunch_in_excluded)}</td><td>${shownTime(day.clock_out, day.clock_out_excluded)}</td><td>${hours(day.regular_minutes)}</td><td>${hours(day.approved_overtime_minutes)}</td><td>${status}</td><td>${day.corrected ? "Corregido" : "—"}${canCorrect || canExclude ? ` <button class="button secondary" type="button" data-punch-edit data-employee="${safeHtml(employeeId)}" data-date="${safeHtml(day.shift_date)}">Revisar / Editar ponches</button>` : ""}${day.corrected ? ` <button class="button secondary" type="button" data-punch-history data-employee="${safeHtml(employeeId)}" data-date="${safeHtml(day.shift_date)}">Ver historial</button>` : ""} ${shiftButton}</td></tr>`;
   }).join("");
-  const render = (payload) => {
+  const render = (payload, statusById, includeFormer) => {
     const rows = Array.isArray(payload?.employees) ? payload.employees : [];
-    body.innerHTML = rows.length ? rows.map((row) => `<tr data-history-employee="${safeHtml(row.employee_id)}"><td><strong>${safeHtml(row.name || "Empleado")}</strong></td><td>${row.scheduled_days}</td><td>${row.days_with_punches}</td><td>${hours(row.regular_minutes)}</td><td>${hours(row.approved_overtime_minutes)}</td><td>${row.late_days}</td><td>${row.incident_days}</td><td>${row.corrected_days}</td><td><button class="button secondary" type="button" data-history-open>Ver días</button></td></tr><tr hidden data-history-detail="${safeHtml(row.employee_id)}"><td colspan="9"><table class="data-table"><thead><tr><th>Fecha</th><th>Entrada</th><th>Salida almuerzo</th><th>Regreso</th><th>Salida</th><th>Horas regulares</th><th>Horas extra aprobadas</th><th>Estado</th><th>Corrección</th></tr></thead><tbody>${renderDays(row.days || [], row.employee_id)}</tbody></table></td></tr>`).join("") : `<tr><td colspan="9">No hay turnos programados en este período.</td></tr>`;
+    const personLabel = (row) => {
+      const name = safeHtml(row.name || "Empleado");
+      if (!includeFormer) return name;
+      const status = String(statusById.get(row.employee_id) || "").toLowerCase();
+      const label = status === "activo" || status === "active" ? "Activo" : status ? "Exempleado" : "Estado no disponible";
+      return `${name} <span class="status-badge">${label}</span>`;
+    };
+    body.innerHTML = rows.length ? rows.map((row) => `<tr data-history-employee="${safeHtml(row.employee_id)}"><td><strong>${personLabel(row)}</strong></td><td>${row.scheduled_days}</td><td>${row.days_with_punches}</td><td>${hours(row.regular_minutes)}</td><td>${hours(row.approved_overtime_minutes)}</td><td>${row.late_days}</td><td>${row.incident_days}</td><td>${row.corrected_days}</td><td><button class="button secondary" type="button" data-history-open>Ver días</button></td></tr><tr hidden data-history-detail="${safeHtml(row.employee_id)}"><td colspan="9"><table class="data-table"><thead><tr><th>Fecha</th><th>Entrada</th><th>Salida almuerzo</th><th>Regreso</th><th>Salida</th><th>Horas regulares</th><th>Horas extra aprobadas</th><th>Estado</th><th>Corrección</th></tr></thead><tbody>${renderDays(row.days || [], row.employee_id)}</tbody></table></td></tr>`).join("") : `<tr><td colspan="9">No hay turnos programados en este período.</td></tr>`;
     body.querySelectorAll("[data-history-open]").forEach((button) => {
       button.addEventListener("click", () => {
         const id = button.closest("[data-history-employee]").dataset.historyEmployee;
@@ -5686,14 +5736,38 @@ function bindAttendanceHistory() {
     }
     label.textContent = title(bounds);
     message.textContent = "Consultando historial...";
+    const includeFormer = includeFormerInput?.value === "1";
     try {
-      render(await fetchAttendanceHistory(bounds.from, bounds.to));
-      message.textContent = "Historial actualizado.";
+      const history = await fetchAttendanceHistory(bounds.from, bounds.to, includeFormer);
+      let statusById = new Map();
+      if (includeFormer) {
+        try {
+          const museumId = (await fetchSupabaseProfile())?.museum_id;
+          if (!museumId) throw new Error("museum");
+          const people = await supabaseGet(`/rest/v1/employees?select=id,status&museum_id=eq.${encodeURIComponent(museumId)}`);
+          statusById = new Map((Array.isArray(people) ? people : []).map((person) => [person.id, person.status]));
+        } catch (error) {
+          console.error("Historial de asistencia:", error);
+          message.textContent = "Historial actualizado. No se pudo distinguir activos de exempleados.";
+          message.className = "form-message error";
+          render(history, statusById, false);
+          return;
+        }
+      }
+      render(history, statusById, includeFormer);
+      message.textContent = includeFormer ? "Historial actualizado, con empleados activos y exempleados." : "Historial actualizado.";
       message.className = "form-message success";
     } catch (error) {
-      const text = error.message || "";
+      const text = String(error?.message || "");
+      console.error("Historial de asistencia:", text);
       body.innerHTML = `<tr><td colspan="9">No se pudo consultar el historial.</td></tr>`;
-      message.textContent = text.includes("RANGE_TOO_LONG") ? "El período personalizado no puede pasar de 366 días." : (text || "No se pudo consultar el historial.");
+      message.textContent = text.includes("RANGE_TOO_LONG")
+        ? "El período personalizado no puede pasar de 366 días."
+        : text.includes("INVALID_PERIOD")
+          ? "Indique una fecha inicial y una fecha final válidas."
+          : text.includes("FORBIDDEN") || text.includes("42501")
+            ? "No tiene permiso para consultar el historial."
+            : "No se pudo consultar el historial.";
       message.className = "form-message error";
     }
   };
@@ -5701,6 +5775,7 @@ function bindAttendanceHistory() {
   fromInput.value = puertoRicoToday();
   toInput.value = puertoRicoToday();
   period.addEventListener("change", load);
+  includeFormerInput?.addEventListener("change", load);
   anchor.addEventListener("change", load);
   fromInput.addEventListener("change", load);
   toInput.addEventListener("change", load);

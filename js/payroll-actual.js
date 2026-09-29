@@ -45,6 +45,7 @@ function renderPayrollActualShell() {
       ${hasPermission("compensation.manage") ? `
         <form class="form-grid" data-payroll-assign>
           <h3>Asignar plaza</h3>
+          <p>La plaza vigente es la que aplica hoy. Para cambiarla, cierre la asignación actual y después registre la nueva. El historial no se borra.</p>
           <p class="form-message" data-payroll-admin-message></p>
           <div class="field"><label>Empleado<select data-payroll-employee-choice required><option value="">Seleccione un empleado</option></select></label></div>
           <div class="field"><label>Plaza<select data-payroll-line-choice required><option value="">Seleccione una plaza</option></select></label></div>
@@ -75,10 +76,10 @@ function renderPayrollResults(payload) {
   `).join("");
   const rows = employees.map((person) => `
     <tr>
-      <td><button class="button secondary" type="button" data-payroll-open="${person.employee_id}">${safeHtml(person.name)}</button></td>
+      <td><button class="button secondary" type="button" data-payroll-open="${person.employee_id}">${safeHtml(person.name)}</button>${payrollEmploymentLabel(person.employment_status) ? ` <span class="status-badge">Exempleado</span>` : ""}</td>
       <td>${safeHtml(person.position || "")}</td>
       <td>${safeHtml(person.plaza_name || "Sin plaza presupuestaria asignada")}</td>
-      <td>${safeHtml(person.compensation_type || "")}</td>
+      <td>${safeHtml(payrollTypeLabel(person.compensation_type))}</td>
       <td>${person.hourly_rate == null ? "—" : payrollMoney(person.hourly_rate)}</td>
       <td>${person.monthly_equivalent == null ? "—" : payrollMoney(person.monthly_equivalent)}</td>
       <td>${payrollHours(person.worked_minutes)}</td>
@@ -145,16 +146,49 @@ function renderPayrollDetail(person) {
     </div>
   `;
 }
+function payrollEmploymentLabel(status) {
+  const value = String(status || "").toLowerCase();
+  if (!value || value === "activo" || value === "active") return "";
+  return "Exempleado";
+}
+function payrollTypeLabel(type) {
+  const labels = {
+    hourly: "Por hora",
+    salary: "Sueldo fijo",
+    commission: "Comisión",
+    mixed: "Mixto",
+    stipend: "Estipendio",
+    other: "Otro",
+    unconfigured: "Pendiente de configurar"
+  };
+  return labels[type] || (type ? "Compensación registrada" : "—");
+}
+function payrollNetworkText(detail, fallback) {
+  if (/failed to fetch|networkerror|network request failed|load failed/i.test(detail)) {
+    return "No hubo conexión. Lo que escribió sigue en el formulario.";
+  }
+  return fallback;
+}
+function payrollConsultText(error) {
+  const detail = String(error?.message || "");
+  console.error("Nómina real:", detail);
+  if (detail.includes("FORBIDDEN") || detail.includes("42501")) return "No tiene permiso para consultar la nómina real.";
+  if (detail.includes("INVALID_PERIOD")) return "El período indicado no es válido.";
+  if (detail.includes("RANGE_TOO_LONG")) return "El período no puede pasar de 366 días.";
+  if (detail.includes("FISCAL_START_MISSING")) return "No se pudo determinar el año fiscal del museo.";
+  return payrollNetworkText(detail, "No se pudo consultar la nómina real.");
+}
 function payrollAdminText(error) {
   const detail = String(error?.message || error || "");
   console.error("Asignación de plaza:", detail);
-  if (detail.includes("EMPLOYEE_PLAZA_OVERLAP")) return "Ese empleado ya tiene una plaza en esas fechas.";
+  if (detail.includes("EMPLOYEE_PLAZA_OVERLAP")) return "Ese empleado ya tiene una plaza vigente en esas fechas. Ciérrela antes de asignar otra.";
   if (detail.includes("OPEN_ASSIGNMENT_NOT_FOUND")) return "No hay una asignación abierta para cerrar en esa fecha.";
+  if (detail.includes("ASSIGNMENT_ALREADY_CLOSED") || detail.includes("ASSIGNMENT_HISTORY_IMMUTABLE")) return "Esa asignación ya forma parte del historial y no se puede modificar.";
   if (detail.includes("FORBIDDEN") || detail.includes("42501")) return "No tiene permiso para administrar plazas.";
   if (detail.includes("PAYROLL_LINE_NOT_FOUND")) return "Esa plaza no pertenece a la nómina de este museo.";
   if (detail.includes("EMPLOYEE_NOT_FOUND")) return "Ese empleado no pertenece a este museo.";
   if (detail.includes("EFFECTIVE_FROM_REQUIRED") || detail.includes("EFFECTIVE_UNTIL_REQUIRED")) return "Indique la fecha de vigencia.";
-  return detail || "No se pudo completar la operación.";
+  return payrollNetworkText(detail, "No se pudo completar la operación. Lo que escribió sigue en el formulario.");
 }
 async function bindPayrollActual(museumId) {
   const root = document.querySelector("[data-payroll-actual]");
@@ -180,7 +214,7 @@ async function bindPayrollActual(museumId) {
       showMessage("", false);
     } catch (error) {
       results.innerHTML = "";
-      showMessage(error.message || "No se pudo consultar la nómina real.", true);
+      showMessage(payrollConsultText(error), true);
     }
   };
   root.querySelectorAll("[data-payroll-period]").forEach((button) => {
@@ -212,35 +246,49 @@ async function bindPayrollActual(museumId) {
     const museum = String(museumId || "");
     let directory = [];
     let lines = [];
+    let assignmentRows = [];
+    let assigning = false;
+    let closing = false;
     const personName = (id) => {
       const person = directory.find((item) => item.id === id);
       return person ? `${person.first_name} ${person.last_name}` : "Empleado";
     };
     const lineName = (id) => lines.find((item) => item.id === id)?.name || "Plaza";
+    const assignmentTable = (rows, historical) => `
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Empleado</th><th>Plaza</th><th>Vigente desde</th><th>Estado</th>${historical ? "" : "<th></th>"}</tr></thead>
+          <tbody>
+            ${rows.map((row) => `
+              <tr>
+                <td>${safeHtml(personName(row.employee_id))}</td>
+                <td>${safeHtml(lineName(row.budget_line_id))}</td>
+                <td>${payrollDateLabel(row.effective_from)}</td>
+                <td>${historical ? `Cerrada · ${payrollDateLabel(row.effective_until)}` : "Vigente"}</td>
+                ${historical ? "" : `<td>
+                  <div class="payroll-close">
+                    <input type="date" data-payroll-close-until aria-label="Fecha de cierre">
+                    <button class="button secondary" type="button" data-payroll-close="${row.employee_id}">Cerrar asignación</button>
+                  </div>
+                </td>`}
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>`;
     const renderAssignments = (rows) => {
-      const ordered = [...rows].sort((a, b) => Number(Boolean(a.effective_until)) - Number(Boolean(b.effective_until))
-        || String(b.effective_from).localeCompare(String(a.effective_from)));
-      assignmentList.innerHTML = ordered.length ? `
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead><tr><th>Empleado</th><th>Plaza</th><th>Vigente desde</th><th>Estado</th><th></th></tr></thead>
-            <tbody>
-              ${ordered.map((row) => `
-                <tr>
-                  <td>${safeHtml(personName(row.employee_id))}</td>
-                  <td>${safeHtml(lineName(row.budget_line_id))}</td>
-                  <td>${payrollDateLabel(row.effective_from)}</td>
-                  <td>${row.effective_until ? `Cerrada · ${payrollDateLabel(row.effective_until)}` : "Vigente"}</td>
-                  <td>${row.effective_until ? "" : `
-                    <div class="payroll-close">
-                      <input type="date" data-payroll-close-until aria-label="Fecha de cierre">
-                      <button class="button secondary" type="button" data-payroll-close="${row.employee_id}">Cerrar asignación</button>
-                    </div>`}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>` : "<p>No hay asignaciones.</p>";
+      assignmentRows = rows;
+      const open = rows.filter((row) => !row.effective_until)
+        .sort((a, b) => String(b.effective_from).localeCompare(String(a.effective_from)));
+      const closed = rows.filter((row) => row.effective_until)
+        .sort((a, b) => String(b.effective_until).localeCompare(String(a.effective_until)));
+      assignmentList.innerHTML = `
+        <div class="payroll-assignment-block">
+          <h4>Plaza vigente</h4>
+          ${open.length ? assignmentTable(open, false) : "<p>Ningún empleado tiene una plaza vigente.</p>"}
+          <h4>Historial</h4>
+          ${closed.length ? assignmentTable(closed, true) : "<p>No hay asignaciones cerradas.</p>"}
+        </div>`;
     };
     const loadAssignments = async () => {
       if (!museum) {
@@ -274,32 +322,54 @@ async function bindPayrollActual(museumId) {
     };
     assignForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const effectiveFrom = assignForm.querySelector("[data-payroll-assign-from]").value;
+      if (assigning) return;
+      const submit = assignForm.querySelector("[type=submit]");
+      const effectiveFromInput = assignForm.querySelector("[data-payroll-assign-from]");
+      const effectiveFrom = effectiveFromInput.value;
       if (!employeeChoice.value || !lineChoice.value || !effectiveFrom) {
         showAdmin("Seleccione el empleado, la plaza y la fecha de vigencia.", true);
         return;
       }
+      const openRow = assignmentRows.find((row) => row.employee_id === employeeChoice.value && !row.effective_until);
+      if (openRow) {
+        showAdmin(`Cierre primero la plaza vigente (${lineName(openRow.budget_line_id)}, desde ${payrollDateLabel(openRow.effective_from)}). Una plaza nueva no sustituye la anterior.`, true);
+        return;
+      }
+      const employeeLabel = employeeChoice.selectedOptions[0]?.textContent || "el empleado";
+      const lineLabel = lineChoice.selectedOptions[0]?.textContent || "la plaza";
+      if (!window.confirm(`Se asignará ${lineLabel} a ${employeeLabel} desde ${payrollDateLabel(effectiveFrom)}. El presupuesto no se modifica. ¿Desea continuar?`)) return;
+      assigning = true;
+      if (submit) submit.disabled = true;
       try {
         await supabasePost("/rest/v1/rpc/assign_employee_budget_line", {
           p_employee_id: employeeChoice.value,
           p_budget_line_id: lineChoice.value,
           p_effective_from: effectiveFrom
         });
-        showAdmin("Plaza asignada.", false);
+        showAdmin("Plaza asignada. La vigencia quedó registrada.", false);
+        effectiveFromInput.value = "";
         await loadAssignments();
         await load();
       } catch (error) {
         showAdmin(payrollAdminText(error), true);
+      } finally {
+        assigning = false;
+        if (submit) submit.disabled = false;
       }
     });
     assignmentList.addEventListener("click", async (event) => {
       const button = event.target.closest("[data-payroll-close]");
-      if (!button) return;
-      const until = button.parentElement.querySelector("[data-payroll-close-until]").value;
+      if (!button || closing) return;
+      const untilInput = button.parentElement.querySelector("[data-payroll-close-until]");
+      const until = untilInput.value;
       if (!until) {
         showAdmin("Indique hasta qué fecha queda vigente la asignación.", true);
         return;
       }
+      const name = personName(button.dataset.payrollClose);
+      if (!window.confirm(`Se cerrará la plaza vigente de ${name} el ${payrollDateLabel(until)}. El historial se conserva y la nómina ya calculada no se borra. ¿Desea continuar?`)) return;
+      closing = true;
+      button.disabled = true;
       try {
         await supabasePost("/rest/v1/rpc/close_employee_budget_assignment", {
           p_employee_id: button.dataset.payrollClose,
@@ -310,6 +380,9 @@ async function bindPayrollActual(museumId) {
         await load();
       } catch (error) {
         showAdmin(payrollAdminText(error), true);
+        button.disabled = false;
+      } finally {
+        closing = false;
       }
     });
     loadAssignments();
