@@ -283,6 +283,35 @@ test("cleans only its own object after a database failure, and keeps it when the
   assert.equal(hidden.storage.removed.length, 0);
 });
 
+test("accepts active and activo profiles and rejects every other status", async () => {
+  for (const profileStatus of ["active", "activo"]) {
+    const { db, storage } = backend();
+    const outcome = await ingestInvoice({
+      session: session({ profileStatus }),
+      file: { bytes: pdf, filename: "a.pdf", declaredType: "application/pdf" },
+      db,
+      storage,
+      newId: ids("fd300000-0000-4000-8000-0000000000d1")
+    });
+    assert.equal(outcome.httpStatus, 201, profileStatus);
+    assert.equal(outcome.body.status, "pending_review");
+  }
+
+  for (const profileStatus of ["inactive", "inactivo", "suspended", "pending", "", null]) {
+    const { db, storage } = backend();
+    const outcome = await ingestInvoice({
+      session: session({ profileStatus }),
+      file: { bytes: pdf, filename: "a.pdf", declaredType: "application/pdf" },
+      db,
+      storage,
+      newId: ids("fd300000-0000-4000-8000-0000000000d1")
+    });
+    assert.equal(outcome.body.code, "PROFILE_REQUIRED", String(profileStatus));
+    assert.equal(storage.uploads.length, 0, String(profileStatus));
+    assert.equal(db.rows.length, 0, String(profileStatus));
+  }
+});
+
 test("the intake migration only adds the pending-document function", () => {
   const migration = readFileSync(new URL("../migrations/202609300005_finance_document_ingest.sql", import.meta.url), "utf8");
   const source = readFileSync(new URL("../functions/ingest-finance-document/index.ts", import.meta.url), "utf8");
@@ -294,4 +323,13 @@ test("the intake migration only adds the pending-document function", () => {
   assert.match(source, /upsert:\s*false/);
   assert.doesNotMatch(source, /form\.get\(["']museum_id["']\)/);
   assert.doesNotMatch(source, /service_role|SUPABASE_SERVICE_ROLE_KEY/);
+});
+
+test("the profile compatibility migration only widens the active status check", () => {
+  const migration = readFileSync(new URL("../migrations/202609300006_finance_document_active_profile_compatibility.sql", import.meta.url), "utf8");
+  const ingest = readFileSync(new URL("../functions/ingest-finance-document/ingest.mjs", import.meta.url), "utf8");
+  assert.match(migration, /actor_status is null or actor_status not in \('active', 'activo'\)/);
+  assert.match(ingest, /status === "active" \|\| status === "activo"/);
+  assert.doesNotMatch(migration, /finance_records|finance_budget_lines|finance_movements|payroll_actual|employee_budget_assignments|employees|quickbooks|has_permission/i);
+  assert.doesNotMatch(migration, /drop table|truncate|delete from/i);
 });

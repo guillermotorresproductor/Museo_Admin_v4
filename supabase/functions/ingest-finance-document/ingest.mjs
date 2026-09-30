@@ -71,11 +71,15 @@ export async function sha256Hex(bytes) {
   return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
 }
 
+function activeProfileStatus(status) {
+  return status === "active" || status === "activo";
+}
+
 function authorize(session) {
   if (!session?.userId) throw coded("AUTH_REQUIRED");
   if (session.financeWrite !== true || session.financeRead !== true) throw coded("FORBIDDEN");
   if (session.administration !== true) throw coded("MODULE_FORBIDDEN");
-  if (session.profileStatus !== "active") throw coded("PROFILE_REQUIRED");
+  if (!activeProfileStatus(session.profileStatus)) throw coded("PROFILE_REQUIRED");
   const museumId = String(session.museumId || "").toLowerCase();
   if (!UUID.test(museumId)) throw coded("MUSEUM_REQUIRED");
   return { userId: String(session.userId).toLowerCase(), museumId };
