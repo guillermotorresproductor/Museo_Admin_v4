@@ -255,15 +255,35 @@ begin
   if voided->>'audit_id' is null or voided->>'void_reason' <> 'Factura duplicada' or void_stamp is null then
     raise exception 'VOID_CONTRACT';
   end if;
-  again := public.void_finance_movement(movement_id, 'Otro motivo');
+  again := public.void_finance_movement(movement_id, 'Factura duplicada');
   select count(*) into audits
   from public.audit_logs
   where action = 'finance_movement_void'
     and record_id = movement_id;
   if again->>'void_reason' <> 'Factura duplicada'
      or (again->>'voided_at')::timestamptz <> void_stamp
+     or again->>'voided_by' <> voided->>'voided_by'
      or again->>'audit_id' is not null
      or audits <> 1 then
+    raise exception 'VOID_RETRY_SAME';
+  end if;
+
+  blocked := false;
+  begin
+    perform public.void_finance_movement(movement_id, 'Importe incorrecto');
+  exception when raise_exception then
+    blocked := sqlerrm = 'VOID_ALREADY_COMPLETED';
+  end;
+  if not blocked
+     or (select void_reason from public.finance_movements where id = movement_id) <> 'Factura duplicada'
+     or (select voided_at from public.finance_movements where id = movement_id) <> void_stamp
+     or (select voided_by::text from public.finance_movements where id = movement_id) <> voided->>'voided_by'
+     or (
+       select count(*)
+       from public.audit_logs
+       where action = 'finance_movement_void'
+         and record_id = movement_id
+     ) <> 1 then
     raise exception 'VOID_RETRY_CHANGED';
   end if;
 

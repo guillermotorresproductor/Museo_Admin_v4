@@ -28,3 +28,25 @@ test("a correction is one audit event inside the movement transaction", () => {
   assert.match(migration, /ALREADY_VOIDED/);
   assert.match(migration, /IDEMPOTENCY_CONFLICT/);
 });
+
+const voidContract = fs.readFileSync(
+  "supabase/migrations/202609300002_finance_movement_void_completed.sql",
+  "utf8"
+);
+
+test("a different void reason is rejected without a new column", () => {
+  assert.doesNotMatch(migration, /VOID_ALREADY_COMPLETED/);
+  assert.match(voidContract, /void_finance_movement\(\s*p_movement_id uuid,\s*p_void_reason text\s*\)/);
+  assert.match(voidContract, /existing\.void_reason = reason/);
+  assert.match(voidContract, /VOID_ALREADY_COMPLETED/);
+  assert.match(voidContract, /for update/);
+  assert.doesNotMatch(voidContract, /void_idempotency_key/);
+  assert.doesNotMatch(voidContract, /alter table/);
+  assert.doesNotMatch(voidContract, /finance_records/);
+  assert.doesNotMatch(voidContract, /payroll_actual/);
+  assert.doesNotMatch(voidContract, /employee_budget_assignments/);
+  assert.doesNotMatch(voidContract, /finance_documents/);
+  assert.doesNotMatch(voidContract, /quickbooks/i);
+  assert.doesNotMatch(voidContract, /post_finance_movement/);
+  assert.doesNotMatch(voidContract, /correct_finance_movement/);
+});
