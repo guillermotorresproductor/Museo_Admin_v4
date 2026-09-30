@@ -3,7 +3,9 @@ import fs from "node:fs";
 import test from "node:test";
 
 const migration = fs.readFileSync("supabase/migrations/202609300003_finance_documents.sql", "utf8");
+const storageGuard = fs.readFileSync("supabase/migrations/202609300004_finance_documents_storage_guard.sql", "utf8");
 const spec = fs.readFileSync("supabase/tests/finance-documents.sql", "utf8");
+const storageSpec = fs.readFileSync("supabase/tests/finance-documents-storage.sql", "utf8");
 
 test("documents stay apart from budget, payroll, movements, and quickbooks", () => {
   assert.match(migration, /create table public\.finance_documents/);
@@ -55,4 +57,24 @@ test("the staging spec rolls back and checks the approved boundaries", () => {
   assert.match(spec, /MOVEMENT_CONTRACT_TOUCHED/);
   assert.match(spec, /REAL_MOVEMENTS_TOUCHED/);
   assert.match(spec, /BUDGET_LINE_NOT_INVOICE_ELIGIBLE|a7/);
+});
+
+test("storage reads require the document row and referenced originals stay immutable", () => {
+  assert.match(storageGuard, /document\.original_path = name/);
+  assert.match(storageGuard, /document\.derived_path = name/);
+  assert.match(storageGuard, /public\.current_user_museum_id\(\)/);
+  assert.match(storageGuard, /ORIGINAL_OBJECT_IMMUTABLE/);
+  assert.doesNotMatch(storageGuard, /finance_documents_guard/);
+  assert.doesNotMatch(storageGuard, /function storage\.protect_delete/);
+  assert.doesNotMatch(storageGuard, /finance_records/);
+  assert.doesNotMatch(storageGuard, /finance_budget_lines/);
+  assert.doesNotMatch(storageGuard, /finance_movements/);
+  assert.doesNotMatch(storageGuard, /payroll_actual/);
+  assert.match(storageSpec, /LINKED_ORIGINAL_READ/);
+  assert.match(storageSpec, /ORPHAN_STILL_VISIBLE/);
+  assert.match(storageSpec, /UNLINKED_DERIVED_VISIBLE/);
+  assert.match(storageSpec, /LINKED_DERIVED_READ/);
+  assert.match(storageSpec, /ORPHAN_NOT_REMOVED/);
+  assert.match(storageSpec, /DERIVED_NOT_REPLACEABLE/);
+  assert.match(storageSpec, /rollback;/);
 });
