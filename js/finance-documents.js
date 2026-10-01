@@ -3,6 +3,7 @@
 const invoiceCategoryOrder = ["Gastos Operacionales", "Servicios Contratados", "Otros Gastos"];
 let invoiceRenderToken = 0;
 let invoiceDocuments = [];
+let invoiceCanDecide = false;
 let invoiceLines = [];
 
 function cancelFinanceDocuments() {
@@ -141,11 +142,13 @@ async function loadFinanceDocuments(token) {
   const panel = document.querySelector("[data-finance-panel]");
   if (!panel) return;
   try {
-    const [documents, lines] = await Promise.all([
+    const [documents, lines, canDecide] = await Promise.all([
       fetchPendingFinanceDocuments(),
-      fetchInvoiceBudgetLines()
+      fetchInvoiceBudgetLines(),
+      financeDocumentCanDecide().catch(() => false)
     ]);
     if (token !== invoiceRenderToken) return;
+    invoiceCanDecide = canDecide === true;
     invoiceDocuments = documents;
     invoiceLines = lines.filter((line) => line.record_type === "expense" && invoiceCategoryOrder.includes(line.category));
     renderInvoiceList(panel);
@@ -211,7 +214,7 @@ function openFinanceDocument(documentId) {
 }
 
 function renderInvoiceReview(panel, invoice, token, notice = "") {
-  const canWrite = typeof hasPermission === "function" && hasPermission("finance.write");
+  const canDecide = invoiceCanDecide === true;
   const snapshot = invoiceSnapshot(invoice);
   const totalValue = snapshot.total === null || snapshot.total === undefined ? "" : snapshot.total;
   panel.innerHTML = `
@@ -231,34 +234,34 @@ function renderInvoiceReview(panel, invoice, token, notice = "") {
         <div class="form-row">
           <div class="field">
             <label for="invoice-vendor">Proveedor</label>
-            <input id="invoice-vendor" name="vendor_name" maxlength="200" value="${invoiceEscape(snapshot.vendor_name || "")}" ${canWrite ? "" : "disabled"}>
+            <input id="invoice-vendor" name="vendor_name" maxlength="200" value="${invoiceEscape(snapshot.vendor_name || "")}" ${canDecide ? "" : "disabled"}>
           </div>
           <div class="field">
             <label for="invoice-number">Número de factura</label>
-            <input id="invoice-number" name="invoice_number" maxlength="80" value="${invoiceEscape(snapshot.invoice_number || "")}" ${canWrite ? "" : "disabled"}>
+            <input id="invoice-number" name="invoice_number" maxlength="80" value="${invoiceEscape(snapshot.invoice_number || "")}" ${canDecide ? "" : "disabled"}>
           </div>
         </div>
         <div class="form-row">
           <div class="field">
             <label for="invoice-date">Fecha de factura</label>
-            <input id="invoice-date" name="invoice_date" type="date" value="${invoiceEscape(snapshot.invoice_date || "")}" ${canWrite ? "" : "disabled"}>
+            <input id="invoice-date" name="invoice_date" type="date" value="${invoiceEscape(snapshot.invoice_date || "")}" ${canDecide ? "" : "disabled"}>
           </div>
           <div class="field">
             <label for="invoice-total">Total</label>
-            <input id="invoice-total" name="total" inputmode="decimal" value="${invoiceEscape(totalValue)}" ${canWrite ? "" : "disabled"}>
+            <input id="invoice-total" name="total" inputmode="decimal" value="${invoiceEscape(totalValue)}" ${canDecide ? "" : "disabled"}>
           </div>
         </div>
         <div class="field">
           <label for="invoice-description">Descripción</label>
-          <textarea id="invoice-description" name="description" maxlength="500" ${canWrite ? "" : "disabled"}>${invoiceEscape(snapshot.description || "")}</textarea>
+          <textarea id="invoice-description" name="description" maxlength="500" ${canDecide ? "" : "disabled"}>${invoiceEscape(snapshot.description || "")}</textarea>
         </div>
         <div class="field">
           <label for="invoice-line">Línea presupuestaria</label>
-          <select id="invoice-line" name="budget_line_id" ${canWrite ? "" : "disabled"}>${invoiceLineOptions(snapshot.budget_line_id)}</select>
+          <select id="invoice-line" name="budget_line_id" ${canDecide ? "" : "disabled"}>${invoiceLineOptions(snapshot.budget_line_id)}</select>
         </div>
-        ${canWrite ? `<div class="invoice-actions"><button class="button submit-button" type="submit">Guardar revisión</button><button class="button secondary" type="button" data-invoice-reject>Rechazar factura</button><button class="button" type="button" data-invoice-confirm>Confirmar factura</button></div>` : `<p>Puede consultar la factura. Guardar la revisión requiere permiso de edición.</p>`}
+        ${canDecide ? `<div class="invoice-actions"><button class="button submit-button" type="submit">Guardar revisión</button><button class="button secondary" type="button" data-invoice-reject>Rechazar factura</button><button class="button" type="button" data-invoice-confirm>Confirmar factura</button></div>` : `<p>Puede consultar la factura.</p>`}
       </form>
-      ${canWrite ? `
+      ${canDecide ? `
         <dialog class="invoice-reject-dialog" data-invoice-reject-dialog>
           <form class="invoice-reject-form" data-invoice-reject-form>
             <h3>Rechazar factura</h3>

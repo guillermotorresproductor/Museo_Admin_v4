@@ -901,6 +901,10 @@ async function updateFinanceDocumentReview(review) {
   return data;
 }
 
+async function financeDocumentCanDecide() {
+  return (await supabasePost("/rest/v1/rpc/finance_document_can_decide", {})) === true;
+}
+
 async function confirmFinanceDocument(documentId) {
   const response = await fetch(`${supabaseUrl}/rest/v1/rpc/confirm_finance_document`, {
     method: "POST",
