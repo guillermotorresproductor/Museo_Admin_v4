@@ -54,6 +54,7 @@ function renderPayrollActualShell() {
       <div class="finance-actions">
         <label>Desde <input type="date" data-payroll-from value="${fullMonth.from}"></label>
         <label>Hasta <input type="date" data-payroll-to value="${fullMonth.to}"></label>
+        <button class="button secondary" type="button" data-payroll-print hidden>IMPRIMIR NÓMINA</button>
       </div>
       <p class="form-message" data-payroll-message></p>
       <div data-payroll-results></div>
@@ -107,9 +108,6 @@ function renderPayrollResults(payload) {
     </tr>
   `).join("");
   return `
-    <div class="payroll-print-actions">
-      <button class="button secondary" type="button" data-payroll-print ${employees.length ? "" : "disabled"}>IMPRIMIR NÓMINA</button>
-    </div>
     <div class="payroll-summary">
       <p><strong>Período:</strong> ${payrollDateLabel(payload.from)} – ${payrollDateLabel(payload.to)}</p>
       <p><strong>Total horas trabajadas:</strong> ${payrollHours(totals.worked)}</p>
@@ -244,6 +242,11 @@ async function bindPayrollActual(museumId) {
   const toInput = root.querySelector("[data-payroll-to]");
   let payload = null;
   let activePeriod = "";
+  const printButton = root.querySelector("[data-payroll-print]");
+  const showPrintButton = (employees) => {
+    if (!printButton) return;
+    printButton.hidden = !(employees && employees.length);
+  };
   const showMessage = (text, isError) => {
     message.textContent = text || "";
     message.className = isError ? "form-message error" : "form-message";
@@ -255,25 +258,26 @@ async function bindPayrollActual(museumId) {
     if (from > to) {
       activePeriod = "";
       results.innerHTML = "";
+      showPrintButton([]);
       showMessage("El período indicado no es válido.", true);
       return;
     }
     const period = `${from}|${to}`;
     if (period === activePeriod) return;
     activePeriod = period;
-    const pendingPrint = results.querySelector("[data-payroll-print]");
-    if (pendingPrint) pendingPrint.disabled = true;
     showMessage("Consultando nómina real…", false);
     try {
       const next = await supabasePost("/rest/v1/rpc/payroll_actual", { p_from: from, p_to: to });
       if (`${fromInput.value}|${toInput.value}` !== period) return;
       payload = next;
       results.innerHTML = renderPayrollResults(payload);
+      showPrintButton(payload.employees);
       showMessage("", false);
     } catch (error) {
       if (`${fromInput.value}|${toInput.value}` !== period) return;
       activePeriod = "";
       results.innerHTML = "";
+      showPrintButton([]);
       showMessage(payrollConsultText(error), true);
     }
   };
@@ -281,21 +285,19 @@ async function bindPayrollActual(museumId) {
     fromInput.addEventListener(eventName, load);
     toInput.addEventListener(eventName, load);
   });
+  printButton?.addEventListener("click", () => {
+    if (printButton.hidden) return;
+    const stamp = results.querySelector("[data-payroll-print-date]");
+    if (stamp) stamp.textContent = payrollPrintStamp();
+    const finishPrint = () => {
+      document.body.classList.remove("payroll-printing");
+      window.removeEventListener("afterprint", finishPrint);
+    };
+    window.addEventListener("afterprint", finishPrint);
+    document.body.classList.add("payroll-printing");
+    window.print();
+  });
   results.addEventListener("click", (event) => {
-    const printButton = event.target.closest("[data-payroll-print]");
-    if (printButton) {
-      if (printButton.disabled) return;
-      const stamp = results.querySelector("[data-payroll-print-date]");
-      if (stamp) stamp.textContent = payrollPrintStamp();
-      const finishPrint = () => {
-        document.body.classList.remove("payroll-printing");
-        window.removeEventListener("afterprint", finishPrint);
-      };
-      window.addEventListener("afterprint", finishPrint);
-      document.body.classList.add("payroll-printing");
-      window.print();
-      return;
-    }
     const button = event.target.closest("[data-payroll-open]");
     if (!button || !payload) return;
     const person = (payload.employees || []).find((item) => item.employee_id === button.dataset.payrollOpen);
