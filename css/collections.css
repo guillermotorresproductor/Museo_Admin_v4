@@ -17,6 +17,7 @@
 .collection-qr { margin:1.5rem 0 0; text-align:center; }
 .collection-qr img { width:160px; height:160px; image-rendering:auto; }
 .collection-print-label { display:none; }
+.collection-print-list { display:none; }
 .collection-facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:1rem; }
 .collection-facts dt { font-weight:700; color:#44546b; }
 .collection-facts dd { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; }
@@ -47,4 +48,22 @@
   .collection-print-label p { margin:.035in 0; }
   .collection-print-label img { width:1in; height:1in; margin-top:.08in; }
   @page { margin:.2in; }
+  @page collection-inventory-list { size:letter portrait; margin:.6in; }
+  body.collection-list-printing { background:#fff !important; }
+  body.collection-list-printing > :not(.collection-print-list) { display:none !important; }
+  body.collection-list-printing .collection-print-list {
+    display:block !important;
+    page:collection-inventory-list;
+    color:#000;
+    background:#fff;
+    font:10pt "Times New Roman", Times, serif;
+  }
+  body.collection-list-printing .collection-print-list header p { margin:0; }
+  body.collection-list-printing .collection-print-list h1 { margin:.15in 0 .2in; font-size:14pt; font-weight:700; }
+  body.collection-list-printing .collection-print-list table { width:100%; margin-top:.2in; border-collapse:collapse; font-size:9pt; }
+  body.collection-list-printing .collection-print-list thead { display:table-header-group; }
+  body.collection-list-printing .collection-print-list th,
+  body.collection-list-printing .collection-print-list td { border:1px solid #000; padding:2px 6px; text-align:left; vertical-align:top; background:#fff; color:#000; line-height:1.2; }
+  body.collection-list-printing .collection-print-list th { font-weight:700; }
+  body.collection-list-printing .collection-print-list tr { break-inside:avoid; page-break-inside:avoid; }
 }

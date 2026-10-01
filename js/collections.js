@@ -243,6 +243,20 @@ async function bindCollectionsCatalog() {
       return old === next ? [] : [`${labels[k]}: ${old || 'No registrado'} → ${next || 'No registrado'}`];
     }).join('\n');
   }
+  function printCollectionList() {
+    const sheet = document.createElement('section');
+    sheet.className = 'collection-print-list';
+    sheet.setAttribute('aria-hidden', 'true');
+    const printedAt = new Date().toLocaleString('es-PR', { dateStyle: 'long', timeStyle: 'short' });
+    const rows = items.map(item => `<tr><td>${esc(item.accession_number)}</td><td>${esc(item.title)}</td></tr>`).join('');
+    sheet.innerHTML = `<header><p>MUSEO DE LA MÚSICA DE PUERTO RICO</p><h1>INVENTARIO DE COLECCIONES</h1><p>Fecha de impresión: ${esc(printedAt)}</p><p>Total de piezas: ${items.length}</p></header><table><thead><tr><th>NÚMERO</th><th>PIEZA / NOMBRE</th></tr></thead><tbody>${rows}</tbody></table>`;
+    document.body.append(sheet);
+    document.body.classList.add('collection-list-printing');
+    const cleanup = () => { document.body.classList.remove('collection-list-printing'); sheet.remove(); };
+    window.addEventListener('afterprint', cleanup, { once: true });
+    window.print();
+    window.setTimeout(() => { if (document.body.contains(sheet)) cleanup(); }, 3000);
+  }
   function printLabel() {
     if (!viewedItem || !viewedQrDataUrl) return;
     const label = document.createElement('section');
@@ -329,6 +343,7 @@ async function bindCollectionsCatalog() {
   document.querySelector('#collection-close').onclick = () => { if(!replacingPhoto) dialog.close(); };
   dialog.addEventListener('cancel', event => { if(replacingPhoto) event.preventDefault(); });
   document.querySelector('#collection-print-label').onclick = printLabel;
+  document.querySelector('#collection-print-list').onclick = printCollectionList;
   document.querySelector('#collection-reload').onclick = () => reload().then(()=>say('Listado actualizado.')).catch(e=>say(e.message,true));
   search.oninput = render;
   list.onclick = event => {
