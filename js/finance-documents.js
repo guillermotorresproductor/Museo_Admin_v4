@@ -81,6 +81,42 @@ function invoiceRejectError(error) {
   return "No se pudo rechazar la factura.";
 }
 
+function invoiceConfirmError(error) {
+  if (error?.code === "DOCUMENT_NOT_READY") return "Faltan datos para confirmar. Guarde la fecha, el total, la descripción y la línea presupuestaria.";
+  if (error?.code === "DOCUMENT_NOT_PENDING") return "Esta factura ya no está pendiente de revisión.";
+  if (error?.code === "BUDGET_LINE_NOT_INVOICE_ELIGIBLE") return "Esa línea presupuestaria no está disponible para facturas.";
+  if (error?.code === "IDEMPOTENCY_CONFLICT") return "No se pudo confirmar la factura. Recargue el listado antes de intentar de nuevo.";
+  if (error?.code === "UNAUTHORIZED") return "No tiene autorización para confirmar facturas.";
+  return "No se pudo confirmar la factura.";
+}
+
+function invoiceFieldText(value) {
+  return String(value ?? "").trim();
+}
+
+function invoiceReviewDirty(form, snapshot) {
+  const current = {
+    vendor_name: invoiceFieldText(form.elements.vendor_name.value),
+    invoice_number: invoiceFieldText(form.elements.invoice_number.value),
+    invoice_date: invoiceFieldText(form.elements.invoice_date.value),
+    total: invoiceFieldText(form.elements.total.value),
+    description: invoiceFieldText(form.elements.description.value),
+    budget_line_id: invoiceFieldText(form.elements.budget_line_id.value)
+  };
+  const persisted = {
+    vendor_name: invoiceFieldText(snapshot.vendor_name),
+    invoice_number: invoiceFieldText(snapshot.invoice_number),
+    invoice_date: invoiceFieldText(snapshot.invoice_date),
+    total: invoiceFieldText(snapshot.total),
+    description: invoiceFieldText(snapshot.description),
+    budget_line_id: invoiceFieldText(snapshot.budget_line_id)
+  };
+  if (current.total && persisted.total && Number(current.total) === Number(persisted.total) && Number.isFinite(Number(current.total))) {
+    current.total = persisted.total;
+  }
+  return Object.keys(persisted).some((key) => current[key] !== persisted[key]);
+}
+
 function invoiceLineOptions(selectedId) {
   const groups = invoiceCategoryOrder.map((category) => {
     const options = invoiceLines
@@ -183,7 +219,7 @@ function renderInvoiceReview(panel, invoice, token, notice = "") {
       <div>
         <p class="page-kicker">Facturas</p>
         <h3>${invoiceEscape(invoice.original_filename)}</h3>
-        <p>Cargada ${invoiceEscape(invoiceUploadedLabel(invoice.uploaded_at))}. La factura sigue pendiente hasta una fase posterior.</p>
+        <p>Cargada ${invoiceEscape(invoiceUploadedLabel(invoice.uploaded_at))}. La factura sigue pendiente hasta que se confirme o se rechace.</p>
       </div>
       <div class="invoice-actions">
         <button class="button secondary" type="button" data-invoice-back>Volver al listado</button>
@@ -220,7 +256,7 @@ function renderInvoiceReview(panel, invoice, token, notice = "") {
           <label for="invoice-line">Línea presupuestaria</label>
           <select id="invoice-line" name="budget_line_id" ${canWrite ? "" : "disabled"}>${invoiceLineOptions(snapshot.budget_line_id)}</select>
         </div>
-        ${canWrite ? `<div class="invoice-actions"><button class="button submit-button" type="submit">Guardar revisión</button><button class="button secondary" type="button" data-invoice-reject>Rechazar factura</button></div>` : `<p>Puede consultar la factura. Guardar la revisión requiere permiso de edición.</p>`}
+        ${canWrite ? `<div class="invoice-actions"><button class="button submit-button" type="submit">Guardar revisión</button><button class="button secondary" type="button" data-invoice-reject>Rechazar factura</button><button class="button" type="button" data-invoice-confirm>Confirmar factura</button></div>` : `<p>Puede consultar la factura. Guardar la revisión requiere permiso de edición.</p>`}
       </form>
       ${canWrite ? `
         <dialog class="invoice-reject-dialog" data-invoice-reject-dialog>
@@ -235,6 +271,17 @@ function renderInvoiceReview(panel, invoice, token, notice = "") {
             <div class="invoice-actions">
               <button class="button secondary" type="button" data-invoice-reject-cancel>Cancelar</button>
               <button class="button" type="submit" data-invoice-reject-confirm>Confirmar rechazo</button>
+            </div>
+          </form>
+        </dialog>
+        <dialog class="invoice-reject-dialog" data-invoice-confirm-dialog>
+          <form class="invoice-reject-form" data-invoice-confirm-form>
+            <h3>Confirmar factura</h3>
+            <p>Al confirmar, la factura quedará registrada como confirmada y se creará el movimiento financiero correspondiente. No confirme hasta haber revisado la fecha, el total, la descripción y la línea presupuestaria.</p>
+            <p class="form-message" data-invoice-confirm-message></p>
+            <div class="invoice-actions">
+              <button class="button secondary" type="button" data-invoice-confirm-cancel>Cancelar</button>
+              <button class="button" type="submit" data-invoice-confirm-submit>Confirmar factura</button>
             </div>
           </form>
         </dialog>
@@ -262,7 +309,80 @@ function renderInvoiceReview(panel, invoice, token, notice = "") {
     event.preventDefault();
     confirmInvoiceReject(panel, invoice, token);
   });
+  panel.querySelector("[data-invoice-confirm]")?.addEventListener("click", () => {
+    const form = panel.querySelector("[data-invoice-form]");
+    const message = panel.querySelector("[data-invoice-message]");
+    if (form && invoiceReviewDirty(form, snapshot)) {
+      if (message) {
+        message.className = "form-message error";
+        message.textContent = "Hay cambios sin guardar. Guarde la revisión antes de confirmar la factura.";
+      }
+      return;
+    }
+    openInvoiceConfirm(panel);
+  });
+  panel.querySelector("[data-invoice-confirm-cancel]")?.addEventListener("click", () => {
+    panel.querySelector("[data-invoice-confirm-dialog]")?.close();
+  });
+  panel.querySelector("[data-invoice-confirm-form]")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    confirmInvoiceDocument(panel, invoice, token);
+  });
   showInvoiceOriginal(panel, invoice);
+}
+
+function openInvoiceConfirm(panel) {
+  const dialog = panel.querySelector("[data-invoice-confirm-dialog]");
+  const message = panel.querySelector("[data-invoice-confirm-message]");
+  const submit = panel.querySelector("[data-invoice-confirm-submit]");
+  const cancel = panel.querySelector("[data-invoice-confirm-cancel]");
+  if (!dialog) return;
+  if (submit) submit.disabled = false;
+  if (cancel) cancel.disabled = false;
+  if (message) {
+    message.className = "form-message";
+    message.textContent = "";
+  }
+  dialog.showModal();
+}
+
+async function confirmInvoiceDocument(panel, invoice, token) {
+  const dialog = panel.querySelector("[data-invoice-confirm-dialog]");
+  const message = panel.querySelector("[data-invoice-confirm-message]");
+  const submit = panel.querySelector("[data-invoice-confirm-submit]");
+  const cancel = panel.querySelector("[data-invoice-confirm-cancel]");
+  if (token !== invoiceRenderToken || submit?.disabled) return;
+  if (submit) submit.disabled = true;
+  if (cancel) cancel.disabled = true;
+  if (message) {
+    message.className = "form-message";
+    message.textContent = "";
+  }
+  let saved;
+  try {
+    saved = await confirmFinanceDocument(invoice.id);
+    if (saved?.status !== "confirmed" || !saved?.movement_id) throw new Error("La factura no quedó confirmada.");
+  } catch (error) {
+    if (token !== invoiceRenderToken) return;
+    if (submit) submit.disabled = false;
+    if (cancel) cancel.disabled = false;
+    if (message) {
+      message.className = "form-message error";
+      message.textContent = invoiceConfirmError(error);
+    }
+    return;
+  }
+  dialog?.close();
+  const listToken = ++invoiceRenderToken;
+  try {
+    const documents = await fetchPendingFinanceDocuments();
+    if (listToken !== invoiceRenderToken) return;
+    invoiceDocuments = documents;
+    renderInvoiceList(panel, "Factura confirmada. Se registró el movimiento financiero.");
+  } catch (error) {
+    if (listToken !== invoiceRenderToken) return;
+    panel.innerHTML = `<p class="page-kicker">Facturas</p><h3>Facturas pendientes</h3><p class="form-message">Factura confirmada. Se registró el movimiento financiero.</p><p class="form-message error">${invoiceEscape(error.message || "No se pudieron cargar las facturas.")}</p>`;
+  }
 }
 
 function openInvoiceReject(panel) {

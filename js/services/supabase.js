@@ -901,6 +901,26 @@ async function updateFinanceDocumentReview(review) {
   return data;
 }
 
+async function confirmFinanceDocument(documentId) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/confirm_finance_document`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify({ p_document_id: documentId })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = String(data.message || data.details || "");
+    const error = new Error(message || "No se pudo confirmar la factura.");
+    if (message.includes("DOCUMENT_NOT_READY") || message.includes("Invalid amount")) error.code = "DOCUMENT_NOT_READY";
+    else if (message.includes("DOCUMENT_NOT_PENDING")) error.code = "DOCUMENT_NOT_PENDING";
+    else if (message.includes("BUDGET_LINE_NOT_INVOICE_ELIGIBLE") || message.includes("BUDGET_LINE_NOT_FOUND") || message.includes("BUDGET_LINE_MUSEUM_MISMATCH")) error.code = "BUDGET_LINE_NOT_INVOICE_ELIGIBLE";
+    else if (message.includes("IDEMPOTENCY_CONFLICT")) error.code = "IDEMPOTENCY_CONFLICT";
+    else if (message.includes("Missing financial authorization") || message.includes("PROFILE_REQUIRED") || message.includes("MUSEUM_MISMATCH") || data.code === "42501") error.code = "UNAUTHORIZED";
+    throw error;
+  }
+  return data;
+}
+
 async function rejectFinanceDocument(documentId, reason) {
   const response = await fetch(`${supabaseUrl}/rest/v1/rpc/reject_finance_document`, {
     method: "POST",
