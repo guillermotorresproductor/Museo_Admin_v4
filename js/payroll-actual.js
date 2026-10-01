@@ -10,6 +10,24 @@ function payrollDateLabel(value) {
   const [year, month, day] = String(value).slice(0, 10).split("-");
   return `${day}/${month}/${year}`;
 }
+function payrollPrintStamp() {
+  const iso = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Puerto_Rico",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date());
+  return payrollDateLabel(iso);
+}
+function payrollSignatureBlock(label) {
+  return `
+    <div class="payroll-print-sign">
+      <p>${label}</p>
+      <p class="payroll-print-line">____________________________________</p>
+      <p class="payroll-print-caption">Nombre / Firma</p>
+      <p class="payroll-print-date">Fecha: _____________________________</p>
+    </div>`;
+}
 function payrollClock(value) {
   if (!value) return "—";
   const date = new Date(value);
@@ -36,6 +54,7 @@ function renderPayrollActualShell() {
       <div class="finance-actions">
         <label>Desde <input type="date" data-payroll-from value="${fullMonth.from}"></label>
         <label>Hasta <input type="date" data-payroll-to value="${fullMonth.to}"></label>
+        <button class="button secondary" type="button" data-payroll-print hidden>IMPRIMIR NÓMINA</button>
       </div>
       <p class="form-message" data-payroll-message></p>
       <div data-payroll-results></div>
@@ -64,6 +83,18 @@ function renderPayrollResults(payload) {
     return sum;
   }, { worked: 0, amount: 0 });
   totals.amount = Math.round(totals.amount * 100) / 100;
+  const printRows = employees.map((person) => `
+    <tr>
+      <td>${safeHtml(person.name)}${payrollEmploymentLabel(person.employment_status) ? " Exempleado" : ""}</td>
+      <td>${safeHtml(person.position || "")}</td>
+      <td>${safeHtml(payrollTypeLabel(person.compensation_type))}</td>
+      <td class="payroll-print-num">${person.hourly_rate == null ? "—" : payrollMoney(person.hourly_rate)}</td>
+      <td class="payroll-print-num">${payrollHours(person.worked_minutes)}</td>
+      <td class="payroll-print-num">${payrollHours(person.over_limit_minutes)}</td>
+      <td class="payroll-print-num">${payrollMoney(person.actual_amount)}</td>
+      <td>${safeHtml(person.state || "")}</td>
+    </tr>
+  `).join("");
   const rows = employees.map((person) => `
     <tr>
       <td><button class="button secondary" type="button" data-payroll-open="${person.employee_id}">${safeHtml(person.name)}</button>${payrollEmploymentLabel(person.employment_status) ? ` <span class="status-badge">Exempleado</span>` : ""}</td>
@@ -94,6 +125,34 @@ function renderPayrollResults(payload) {
       </table>
     </div>
     <div data-payroll-detail></div>
+    <article class="payroll-print-sheet" data-payroll-print-sheet>
+      <header class="payroll-print-head">
+        <p class="payroll-print-org">MUSEO DE LA MÚSICA DE PUERTO RICO</p>
+        <h1>NÓMINA REAL ACUMULADA</h1>
+        <p>Período:</p>
+        <p>Desde ${payrollDateLabel(payload.from)} hasta ${payrollDateLabel(payload.to)}</p>
+        <p>Fecha de impresión:</p>
+        <p data-payroll-print-date>${payrollPrintStamp()}</p>
+      </header>
+      <table>
+        <thead>
+          <tr>
+            <th>Empleado</th><th>Posición</th><th>Tipo</th><th class="payroll-print-num">Tarifa</th>
+            <th class="payroll-print-num">Horas trabajadas</th><th class="payroll-print-num">Horas sobre límite</th><th class="payroll-print-num">Nómina acumulada</th><th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>${printRows || `<tr><td colspan="8">No hay actividad en este período.</td></tr>`}</tbody>
+      </table>
+      <div class="payroll-print-totals">
+        <p>TOTAL DE EMPLEADOS: ${employees.length}</p>
+        <p class="payroll-print-grand">TOTAL GENERAL DE NÓMINA: ${payrollMoney(totals.amount)}</p>
+      </div>
+      <section class="payroll-print-signs">
+        ${payrollSignatureBlock("PREPARADO POR:")}
+        ${payrollSignatureBlock("REVISADO POR:")}
+        ${payrollSignatureBlock("APROBADO POR:")}
+      </section>
+    </article>
   `;
 }
 function renderPayrollDetail(person) {
@@ -183,6 +242,11 @@ async function bindPayrollActual(museumId) {
   const toInput = root.querySelector("[data-payroll-to]");
   let payload = null;
   let activePeriod = "";
+  const printButton = root.querySelector("[data-payroll-print]");
+  const showPrintButton = (employees) => {
+    if (!printButton) return;
+    printButton.hidden = !(employees && employees.length);
+  };
   const showMessage = (text, isError) => {
     message.textContent = text || "";
     message.className = isError ? "form-message error" : "form-message";
@@ -194,6 +258,7 @@ async function bindPayrollActual(museumId) {
     if (from > to) {
       activePeriod = "";
       results.innerHTML = "";
+      showPrintButton([]);
       showMessage("El período indicado no es válido.", true);
       return;
     }
@@ -206,17 +271,31 @@ async function bindPayrollActual(museumId) {
       if (`${fromInput.value}|${toInput.value}` !== period) return;
       payload = next;
       results.innerHTML = renderPayrollResults(payload);
+      showPrintButton(payload.employees);
       showMessage("", false);
     } catch (error) {
       if (`${fromInput.value}|${toInput.value}` !== period) return;
       activePeriod = "";
       results.innerHTML = "";
+      showPrintButton([]);
       showMessage(payrollConsultText(error), true);
     }
   };
   ["input", "change"].forEach((eventName) => {
     fromInput.addEventListener(eventName, load);
     toInput.addEventListener(eventName, load);
+  });
+  printButton?.addEventListener("click", () => {
+    if (printButton.hidden) return;
+    const stamp = results.querySelector("[data-payroll-print-date]");
+    if (stamp) stamp.textContent = payrollPrintStamp();
+    const finishPrint = () => {
+      document.body.classList.remove("payroll-printing");
+      window.removeEventListener("afterprint", finishPrint);
+    };
+    window.addEventListener("afterprint", finishPrint);
+    document.body.classList.add("payroll-printing");
+    window.print();
   });
   results.addEventListener("click", (event) => {
     const button = event.target.closest("[data-payroll-open]");
