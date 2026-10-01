@@ -1,13 +1,65 @@
 "use strict";
 
 const invoiceCategoryOrder = ["Gastos Operacionales", "Servicios Contratados", "Otros Gastos"];
+const invoiceUploadMaxBytes = 15728640;
+const invoiceUploadTypes = Object.freeze({
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png"
+});
 let invoiceRenderToken = 0;
 let invoiceDocuments = [];
 let invoiceCanDecide = false;
 let invoiceLines = [];
+let invoiceUploading = false;
 
 function cancelFinanceDocuments() {
   invoiceRenderToken += 1;
+}
+
+function invoiceCanUpload() {
+  if (typeof hasPermission !== "function") return false;
+  if (!hasPermission("finance.read") || !hasPermission("finance.write")) return false;
+  if (typeof hasModuleProfile === "function" && hasModuleProfile()) {
+    return hasPermission("modules.administration.read");
+  }
+  return true;
+}
+
+function invoiceUploadExtension(filename) {
+  const name = String(filename || "");
+  const dot = name.lastIndexOf(".");
+  if (dot <= 0 || dot === name.length - 1) return "";
+  return name.slice(dot + 1).toLowerCase();
+}
+
+function invoiceUploadClientError(file) {
+  if (!file || !file.size) return "El archivo está vacío.";
+  if (file.size > invoiceUploadMaxBytes) return "El archivo supera 15 MiB.";
+  const expected = invoiceUploadTypes[invoiceUploadExtension(file.name)];
+  if (!expected) return "Solo se aceptan archivos PDF, JPEG o PNG.";
+  const declared = String(file.type || "").split(";")[0].trim().toLowerCase();
+  if (declared && declared !== "application/octet-stream" && declared !== expected) {
+    return "El tipo del archivo no corresponde a PDF, JPEG o PNG.";
+  }
+  return "";
+}
+
+function invoiceUploadErrorMessage(error) {
+  const code = String(error?.code || "");
+  const status = Number(error?.status || 0);
+  if (code === "DUPLICATE_DOCUMENT" || status === 409) return "Esta factura ya fue cargada anteriormente.";
+  if (code === "EMPTY_FILE") return "El archivo está vacío.";
+  if (code === "FILE_TOO_LARGE") return "El archivo supera 15 MiB.";
+  if (code === "INVALID_FILE_CONTENT" || code === "MIME_MISMATCH" || code === "EXTENSION_MISMATCH") {
+    return "El archivo no es un PDF, JPEG o PNG válido.";
+  }
+  if (code === "INVALID_FILENAME") return "El nombre del archivo no es válido.";
+  if (code === "FORBIDDEN" || code === "MODULE_FORBIDDEN" || status === 403) return "No tiene permiso para subir facturas.";
+  if (code === "AUTH_REQUIRED" || status === 401) return "Debe iniciar sesión para subir una factura.";
+  if (code === "NETWORK") return "No se pudo cargar la factura. Verifique su conexión.";
+  return "No se pudo cargar la factura.";
 }
 
 function invoiceEscape(value) {
@@ -138,7 +190,7 @@ function renderFinanceDocuments() {
   loadFinanceDocuments(token);
 }
 
-async function loadFinanceDocuments(token) {
+async function loadFinanceDocuments(token, notice = "", noticeState = "") {
   const panel = document.querySelector("[data-finance-panel]");
   if (!panel) return;
   try {
@@ -151,14 +203,14 @@ async function loadFinanceDocuments(token) {
     invoiceCanDecide = canDecide === true;
     invoiceDocuments = documents;
     invoiceLines = lines.filter((line) => line.record_type === "expense" && invoiceCategoryOrder.includes(line.category));
-    renderInvoiceList(panel);
+    renderInvoiceList(panel, notice, noticeState);
   } catch (error) {
     if (token !== invoiceRenderToken) return;
     panel.innerHTML = `<p class="page-kicker">Facturas</p><h3>Facturas pendientes</h3><p class="form-message error">${invoiceEscape(error.message || "No se pudieron cargar las facturas.")}</p>`;
   }
 }
 
-function renderInvoiceList(panel, notice = "") {
+function renderInvoiceList(panel, notice = "", noticeState = "") {
   const rows = invoiceDocuments.map((document) => `
     <tr>
       <td>${invoiceEscape(document.original_filename)}</td>
@@ -177,7 +229,13 @@ function renderInvoiceList(panel, notice = "") {
         <p class="page-kicker">Facturas</p>
         <h3>Facturas pendientes</h3>
         <p>Una factura pendiente es evidencia. Guardar la revisión no crea un gasto ni cambia el presupuesto.</p>
-        ${notice ? `<p class="form-message">${invoiceEscape(notice)}</p>` : ""}
+        ${invoiceCanUpload() ? `
+          <div class="invoice-upload">
+            <input id="invoice-upload-file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" hidden>
+            <button class="button" type="button" data-invoice-upload ${invoiceUploading ? "disabled" : ""}>Subir factura</button>
+          </div>
+        ` : ""}
+        ${notice ? `<p class="form-message${noticeState === "error" ? " error" : ""}">${invoiceEscape(notice)}</p>` : ""}
       </div>
       ${invoiceDocuments.length ? `
         <div class="table-wrap">
@@ -203,6 +261,48 @@ function renderInvoiceList(panel, notice = "") {
   panel.querySelectorAll("[data-invoice-open]").forEach((button) => {
     button.addEventListener("click", () => openFinanceDocument(button.dataset.invoiceOpen));
   });
+  bindInvoiceUpload(panel);
+}
+
+function bindInvoiceUpload(panel) {
+  const button = panel.querySelector("[data-invoice-upload]");
+  const input = panel.querySelector("#invoice-upload-file");
+  if (!button || !input || button.dataset.bound === "1") return;
+  button.dataset.bound = "1";
+  button.addEventListener("click", () => {
+    if (invoiceUploading) return;
+    input.click();
+  });
+  input.addEventListener("change", () => {
+    const file = input.files && input.files[0];
+    input.value = "";
+    if (!file || invoiceUploading) return;
+    void submitInvoiceUpload(panel, file);
+  });
+}
+
+async function submitInvoiceUpload(panel, file) {
+  const problem = invoiceUploadClientError(file);
+  if (problem) {
+    renderInvoiceList(panel, problem, "error");
+    return;
+  }
+  const token = invoiceRenderToken;
+  invoiceUploading = true;
+  renderInvoiceList(panel, "Subiendo factura...");
+  try {
+    const created = await ingestFinanceDocument(file);
+    if (created?.status !== "pending_review") {
+      throw Object.assign(new Error("La factura no quedó pendiente."), { code: "INGEST_FAILED" });
+    }
+    invoiceUploading = false;
+    if (token !== invoiceRenderToken) return;
+    await loadFinanceDocuments(token, "Factura cargada correctamente.");
+  } catch (error) {
+    invoiceUploading = false;
+    if (token !== invoiceRenderToken) return;
+    renderInvoiceList(panel, invoiceUploadErrorMessage(error), "error");
+  }
 }
 
 function openFinanceDocument(documentId) {

@@ -901,6 +901,33 @@ async function updateFinanceDocumentReview(review) {
   return data;
 }
 
+async function ingestFinanceDocument(file) {
+  const headers = await supabaseAuthHeaders();
+  delete headers["Content-Type"];
+  const body = new FormData();
+  body.append("file", file, file.name);
+  let response;
+  try {
+    response = await fetch(`${supabaseUrl}/functions/v1/ingest-finance-document`, {
+      method: "POST",
+      headers,
+      body
+    });
+  } catch {
+    const error = new Error("No se pudo cargar la factura. Verifique su conexión.");
+    error.code = "NETWORK";
+    throw error;
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error("No se pudo cargar la factura.");
+    error.code = data.code || "";
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
 async function financeDocumentCanDecide() {
   return (await supabasePost("/rest/v1/rpc/finance_document_can_decide", {})) === true;
 }
