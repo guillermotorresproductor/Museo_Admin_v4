@@ -4116,16 +4116,17 @@ body {
   body.payroll-printing .payroll-print-sheet th{background:#f2f2f2;font-weight:700}
   body.payroll-printing .payroll-print-num{white-space:nowrap;text-align:right}
   body.payroll-printing .payroll-print-sheet tr,
+  body.payroll-printing .payroll-print-signs,
   body.payroll-printing .payroll-print-sign,
   body.payroll-printing .payroll-print-totals{break-inside:avoid;page-break-inside:avoid}
   body.payroll-printing .payroll-print-totals{margin-top:16px}
   body.payroll-printing .payroll-print-totals p{margin:0 0 8px;font-size:11pt;font-weight:700}
   body.payroll-printing .payroll-print-grand{margin-top:6px;padding:10px 12px;border:2px solid #111;font-size:13pt;font-weight:800}
-  body.payroll-printing .payroll-print-signs{margin-top:.45in}
-  body.payroll-printing .payroll-print-sign{margin-top:.42in}
-  body.payroll-printing .payroll-print-sign p{margin:0;font-size:11pt;font-weight:700}
-  body.payroll-printing .payroll-print-line{margin:.42in 0 .08in;font-weight:400;letter-spacing:.02em}
+  body.payroll-printing .payroll-print-signs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:.28in;margin-top:.5in;break-inside:avoid;page-break-inside:avoid}
+  body.payroll-printing .payroll-print-sign{margin:0;min-width:0}
+  body.payroll-printing .payroll-print-sign p{margin:0;font-size:10pt;font-weight:700;line-height:1.3}
+  body.payroll-printing .payroll-print-line{margin:.48in 0 .06in;overflow:hidden;white-space:nowrap;font-weight:400;letter-spacing:0}
   body.payroll-printing .payroll-print-caption,
-  body.payroll-printing .payroll-print-date{font-weight:400;font-size:10.5pt}
-  body.payroll-printing .payroll-print-caption{margin-bottom:.16in}
+  body.payroll-printing .payroll-print-date{overflow:hidden;white-space:nowrap;font-weight:400;font-size:9pt}
+  body.payroll-printing .payroll-print-caption{margin-bottom:.14in}
 }
