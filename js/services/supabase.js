@@ -839,3 +839,64 @@ async function persistSupabaseEmployeePhoto(id, employee, museumId) {
   if (result?.saved !== true) throw new Error("No se confirmó la fotografía guardada.");
   employee.photoReference = path ? employeePhotoPrefix + path : "";
 }
+
+const supabaseFinanceDocumentsBucket = "finance-documents";
+const invoiceBudgetCategories = ["Gastos Operacionales", "Servicios Contratados", "Otros Gastos"];
+
+async function fetchPendingFinanceDocuments() {
+  return supabaseGet("/rest/v1/finance_documents?select=id,status,original_filename,original_mime,original_path,uploaded_at,vendor_name,invoice_number,invoice_date,total,description,budget_line_id&status=eq.pending_review&order=uploaded_at.desc");
+}
+
+async function fetchInvoiceBudgetLines() {
+  const list = invoiceBudgetCategories.map((category) => `"${category}"`).join(",");
+  return supabaseGet(`/rest/v1/finance_budget_lines?select=id,category,name,sort_order,record_type&record_type=eq.expense&category=in.(${encodeURI(list)})&order=sort_order.asc,name.asc`);
+}
+
+async function signSupabaseFinanceDocument(path, expiresIn = 900) {
+  if (!path) return "";
+  const response = await fetch(`${supabaseUrl}/storage/v1/object/sign/${supabaseFinanceDocumentsBucket}/${path}`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify({ expiresIn })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || "No se pudo mostrar el archivo.");
+  const signedPath = data.signedURL || data.signedUrl || data.signed_url;
+  return signedPath ? `${supabaseUrl}/storage/v1${signedPath.startsWith("/") ? "" : "/"}${signedPath}` : "";
+}
+
+async function updateFinanceDocumentReview(review) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/update_finance_document_review`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify({
+      p_document_id: review.documentId,
+      p_expected_vendor_name: review.expected.vendor_name,
+      p_expected_invoice_number: review.expected.invoice_number,
+      p_expected_invoice_date: review.expected.invoice_date,
+      p_expected_total: review.expected.total,
+      p_expected_description: review.expected.description,
+      p_expected_budget_line_id: review.expected.budget_line_id,
+      p_vendor_name: review.vendor_name,
+      p_invoice_number: review.invoice_number,
+      p_invoice_date: review.invoice_date,
+      p_total: review.total,
+      p_description: review.description,
+      p_budget_line_id: review.budget_line_id
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = String(data.message || data.details || "");
+    const error = new Error(message || "No se pudo guardar la revisión.");
+    if (message.includes("DOCUMENT_REVIEW_STALE")) error.code = "DOCUMENT_REVIEW_STALE";
+    else if (message.includes("DOCUMENT_NOT_PENDING")) error.code = "DOCUMENT_NOT_PENDING";
+    else if (message.includes("BUDGET_LINE_NOT_INVOICE_ELIGIBLE") || message.includes("BUDGET_LINE_NOT_FOUND") || message.includes("BUDGET_LINE_MUSEUM_MISMATCH")) error.code = "BUDGET_LINE_REJECTED";
+    else if (message.includes("Invalid amount")) error.code = "INVALID_TOTAL";
+    else if (message.includes("Invalid vendor")) error.code = "INVALID_VENDOR";
+    else if (message.includes("Invalid invoice number")) error.code = "INVALID_INVOICE_NUMBER";
+    else if (message.includes("Invalid description")) error.code = "INVALID_DESCRIPTION";
+    throw error;
+  }
+  return data;
+}

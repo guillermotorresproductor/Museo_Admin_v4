@@ -4952,6 +4952,11 @@ function bindFinanceModule() {
 
   const renderPanel = () => {
     renderSummary();
+    if (activeTab !== "facturas" && typeof cancelFinanceDocuments === "function") cancelFinanceDocuments();
+    if (activeTab === "facturas") {
+      renderFinanceDocuments();
+      return;
+    }
     if (activeTab === "resumen") panel.innerHTML = `<p class="page-kicker">Resumen</p><h3>Balance Neto</h3>${renderNetSummary()}`;
     if (activeTab === "ingresos") panel.innerHTML = renderFinanceTable("Ingresos", (row) => row.type === "income");
     if (activeTab === "gastos") panel.innerHTML = renderExpenseSummaryTable();

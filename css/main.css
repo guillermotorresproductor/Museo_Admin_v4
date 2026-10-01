@@ -2566,6 +2566,41 @@ body {
   padding: 28px;
 }
 
+.invoice-review,
+.invoice-list {
+  display: grid;
+  gap: 16px;
+}
+
+.invoice-preview {
+  min-height: 280px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f4f7f8;
+}
+
+.invoice-preview iframe,
+.invoice-preview img {
+  display: block;
+  width: 100%;
+  min-height: 420px;
+  border: 0;
+  background: #ffffff;
+}
+
+.invoice-preview img {
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
+}
+
+.invoice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .finance-v1-panel { display: grid; gap: 20px; padding: 28px; }
 .finance-v1-heading,
 .finance-v1-line-form { display: flex; align-items: end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
