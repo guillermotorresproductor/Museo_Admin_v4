@@ -75,6 +75,12 @@ function invoiceReviewError(error) {
   return "No se pudo guardar la revisión.";
 }
 
+function invoiceRejectError(error) {
+  if (error?.code === "INVALID_REJECTION_REASON") return "El motivo del rechazo es obligatorio.";
+  if (error?.code === "DOCUMENT_NOT_PENDING") return "Esta factura ya no está pendiente de revisión.";
+  return "No se pudo rechazar la factura.";
+}
+
 function invoiceLineOptions(selectedId) {
   const groups = invoiceCategoryOrder.map((category) => {
     const options = invoiceLines
@@ -113,7 +119,7 @@ async function loadFinanceDocuments(token) {
   }
 }
 
-function renderInvoiceList(panel) {
+function renderInvoiceList(panel, notice = "") {
   const rows = invoiceDocuments.map((document) => `
     <tr>
       <td>${invoiceEscape(document.original_filename)}</td>
@@ -132,6 +138,7 @@ function renderInvoiceList(panel) {
         <p class="page-kicker">Facturas</p>
         <h3>Facturas pendientes</h3>
         <p>Una factura pendiente es evidencia. Guardar la revisión no crea un gasto ni cambia el presupuesto.</p>
+        ${notice ? `<p class="form-message">${invoiceEscape(notice)}</p>` : ""}
       </div>
       ${invoiceDocuments.length ? `
         <div class="table-wrap">
@@ -213,8 +220,25 @@ function renderInvoiceReview(panel, invoice, token, notice = "") {
           <label for="invoice-line">Línea presupuestaria</label>
           <select id="invoice-line" name="budget_line_id" ${canWrite ? "" : "disabled"}>${invoiceLineOptions(snapshot.budget_line_id)}</select>
         </div>
-        ${canWrite ? `<button class="button submit-button" type="submit">Guardar revisión</button>` : `<p>Puede consultar la factura. Guardar la revisión requiere permiso de edición.</p>`}
+        ${canWrite ? `<div class="invoice-actions"><button class="button submit-button" type="submit">Guardar revisión</button><button class="button secondary" type="button" data-invoice-reject>Rechazar factura</button></div>` : `<p>Puede consultar la factura. Guardar la revisión requiere permiso de edición.</p>`}
       </form>
+      ${canWrite ? `
+        <dialog class="invoice-reject-dialog" data-invoice-reject-dialog>
+          <form class="invoice-reject-form" data-invoice-reject-form>
+            <h3>Rechazar factura</h3>
+            <p>La factura será marcada como rechazada. El documento original se conservará para auditoría.</p>
+            <div class="field">
+              <label for="invoice-reject-reason">Motivo del rechazo</label>
+              <textarea id="invoice-reject-reason" name="reason" maxlength="500" rows="4"></textarea>
+            </div>
+            <p class="form-message" data-invoice-reject-message></p>
+            <div class="invoice-actions">
+              <button class="button secondary" type="button" data-invoice-reject-cancel>Cancelar</button>
+              <button class="button" type="submit" data-invoice-reject-confirm>Confirmar rechazo</button>
+            </div>
+          </form>
+        </dialog>
+      ` : ""}
     </div>
   `;
   panel.querySelector("[data-invoice-back]")?.addEventListener("click", () => {
@@ -228,7 +252,77 @@ function renderInvoiceReview(panel, invoice, token, notice = "") {
     event.preventDefault();
     saveInvoiceReview(panel, invoice, snapshot, token);
   });
+  panel.querySelector("[data-invoice-reject]")?.addEventListener("click", () => {
+    openInvoiceReject(panel);
+  });
+  panel.querySelector("[data-invoice-reject-cancel]")?.addEventListener("click", () => {
+    panel.querySelector("[data-invoice-reject-dialog]")?.close();
+  });
+  panel.querySelector("[data-invoice-reject-form]")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    confirmInvoiceReject(panel, invoice, token);
+  });
   showInvoiceOriginal(panel, invoice);
+}
+
+function openInvoiceReject(panel) {
+  const dialog = panel.querySelector("[data-invoice-reject-dialog]");
+  const field = panel.querySelector("#invoice-reject-reason");
+  const message = panel.querySelector("[data-invoice-reject-message]");
+  if (!dialog) return;
+  if (field) field.value = "";
+  if (message) {
+    message.className = "form-message";
+    message.textContent = "";
+  }
+  dialog.showModal();
+}
+
+async function confirmInvoiceReject(panel, invoice, token) {
+  const dialog = panel.querySelector("[data-invoice-reject-dialog]");
+  const message = panel.querySelector("[data-invoice-reject-message]");
+  const confirm = panel.querySelector("[data-invoice-reject-confirm]");
+  const cancel = panel.querySelector("[data-invoice-reject-cancel]");
+  const reason = String(panel.querySelector("#invoice-reject-reason")?.value || "").trim();
+  if (token !== invoiceRenderToken) return;
+  if (!reason) {
+    if (message) {
+      message.className = "form-message error";
+      message.textContent = "El motivo del rechazo es obligatorio.";
+    }
+    return;
+  }
+  if (confirm) confirm.disabled = true;
+  if (cancel) cancel.disabled = true;
+  if (message) {
+    message.className = "form-message";
+    message.textContent = "";
+  }
+  let saved;
+  try {
+    saved = await rejectFinanceDocument(invoice.id, reason);
+    if (saved?.status !== "rejected") throw new Error("La factura no quedó rechazada.");
+  } catch (error) {
+    if (token !== invoiceRenderToken) return;
+    if (confirm) confirm.disabled = false;
+    if (cancel) cancel.disabled = false;
+    if (message) {
+      message.className = "form-message error";
+      message.textContent = invoiceRejectError(error);
+    }
+    return;
+  }
+  dialog?.close();
+  const listToken = ++invoiceRenderToken;
+  try {
+    const documents = await fetchPendingFinanceDocuments();
+    if (listToken !== invoiceRenderToken) return;
+    invoiceDocuments = documents;
+    renderInvoiceList(panel, "Factura rechazada. El documento se conservó para auditoría.");
+  } catch (error) {
+    if (listToken !== invoiceRenderToken) return;
+    panel.innerHTML = `<p class="page-kicker">Facturas</p><h3>Facturas pendientes</h3><p class="form-message">Factura rechazada. El documento se conservó para auditoría.</p><p class="form-message error">${invoiceEscape(error.message || "No se pudieron cargar las facturas.")}</p>`;
+  }
 }
 
 async function showInvoiceOriginal(panel, invoice) {

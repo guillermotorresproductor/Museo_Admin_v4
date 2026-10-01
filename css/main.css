@@ -2601,6 +2601,29 @@ body {
   gap: 10px;
 }
 
+.invoice-reject-dialog {
+  width: min(520px, calc(100% - 32px));
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 30px 80px rgb(15 23 42 / 0.3);
+}
+
+.invoice-reject-dialog::backdrop {
+  background: rgb(15 23 42 / 0.58);
+}
+
+.invoice-reject-form {
+  display: grid;
+  gap: 16px;
+  padding: 26px;
+}
+
+.invoice-reject-form h3,
+.invoice-reject-form p {
+  margin: 0;
+}
+
 .finance-v1-panel { display: grid; gap: 20px; padding: 28px; }
 .finance-v1-heading,
 .finance-v1-line-form { display: flex; align-items: end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }

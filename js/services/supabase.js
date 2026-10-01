@@ -900,3 +900,23 @@ async function updateFinanceDocumentReview(review) {
   }
   return data;
 }
+
+async function rejectFinanceDocument(documentId, reason) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/reject_finance_document`, {
+    method: "POST",
+    headers: await supabaseAuthHeaders(),
+    body: JSON.stringify({
+      p_document_id: documentId,
+      p_rejection_reason: reason
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = String(data.message || data.details || "");
+    const error = new Error(message || "No se pudo rechazar la factura.");
+    if (message.includes("INVALID_REJECTION_REASON")) error.code = "INVALID_REJECTION_REASON";
+    else if (message.includes("DOCUMENT_NOT_PENDING")) error.code = "DOCUMENT_NOT_PENDING";
+    throw error;
+  }
+  return data;
+}
