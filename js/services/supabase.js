@@ -847,6 +847,10 @@ async function fetchPendingFinanceDocuments() {
   return supabaseGet("/rest/v1/finance_documents?select=id,status,original_filename,original_mime,original_path,uploaded_at,vendor_name,invoice_number,invoice_date,total,payment_method,description,budget_line_id&status=eq.pending_review&order=uploaded_at.desc");
 }
 
+async function fetchProcessedFinanceDocuments() {
+  return supabaseGet("/rest/v1/finance_documents?select=id,status,original_filename,original_mime,original_path,vendor_name,invoice_number,invoice_date,total,payment_method,description,confirmed_at,rejected_at&status=in.(confirmed,rejected)");
+}
+
 async function fetchInvoiceBudgetLines() {
   const list = invoiceBudgetCategories.map((category) => `"${category}"`).join(",");
   return supabaseGet(`/rest/v1/finance_budget_lines?select=id,category,name,sort_order,record_type&record_type=eq.expense&category=in.(${encodeURI(list)})&order=sort_order.asc,name.asc`);

@@ -10,6 +10,7 @@ const invoiceUploadTypes = Object.freeze({
 });
 let invoiceRenderToken = 0;
 let invoiceDocuments = [];
+let invoiceProcessed = [];
 let invoiceCanDecide = false;
 let invoiceLines = [];
 let invoiceUploading = false;
@@ -90,6 +91,29 @@ function invoiceMoney(value) {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return "—";
   return amount.toLocaleString("es-PR", { style: "currency", currency: "USD" });
+}
+
+function invoiceStatusLabel(status) {
+  if (status === "confirmed") return "Confirmada";
+  if (status === "rejected") return "Rechazada";
+  return "—";
+}
+
+function invoicePaymentLabel(value) {
+  const match = invoicePaymentMethods.find(([code]) => code === value);
+  return match ? match[1] : "—";
+}
+
+function invoiceProcessedStamp(document) {
+  if (document?.status === "rejected") return document.rejected_at || "";
+  if (document?.status === "confirmed") return document.confirmed_at || "";
+  return "";
+}
+
+function invoiceSortProcessed(documents) {
+  return (Array.isArray(documents) ? documents : [])
+    .filter((document) => document.status === "confirmed" || document.status === "rejected")
+    .sort((left, right) => (Date.parse(invoiceProcessedStamp(right) || "") || 0) - (Date.parse(invoiceProcessedStamp(left) || "") || 0));
 }
 
 function invoiceLineLabel(lineId) {
@@ -359,14 +383,16 @@ async function loadFinanceDocuments(token, notice = "", noticeState = "") {
   const panel = document.querySelector("[data-finance-panel]");
   if (!panel) return;
   try {
-    const [documents, lines, canDecide] = await Promise.all([
+    const [documents, processed, lines, canDecide] = await Promise.all([
       fetchPendingFinanceDocuments(),
+      fetchProcessedFinanceDocuments(),
       fetchInvoiceBudgetLines(),
       financeDocumentCanDecide().catch(() => false)
     ]);
     if (token !== invoiceRenderToken) return;
     invoiceCanDecide = canDecide === true;
     invoiceDocuments = documents;
+    invoiceProcessed = invoiceSortProcessed(processed);
     invoiceLines = lines.filter((line) => line.record_type === "expense" && invoiceCategoryOrder.includes(line.category));
     renderInvoiceList(panel, notice, noticeState);
   } catch (error) {
@@ -421,10 +447,49 @@ function renderInvoiceList(panel, notice = "", noticeState = "") {
           </table>
         </div>
       ` : `<p class="empty-state">No hay facturas pendientes</p>`}
+      <div>
+        <h3>Facturas procesadas</h3>
+        <p>Las facturas confirmadas y rechazadas quedan aquí para consulta.</p>
+      </div>
+      ${invoiceProcessed.length ? `
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Fecha de factura</th>
+                <th>Suplidor</th>
+                <th>Número</th>
+                <th>Descripción</th>
+                <th>Total</th>
+                <th>Método de pago</th>
+                <th>Estado</th>
+                <th>Fecha de procesamiento</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>${invoiceProcessed.map((document) => `
+              <tr>
+                <td>${invoiceEscape(invoiceDateLabel(document.invoice_date))}</td>
+                <td>${invoiceEscape(document.vendor_name || "—")}</td>
+                <td>${invoiceEscape(document.invoice_number || "—")}</td>
+                <td>${invoiceEscape(document.description || "—")}</td>
+                <td>${invoiceEscape(invoiceMoney(document.total))}</td>
+                <td>${invoiceEscape(invoicePaymentLabel(document.payment_method))}</td>
+                <td>${invoiceEscape(invoiceStatusLabel(document.status))}</td>
+                <td>${invoiceEscape(invoiceUploadedLabel(invoiceProcessedStamp(document)))}</td>
+                <td><button class="button secondary" type="button" data-invoice-view="${invoiceEscape(document.id)}">Ver factura</button></td>
+              </tr>
+            `).join("")}</tbody>
+          </table>
+        </div>
+      ` : `<p class="empty-state">No hay facturas procesadas</p>`}
     </div>
   `;
   panel.querySelectorAll("[data-invoice-open]").forEach((button) => {
     button.addEventListener("click", () => openFinanceDocument(button.dataset.invoiceOpen));
+  });
+  panel.querySelectorAll("[data-invoice-view]").forEach((button) => {
+    button.addEventListener("click", () => openProcessedFinanceDocument(button.dataset.invoiceView));
   });
   bindInvoiceUpload(panel);
 }
@@ -476,6 +541,50 @@ function openFinanceDocument(documentId) {
   const invoice = invoiceDocuments.find((item) => item.id === documentId);
   if (!panel || !invoice) return;
   renderInvoiceReview(panel, invoice, token);
+}
+
+function openProcessedFinanceDocument(documentId) {
+  const token = ++invoiceRenderToken;
+  const panel = document.querySelector("[data-finance-panel]");
+  const invoice = invoiceProcessed.find((item) => item.id === documentId);
+  if (!panel || !invoice) return;
+  renderProcessedInvoice(panel, invoice, token);
+}
+
+function renderProcessedInvoice(panel, invoice, token) {
+  const status = invoiceStatusLabel(invoice.status);
+  panel.innerHTML = `
+    <div class="invoice-review" data-invoice-review="${invoiceEscape(invoice.id)}" data-invoice-readonly="true">
+      <div>
+        <p class="page-kicker">Facturas</p>
+        <h3>${invoiceEscape(invoice.vendor_name || invoice.original_filename || "Factura")}</h3>
+        <p>${invoice.status === "rejected" ? "Rechazada. El documento y su historial se conservan." : "Confirmada. Esta vista es solo consulta."}</p>
+      </div>
+      <div class="invoice-actions">
+        <button class="button secondary" type="button" data-invoice-back>Volver al listado</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <tbody>
+            <tr><th>Fecha de factura</th><td>${invoiceEscape(invoiceDateLabel(invoice.invoice_date))}</td></tr>
+            <tr><th>Suplidor</th><td>${invoiceEscape(invoice.vendor_name || "—")}</td></tr>
+            <tr><th>Número</th><td>${invoiceEscape(invoice.invoice_number || "—")}</td></tr>
+            <tr><th>Descripción</th><td>${invoiceEscape(invoice.description || "—")}</td></tr>
+            <tr><th>Total</th><td>${invoiceEscape(invoiceMoney(invoice.total))}</td></tr>
+            <tr><th>Método de pago</th><td>${invoiceEscape(invoicePaymentLabel(invoice.payment_method))}</td></tr>
+            <tr><th>Estado</th><td>${invoiceEscape(status)}</td></tr>
+            <tr><th>Fecha de procesamiento</th><td>${invoiceEscape(invoiceUploadedLabel(invoiceProcessedStamp(invoice)))}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="invoice-preview" data-invoice-preview><p class="empty-state">Cargando el archivo…</p></div>
+    </div>
+  `;
+  panel.querySelector("[data-invoice-back]")?.addEventListener("click", () => {
+    if (token !== invoiceRenderToken) return;
+    renderInvoiceList(panel);
+  });
+  showInvoiceOriginal(panel, invoice);
 }
 
 function renderInvoiceReview(panel, invoice, token, notice = "") {
@@ -690,9 +799,13 @@ async function confirmInvoiceDocument(panel, invoice, token) {
   dialog?.close();
   const listToken = ++invoiceRenderToken;
   try {
-    const documents = await fetchPendingFinanceDocuments();
+    const [documents, processed] = await Promise.all([
+      fetchPendingFinanceDocuments(),
+      fetchProcessedFinanceDocuments()
+    ]);
     if (listToken !== invoiceRenderToken) return;
     invoiceDocuments = documents;
+    invoiceProcessed = invoiceSortProcessed(processed);
     renderInvoiceList(panel, "Factura confirmada. Se registró el movimiento financiero.");
   } catch (error) {
     if (listToken !== invoiceRenderToken) return;
@@ -751,9 +864,13 @@ async function confirmInvoiceReject(panel, invoice, token) {
   dialog?.close();
   const listToken = ++invoiceRenderToken;
   try {
-    const documents = await fetchPendingFinanceDocuments();
+    const [documents, processed] = await Promise.all([
+      fetchPendingFinanceDocuments(),
+      fetchProcessedFinanceDocuments()
+    ]);
     if (listToken !== invoiceRenderToken) return;
     invoiceDocuments = documents;
+    invoiceProcessed = invoiceSortProcessed(processed);
     renderInvoiceList(panel, "Factura rechazada. El documento se conservó para auditoría.");
   } catch (error) {
     if (listToken !== invoiceRenderToken) return;
