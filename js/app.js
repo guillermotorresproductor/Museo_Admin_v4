@@ -4691,6 +4691,11 @@ function commitFinanceCellAmount(raw, badInput) {
   return { ok: true, amount };
 }
 
+function payrollActualTotal(payload) {
+  const amount = (payload?.employees || []).reduce((sum, person) => sum + Number(person.actual_amount || 0), 0);
+  return Math.round(amount * 100) / 100;
+}
+
 function renderFinanceNetRegion(data, real) {
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   return `
@@ -4749,6 +4754,7 @@ function bindFinanceModule() {
   let financeMonths = [];
   let rows = [];
   let realMovements = financeRealFromMovements([], financeYear, 9);
+  let payrollRealMonths = Array(12).fill(0);
   let auditEntries = [];
   const quickBooksCategories = [
     "Boletería",
@@ -4858,6 +4864,12 @@ function bindFinanceModule() {
       if (page.length < 1000) break;
     }
     realMovements = financeRealFromMovements(movementRows, financeYear, fiscalYearStartMonth);
+    payrollRealMonths = await Promise.all(Array.from({ length: 12 }, async (_, index) => {
+      const periodStart = financePeriodDate(financeYear, index, fiscalYearStartMonth);
+      const [year, month] = periodStart.split("-").map(Number);
+      const range = payrollMonthRange(year, month, "month");
+      return payrollActualTotal(await supabasePost("/rest/v1/rpc/payroll_actual", { p_from: range.from, p_to: range.to }));
+    }));
     await loadAudit();
     const notice = document.querySelector("[data-finance-message]");
     if(notice)notice.textContent = records.length ? "Los importes provienen de registros guardados. Nómina presupuestada no ejecuta ni aprueba pagos." : "No hay registros financieros para este período. No se han creado datos ni aplicado valores predeterminados.";
@@ -4897,12 +4909,23 @@ function bindFinanceModule() {
   };
 
   const totals = () => financeTotals(rows);
+  const realSummary = () => {
+    const incomeCents = Math.round(realMovements.income * 100);
+    const movementCents = Math.round(realMovements.expense * 100);
+    const septemberIndex = financeMonths.indexOf("Septiembre");
+    const payrollCents = septemberIndex < 0 ? 0 : Math.round(Number(payrollRealMonths[septemberIndex] || 0) * 100);
+    return {
+      income: incomeCents / 100,
+      expense: (movementCents + payrollCents) / 100,
+      net: (incomeCents - movementCents - payrollCents) / 100
+    };
+  };
 
   const renderSummary = () => {
     if (summary) summary.innerHTML = "";
   };
 
-  const renderNetSummary = () => renderFinanceNetRegion(totals(), realMovements);
+  const renderNetSummary = () => renderFinanceNetRegion(totals(), realSummary());
 
   const renderFinanceTable = (title, filter, options = {}) => {
     const visibleRows = rows.filter(filter);
@@ -4933,6 +4956,7 @@ function bindFinanceModule() {
                 `).join("")}
               </tr>`;
             }).join("")}
+            ${showReal ? `<tr><td><strong>NÓMINA REAL</strong></td>${payrollRealMonths.map((amount) => `<td>${money(amount)}</td>`).join("")}</tr>` : ""}
           </tbody>
         </table>
       </div>
