@@ -50,6 +50,21 @@ function financeRowsFromRecords(records, catalog, months) {
     return ai - bi || identityKey(a).localeCompare(identityKey(b));
   });
 }
+function financeFiscalYear(calendarYear, calendarMonth, startMonth) {
+  const start = Number(startMonth);
+  const yearNumber = Number(calendarYear);
+  const monthNumber = Number(calendarMonth);
+  if (!Number.isInteger(start) || start < 1 || start > 12) throw Error("Mes de inicio fiscal no configurado.");
+  if (!Number.isInteger(yearNumber) || !Number.isInteger(monthNumber) || monthNumber < 1 || monthNumber > 12) throw Error("Fecha fiscal no reconocida.");
+  return monthNumber >= start ? yearNumber : yearNumber - 1;
+}
+
+function financeFiscalYearFromDate(isoDate, startMonth) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(isoDate || ""));
+  if (!match) throw Error("Fecha fiscal no reconocida.");
+  return financeFiscalYear(Number(match[1]), Number(match[2]), startMonth);
+}
+
 function financeMovementMonthIndex(occurredOn, fiscalYear, startMonth) {
   const start = Number(startMonth);
   const yearNumber = Number(fiscalYear);
@@ -67,6 +82,8 @@ function financeMovementMonthIndex(occurredOn, fiscalYear, startMonth) {
 
 function financeRealFromMovements(movements, fiscalYear, startMonth) {
   const cells = new Map();
+  const incomeByMonth = Array(12).fill(0);
+  const expenseByMonth = Array(12).fill(0);
   let income = 0;
   let expense = 0;
   for (const movement of movements || []) {
@@ -79,8 +96,13 @@ function financeRealFromMovements(movements, fiscalYear, startMonth) {
     if (!Number.isFinite(cents)) throw Error("Importe de movimiento financiero inválido.");
     const key = `${movement.budget_line_id}|${index}`;
     cells.set(key, (cells.get(key) || 0) + cents);
-    if (movement.record_type === "income") income += cents;
-    else expense += cents;
+    if (movement.record_type === "income") {
+      income += cents;
+      incomeByMonth[index] += cents;
+    } else {
+      expense += cents;
+      expenseByMonth[index] += cents;
+    }
   }
   return {
     income: income / 100,
@@ -88,7 +110,23 @@ function financeRealFromMovements(movements, fiscalYear, startMonth) {
     net: (income - expense) / 100,
     amount(budgetLineId, monthIndex) {
       return (cells.get(`${budgetLineId}|${monthIndex}`) || 0) / 100;
+    },
+    monthIncome(monthIndex) {
+      return (incomeByMonth[monthIndex] || 0) / 100;
+    },
+    monthExpense(monthIndex) {
+      return (expenseByMonth[monthIndex] || 0) / 100;
     }
+  };
+}
+
+function financeMonthReal(movementReal, payrollAmount, monthIndex) {
+  const incomeCents = Math.round(Number(movementReal.monthIncome(monthIndex) || 0) * 100);
+  const expenseCents = Math.round(Number(movementReal.monthExpense(monthIndex) || 0) * 100) + Math.round(Number(payrollAmount || 0) * 100);
+  return {
+    income: incomeCents / 100,
+    expense: expenseCents / 100,
+    net: (incomeCents - expenseCents) / 100
   };
 }
 

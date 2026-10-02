@@ -4711,9 +4711,9 @@ function renderFinanceNetRegion(data, real) {
           <tr><td>Total de Gastos</td><td>${money(data.expense)}</td></tr>
           <tr><td><strong>Balance Neto</strong></td><td><strong>${money(data.net)}</strong></td></tr>
           ${real ? `
-            <tr><td>Total Ingresos Real</td><td>${money(real.income)}</td></tr>
-            <tr><td>Total Gastos Real</td><td>${money(real.expense)}</td></tr>
-            <tr><td><strong>Balance Neto Real</strong></td><td><strong>${money(real.net)}</strong></td></tr>
+            <tr><td>Total Ingresos Real${real.label ? ` · ${real.label}` : ""}</td><td>${money(real.income)}</td></tr>
+            <tr><td>Total Gastos Real${real.label ? ` · ${real.label}` : ""}</td><td>${money(real.expense)}</td></tr>
+            <tr><td><strong>Balance Neto Real${real.label ? ` · ${real.label}` : ""}</strong></td><td><strong>${money(real.net)}</strong></td></tr>
           ` : ""}
         </tbody>
       </table>
@@ -4749,11 +4749,18 @@ function bindFinanceModule() {
   let activeTab = "resumen";
   let currentUser = "";
   let currentProfile = null;
-  const financeYear = 2026;
+  let financeYear = null;
   let fiscalYearStartMonth = null;
   let financeMonths = [];
   let rows = [];
-  let realMovements = financeRealFromMovements([], financeYear, 9);
+  let realMovements = {
+    income: 0,
+    expense: 0,
+    net: 0,
+    amount() { return 0; },
+    monthIncome() { return 0; },
+    monthExpense() { return 0; }
+  };
   let payrollRealMonths = Array(12).fill(0);
   let auditEntries = [];
   const quickBooksCategories = [
@@ -4818,6 +4825,7 @@ function bindFinanceModule() {
     currentUser = currentProfile.full_name || localStorage.getItem(currentUserKey) || "Usuario";
     const museumRows = await supabaseGet(`/rest/v1/museums?select=fiscal_year_start_month&id=eq.${encodeURIComponent(currentProfile.museum_id)}&limit=1`);
     fiscalYearStartMonth = Number(museumRows[0]?.fiscal_year_start_month);
+    financeYear = financeFiscalYearFromDate(puertoRicoToday(), fiscalYearStartMonth);
     financeMonths = financeMonthsFor(fiscalYearStartMonth);
     setSyncStatus("checking", "Leyendo Supabase", `Usuario: ${currentUser}`);
     const records = [];
@@ -4910,15 +4918,12 @@ function bindFinanceModule() {
 
   const totals = () => financeTotals(rows);
   const realSummary = () => {
-    const incomeCents = Math.round(realMovements.income * 100);
-    const movementCents = Math.round(realMovements.expense * 100);
-    const septemberIndex = financeMonths.indexOf("Septiembre");
-    const payrollCents = septemberIndex < 0 ? 0 : Math.round(Number(payrollRealMonths[septemberIndex] || 0) * 100);
-    return {
-      income: incomeCents / 100,
-      expense: (movementCents + payrollCents) / 100,
-      net: (incomeCents - movementCents - payrollCents) / 100
-    };
+    if (!financeYear || !fiscalYearStartMonth) return null;
+    const index = financeMovementMonthIndex(puertoRicoToday(), financeYear, fiscalYearStartMonth);
+    if (index < 0) return null;
+    const summary = financeMonthReal(realMovements, payrollRealMonths[index], index);
+    const period = financePeriodDate(financeYear, index, fiscalYearStartMonth);
+    return { ...summary, label: `${financeMonths[index]} ${period.slice(0, 4)}` };
   };
 
   const renderSummary = () => {
@@ -4957,6 +4962,7 @@ function bindFinanceModule() {
               </tr>`;
             }).join("")}
             ${showReal ? `<tr><td><strong>NÓMINA REAL</strong></td>${payrollRealMonths.map((amount) => `<td>${money(amount)}</td>`).join("")}</tr>` : ""}
+            ${showReal ? `<tr><td><strong>TOTAL GASTOS REAL</strong></td>${payrollRealMonths.map((amount, index) => `<td>${money(financeMonthReal(realMovements, amount, index).expense)}</td>`).join("")}</tr>` : ""}
           </tbody>
         </table>
       </div>
