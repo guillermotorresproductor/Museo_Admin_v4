@@ -4853,6 +4853,7 @@ function bindFinanceModule() {
   const totals = () => financeTotals(rows);
 
   const renderSummary = () => {
+    if (!summary) return;
     const data = totals();
     const cards = [
       ["Total de Ingresos", data.income, "theme-green"],
