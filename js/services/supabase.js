@@ -851,6 +851,10 @@ async function fetchProcessedFinanceDocuments() {
   return supabaseGet("/rest/v1/finance_documents?select=id,status,original_filename,original_mime,original_path,vendor_name,invoice_number,invoice_date,total,payment_method,description,confirmed_at,rejected_at&status=in.(confirmed,rejected)");
 }
 
+async function fetchActiveFinanceMovements(museumId, offset = 0) {
+  return supabaseGet(`/rest/v1/finance_movements?select=id,budget_line_id,occurred_on,amount,voided_at,finance_budget_lines(record_type,counts_in_operating_balance)&museum_id=eq.${encodeURIComponent(museumId)}&voided_at=is.null&order=id.asc&limit=1000&offset=${offset}`);
+}
+
 async function fetchInvoiceBudgetLines() {
   const list = invoiceBudgetCategories.map((category) => `"${category}"`).join(",");
   return supabaseGet(`/rest/v1/finance_budget_lines?select=id,category,name,sort_order,record_type&record_type=eq.expense&category=in.(${encodeURI(list)})&order=sort_order.asc,name.asc`);

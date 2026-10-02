@@ -4691,6 +4691,31 @@ function commitFinanceCellAmount(raw, badInput) {
   return { ok: true, amount };
 }
 
+function renderFinanceNetRegion(data, real) {
+  const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
+  return `
+    <p class="page-kicker">Resumen</p>
+    <h3>Balance Neto</h3>
+    <div class="table-wrap">
+      <table class="data-table finance-table">
+        <thead>
+          <tr><th>Resumen</th><th>Valor</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Total de Ingresos</td><td>${money(data.income)}</td></tr>
+          <tr><td>Total de Gastos</td><td>${money(data.expense)}</td></tr>
+          <tr><td><strong>Balance Neto</strong></td><td><strong>${money(data.net)}</strong></td></tr>
+          ${real ? `
+            <tr><td>Total Ingresos Real</td><td>${money(real.income)}</td></tr>
+            <tr><td>Total Gastos Real</td><td>${money(real.expense)}</td></tr>
+            <tr><td><strong>Balance Neto Real</strong></td><td><strong>${money(real.net)}</strong></td></tr>
+          ` : ""}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 function bindFinanceModule() {
   const module = document.querySelector("[data-finance-module]");
   const gate = document.querySelector("[data-finance-gate]");
@@ -4723,6 +4748,7 @@ function bindFinanceModule() {
   let fiscalYearStartMonth = null;
   let financeMonths = [];
   let rows = [];
+  let realMovements = financeRealFromMovements([], financeYear, 9);
   let auditEntries = [];
   const quickBooksCategories = [
     "Boletería",
@@ -4812,6 +4838,26 @@ function bindFinanceModule() {
       if (page.length < 1000) break;
     }
     rows = rowsFromFinanceRecords(records);
+    const movementRows = [];
+    for (let offset = 0; ; offset += 1000) {
+      const page = await fetchActiveFinanceMovements(currentProfile.museum_id, offset);
+      movementRows.push(...page.map((movement) => {
+        const line = movement.finance_budget_lines;
+        if (!line || !line.record_type || typeof line.counts_in_operating_balance !== "boolean") {
+          throw new Error("Hay un movimiento financiero sin renglón canónico.");
+        }
+        return {
+          budget_line_id: movement.budget_line_id,
+          occurred_on: movement.occurred_on,
+          amount: movement.amount,
+          voided_at: movement.voided_at,
+          record_type: line.record_type,
+          counts_in_operating_balance: line.counts_in_operating_balance
+        };
+      }));
+      if (page.length < 1000) break;
+    }
+    realMovements = financeRealFromMovements(movementRows, financeYear, fiscalYearStartMonth);
     await loadAudit();
     const notice = document.querySelector("[data-finance-message]");
     if(notice)notice.textContent = records.length ? "Los importes provienen de registros guardados. Nómina presupuestada no ejecuta ni aprueba pagos." : "No hay registros financieros para este período. No se han creado datos ni aplicado valores predeterminados.";
@@ -4853,41 +4899,14 @@ function bindFinanceModule() {
   const totals = () => financeTotals(rows);
 
   const renderSummary = () => {
-    if (!summary) return;
-    const data = totals();
-    const cards = [
-      ["Total de Ingresos", data.income, "theme-green"],
-      ["Total de Gastos", data.expense, "theme-red"],
-      ["Balance Neto", data.net, data.net >= 0 ? "theme-teal" : "theme-red"]
-    ];
-    summary.innerHTML = cards.map(([label, value, theme]) => `
-      <article class="finance-kpi ${theme}">
-        <span>${label}</span>
-        <strong>${money(value)}</strong>
-      </article>
-    `).join("");
+    if (summary) summary.innerHTML = "";
   };
 
-  const renderNetSummary = () => {
-    const data = totals();
-    return `
-      <div class="table-wrap">
-        <table class="data-table finance-table">
-          <thead>
-            <tr><th>Resumen</th><th>Valor</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Total de Ingresos</td><td>${money(data.income)}</td></tr>
-            <tr><td>Total de Gastos</td><td>${money(data.expense)}</td></tr>
-            <tr><td><strong>Balance Neto</strong></td><td><strong>${money(data.net)}</strong></td></tr>
-          </tbody>
-        </table>
-      </div>
-    `;
-  };
+  const renderNetSummary = () => renderFinanceNetRegion(totals(), realMovements);
 
-  const renderFinanceTable = (title, filter) => {
+  const renderFinanceTable = (title, filter, options = {}) => {
     const visibleRows = rows.filter(filter);
+    const showReal = options.showReal === true;
     let lastCategory = "";
     return `
       <p class="page-kicker">${title}</p>
@@ -4907,7 +4926,10 @@ function bindFinanceModule() {
               return `${categoryRow}<tr>
                 <td><strong>${safeHtml(row.concept)}</strong></td>
                 ${row.values.map((value, index) => `
-                  <td><input class="finance-cell" type="number" step="0.01" value="${value === null ? "" : Number(value)}" ${!canWrite() || !row.recordIds[index] ? "disabled" : ""} aria-label="${safeHtml(row.concept)} ${financeMonths[index]}" data-finance-row="${row.id}" data-finance-month="${index}"></td>
+                  <td>
+                    <input class="finance-cell" type="number" step="0.01" value="${value === null ? "" : Number(value)}" ${!canWrite() || !row.recordIds[index] ? "disabled" : ""} aria-label="${safeHtml(row.concept)} ${financeMonths[index]} presupuesto" data-finance-row="${row.id}" data-finance-month="${index}">
+                    ${showReal ? `<span class="field-hint">Real ${money(realMovements.amount(row.budgetLineId, index))}</span>` : ""}
+                  </td>
                 `).join("")}
               </tr>`;
             }).join("")}
@@ -4919,7 +4941,8 @@ function bindFinanceModule() {
 
   const renderExpenseSummaryTable = () => {
     return renderFinanceTable("Gastos", (row) =>
-      row.type === "expense" && ["Gastos Operacionales", "Servicios Contratados", "Otros Gastos"].includes(row.category)
+      row.type === "expense" && ["Gastos Operacionales", "Servicios Contratados", "Otros Gastos"].includes(row.category),
+      { showReal: true }
     );
   };
 
@@ -4958,7 +4981,7 @@ function bindFinanceModule() {
       renderFinanceDocuments();
       return;
     }
-    if (activeTab === "resumen") panel.innerHTML = `<p class="page-kicker">Resumen</p><h3>Balance Neto</h3>${renderNetSummary()}`;
+    if (activeTab === "resumen") panel.innerHTML = renderNetSummary();
     if (activeTab === "ingresos") panel.innerHTML = renderFinanceTable("Ingresos", (row) => row.type === "income");
     if (activeTab === "gastos") panel.innerHTML = renderExpenseSummaryTable();
     if (activeTab === "nomina") {

@@ -31,6 +31,7 @@ function financeRowsFromRecords(records, catalog, months) {
       groups.set(code, {
         ...identity,
         id: templates.get(identityKey(identity))?.id || record.budget_line_id || record.id,
+        budgetLineId: record.budget_line_id || null,
         sortOrder: Number.isInteger(record.sort_order) ? record.sort_order : null,
         values: Array(12).fill(null),
         recordIds: Array(12).fill(null)
@@ -49,6 +50,48 @@ function financeRowsFromRecords(records, catalog, months) {
     return ai - bi || identityKey(a).localeCompare(identityKey(b));
   });
 }
+function financeMovementMonthIndex(occurredOn, fiscalYear, startMonth) {
+  const start = Number(startMonth);
+  const yearNumber = Number(fiscalYear);
+  if (!Number.isInteger(start) || start < 1 || start > 12) throw Error("Mes de inicio fiscal no configurado.");
+  if (!Number.isInteger(yearNumber)) throw Error("Año fiscal no configurado.");
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(occurredOn || ""));
+  if (!match) throw Error("Movimiento financiero con fecha no reconocida.");
+  const calendarYear = Number(match[1]);
+  const calendarMonth = Number(match[2]);
+  if (calendarMonth < 1 || calendarMonth > 12) throw Error("Movimiento financiero con fecha no reconocida.");
+  const movementFiscalYear = calendarMonth >= start ? calendarYear : calendarYear - 1;
+  if (movementFiscalYear !== yearNumber) return -1;
+  return (calendarMonth - start + 12) % 12;
+}
+
+function financeRealFromMovements(movements, fiscalYear, startMonth) {
+  const cells = new Map();
+  let income = 0;
+  let expense = 0;
+  for (const movement of movements || []) {
+    if (movement.voided_at) continue;
+    if (movement.counts_in_operating_balance === false) continue;
+    if (!["income", "expense"].includes(movement.record_type)) throw Error("Movimiento financiero con tipo no reconocido.");
+    const index = financeMovementMonthIndex(movement.occurred_on, fiscalYear, startMonth);
+    if (index < 0) continue;
+    const cents = Math.round(Number(movement.amount) * 100);
+    if (!Number.isFinite(cents)) throw Error("Importe de movimiento financiero inválido.");
+    const key = `${movement.budget_line_id}|${index}`;
+    cells.set(key, (cells.get(key) || 0) + cents);
+    if (movement.record_type === "income") income += cents;
+    else expense += cents;
+  }
+  return {
+    income: income / 100,
+    expense: expense / 100,
+    net: (income - expense) / 100,
+    amount(budgetLineId, monthIndex) {
+      return (cells.get(`${budgetLineId}|${monthIndex}`) || 0) / 100;
+    }
+  };
+}
+
 function financePeriodDate(startYear, monthIndex, startMonth) {
   const start = Number(startMonth);
   if (!Number.isInteger(start) || start < 1 || start > 12) throw Error("Mes de inicio fiscal no configurado.");
