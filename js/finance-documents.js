@@ -99,12 +99,20 @@ function invoiceLineLabel(lineId) {
   return `${line.category} · ${line.name}`;
 }
 
+const invoicePaymentMethods = [
+  ["cash", "Cash"],
+  ["credit_card", "Tarjeta de crédito"],
+  ["ath_movil", "ATH Móvil"],
+  ["check", "Cheque"]
+];
+
 function invoiceSnapshot(document) {
   return {
     vendor_name: document.vendor_name ?? null,
     invoice_number: document.invoice_number ?? null,
     invoice_date: document.invoice_date ?? null,
     total: document.total ?? null,
+    payment_method: document.payment_method ?? null,
     description: document.description ?? null,
     budget_line_id: document.budget_line_id ?? null
   };
@@ -125,6 +133,7 @@ function invoiceReviewError(error) {
   if (error?.code === "INVALID_VENDOR") return "El proveedor admite hasta 200 caracteres.";
   if (error?.code === "INVALID_INVOICE_NUMBER") return "El número de factura admite hasta 80 caracteres.";
   if (error?.code === "INVALID_DESCRIPTION") return "La descripción admite hasta 500 caracteres.";
+  if (error?.code === "PAYMENT_METHOD_INVALID") return "Seleccione un método de pago de la lista.";
   return "No se pudo guardar la revisión.";
 }
 
@@ -135,7 +144,7 @@ function invoiceRejectError(error) {
 }
 
 function invoiceConfirmError(error) {
-  if (error?.code === "DOCUMENT_NOT_READY") return "Faltan datos para confirmar. Guarde la fecha, el total, la descripción y la línea presupuestaria.";
+  if (error?.code === "DOCUMENT_NOT_READY") return "Faltan datos para confirmar. Guarde la fecha, el total, el método de pago, la descripción y la línea presupuestaria.";
   if (error?.code === "DOCUMENT_NOT_PENDING") return "Esta factura ya no está pendiente de revisión.";
   if (error?.code === "BUDGET_LINE_NOT_INVOICE_ELIGIBLE") return "Esa línea presupuestaria no está disponible para facturas.";
   if (error?.code === "IDEMPOTENCY_CONFLICT") return "No se pudo confirmar la factura. Recargue el listado antes de intentar de nuevo.";
@@ -153,6 +162,7 @@ function invoiceReviewDirty(form, snapshot) {
     invoice_number: invoiceFieldText(form.elements.invoice_number.value),
     invoice_date: invoiceFieldText(form.elements.invoice_date.value),
     total: invoiceFieldText(form.elements.total.value),
+    payment_method: invoiceFieldText(form.elements.payment_method.value),
     description: invoiceFieldText(form.elements.description.value),
     budget_line_id: invoiceFieldText(form.elements.budget_line_id.value)
   };
@@ -161,6 +171,7 @@ function invoiceReviewDirty(form, snapshot) {
     invoice_number: invoiceFieldText(snapshot.invoice_number),
     invoice_date: invoiceFieldText(snapshot.invoice_date),
     total: invoiceFieldText(snapshot.total),
+    payment_method: invoiceFieldText(snapshot.payment_method),
     description: invoiceFieldText(snapshot.description),
     budget_line_id: invoiceFieldText(snapshot.budget_line_id)
   };
@@ -180,6 +191,160 @@ function invoiceLineOptions(selectedId) {
     return `<optgroup label="${invoiceEscape(category)}">${options}</optgroup>`;
   }).join("");
   return `<option value="">Sin línea todavía</option>${groups}`;
+}
+
+function invoicePaymentOptions(selected) {
+  const placeholder = `<option value=""${!selected ? " selected" : ""}>Seleccione método de pago</option>`;
+  const options = invoicePaymentMethods
+    .map(([value, label]) => `<option value="${value}"${value === selected ? " selected" : ""}>${invoiceEscape(label)}</option>`)
+    .join("");
+  return placeholder + options;
+}
+
+const invoiceDraftFieldNames = ["vendor_name", "invoice_number", "invoice_date", "total", "payment_method", "description", "budget_line_id"];
+let invoiceDraftTimer = 0;
+let invoiceDraftHoldId = "";
+
+function invoiceDraftKey() {
+  const environment = typeof museoEnvironment !== "undefined" && museoEnvironment?.name ? museoEnvironment.name : "local";
+  return `museo-invoice-drafts-${environment}`;
+}
+
+function invoiceDraftStore() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(invoiceDraftKey()) || "null");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch (error) {
+    console.error(error);
+    return {};
+  }
+}
+
+function invoiceReadDraft(documentId) {
+  const draft = invoiceDraftStore()[documentId];
+  if (!draft || draft.documentId !== documentId || typeof draft.fields !== "object" || !draft.fields) return null;
+  if (typeof draft.baseline !== "object" || !draft.baseline) return null;
+  return draft;
+}
+
+function invoiceWriteDraft(documentId, draft) {
+  const store = invoiceDraftStore();
+  store[documentId] = draft;
+  try {
+    localStorage.setItem(invoiceDraftKey(), JSON.stringify(store));
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function invoiceClearDraft(documentId) {
+  const store = invoiceDraftStore();
+  if (!Object.hasOwn(store, documentId)) return;
+  delete store[documentId];
+  try {
+    if (Object.keys(store).length) localStorage.setItem(invoiceDraftKey(), JSON.stringify(store));
+    else localStorage.removeItem(invoiceDraftKey());
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function invoiceDraftValue(source, key) {
+  return invoiceFieldText(source?.[key]);
+}
+
+function invoiceDraftRecord(source) {
+  return Object.fromEntries(invoiceDraftFieldNames.map((key) => [key, invoiceDraftValue(source, key)]));
+}
+
+function invoiceDraftSame(left, right) {
+  return invoiceDraftFieldNames.every((key) => {
+    const current = left?.[key] ?? "";
+    const persisted = right?.[key] ?? "";
+    if (key === "total" && current && persisted && Number(current) === Number(persisted) && Number.isFinite(Number(current))) return true;
+    return current === persisted;
+  });
+}
+
+function invoicePaymentAllowed(value) {
+  return invoicePaymentMethods.some(([code]) => code === value);
+}
+
+function invoiceDraftAction(documentId, snapshot) {
+  const draft = invoiceReadDraft(documentId);
+  if (!draft) return "none";
+  const baseline = invoiceDraftRecord(snapshot);
+  if (!invoiceDraftSame(draft.baseline, baseline)) return "conflict";
+  if (invoiceDraftSame(draft.fields, baseline)) {
+    invoiceClearDraft(documentId);
+    return "none";
+  }
+  return "restore";
+}
+
+function rememberInvoiceDraft(documentId, fields, snapshot) {
+  if (!documentId || invoiceDraftHoldId === documentId) return;
+  const current = invoiceDraftRecord(fields);
+  if (!invoicePaymentAllowed(current.payment_method)) current.payment_method = "";
+  const baseline = invoiceDraftRecord(snapshot);
+  const existing = invoiceReadDraft(documentId);
+  if (existing && !invoiceDraftSame(existing.baseline, baseline)) return;
+  if (invoiceDraftSame(current, baseline)) {
+    invoiceClearDraft(documentId);
+    return;
+  }
+  invoiceWriteDraft(documentId, {
+    documentId,
+    updatedAt: new Date().toISOString(),
+    baseline: existing?.baseline || baseline,
+    fields: current
+  });
+}
+
+function invoiceFormDraftFields(form) {
+  return Object.fromEntries(invoiceDraftFieldNames.map((key) => [key, form.elements[key]?.value ?? ""]));
+}
+
+function applyInvoiceDraft(form, fields) {
+  invoiceDraftFieldNames.forEach((key) => {
+    const input = form.elements[key];
+    if (!input || fields[key] == null) return;
+    if (key === "payment_method" && fields[key] && !invoicePaymentAllowed(fields[key])) {
+      input.value = "";
+      return;
+    }
+    input.value = fields[key];
+  });
+}
+
+function invoiceDraftContext() {
+  const review = document.querySelector("[data-invoice-review]");
+  const form = document.querySelector("[data-invoice-form]");
+  if (!review || !form || invoiceCanDecide !== true) return null;
+  const documentId = review.dataset.invoiceReview;
+  const invoice = invoiceDocuments.find((item) => item.id === documentId);
+  if (!invoice) return null;
+  return { documentId, form, snapshot: invoiceSnapshot(invoice) };
+}
+
+function flushInvoiceDraft() {
+  const current = invoiceDraftContext();
+  if (!current) return;
+  rememberInvoiceDraft(current.documentId, invoiceFormDraftFields(current.form), current.snapshot);
+}
+
+function scheduleInvoiceDraft() {
+  clearTimeout(invoiceDraftTimer);
+  invoiceDraftTimer = setTimeout(flushInvoiceDraft, 400);
+}
+
+function bindInvoiceDraftPersistence() {
+  if (typeof document === "undefined") return;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushInvoiceDraft();
+  });
+  window.addEventListener("pagehide", flushInvoiceDraft);
 }
 
 function renderFinanceDocuments() {
@@ -329,6 +494,7 @@ function renderInvoiceReview(panel, invoice, token, notice = "") {
         <button class="button secondary" type="button" data-invoice-reload-file>Mostrar el archivo de nuevo</button>
       </div>
       <p class="form-message" data-invoice-message>${invoiceEscape(notice)}</p>
+      <p class="form-message" data-invoice-draft hidden>Se encontró un borrador sin guardar. Los datos ya guardados son más recientes. <button class="button secondary" type="button" data-invoice-draft-restore>Recuperar borrador</button> <button class="button secondary" type="button" data-invoice-draft-discard>Descartar borrador</button></p>
       <div class="invoice-preview" data-invoice-preview><p class="empty-state">Cargando el archivo…</p></div>
       <form class="form-grid" data-invoice-form>
         <div class="form-row">
@@ -350,6 +516,10 @@ function renderInvoiceReview(panel, invoice, token, notice = "") {
             <label for="invoice-total">Total</label>
             <input id="invoice-total" name="total" inputmode="decimal" value="${invoiceEscape(totalValue)}" ${canDecide ? "" : "disabled"}>
           </div>
+        </div>
+        <div class="field">
+          <label for="invoice-payment-method">Método de pago</label>
+          <select id="invoice-payment-method" name="payment_method" ${canDecide ? "" : "disabled"}>${invoicePaymentOptions(snapshot.payment_method)}</select>
         </div>
         <div class="field">
           <label for="invoice-description">Descripción</label>
@@ -380,7 +550,7 @@ function renderInvoiceReview(panel, invoice, token, notice = "") {
         <dialog class="invoice-reject-dialog" data-invoice-confirm-dialog>
           <form class="invoice-reject-form" data-invoice-confirm-form>
             <h3>Confirmar factura</h3>
-            <p>Al confirmar, la factura quedará registrada como confirmada y se creará el movimiento financiero correspondiente. No confirme hasta haber revisado la fecha, el total, la descripción y la línea presupuestaria.</p>
+            <p>Al confirmar, la factura quedará registrada como confirmada y se creará el movimiento financiero correspondiente. No confirme hasta haber revisado la fecha, el total, el método de pago, la descripción y la línea presupuestaria.</p>
             <p class="form-message" data-invoice-confirm-message></p>
             <div class="invoice-actions">
               <button class="button secondary" type="button" data-invoice-confirm-cancel>Cancelar</button>
@@ -431,7 +601,48 @@ function renderInvoiceReview(panel, invoice, token, notice = "") {
     event.preventDefault();
     confirmInvoiceDocument(panel, invoice, token);
   });
+  prepareInvoiceDraft(panel, invoice, snapshot, notice);
   showInvoiceOriginal(panel, invoice);
+}
+
+function prepareInvoiceDraft(panel, invoice, snapshot, notice) {
+  const form = panel.querySelector("[data-invoice-form]");
+  const message = panel.querySelector("[data-invoice-message]");
+  const draftBox = panel.querySelector("[data-invoice-draft]");
+  if (!form || invoiceCanDecide !== true) return;
+  const action = invoiceDraftAction(invoice.id, snapshot);
+  if (action === "restore") {
+    invoiceDraftHoldId = "";
+    applyInvoiceDraft(form, invoiceReadDraft(invoice.id).fields);
+    if (!notice && message) {
+      message.className = "form-message";
+      message.textContent = "Se recuperó el trabajo que no se había guardado.";
+    }
+  } else if (action === "conflict") {
+    invoiceDraftHoldId = invoice.id;
+    if (draftBox) draftBox.hidden = false;
+  } else if (invoiceDraftHoldId === invoice.id) {
+    invoiceDraftHoldId = "";
+  }
+  form.addEventListener("input", scheduleInvoiceDraft);
+  form.addEventListener("change", scheduleInvoiceDraft);
+  draftBox?.querySelector("[data-invoice-draft-restore]")?.addEventListener("click", () => {
+    const draft = invoiceReadDraft(invoice.id);
+    if (!draft) return;
+    invoiceDraftHoldId = "";
+    applyInvoiceDraft(form, draft.fields);
+    draftBox.hidden = true;
+    if (message) {
+      message.className = "form-message";
+      message.textContent = "Se recuperó el borrador. Guarde la revisión para conservarlo en el servidor.";
+    }
+    flushInvoiceDraft();
+  });
+  draftBox?.querySelector("[data-invoice-draft-discard]")?.addEventListener("click", () => {
+    invoiceClearDraft(invoice.id);
+    invoiceDraftHoldId = "";
+    if (draftBox) draftBox.hidden = true;
+  });
 }
 
 function openInvoiceConfirm(panel) {
@@ -465,6 +676,7 @@ async function confirmInvoiceDocument(panel, invoice, token) {
   try {
     saved = await confirmFinanceDocument(invoice.id);
     if (saved?.status !== "confirmed" || !saved?.movement_id) throw new Error("La factura no quedó confirmada.");
+    invoiceClearDraft(invoice.id);
   } catch (error) {
     if (token !== invoiceRenderToken) return;
     if (submit) submit.disabled = false;
@@ -525,6 +737,7 @@ async function confirmInvoiceReject(panel, invoice, token) {
   try {
     saved = await rejectFinanceDocument(invoice.id, reason);
     if (saved?.status !== "rejected") throw new Error("La factura no quedó rechazada.");
+    invoiceClearDraft(invoice.id);
   } catch (error) {
     if (token !== invoiceRenderToken) return;
     if (confirm) confirm.disabled = false;
@@ -602,6 +815,7 @@ async function saveInvoiceReview(panel, invoice, expected, token) {
       invoice_number: form.elements.invoice_number.value,
       invoice_date: invoiceBlank(form.elements.invoice_date.value),
       total,
+      payment_method: invoiceBlank(form.elements.payment_method.value),
       description: form.elements.description.value,
       budget_line_id: invoiceBlank(form.elements.budget_line_id.value)
     });
@@ -613,10 +827,12 @@ async function saveInvoiceReview(panel, invoice, expected, token) {
       invoice_number: saved.invoice_number,
       invoice_date: saved.invoice_date,
       total: saved.total,
+      payment_method: saved.payment_method,
       description: saved.description,
       budget_line_id: saved.budget_line_id
     };
     invoiceDocuments = invoiceDocuments.map((item) => item.id === next.id ? next : item);
+    invoiceClearDraft(invoice.id);
     if (token !== invoiceRenderToken) return;
     renderInvoiceReview(panel, next, token, "Revisión guardada. La factura sigue pendiente.");
   } catch (error) {
@@ -661,3 +877,5 @@ async function reloadFinanceDocument(documentId) {
     panel.innerHTML = `<p class="form-message error">${invoiceEscape(error.message || "No se pudo recargar la factura.")}</p>`;
   }
 }
+
+bindInvoiceDraftPersistence();

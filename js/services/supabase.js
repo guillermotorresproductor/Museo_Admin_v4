@@ -844,7 +844,7 @@ const supabaseFinanceDocumentsBucket = "finance-documents";
 const invoiceBudgetCategories = ["Gastos Operacionales", "Servicios Contratados", "Otros Gastos"];
 
 async function fetchPendingFinanceDocuments() {
-  return supabaseGet("/rest/v1/finance_documents?select=id,status,original_filename,original_mime,original_path,uploaded_at,vendor_name,invoice_number,invoice_date,total,description,budget_line_id&status=eq.pending_review&order=uploaded_at.desc");
+  return supabaseGet("/rest/v1/finance_documents?select=id,status,original_filename,original_mime,original_path,uploaded_at,vendor_name,invoice_number,invoice_date,total,payment_method,description,budget_line_id&status=eq.pending_review&order=uploaded_at.desc");
 }
 
 async function fetchInvoiceBudgetLines() {
@@ -877,12 +877,14 @@ async function updateFinanceDocumentReview(review) {
       p_expected_total: review.expected.total,
       p_expected_description: review.expected.description,
       p_expected_budget_line_id: review.expected.budget_line_id,
+      p_expected_payment_method: review.expected.payment_method,
       p_vendor_name: review.vendor_name,
       p_invoice_number: review.invoice_number,
       p_invoice_date: review.invoice_date,
       p_total: review.total,
       p_description: review.description,
-      p_budget_line_id: review.budget_line_id
+      p_budget_line_id: review.budget_line_id,
+      p_payment_method: review.payment_method
     })
   });
   const data = await response.json().catch(() => ({}));
@@ -896,6 +898,7 @@ async function updateFinanceDocumentReview(review) {
     else if (message.includes("Invalid vendor")) error.code = "INVALID_VENDOR";
     else if (message.includes("Invalid invoice number")) error.code = "INVALID_INVOICE_NUMBER";
     else if (message.includes("Invalid description")) error.code = "INVALID_DESCRIPTION";
+    else if (message.includes("PAYMENT_METHOD_INVALID")) error.code = "PAYMENT_METHOD_INVALID";
     throw error;
   }
   return data;
