@@ -4955,14 +4955,16 @@ function bindFinanceModule() {
                 <td><strong>${safeHtml(row.concept)}</strong></td>
                 ${row.values.map((value, index) => `
                   <td>
-                    <input class="finance-cell" type="number" step="0.01" value="${value === null ? "" : Number(value)}" ${!canWrite() || !row.recordIds[index] ? "disabled" : ""} aria-label="${safeHtml(row.concept)} ${financeMonths[index]} presupuesto" data-finance-row="${row.id}" data-finance-month="${index}">
+                    ${showReal ? "" : `<input class="finance-cell" type="number" step="0.01" value="${value === null ? "" : Number(value)}" ${!canWrite() || !row.recordIds[index] ? "disabled" : ""} aria-label="${safeHtml(row.concept)} ${financeMonths[index]} presupuesto" data-finance-row="${row.id}" data-finance-month="${index}">`}
                     ${showReal ? `<span class="field-hint">Real ${money(realMovements.amount(row.budgetLineId, index))}</span>` : ""}
                   </td>
                 `).join("")}
               </tr>`;
             }).join("")}
-            ${showReal ? `<tr><td><strong>NÓMINA REAL</strong></td>${payrollRealMonths.map((amount) => `<td>${money(amount)}</td>`).join("")}</tr>` : ""}
-            ${showReal ? `<tr><td><strong>TOTAL GASTOS REAL</strong></td>${payrollRealMonths.map((amount, index) => `<td>${money(financeMonthReal(realMovements, amount, index).expense)}</td>`).join("")}</tr>` : ""}
+            ${showReal ? `<tr class="finance-real-separator"><td colspan="13"></td></tr>
+            <tr><td><strong>GASTOS REAL</strong></td>${financeMonths.map((_, index) => `<td>${money(realMovements.monthExpense(index))}</td>`).join("")}</tr>
+            <tr><td><strong>NÓMINA REAL</strong></td>${payrollRealMonths.map((amount) => `<td>${money(amount)}</td>`).join("")}</tr>
+            <tr><td><strong>TOTAL GASTOS REAL</strong></td>${payrollRealMonths.map((amount, index) => `<td>${money(financeMonthReal(realMovements, amount, index).expense)}</td>`).join("")}</tr>` : ""}
           </tbody>
         </table>
       </div>
