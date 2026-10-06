@@ -257,6 +257,7 @@ function bindCollectionIntake() {
       return;
     }
     showPendingPhoto(n, file);
+    pendingNote.hidden = false;
     refreshPhotoNote();
   }
   function refreshMode() {
@@ -421,6 +422,18 @@ function bindCollectionIntake() {
   function selectedSlots() {
     return [1, 2, 3, 4].map(n => ({ n, file: form.elements[`photo_${n}`]?.files?.[0] })).filter(slot => slot.file);
   }
+  function unsavedAttachmentSelected() {
+    return [...attachments.querySelectorAll('[data-attachment-file]')].some(input => input.files[0]);
+  }
+  function uploadOutstanding() {
+    return selectedSlots().some(slot => photoSlotState[slot.n] !== 'saved') || unsavedAttachmentSelected();
+  }
+  function settlePendingNotice() {
+    const outstanding = uploadOutstanding();
+    if (!outstanding) sessionStorage.removeItem(intakeRequestKey());
+    pendingNote.hidden = !outstanding;
+    return !outstanding;
+  }
   async function uploadPending() {
     const piece = created.item;
     const accession = created.accession;
@@ -434,8 +447,8 @@ function bindCollectionIntake() {
     for (const slot of slots) {
       const role = collectionPhotoRoles[slot.n];
       const savedRole = existingRoles.find(row => row.role === role);
-      if (photoSlotState[slot.n] === 'saved' || savedRole) {
-        if (savedRole) await showStoredPhoto(slot.n, paths.get(savedRole.photo_id) || '');
+      if (savedRole) {
+        await showStoredPhoto(slot.n, paths.get(savedRole.photo_id) || '');
         continue;
       }
       try {
@@ -456,14 +469,12 @@ function bindCollectionIntake() {
         row.remove();
       }
     }
-    const stillSelected = selectedSlots().length || [...attachments.querySelectorAll('[data-attachment-file]')].some(input => input.files[0]);
-    if (!stillSelected) sessionStorage.removeItem(intakeRequestKey());
-    pendingNote.hidden = stillSelected;
     photoNote.hidden = existingRoles.length === 0;
     const link = document.querySelector('#intake-result');
     link.hidden = false;
     link.href = `inventario-colecciones.html?pieza=${piece.id}`;
     link.textContent = `Abrir ${piece.accession_number} en el Inventario de Colecciones`;
+    return settlePendingNotice();
   }
   function rememberCreated(response, id) {
     created = response;
@@ -560,8 +571,8 @@ function bindCollectionIntake() {
     refreshMode();
     say('Reintentando la carga pendiente…');
     try {
-      await uploadPending();
-      say(`${created.item.accession_number} conserva su número. La carga pendiente se actualizó.`);
+      const complete = await uploadPending();
+      say(complete ? 'Fotografías guardadas correctamente.' : 'Carga pendiente. Puede reintentar sin crear otra pieza.');
     } catch (error) {
       console.error(error);
       pendingNote.hidden = false;
@@ -799,9 +810,7 @@ function bindCollectionIntake() {
       await fillExisting(accession, items[0]);
       await loadContractSigned();
       refreshMode();
-      const waiting = Boolean(pending?.requestId && accession.client_request_id === pending.requestId);
-      pendingNote.hidden = !waiting;
-      if (waiting) say('Carga pendiente. Puede reintentar sin crear otra pieza.');
+      if (!settlePendingNotice()) say('Carga pendiente. Puede reintentar sin crear otra pieza.');
     }).catch(error => {
       console.error(error);
       say(error.message || 'No se pudo recuperar el expediente.', true);
