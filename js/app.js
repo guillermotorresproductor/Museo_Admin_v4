@@ -15,6 +15,8 @@ const appPages = {
   "departamento-museologico.html": { title: "Departamento Museológico", subtitle: "Museología, salas, colecciones y formularios museográficos." },
   "colecciones-museograficas.html": { title: "Colecciones museográficas", subtitle: "Registro, documentación, conservación y gestión de colecciones." },
   "inventario-colecciones.html": { title: "Inventario de Colecciones", subtitle: "Expedientes de piezas y patrimonio museográfico." },
+  "ingreso-articulo.html": { title: "Ingreso de artículo", subtitle: "Préstamo temporal o donación permanente hacia el inventario de colecciones." },
+  "documento-ingreso.html": { title: "Documento de ingreso", subtitle: "Impresión del expediente desde el snapshot contractual." },
   "administracion.html": { title: "Administración", subtitle: "Dirección ejecutiva, recursos humanos, notificaciones, nómina y finanzas." },
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
   "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
@@ -57,7 +59,7 @@ const navigationGroups = [
     label: "Menu",
     items: [
       { href: "dashboard.html", label: "Dashboard", icon: "dashboard" },
-      { href: "departamento-museologico.html", label: "Departamento Museológico", icon: "building", activePages: ["colecciones-museograficas.html", "inventario-colecciones.html", "recibo-prestamo.html"] },
+      { href: "departamento-museologico.html", label: "Departamento Museológico", icon: "building", activePages: ["colecciones-museograficas.html", "inventario-colecciones.html", "ingreso-articulo.html", "documento-ingreso.html", "recibo-prestamo.html"] },
       { href: "calendario.html", label: "Calendario de Eventos del Museo", icon: "calendar" },
       { href: "renta-espacios.html", label: "Renta de Espacios", icon: "building", activePages: ["renta-espacio.html"] },
       { href: "membresias.html", label: "Membresías", icon: "users" },
@@ -74,7 +76,7 @@ const navigationGroups = [
 
 const moduleShortcutGroups = [
   {
-    pages: ["recibo-prestamo.html", "inventario-colecciones.html"],
+    pages: ["recibo-prestamo.html", "inventario-colecciones.html", "ingreso-articulo.html"],
     backHref: "colecciones-museograficas.html",
     homeLabel: "Inicio",
     links: [
@@ -282,7 +284,7 @@ const hasModuleProfile = () => hasPermission("module_profiles.active");
 const profilePageModules = {
   "employee-portal.html": "personal",
   "departamento-museologico.html": "collections", "colecciones-museograficas.html": "collections",
-  "inventario-colecciones.html": "collections", "recibo-prestamo.html": "collections",
+  "inventario-colecciones.html": "collections", "ingreso-articulo.html": "collections", "documento-ingreso.html": "collections", "recibo-prestamo.html": "collections",
   "calendario.html": "calendar", "renta-espacios.html": "rentals", "renta-espacio.html": "rentals", "solicitud-renta.html": "rentals",
   "membresias.html": "memberships", "ujieres.html": "ushers",
   "mantenimiento.html": "maintenance", "calendario-obras.html": "maintenance",
@@ -303,7 +305,9 @@ function profilePageAllowed(page) {
     "finanzas.html": () => hasPermission("finance.read"),
     "reportes.html": () => hasPermission("attendance.today.read") || hasPermission("attendance.history.read"),
     "direccion-ejecutiva.html": () => hasPermission("executive.case.read"),
-    "recibo-prestamo.html": () => canWriteCollections()
+    "recibo-prestamo.html": () => canWriteCollections(),
+    "ingreso-articulo.html": () => canWriteCollections() || canSignCollectionDirector(),
+    "documento-ingreso.html": () => canReadCollections()
   };
   return extra[page] ? extra[page]() : true;
 }
@@ -311,6 +315,7 @@ const canManageEmployees = () => hasPermission("employees.create") || hasPermiss
 const hasAdministrativeWorkspaceAccess = () =>
   hasPermission("system.configure") || (hasPermission("audit.read") && hasPermission("notifications.manage"));
 const canWriteCollections = () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.write");
+const canSignCollectionDirector = () => hasPermission("collections.sign.director");
 const canReadCollections = () => canWriteCollections() || hasPermission("collections.read");
 const canAccessAdministrationHub = () => hasModuleProfile() ? hasPermission("modules.administration.read") : hasAdministrativeWorkspaceAccess();
 const postLoginDestination = () => "dashboard.html";
@@ -336,6 +341,8 @@ const moduleAccessChecks = {
   "colecciones-museograficas.html": () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.read") || hasPermission("collections.write"),
   "inventario-colecciones.html": () => canReadCollections(),
   "recibo-prestamo.html": () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.write"),
+  "ingreso-articulo.html": () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.write") || hasPermission("collections.sign.director"),
+  "documento-ingreso.html": () => canReadCollections(),
   "calendario.html": () => hasPermission("calendar.manage") || hasPermission("schedules.read.team"),
   "renta-espacios.html": () => hasPermission("rentals.manage"),
   "membresias.html": () => hasPermission("memberships.manage"),
@@ -457,6 +464,8 @@ function enforceAuthenticatedPageAccess() {
     ["departamento-museologico.html", moduleAccessChecks["departamento-museologico.html"]],
     ["colecciones-museograficas.html", moduleAccessChecks["colecciones-museograficas.html"]],
     ["recibo-prestamo.html", moduleAccessChecks["recibo-prestamo.html"]],
+    ["ingreso-articulo.html", moduleAccessChecks["ingreso-articulo.html"]],
+    ["documento-ingreso.html", moduleAccessChecks["documento-ingreso.html"]],
     ["recursos-humanos.html", () => hasPermission("employees.read.all")],
     ["perfil-empleado.html", () => hasPermission("roles.assign")],
     ["calendario.html", () => hasPermission("calendar.manage") || hasPermission("schedules.read.team")],
@@ -7573,6 +7582,8 @@ async function initApp() {
   bindLoanReceiptForm();
   bindInventoryModule();
   if (typeof bindCollectionsCatalog === "function") await bindCollectionsCatalog();
+  if (typeof bindCollectionIntake === "function") bindCollectionIntake();
+  if (typeof bindCollectionDocument === "function") bindCollectionDocument();
   bindCalendarModules();
   bindMembershipsModule();
   await bindEmployeePortal();

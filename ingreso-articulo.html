@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Museo Admin | Ingreso de artículo</title>
+  <link rel="stylesheet" href="css/main.css?v=instituva-catalog-20260729">
+  <link rel="stylesheet" href="css/collections.css?v=collections-20261005-phase4">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" data-sidebar></aside>
+    <div class="sidebar-backdrop" data-sidebar-backdrop></div>
+    <div class="main-area">
+      <header class="site-header" data-header></header>
+      <main class="page-content">
+        <section class="card panel section-stack">
+          <p class="page-kicker">PATRIMONIO MUSEOGRÁFICO</p>
+          <h2>Ingreso de artículo</h2>
+          <p>El registro nuevo entra al mismo Inventario de Colecciones. El número de inventario se asigna al guardar. El ingreso permanece en borrador hasta la firma del prestamista o donante y la del Director del Museo.</p>
+          <p id="intake-pending" hidden><strong>Carga pendiente.</strong> Seleccione de nuevo la fotografía o el anejo y pulse Reintentar. No se creará otra pieza ni se reservará otro número. <button class="button secondary" id="intake-retry" type="button">Reintentar</button></p>
+          <p id="intake-message" class="form-message" role="status" aria-live="polite"></p>
+        </section>
+        <form id="collection-intake-form" class="card panel application-form collection-form">
+          <fieldset>
+            <legend>Modalidad de ingreso</legend>
+            <div class="intake-choice">
+              <label><input type="radio" name="modality" value="prestamo_temporal"> <span>Préstamo temporal</span></label>
+              <label><input type="radio" name="modality" value="donacion_permanente"> <span>Donación permanente</span></label>
+            </div>
+            <p>Titularidad: <strong data-ownership>Seleccione la modalidad</strong></p>
+            <p data-donation-note hidden>Seleccionar donación permanente no convierte la titularidad en propiedad del Museo. Eso ocurre al formalizar el expediente.</p>
+          </fieldset>
+          <fieldset>
+            <legend>Pieza</legend>
+            <p>Esta fase registra una pieza nueva.</p>
+            <button class="button secondary" id="intake-link-existing" type="button" disabled>Vincular pieza existente</button>
+            <p>Vincular una pieza que ya está en el inventario quedará disponible después, sin duplicar el registro.</p>
+          </fieldset>
+          <fieldset>
+            <legend>Información museográfica</legend>
+            <div class="form-row">
+              <p id="intake-inventory-note"><strong>Número de inventario</strong><br>Se asignará automáticamente al guardar</p>
+              <label class="field" for="intake-category"><span>Clasificación *</span>
+                <select id="intake-category" name="category" required>
+                  <option value="">Seleccione una clasificación</option>
+                  <option value="Instrumento musical">Instrumento musical</option>
+                  <option value="Documento">Documento</option>
+                  <option value="Fotografía">Fotografía</option>
+                  <option value="Objeto personal">Objeto personal</option>
+                  <option value="Partitura">Partitura</option>
+                  <option value="Vestuario">Vestuario</option>
+                  <option value="Obra de arte">Obra de arte</option>
+                  <option value="Disco de vinilo">Disco de vinilo</option>
+                  <option value="Casete">Casete</option>
+                  <option value="8-Track">8-Track</option>
+                  <option value="CD de Audio">CD de Audio</option>
+                  <option value="DVD">DVD</option>
+                  <option value="Otro">Otros</option>
+                </select>
+              </label>
+              <label class="field" for="intake-object-type" hidden><span>Tipo de objeto *</span><input id="intake-object-type" name="object_type_specification" maxlength="1000"></label>
+              <label class="field" for="intake-personal" hidden><span>Descripción del objeto personal *</span><input id="intake-personal" name="personal_object_description" maxlength="1000"></label>
+              <label class="field" for="intake-title"><span>Nombre / título *</span><input id="intake-title" name="title" required maxlength="300"></label>
+              <label class="field" for="intake-author"><span>Autor / Artista / Intérprete / Fabricante</span><input id="intake-author" name="author" maxlength="1000"></label>
+              <label class="field" for="intake-dating"><span>Fecha / período</span><input id="intake-dating" name="dating" maxlength="1000"></label>
+              <label class="field" for="intake-materials"><span>Materiales</span><input id="intake-materials" name="materials" maxlength="1000"></label>
+              <label class="field" for="intake-provenance"><span>Procedencia</span><textarea id="intake-provenance" name="provenance" rows="3" maxlength="10000"></textarea></label>
+              <label class="field" for="intake-description"><span>Descripción *</span><textarea id="intake-description" name="description" required rows="4" maxlength="10000"></textarea></label>
+              <label class="field" for="intake-location"><span>Ubicación *</span><input id="intake-location" name="location" required maxlength="300"></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Dimensiones</legend>
+            <div class="collection-measures">
+              <div class="collection-measure"><label for="intake-height">Alto</label><input id="intake-height" name="height" inputmode="decimal" min="0" step="0.01"><select name="height_unit" aria-label="Unidad de alto"><option value="cm">cm</option><option value="pulg.">pulg.</option></select></div>
+              <div class="collection-measure"><label for="intake-width">Ancho</label><input id="intake-width" name="width" inputmode="decimal" min="0" step="0.01"><select name="width_unit" aria-label="Unidad de ancho"><option value="cm">cm</option><option value="pulg.">pulg.</option></select></div>
+              <div class="collection-measure"><label for="intake-depth">Profundidad</label><input id="intake-depth" name="depth" inputmode="decimal" min="0" step="0.01"><select name="depth_unit" aria-label="Unidad de profundidad"><option value="cm">cm</option><option value="pulg.">pulg.</option></select></div>
+              <div class="collection-measure"><label for="intake-weight">Peso</label><input id="intake-weight" name="weight" inputmode="decimal" min="0" step="0.01"><select name="weight_unit" aria-label="Unidad de peso"><option value="lb">lb</option><option value="kg">kg</option></select></div>
+              <label class="field" for="intake-other-measurements"><span>Otras medidas / detalles</span><input id="intake-other-measurements" name="other_measurements" maxlength="700"></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Fotografías</legend>
+            <p>Hasta cuatro fotografías de la pieza (JPG, PNG o WEBP, hasta 10 MB). No se repiten en los anejos.</p>
+            <div class="collection-photo-slots">
+              <div class="collection-photo-slot" data-photo-role="frontal"><label class="field" for="intake-photo-1"><span>Fotografía frontal</span><input id="intake-photo-1" name="photo_1" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
+              <div class="collection-photo-slot" data-photo-role="posterior"><label class="field" for="intake-photo-2"><span>Fotografía posterior</span><input id="intake-photo-2" name="photo_2" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
+              <div class="collection-photo-slot" data-photo-role="lateral"><label class="field" for="intake-photo-3"><span>Fotografía lateral</span><input id="intake-photo-3" name="photo_3" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
+              <div class="collection-photo-slot" data-photo-role="adicional"><label class="field" for="intake-photo-4"><span>Fotografía adicional / detalle</span><input id="intake-photo-4" name="photo_4" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
+            </div>
+            <p id="intake-photo-note" hidden>✓ Fotografías incorporadas al expediente</p>
+          </fieldset>
+          <fieldset>
+            <legend>Conservación y valor</legend>
+            <div class="form-row">
+              <label class="field" for="intake-condition"><span>Condición general *</span>
+                <select id="intake-condition" name="physical_condition" required>
+                  <option value="">Seleccione</option>
+                  <option>Excelente</option><option>Buena</option><option>Regular</option><option>Mala</option><option>Requiere evaluación</option>
+                </select>
+              </label>
+              <label class="field" for="intake-conservation"><span>Observaciones de conservación</span><textarea id="intake-conservation" name="conservation_notes" rows="3" maxlength="10000"></textarea></label>
+              <label class="field" for="intake-status"><span>Estado del registro de la pieza *</span>
+                <select id="intake-status" name="status" required>
+                  <option value="ingreso">Ingreso / en documentación</option>
+                  <option value="catalogada">Catalogada</option>
+                  <option value="conservacion">En conservación</option>
+                  <option value="restauracion">En restauración</option>
+                </select>
+              </label>
+              <label class="field" for="intake-fmv"><span>Valor estimado</span><span>USD</span><input id="intake-fmv" name="fmv" type="number" min="0" max="999999999999.99" step="0.01"></label>
+              <p>Estado del ingreso: <strong id="intake-status">Borrador</strong></p>
+            </div>
+          </fieldset>
+          <fieldset data-party hidden>
+            <legend data-party-legend>Persona o entidad</legend>
+            <div class="form-row">
+              <label class="field" for="intake-party-name"><span data-party-name-label>Nombre *</span><input id="intake-party-name" name="party_name" maxlength="1000"></label>
+              <label class="field" for="intake-party-entity"><span>Entidad (si aplica)</span><input id="intake-party-entity" name="party_entity" maxlength="1000"></label>
+              <label class="field" for="intake-party-email"><span>Correo electrónico *</span><input id="intake-party-email" name="party_email" type="email" maxlength="300"></label>
+              <label class="field" for="intake-party-phone"><span>Teléfono *</span><input id="intake-party-phone" name="party_phone" type="tel" maxlength="100"></label>
+              <label class="field" for="intake-party-address"><span>Dirección *</span><textarea id="intake-party-address" name="party_address" rows="2" maxlength="2000"></textarea></label>
+            </div>
+          </fieldset>
+          <fieldset data-loan hidden>
+            <legend>Préstamo temporal</legend>
+            <div class="form-row">
+              <label class="field" for="intake-started"><span>Fecha de inicio *</span><input id="intake-started" name="started_on" type="date"></label>
+              <label class="field" for="intake-return"><span>Fecha estimada de devolución *</span><input id="intake-return" name="expected_return_on" type="date"></label>
+              <fieldset>
+                <legend>Propósito *</legend>
+                <label><input type="checkbox" name="purpose" value="Exhibición"> Exhibición</label>
+                <label><input type="checkbox" name="purpose" value="Investigación"> Investigación</label>
+                <label><input type="checkbox" name="purpose" value="Conservación"> Conservación</label>
+                <label><input type="checkbox" name="purpose" value="Documentación"> Documentación</label>
+                <label><input type="checkbox" name="purpose" value="Otros"> Otros</label>
+              </fieldset>
+              <div data-exhibition hidden>
+                <label class="field" for="intake-activity"><span>Nombre de la exhibición / actividad *</span><input id="intake-activity" name="activity_name" maxlength="1000"></label>
+                <label class="field" for="intake-activity-on"><span>Fecha de la exhibición / actividad</span><input id="intake-activity-on" name="activity_on" type="date"></label>
+                <label class="field" for="intake-activity-location"><span>Ubicación de la exhibición</span><input id="intake-activity-location" name="activity_location" maxlength="1000"></label>
+              </div>
+              <label class="field" for="intake-purpose-details" data-purpose-other hidden><span>Detalles del propósito *</span><textarea id="intake-purpose-details" name="purpose_details" rows="3" maxlength="10000"></textarea></label>
+            </div>
+          </fieldset>
+          <fieldset data-donation hidden>
+            <legend>Donación permanente</legend>
+            <label class="field" for="intake-donation-on"><span>Fecha de donación / ingreso *</span><input id="intake-donation-on" name="donation_on" type="date"></label>
+            <p>No se solicita fecha de devolución ni propósito de préstamo.</p>
+          </fieldset>
+          <fieldset>
+            <legend>Anejos</legend>
+            <p>Inventario adicional, evidencia de seguro, tasación o valoración, u otros documentos. Las fotografías de la pieza no se cargan aquí.</p>
+            <div id="intake-attachments"></div>
+            <button class="button secondary" id="intake-add-attachment" type="button">Añadir anejo</button>
+          </fieldset>
+          <fieldset>
+            <legend>Términos</legend>
+            <p id="intake-terms">Mediante la firma del presente formulario, las partes reconocen y aceptan las condiciones aquí establecidas.</p>
+            <p>El resto del texto del formulario municipal se validará contra el documento oficial antes de la impresión definitiva. Esta aceptación forma parte del snapshot contractual.</p>
+          </fieldset>
+          <fieldset data-party-sign>
+            <legend data-party-sign-legend>Propietario / Prestamista</legend>
+            <p data-pad-status>Pad no disponible — firma en pantalla habilitada</p>
+            <p>El nombre y la entidad salen del expediente. La fecha y la hora se registran al firmar.</p>
+            <div data-signature-capture data-signer-role="propietario"></div>
+            <button class="button" id="intake-sign-party" type="button">Registrar firma</button>
+          </fieldset>
+          <fieldset data-director-sign hidden>
+            <legend>Director del Museo</legend>
+            <p>Esta firma institucional no se autoriza con el permiso general de escritura de colecciones.</p>
+            <div data-signature-director data-signer-role="director"></div>
+            <button class="button" id="intake-sign-director" type="button">Firmar como Director</button>
+          </fieldset>
+          <section id="intake-contract-preview" hidden>
+            <h3>Documento contractual</h3>
+            <pre class="contract-preview" data-contract-preview></pre>
+          </section>
+          <fieldset data-return hidden>
+            <legend>Devolver pieza</legend>
+            <p data-return-reference></p>
+            <p>Condición al ingreso: <strong data-ingress-condition></strong></p>
+            <p data-return-summary hidden></p>
+            <label class="field" for="intake-returned-on"><span>Fecha efectiva de devolución *</span><input id="intake-returned-on" name="returned_on" type="date"></label>
+            <label class="field" for="intake-return-condition"><span>Condición de la pieza al devolver *</span>
+              <select id="intake-return-condition" name="return_condition">
+                <option value="">Seleccione</option>
+                <option>Excelente</option><option>Buena</option><option>Regular</option><option>Mala</option><option>Requiere evaluación</option>
+              </select>
+            </label>
+            <label class="field" for="intake-return-notes"><span>Observaciones de salida</span><textarea id="intake-return-notes" name="return_notes" rows="3" maxlength="10000"></textarea></label>
+            <p>Entregado por: <strong data-delivered-by></strong></p>
+            <label class="field" for="intake-return-receiver"><span>Recibido por el propietario / prestamista *</span><input id="intake-return-receiver" name="return_received_by" maxlength="300"></label>
+            <p>La fecha y la hora del evento se registran al certificar la devolución.</p>
+            <div data-signature-return data-signer-role="receptor_devolucion"></div>
+            <button class="button" id="intake-return" type="button">Devolver pieza</button>
+            <button class="button" id="intake-close" type="button">Cerrar expediente</button>
+          </fieldset>
+          <fieldset data-reception hidden>
+            <legend>Uso exclusivo del museo / recepción</legend>
+            <p>Número de inventario: <strong data-reception-number></strong></p>
+            <label class="field" for="intake-initial-location"><span>Ubicación inicial de la pieza *</span><input id="intake-initial-location" name="initial_location" maxlength="300"></label>
+            <p>Recibido por: <strong data-received-by></strong></p>
+            <p>La fecha y la hora de ingreso se registran al certificar.</p>
+            <label class="field" for="intake-reception-notes"><span>Observaciones de recepción</span><textarea id="intake-reception-notes" name="reception_notes" rows="3" maxlength="10000"></textarea></label>
+            <p id="intake-reception-terms">Certifico que la información contenida en este formulario es correcta y que la pieza fue recibida conforme a las condiciones descritas.</p>
+            <div data-signature-reception data-signer-role="receptor"></div>
+            <button class="button" id="intake-receive" type="button">Certificar recepción</button>
+          </fieldset>
+          <label class="field" for="intake-reason"><span>Motivo del registro *</span><textarea id="intake-reason" name="reason" required minlength="3" maxlength="2000" rows="2"></textarea></label>
+          <p id="intake-signed-lock" hidden>Hay firmas vigentes. Para corregir el contrato hay que reabrir el expediente. Las firmas anteriores se conservan y dejan de validar el texto.</p>
+          <div class="collection-toolbar">
+            <button class="button submit-button" id="intake-save" type="submit">Guardar borrador</button>
+            <button class="button secondary" id="intake-reopen" type="button" hidden>Reabrir para corrección</button>
+            <button class="button" id="intake-formalize" type="button">Formalizar</button>
+            <a class="button secondary" id="intake-document" hidden href="documento-ingreso.html">Documento</a>
+            <a class="button secondary" href="inventario-colecciones.html">Volver al inventario</a>
+          </div>
+          <p><a id="intake-result" hidden href="inventario-colecciones.html"></a></p>
+        </form>
+      </main>
+      <footer class="site-footer" data-footer></footer>
+    </div>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/services/supabase.js?v=module-profiles-20260918"></script>
+  <script src="js/services/collections.js?v=collections-20261005-phase5"></script>
+  <script src="js/collections.js?v=collections-20261005-phase4"></script>
+  <script src="js/signature-capture.js?v=collections-20261005-phase4"></script>
+  <script src="js/collection-intake.js?v=collections-20261005-phase5b"></script>
+  <script src="js/app.js?v=collections-20261005-phase4"></script>
+</body>
+</html>

@@ -29,6 +29,55 @@ function collectionFactVisible(item, key) {
   return item?.category === expected || Boolean(String(item?.details?.[key] ?? '').trim());
 }
 
+function collectionComposeDimensions(parts) {
+  const bits = [];
+  const add = (label, value, unit) => {
+    const number = String(value ?? '').trim();
+    if (!number) return;
+    bits.push(`${label}: ${number}${unit ? ` ${unit}` : ''}`);
+  };
+  add('Alto', parts.height, parts.height_unit);
+  add('Ancho', parts.width, parts.width_unit);
+  add('Profundidad', parts.depth, parts.depth_unit);
+  add('Peso', parts.weight, parts.weight_unit);
+  const other = String(parts.other_measurements ?? '').trim();
+  if (other) bits.push(`Otras medidas: ${other}`);
+  return bits.join('; ');
+}
+
+function collectionFieldValue(form, name) {
+  return String(form.elements?.[name]?.value ?? '').trim();
+}
+
+function collectionMeasurePair(form, name, unitName) {
+  const number = collectionFieldValue(form, name);
+  if (!number) return { [name]: '', [unitName]: '' };
+  return { [name]: number, [unitName]: collectionFieldValue(form, unitName) };
+}
+
+function collectionDirectAccession(form) {
+  return {
+    modality: 'catalogacion_directa',
+    status: 'borrador',
+    ...collectionMeasurePair(form, 'height', 'height_unit'),
+    ...collectionMeasurePair(form, 'width', 'width_unit'),
+    ...collectionMeasurePair(form, 'depth', 'depth_unit'),
+    ...collectionMeasurePair(form, 'weight', 'weight_unit'),
+    other_measurements: collectionFieldValue(form, 'other_measurements'),
+    physical_condition: collectionFieldValue(form, 'physical_condition'),
+    conservation_notes: collectionFieldValue(form, 'conservation_notes'),
+    estimated_value: collectionFieldValue(form, 'fmv')
+  };
+}
+
+const collectionPhotoRoles = Object.freeze({ 1: 'frontal', 2: 'posterior', 3: 'lateral', 4: 'adicional' });
+const collectionModalityLabels = Object.freeze({
+  catalogacion_directa: 'Catalogación directa',
+  prestamo_temporal: 'Préstamo temporal',
+  donacion_permanente: 'Donación permanente'
+});
+const collectionConditionOptions = Object.freeze(['Excelente', 'Buena', 'Regular', 'Mala', 'Requiere evaluación']);
+
 function collectionDraftKey() {
   return `museo-collection-draft-${museoEnvironment.name}`;
 }
@@ -81,7 +130,7 @@ async function bindCollectionsCatalog() {
   form.noValidate = true;
   const detail = document.querySelector('#collection-detail'), dialog = document.querySelector('#collection-dialog');
   const search = document.querySelector('#collection-search');
-  let items = [], editing = null, saving = false, viewedItem = null, viewedQrDataUrl = '';
+  let items = [], accessions = [], editing = null, saving = false, viewedItem = null, viewedQrDataUrl = '', createRequestId = null;
   const canWrite = canWriteCollections();
   const canReplacePhoto = hasPermission('collections.write');
   let replacingPhoto = false;
@@ -114,7 +163,7 @@ async function bindCollectionsCatalog() {
   function applyCategoryFields() {
     if (!syncingCategory) syncCollectionCategoryFields(form, editing?.details);
   }
-  const draftFields = [...base, ...more, 'reason', 'caption'];
+  const draftFields = [...base, ...more, 'reason', 'caption', 'height', 'height_unit', 'width', 'width_unit', 'depth', 'depth_unit', 'weight', 'weight_unit', 'other_measurements', 'physical_condition', 'conservation_notes'];
   const draftNotice = document.querySelector('#collection-draft');
   const submitButton = form.querySelector('[type="submit"]');
   const submitLabel = submitButton.textContent;
@@ -211,29 +260,99 @@ async function bindCollectionsCatalog() {
     draftFields.forEach(key => { if (form.elements[key] && draft.fields[key] != null) form.elements[key].value = draft.fields[key]; });
     syncingCategory = false;
     applyCategoryFields();
+    syncCatalogMode();
     if (draft.hadPhotos) say('El borrador fue recuperado. Por seguridad del navegador, deberá seleccionar nuevamente las fotografías.', true);
     else say('Se encontró un borrador sin guardar.');
   }
+  function modalityOf(item) {
+    const rows = accessions.filter(row => row.collection_item_id === item.id);
+    rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    return rows[0]?.modality || '';
+  }
+  function syncCatalogMode() {
+    const isNew = !editing?.id;
+    const knownCondition = !isNew && collectionConditionOptions.includes(editing.condition);
+    const useConditionList = isNew || knownCondition;
+    const auto = form.querySelector('[data-accession-auto]');
+    const number = form.elements.accession_number;
+    if (auto) auto.hidden = !isNew;
+    if (number) {
+      number.readOnly = true;
+      number.required = false;
+      number.hidden = isNew;
+      number.value = isNew ? '' : (editing.accession_number || '');
+    }
+    form.querySelectorAll('[data-catalog-party]').forEach(field => { field.hidden = isNew; });
+    const structured = form.querySelector('[data-catalog-dimensions]');
+    const legacy = form.querySelector('[data-catalog-dimensions-legacy]');
+    if (structured) structured.hidden = !isNew;
+    if (legacy) legacy.hidden = isNew;
+    const conditionList = form.querySelector('[data-catalog-condition-select]');
+    const conditionText = form.querySelector('[data-catalog-condition-text]');
+    const conservation = form.querySelector('[data-catalog-conservation]');
+    if (conditionList) conditionList.hidden = !useConditionList;
+    if (conditionText) conditionText.hidden = useConditionList;
+    if (conservation) conservation.hidden = !isNew;
+    if (form.elements.physical_condition) {
+      form.elements.physical_condition.required = useConditionList;
+      if (knownCondition && !form.elements.physical_condition.value) form.elements.physical_condition.value = editing.condition;
+    }
+    if (form.elements.condition) form.elements.condition.required = !useConditionList;
+    if (isNew && form.elements.currency) form.elements.currency.value = 'USD';
+    const currencyNote = form.querySelector('[data-currency-note]');
+    if (currencyNote) currencyNote.textContent = isNew ? 'USD' : (editing?.details?.currency || 'USD');
+    const currencyField = form.querySelector('[data-catalog-currency]');
+    if (currencyField) currencyField.hidden = true;
+  }
   function reset() {
-    editing = null; syncingCategory = true; form.reset(); resetPhotoSlots(); syncingCategory = false; applyCategoryFields(); form.hidden = true;
-    document.querySelector('#collection-form-title').textContent = 'Registrar pieza';
+    editing = null; createRequestId = null; syncingCategory = true; form.reset(); resetPhotoSlots(); syncingCategory = false; applyCategoryFields(); syncCatalogMode(); form.hidden = true;
+    document.querySelector('#collection-form-title').textContent = 'Nuevo artículo';
   }
   function edit(item) {
     if (!canWrite || saving) return;
-    editing = item; syncingCategory = true; form.reset(); resetPhotoSlots();
+    editing = item;
+    if (!item) createRequestId = null;
+    syncingCategory = true; form.reset(); resetPhotoSlots();
     if (item) [...base,...more].forEach(key => { form.elements[key].value = base.includes(key) ? item[key] || '' : item.details?.[key] || ''; });
     form.elements.reason.value = item ? '' : 'Registro inicial';
-    syncingCategory = false; applyCategoryFields();
-    document.querySelector('#collection-form-title').textContent = item ? `Editar ${item.accession_number}` : 'Registrar pieza';
+    syncingCategory = false; applyCategoryFields(); syncCatalogMode();
+    document.querySelector('#collection-form-title').textContent = item ? `Editar ${item.accession_number}` : 'Nuevo artículo';
     form.hidden = false; form.scrollIntoView({behavior:'smooth'}); form.elements.title.focus();
   }
+  const modalityFilter = document.querySelector('#collection-modality-filter');
   function render() {
     const term = search.value.trim().toLocaleLowerCase('es');
-    const selected = items.filter(i => [i.accession_number,i.title,i.description,i.category,i.location,i.details?.donor,i.details?.lender,i.details?.personal_object_description,i.details?.object_type_specification].join(' ').toLocaleLowerCase('es').includes(term));
+    const mode = modalityFilter?.value || '';
+    const selected = items.filter(i => {
+      const modality = modalityOf(i);
+      const modeOk = !mode || (mode === 'registro_anterior' ? !modality : modality === mode);
+      const text = [i.accession_number,i.title,i.description,i.category,i.location,i.details?.donor,i.details?.lender,i.details?.personal_object_description,i.details?.object_type_specification].join(' ').toLocaleLowerCase('es');
+      return modeOk && text.includes(term);
+    });
     document.querySelector('#collection-count').textContent = `${selected.length} de ${items.length} piezas`;
-    list.innerHTML = selected.length ? selected.map(i => `<tr><td>${esc(i.accession_number)}</td><td>${esc(i.title)}</td><td>${esc(collectionCategoryLabel(i.category))}</td><td>${esc(i.location)}</td><td>${esc(i.condition)}</td><td><button class="button secondary" data-piece-view="${i.id}">Ver expediente</button>${canWrite ? ` <button class="button secondary" data-piece-edit="${i.id}">Editar</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="6">No hay piezas que coincidan con la búsqueda.</td></tr>';
+    list.innerHTML = selected.length ? selected.map(i => {
+      const label = collectionModalityLabels[modalityOf(i)] || 'Registro anterior';
+      const accession = accessions.filter(row => row.collection_item_id === i.id).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+      const links = [];
+      if (accession?.contract_snapshot) links.push(`<a class="button secondary" href="documento-ingreso.html?expediente=${encodeURIComponent(accession.id)}">Documento</a>`);
+      if (accession?.modality === 'prestamo_temporal' && accession.status === 'recibido') links.push(`<a class="button secondary" href="ingreso-articulo.html?expediente=${encodeURIComponent(accession.id)}">Devolver pieza</a>`);
+      else if (accession?.modality === 'prestamo_temporal' && accession.status === 'devuelto') links.push(`<a class="button secondary" href="ingreso-articulo.html?expediente=${encodeURIComponent(accession.id)}">Cerrar expediente</a>`);
+      else if (accession && accession.modality !== 'catalogacion_directa' && ['borrador', 'pendiente_firmas', 'formalizado'].includes(accession.status)) {
+        links.push(`<a class="button secondary" href="ingreso-articulo.html?expediente=${encodeURIComponent(accession.id)}">${accession.status === 'formalizado' ? 'Recepción' : 'Continuar ingreso'}</a>`);
+      }
+      const continueIntake = links.length ? ` ${links.join(' ')}` : '';
+      return `<tr><td>${esc(i.accession_number)}</td><td>${esc(i.title)}</td><td>${esc(collectionCategoryLabel(i.category))}</td><td>${esc(label)}</td><td>${esc(i.location)}</td><td>${esc(i.condition)}</td><td><button class="button secondary" data-piece-view="${i.id}">Ver expediente</button>${canWrite ? ` <button class="button secondary" data-piece-edit="${i.id}">Editar</button>` : ''}${continueIntake}</td></tr>`;
+    }).join('') : '<tr><td colspan="7">No hay piezas que coincidan con la búsqueda.</td></tr>';
   }
-  async function reload() { items = await collectionRows('collection_items'); render(); }
+  async function reload() {
+    const [nextItems, nextAccessions] = await Promise.all([
+      collectionRows('collection_items'),
+      collectionRows('collection_accessions')
+    ]);
+    items = nextItems;
+    accessions = nextAccessions;
+    render();
+  }
   function historyChanges(h) {
     if(h.action === 'sustitucion_fotografia') return `Fotografía anterior (sustituida, conservada): ${h.before_value.path}\nNueva fotografía: ${h.after_value.path}`;
     if(h.action === 'fotografia') return h.after_value.caption || 'Fotografía añadida al expediente.';
@@ -275,7 +394,12 @@ async function bindCollectionsCatalog() {
     const printButton = document.querySelector('#collection-print-label'); if(printButton) printButton.disabled = true;
     if (!dialog.open) dialog.showModal(); detail.textContent = 'Cargando expediente…';
     const [photos,history] = await Promise.all([collectionRows('collection_active_photos',`&item_id=eq.${item.id}`),collectionHistory(item.id)]);
-    detail.innerHTML = `<h2>${esc(item.accession_number)} · ${esc(item.title)}</h2><dl class="collection-facts">${[...base,...more].filter(k => collectionFactVisible(item, k)).map(k => `<div><dt>${esc(labels[k])}</dt><dd>${esc(k === 'category' ? collectionCategoryLabel(item.category) : (base.includes(k) ? item[k] : item.details?.[k])) || 'No registrado'}</dd></div>`).join('')}</dl><h3>Fotografías conservadas</h3><div class="collection-gallery">${photos.map(p=>`<figure><img data-photo="${p.id}" alt="Fotografía de ${esc(item.title)}" loading="lazy"><figcaption>${esc(p.caption || 'Sin descripción')} · ${esc(new Date(p.created_at).toLocaleString('es-PR'))}</figcaption></figure>`).join('') || '<p>Sin fotografías registradas.</p>'}</div><h3>Historial</h3><ol>${history.map(h => `<li><strong>${esc(h.action === 'sustitucion_fotografia' ? 'Sustitución de fotografía' : h.action)}</strong> · ${esc(new Date(h.occurred_at).toLocaleString('es-PR'))}<p>${esc(h.reason)}</p><small>Responsable: ${esc(h.actor_name || h.actor_id)}</small><details><summary>Ver cambios conservados</summary><pre>${esc(historyChanges(h))}</pre></details></li>`).join('')}</ol><p><a href="inventario-colecciones.html?pieza=${item.id}">Enlace permanente del expediente</a></p>`;
+    const intakeLabel = collectionModalityLabels[modalityOf(item)] || 'Registro anterior';
+    const accessionRow = accessions.filter(row => row.collection_item_id === item.id).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+    const intakeLink = accessionRow && accessionRow.modality !== 'catalogacion_directa'
+      ? `<p>${accessionRow.contract_snapshot ? `<a href="documento-ingreso.html?expediente=${encodeURIComponent(accessionRow.id)}">Documento contractual</a>` : `<a href="ingreso-articulo.html?expediente=${encodeURIComponent(accessionRow.id)}">Continuar ingreso</a>`}${accessionRow.modality === 'prestamo_temporal' && accessionRow.status === 'recibido' ? ` · <a href="ingreso-articulo.html?expediente=${encodeURIComponent(accessionRow.id)}">Devolver pieza</a>` : ''}</p>`
+      : '';
+    detail.innerHTML = `<h2>${esc(item.accession_number)} · ${esc(item.title)}</h2><p>Alta: ${esc(intakeLabel)}</p><dl class="collection-facts">${[...base,...more].filter(k => collectionFactVisible(item, k)).map(k => `<div><dt>${esc(labels[k])}</dt><dd>${esc(k === 'category' ? collectionCategoryLabel(item.category) : (base.includes(k) ? item[k] : item.details?.[k])) || 'No registrado'}</dd></div>`).join('')}</dl>${intakeLink}<h3>Fotografías conservadas</h3><div class="collection-gallery">${photos.map(p=>`<figure><img data-photo="${p.id}" alt="Fotografía de ${esc(item.title)}" loading="lazy"><figcaption>${esc(p.caption || 'Sin descripción')} · ${esc(new Date(p.created_at).toLocaleString('es-PR'))}</figcaption></figure>`).join('') || '<p>Sin fotografías registradas.</p>'}</div><h3>Historial</h3><ol>${history.map(h => `<li><strong>${esc(h.action === 'sustitucion_fotografia' ? 'Sustitución de fotografía' : h.action)}</strong> · ${esc(new Date(h.occurred_at).toLocaleString('es-PR'))}<p>${esc(h.reason)}</p><small>Responsable: ${esc(h.actor_name || h.actor_id)}</small><details><summary>Ver cambios conservados</summary><pre>${esc(historyChanges(h))}</pre></details></li>`).join('')}</ol><p><a href="inventario-colecciones.html?pieza=${item.id}">Enlace permanente del expediente</a></p>`;
     if(canReplacePhoto) photos.forEach(photo => {
       const figure = detail.querySelector(`[data-photo="${photo.id}"]`).closest('figure');
       const replaceButton = document.createElement('button');
@@ -337,6 +461,8 @@ async function bindCollectionsCatalog() {
     if (input) input.value = '';
     renderPhotoSlot(n);
   });
+  const intakeLink = document.querySelector('#collection-intake');
+  if (intakeLink) intakeLink.hidden = !canWrite;
   document.querySelector('#collection-new').hidden = !canWrite;
   document.querySelector('#collection-new').onclick = () => edit(null);
   document.querySelector('#collection-cancel').onclick = () => { if(!saving) reset(); };
@@ -346,6 +472,7 @@ async function bindCollectionsCatalog() {
   document.querySelector('#collection-print-list').onclick = printCollectionList;
   document.querySelector('#collection-reload').onclick = () => reload().then(()=>say('Listado actualizado.')).catch(e=>say(e.message,true));
   search.oninput = render;
+  if (modalityFilter) modalityFilter.onchange = render;
   list.onclick = event => {
     const view = event.target.closest('[data-piece-view]'), editButton = event.target.closest('[data-piece-edit]');
     const item = items.find(i => i.id === (view?.dataset.pieceView || editButton?.dataset.pieceEdit));
@@ -382,16 +509,31 @@ async function bindCollectionsCatalog() {
         if (existingPhotos.length + slots.length > 4) { say(`Esta pieza ya tiene ${existingPhotos.length} fotografía(s). El máximo total es 4.`, true); return; }
       }
       if (!editing?.id) {
+        const conditionList = form.querySelector('[data-catalog-condition-select]');
+        if (conditionList && !conditionList.hidden && form.elements.physical_condition) item.condition = form.elements.physical_condition.value.trim();
+        const composed = collectionComposeDimensions({
+          height: form.elements.height?.value, height_unit: form.elements.height_unit?.value,
+          width: form.elements.width?.value, width_unit: form.elements.width_unit?.value,
+          depth: form.elements.depth?.value, depth_unit: form.elements.depth_unit?.value,
+          weight: form.elements.weight?.value, weight_unit: form.elements.weight_unit?.value,
+          other_measurements: form.elements.other_measurements?.value
+        });
+        if (composed) item.details.dimensions = composed;
+        delete item.accession_number;
+        if (!createRequestId) createRequestId = crypto.randomUUID();
+        let created;
         try {
-          editing = await collectionSave(item, null, reason);
+          created = await collectionCreateEntry(item, collectionDirectAccession(form), reason, createRequestId);
         } catch (error) {
           if (!error.timeout) throw error;
-          console.error(error);
-          const found = await adoptRecentPiece(item.accession_number).catch(lookupError => { console.error(lookupError); return null; });
-          if (!found) throw error;
-          editing = found;
+          created = await collectionCreateEntry(item, collectionDirectAccession(form), reason, createRequestId);
         }
+        editing = created.item;
+        if (!editing?.id) throw new Error('No se pudo confirmar la pieza creada.');
       } else {
+        item.accession_number = editing.accession_number;
+        const conditionList = form.querySelector('[data-catalog-condition-select]');
+        if (conditionList && !conditionList.hidden && form.elements.physical_condition) item.condition = form.elements.physical_condition.value.trim();
         editing = await collectionSave(item, editing, reason);
       }
       markConfirmed(editing);
@@ -399,7 +541,7 @@ async function bindCollectionsCatalog() {
       for (const slot of slots) {
         failedSlot = slot.n;
         try {
-          editing = await collectionUpload(editing, slot.file, form.elements.caption.value.trim());
+          editing = await collectionUpload(editing, slot.file, form.elements.caption.value.trim(), collectionPhotoRoles[slot.n]);
         } catch (error) {
           photoFailed = true;
           throw error;
@@ -424,7 +566,7 @@ async function bindCollectionsCatalog() {
       console.error(error);
       if (photoFailed) say('La ficha fue guardada, pero una fotografía no pudo adjuntarse.', true);
       else if (saved) say('La ficha fue guardada, pero no se pudo confirmar en el listado. Sus datos permanecen en este formulario.', true);
-      else say('No se pudo completar el guardado. Sus datos permanecen en este formulario.', true);
+      else say(error.message || 'No se pudo completar el guardado. Sus datos permanecen en este formulario.', true);
       if (saved) await reload().catch(reloadError => console.error(reloadError));
     } finally { setBusy(false); }
   };
