@@ -11,14 +11,43 @@ const collectionDocumentModalities = Object.freeze({
   catalogacion_directa: 'Catalogación directa'
 });
 const collectionDocumentPhotoRoles = Object.freeze({
-  frontal: 'Fotografía frontal',
-  posterior: 'Fotografía posterior',
-  lateral: 'Fotografía lateral',
-  adicional: 'Fotografía adicional / detalle'
+  frontal: 'Frontal',
+  posterior: 'Posterior',
+  lateral: 'Lateral',
+  adicional: 'Adicional'
 });
+const collectionDocumentPhotoOrder = Object.freeze(['frontal', 'posterior', 'lateral', 'adicional']);
 
 function collectionDocumentUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+}
+
+function formatDocumentWhen(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(text);
+  const timestamp = /^\d{4}-\d{2}-\d{2}T/.test(text);
+  if (!dateOnly && !timestamp) return text;
+  const date = dateOnly
+    ? new Date(Date.UTC(...text.split('-').map(Number).map((part, index) => index === 1 ? part - 1 : part), 16, 0, 0))
+    : new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+  const parts = new Intl.DateTimeFormat('es-PR', {
+    timeZone: 'America/Puerto_Rico',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    ...(dateOnly ? {} : { hour: 'numeric', minute: '2-digit', hour12: true })
+  }).formatToParts(date);
+  const pick = type => (parts.find(part => part.type === type)?.value || '').replace(/[\u202f\u00a0]/g, ' ');
+  const written = `${pick('day')} de ${pick('month')} de ${pick('year')}`;
+  if (dateOnly) return written;
+  return `${written}, ${pick('hour')}:${pick('minute')} ${pick('dayPeriod').replace(/\s+/g, ' ').trim()}`;
+}
+
+function presentDocumentValue(value) {
+  const text = String(value);
+  return /^\d{4}-\d{2}-\d{2}(?:T|$)/.test(text.trim()) ? formatDocumentWhen(text.trim()) : text;
 }
 
 function bindCollectionDocument() {
@@ -61,16 +90,14 @@ function renderCollectionDocument(host, printed, events, signatures) {
   }
   const byId = new Map(signatures.map(signature => [signature.id, signature]));
   host.replaceChildren();
-  host.append(sectionHeading('Museo de la Música de Puerto Rico', 'Documento de ingreso'));
+  host.append(sectionHeading());
   const identity = document.createElement('section');
-  identity.className = 'document-section';
+  identity.className = 'document-section document-identity';
   identity.append(definitionList([
-    ['Expediente', source.file_number],
+    ['Número de expediente', source.file_number],
     ['Número de inventario', source.inventory_number],
     ['Modalidad', collectionDocumentModalities[source.modality] || source.modality],
-    ['Formalizado', printed.contract_snapshot_at],
-    ['Huella SHA-256', printed.contract_hash],
-    ['Identificador del expediente', source.accession_id]
+    ['Fecha de formalización', formatDocumentWhen(printed.contract_snapshot_at)]
   ]));
   if (printed.integrity_ok === false) {
     const warning = document.createElement('p');
@@ -121,7 +148,7 @@ function renderCollectionDocument(host, printed, events, signatures) {
     ['Ubicación de la actividad', source.activity_location]
   ]));
   host.append(factSection('Anejos', (source.attachments || []).length
-    ? source.attachments.map(file => [file.kind, file.description || file.id])
+    ? source.attachments.map(file => [file.kind, collectionDocumentUuid(file.description) ? '' : file.description])
     : [['Referencias', 'Sin anejos en el snapshot']]));
   const terms = document.createElement('section');
   terms.className = 'document-section';
@@ -136,7 +163,7 @@ function renderCollectionDocument(host, printed, events, signatures) {
   const reception = events.find(event => event.action === 'pieza_recibida');
   if (reception) host.append(operationalSection('Recepción del Museo', reception, byId, [
     ['Ubicación inicial', reception.after_value?.initial_location],
-    ['Fecha y hora', reception.after_value?.received_at],
+    ['Fecha y hora', formatDocumentWhen(reception.after_value?.received_at)],
     ['Observaciones', reception.after_value?.reception_notes],
     ['Certificación', 'Certifico que la información contenida en este formulario es correcta y que la pieza fue recibida conforme a las condiciones descritas.']
   ]));
@@ -167,23 +194,52 @@ function renderCollectionDocument(host, printed, events, signatures) {
     const closed = events.find(event => event.action === 'cierre');
     if (closed) {
       const closedLine = document.createElement('p');
-      closedLine.textContent = `Expediente cerrado: ${closed.occurred_at || closed.after_value?.closed_at || ''}`;
+      closedLine.textContent = `Expediente cerrado: ${formatDocumentWhen(closed.occurred_at || closed.after_value?.closed_at || '')}`;
       closure.append(closedLine);
     }
     host.append(closure);
   }
+  host.append(integrityBlock(printed.contract_hash));
+  host.append(documentFooter(source));
 }
 
-function sectionHeading(title, subtitle) {
+function sectionHeading() {
   const header = document.createElement('header');
-  header.className = 'document-section';
+  header.className = 'document-masthead';
+  const logo = document.createElement('img');
+  logo.className = 'document-logo';
+  logo.src = 'images/logo-horizontal.jpg';
+  logo.alt = 'Museo de la Música de Puerto Rico';
   const kicker = document.createElement('p');
   kicker.className = 'document-kicker';
-  kicker.textContent = title;
+  kicker.textContent = 'MUSEO DE LA MÚSICA DE PUERTO RICO';
   const heading = document.createElement('h1');
-  heading.textContent = subtitle;
-  header.append(kicker, heading);
+  heading.textContent = 'DOCUMENTO DE INGRESO DE ARTÍCULO DE COLECCIÓN';
+  header.append(logo, kicker, heading);
   return header;
+}
+
+function documentFooter(source) {
+  const footer = document.createElement('footer');
+  footer.className = 'document-footer';
+  ['Museo de la Música de Puerto Rico', `Número de expediente: ${source.file_number || ''}`, `Número de inventario: ${source.inventory_number || ''}`].forEach(line => {
+    const paragraph = document.createElement('p');
+    paragraph.textContent = line;
+    footer.append(paragraph);
+  });
+  return footer;
+}
+
+function integrityBlock(hash) {
+  const section = document.createElement('section');
+  section.className = 'document-integrity';
+  const label = document.createElement('p');
+  label.textContent = 'Huella de integridad (SHA-256):';
+  const value = document.createElement('p');
+  value.className = 'document-hash';
+  value.textContent = hash || '';
+  section.append(label, value);
+  return section;
 }
 
 function factSection(title, rows) {
@@ -198,11 +254,14 @@ function factSection(title, rows) {
 function definitionList(rows) {
   const list = document.createElement('dl');
   rows.filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '').forEach(([label, value]) => {
+    const row = document.createElement('div');
+    row.className = 'document-row';
     const term = document.createElement('dt');
     term.textContent = label;
     const detail = document.createElement('dd');
-    detail.textContent = String(value);
-    list.append(term, detail);
+    detail.textContent = presentDocumentValue(value);
+    row.append(term, detail);
+    list.append(row);
   });
   if (!list.childElementCount) {
     const detail = document.createElement('dd');
@@ -219,23 +278,29 @@ function measure(value, unit) {
 
 function photoSection(photos) {
   const section = document.createElement('section');
-  section.className = 'document-section';
+  section.className = 'document-section document-photos-section';
   const heading = document.createElement('h2');
-  heading.textContent = 'Fotografías referenciadas en el snapshot';
+  heading.textContent = 'Fotografías';
   const grid = document.createElement('div');
   grid.className = 'document-photos';
-  (photos || []).forEach(photo => {
+  const ordered = [...(photos || [])].sort((left, right) => {
+    const leftIndex = collectionDocumentPhotoOrder.indexOf(left.role);
+    const rightIndex = collectionDocumentPhotoOrder.indexOf(right.role);
+    return (leftIndex < 0 ? collectionDocumentPhotoOrder.length : leftIndex) - (rightIndex < 0 ? collectionDocumentPhotoOrder.length : rightIndex);
+  });
+  ordered.forEach(photo => {
     const figure = document.createElement('figure');
     figure.className = 'document-photo';
     const image = document.createElement('img');
-    image.alt = collectionDocumentPhotoRoles[photo.role] || 'Fotografía del snapshot';
+    const label = collectionDocumentPhotoRoles[photo.role] || photo.role || 'Fotografía';
+    image.alt = label;
     const caption = document.createElement('figcaption');
-    caption.textContent = `${collectionDocumentPhotoRoles[photo.role] || photo.role || 'Fotografía'} · ${photo.id}`;
+    caption.textContent = label;
     figure.append(image, caption);
     grid.append(figure);
     if (photo.path && typeof collectionLoadPhoto === 'function') {
       collectionLoadPhoto(image, photo.path).catch(() => {
-        caption.textContent = `${caption.textContent}. La referencia histórica se conserva; la imagen no pudo abrirse.`;
+        caption.textContent = `${label}. La referencia histórica se conserva; la imagen no pudo abrirse.`;
       });
     }
   });
@@ -251,7 +316,7 @@ function photoSection(photos) {
 
 function signatureSection(title, references, byId) {
   const section = document.createElement('section');
-  section.className = 'document-section';
+  section.className = 'document-section document-signatures';
   const heading = document.createElement('h2');
   heading.textContent = title;
   section.append(heading);
@@ -266,7 +331,7 @@ function signatureSection(title, references, byId) {
 
 function operationalSection(title, event, byId, rows) {
   const section = document.createElement('section');
-  section.className = 'document-section';
+  section.className = 'document-section document-reception';
   const heading = document.createElement('h2');
   heading.textContent = title;
   section.append(heading, definitionList(rows));
@@ -277,22 +342,31 @@ function operationalSection(title, event, byId, rows) {
 function signatureBlock(signature, signatureId, reference) {
   const block = document.createElement('div');
   block.className = 'signature-block';
+  const roleName = collectionDocumentRoles[signature?.signer_role || reference?.signer_role] || signature?.signer_role || reference?.signer_role || 'Firma';
   const name = document.createElement('p');
-  const role = collectionDocumentRoles[signature?.signer_role || reference?.signer_role] || signature?.signer_role || reference?.signer_role || 'Firma';
-  name.textContent = `${role}: ${signature?.signer_name || reference?.signer_name || 'Nombre en el snapshot'}`;
-  const when = document.createElement('p');
-  when.textContent = signature?.signed_at || reference?.signed_at || '';
-  block.append(name, when);
+  name.className = 'signature-name';
+  name.textContent = signature?.signer_name || reference?.signer_name || 'Nombre en el snapshot';
+  const role = document.createElement('p');
+  role.className = 'signature-role';
+  role.textContent = roleName;
+  block.append(name, role);
   const raster = signature?.visual?.raster?.dataUrl;
   if (typeof raster === 'string' && raster.startsWith('data:image/png;base64,')) {
     const image = document.createElement('img');
-    image.alt = `Firma de ${role}`;
+    image.alt = `Firma de ${roleName}`;
     image.src = raster;
     block.append(image);
   } else {
     const missing = document.createElement('p');
-    missing.textContent = signatureId ? `Referencia de firma ${signatureId}. No se sustituyó por otra firma.` : 'Sin referencia de firma.';
+    missing.textContent = 'No se sustituyó por otra firma.';
     block.append(missing);
+  }
+  const when = formatDocumentWhen(signature?.signed_at || reference?.signed_at || '');
+  if (when) {
+    const dated = document.createElement('p');
+    dated.className = 'signature-when';
+    dated.textContent = when;
+    block.append(dated);
   }
   return block;
 }

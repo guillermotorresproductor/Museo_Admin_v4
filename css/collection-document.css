@@ -1,21 +1,237 @@
-@page { size: letter; margin: 0.6in; }
-.document-sheet { max-width: 8.5in; margin: 0 auto; background: #fff; color: #142033; }
-.document-sheet h1, .document-sheet h2 { margin: 0 0 .4rem; }
-.document-kicker { letter-spacing: .04em; font-size: .8rem; }
-.document-pending { border: 1px solid #c4a35a; background: #fff7e8; padding: .75rem 1rem; margin: 1rem 0; }
-.document-section { margin: 1.25rem 0; }
-.document-section dl { display: grid; grid-template-columns: 11rem 1fr; gap: .35rem .75rem; margin: 0; }
-.document-section dt { font-weight: 600; }
-.document-section dd { margin: 0; }
-.document-photos { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
-.document-photo { break-inside: avoid; page-break-inside: avoid; }
-.document-photo img { display: block; width: 100%; max-height: 3.2in; object-fit: contain; background: #f4f6f8; }
-.signature-block { break-inside: avoid; page-break-inside: avoid; margin-top: 1rem; }
-.signature-block img { display: block; max-width: 4.5in; max-height: 1.4in; object-fit: contain; }
-.document-toolbar { margin: 1rem 0; }
+@page {
+  size: letter;
+  margin: 0.7in 0.7in 0.85in;
+}
+
+.document-sheet {
+  max-width: 8.5in;
+  margin: 0 auto;
+  background: #fff;
+  color: #111;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 11pt;
+  line-height: 1.45;
+}
+
+.document-masthead {
+  margin: 0 0 1rem;
+  padding-bottom: .75rem;
+  border-bottom: 1px solid #111;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.document-logo {
+  display: block;
+  width: auto;
+  max-width: 3.4in;
+  max-height: 0.72in;
+  object-fit: contain;
+  margin: 0 0 .6rem;
+}
+
+.document-kicker {
+  margin: 0;
+  font-family: "Segoe UI", Calibri, sans-serif;
+  font-size: 11pt;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.document-sheet h1 {
+  margin: .2rem 0 0;
+  font-family: "Segoe UI", Calibri, sans-serif;
+  font-size: 13.5pt;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: .01em;
+}
+
+.document-sheet h2 {
+  margin: 0 0 .45rem;
+  font-family: "Segoe UI", Calibri, sans-serif;
+  font-size: 12pt;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.document-section {
+  margin: 1rem 0 0;
+}
+
+.document-section dl {
+  margin: 0;
+}
+
+.document-row {
+  display: grid;
+  grid-template-columns: 2.35in 1fr;
+  gap: .12rem .45rem;
+  margin: 0 0 .28rem;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.document-section dt {
+  font-weight: 700;
+}
+
+.document-section dd {
+  margin: 0;
+}
+
+.document-photos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .55rem .6rem;
+}
+
+.document-photo {
+  margin: 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.document-photo img {
+  display: block;
+  width: 100%;
+  max-height: 2.7in;
+  object-fit: contain;
+  background: #fff;
+}
+
+.document-photo figcaption {
+  margin-top: .2rem;
+  font-family: "Segoe UI", Calibri, sans-serif;
+  font-size: 10pt;
+  font-weight: 700;
+}
+
+.signature-block {
+  margin-top: .85rem;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.signature-name,
+.signature-role,
+.signature-when {
+  margin: 0;
+}
+
+.signature-name {
+  font-weight: 700;
+}
+
+.signature-block img {
+  display: block;
+  width: auto;
+  max-width: 4.2in;
+  max-height: 1.15in;
+  margin: .35rem 0;
+  object-fit: contain;
+}
+
+.document-integrity {
+  margin-top: 1.25rem;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.document-integrity p {
+  margin: 0;
+  font-size: 9pt;
+}
+
+.document-hash {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 8pt;
+  line-height: 1.35;
+  word-break: break-all;
+}
+
+.document-footer {
+  margin-top: 1rem;
+  padding-top: .4rem;
+  border-top: 1px solid #111;
+  font-family: "Segoe UI", Calibri, sans-serif;
+  font-size: 9pt;
+}
+
+.document-footer p {
+  margin: 0;
+}
+
+.document-toolbar {
+  display: flex;
+  gap: .5rem;
+  margin: 1rem 0;
+}
+
 @media print {
-  .sidebar, .site-header, .site-footer, .sidebar-backdrop, .document-toolbar { display: none !important; }
-  .app-shell, .main-area, .page-content { display: block !important; margin: 0 !important; padding: 0 !important; width: auto !important; }
-  body { background: #fff; }
-  .document-sheet { max-width: none; }
+  .sidebar,
+  aside,
+  .site-header,
+  .site-footer,
+  .sidebar-backdrop,
+  .document-toolbar,
+  [data-sidebar],
+  [data-header],
+  [data-footer] {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  html,
+  body,
+  .app-shell,
+  .main-area,
+  .page-content,
+  .document-sheet {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+
+  .document-sheet,
+  .document-sheet * {
+    color: #000 !important;
+  }
+
+  .document-sheet,
+  .document-photo img,
+  .signature-block img {
+    background: #fff !important;
+  }
+
+  .document-photos-section,
+  .document-signatures {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .document-reception,
+  .document-identity,
+  .document-integrity,
+  .signature-block,
+  .document-photo {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .document-footer {
+    position: fixed;
+    right: 0.7in;
+    bottom: 0.28in;
+    left: 0.7in;
+    margin: 0;
+    background: #fff !important;
+  }
 }
