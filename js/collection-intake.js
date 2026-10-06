@@ -98,6 +98,23 @@ function bindCollectionIntake() {
   const directorSignature = canDirect ? new SignatureCapture(document.querySelector('[data-signature-director]'), { signerRole: 'director' }) : null;
   const receptionSignature = new SignatureCapture(document.querySelector('[data-signature-reception]'), { signerRole: 'receptor' });
   const returnSignature = new SignatureCapture(document.querySelector('[data-signature-return]'), { signerRole: 'receptor_devolucion' });
+  const signatureInk = { party: false, director: false };
+  function watchSignatureInk(root, key) {
+    if (!root) return;
+    root.addEventListener('pointerdown', event => {
+      if (!event.target.closest('canvas')) return;
+      signatureInk[key] = true;
+      paintSignatureConfirmation();
+    });
+    root.addEventListener('click', event => {
+      const clear = event.target.closest('button');
+      if (!clear || !clear.textContent.includes('Limpiar')) return;
+      signatureInk[key] = false;
+      paintSignatureConfirmation();
+    });
+  }
+  watchSignatureInk(document.querySelector('[data-signature-capture]'), 'party');
+  watchSignatureInk(document.querySelector('[data-signature-director]'), 'director');
   let saving = false;
   let created = null;
   let clean = true;
@@ -268,7 +285,7 @@ function bindCollectionIntake() {
     const signedLock = contractSigned && !locked;
     document.querySelector('#intake-workflow-status').textContent = intakeStatusLabels[accession?.status] || 'Borrador';
     document.querySelector('#intake-signed-lock').hidden = !signedLock;
-    document.querySelector('#intake-save').textContent = accession ? 'Guardar correcciones' : 'Guardar borrador';
+    document.querySelector('#intake-save').textContent = accession ? 'Guardar cambios' : 'Guardar ingreso';
     document.querySelector('#intake-save').disabled = saving || locked || signedLock || !canWrite;
     document.querySelector('#intake-reopen').hidden = !canWrite || !signedLock;
     document.querySelector('#intake-reopen').disabled = saving || !signedLock;
@@ -358,6 +375,7 @@ function bindCollectionIntake() {
     }
     paintSignatureConfirmation();
     paintReceptionConfirmation();
+    paintStages();
   }
   function paintReceptionConfirmation() {
     const accession = created?.accession;
@@ -380,9 +398,7 @@ function bindCollectionIntake() {
     }
     if (capture) capture.hidden = done;
     const save = document.querySelector('#intake-save');
-    const formalize = document.querySelector('#intake-formalize');
     if (save) save.hidden = Boolean(accession) && !openDraft;
-    if (formalize) formalize.hidden = Boolean(accession) && !openDraft;
   }
   function contractPartyRole() {
     return form.elements.modality.value === 'donacion_permanente' ? 'donante' : 'propietario';
@@ -390,21 +406,29 @@ function bindCollectionIntake() {
   function formatSignatureWhen(value) {
     const date = new Date(value || '');
     if (Number.isNaN(date.getTime())) return '';
-    return new Intl.DateTimeFormat('es-PR', {
+    const parts = new Intl.DateTimeFormat('es-PR', {
       timeZone: 'America/Puerto_Rico',
+      day: 'numeric',
+      month: 'short',
       year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    }).formatToParts(date);
+    const pick = type => (parts.find(part => part.type === type)?.value || '').replace(/[\u202f\u00a0]/g, ' ');
+    return `${pick('day')} ${pick('month').replace(/\./g, '')} ${pick('year')}, ${pick('hour')}:${pick('minute')} ${pick('dayPeriod').replace(/\s+/g, ' ').trim()}`;
   }
-  function signatureStateText(row) {
-    if (!row) return '';
-    const when = formatSignatureWhen(row.signed_at);
-    return when ? `Firma registrada. ${when}` : 'Firma registrada';
+  function paintSignatureSurface(capture, recorded, ink) {
+    if (!capture) return;
+    const canvas = capture.querySelector('canvas');
+    const clear = [...capture.querySelectorAll('button')].find(button => button.textContent.includes('Limpiar'));
+    capture.hidden = Boolean(recorded) && !ink;
+    if (canvas) canvas.style.pointerEvents = recorded ? 'none' : '';
+    if (clear) clear.hidden = Boolean(recorded);
   }
   function paintSignatureConfirmation() {
+    const accession = created?.accession;
+    const locked = accession && !['borrador', 'pendiente_firmas'].includes(accession.status);
     const party = activeContractSignatures[contractPartyRole()] || null;
     const director = activeContractSignatures.director || null;
     const partyState = document.querySelector('[data-party-sign-state]');
@@ -413,18 +437,54 @@ function bindCollectionIntake() {
     const directorButton = document.querySelector('#intake-sign-director');
     const partyCapture = document.querySelector('[data-signature-capture]');
     const directorCapture = document.querySelector('[data-signature-director]');
+    const partyReady = Boolean(accession) && canWrite && !locked;
+    const directorReady = Boolean(accession) && canDirect && !locked;
     if (partyState) {
-      partyState.hidden = !party;
-      partyState.textContent = signatureStateText(party);
+      partyState.hidden = false;
+      partyState.textContent = party
+        ? `✓ Firma registrada — ${formatSignatureWhen(party.signed_at)}`
+        : signatureInk.party ? 'Firma lista para registrar' : 'Firma pendiente';
     }
     if (directorState) {
-      directorState.hidden = !director;
-      directorState.textContent = signatureStateText(director);
+      directorState.hidden = false;
+      directorState.textContent = director
+        ? `✓ Firma registrada — ${formatSignatureWhen(director.signed_at)}`
+        : signatureInk.director ? 'Firma lista para registrar' : 'Firma pendiente';
     }
-    if (partyCapture) partyCapture.hidden = Boolean(party);
-    if (directorCapture) directorCapture.hidden = Boolean(director);
-    if (partyButton) partyButton.hidden = Boolean(party) || !canWrite;
-    if (directorButton) directorButton.hidden = Boolean(director) || !canDirect;
+    paintSignatureSurface(partyCapture, party, signatureInk.party && partyReady);
+    paintSignatureSurface(directorCapture, director, signatureInk.director && directorReady);
+    if (!directorReady && !director && directorCapture) directorCapture.hidden = true;
+    if (partyButton) {
+      partyButton.hidden = Boolean(party) || !partyReady;
+      partyButton.disabled = Boolean(party) || !partyReady || !signatureInk.party || saving;
+    }
+    if (directorButton) {
+      directorButton.hidden = Boolean(director) || !directorReady;
+      directorButton.disabled = Boolean(director) || !directorReady || !signatureInk.director || saving;
+    }
+  }
+  function paintStages() {
+    const accession = created?.accession;
+    const openDraft = !accession || ['borrador', 'pendiente_firmas'].includes(accession.status);
+    const party = Boolean(activeContractSignatures[contractPartyRole()]);
+    const director = Boolean(activeContractSignatures.director);
+    const recordedCount = Number(party) + Number(director);
+    const showSignatures = Boolean(accession);
+    const partySign = document.querySelector('[data-party-sign]');
+    const directorSign = document.querySelector('[data-director-sign]');
+    const progress = document.querySelector('[data-signature-progress]');
+    if (partySign) partySign.hidden = !showSignatures;
+    if (directorSign) directorSign.hidden = !showSignatures;
+    if (progress) {
+      progress.hidden = !showSignatures;
+      progress.textContent = showSignatures ? `Firmas contractuales: ${recordedCount} de 2 registradas` : '';
+    }
+    const formalize = document.querySelector('#intake-formalize');
+    const formalizeReady = recordedCount === 2 && openDraft && canWrite && !saving;
+    if (formalize) {
+      formalize.hidden = !formalizeReady;
+      formalize.disabled = !formalizeReady;
+    }
   }
   function rememberContractSignature(signature) {
     if (!signature?.signer_role || signature.status !== 'capturada' || signature.signature_type !== 'contractual') return;
@@ -448,41 +508,84 @@ function bindCollectionIntake() {
     row.querySelector('[data-attachment-remove]').onclick = () => { if (!saving) row.remove(); };
     attachments.append(row);
   }
-  function focusInvalid() {
-    const invalid = [...form.elements].find(element => element.willValidate && !element.disabled && !element.closest('[hidden]') && !element.checkValidity());
-    if (!invalid) return true;
-    invalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    invalid.focus();
-    const visible = invalid.closest('label')?.querySelector('span')?.textContent?.replace(/\s*\*\s*$/, '').trim();
-    say(`Falta completar: ${visible || 'un campo obligatorio'}.`, true);
-    return false;
+  function clearIntakeErrors() {
+    form.querySelectorAll('.intake-invalid').forEach(element => element.classList.remove('intake-invalid'));
+    form.querySelectorAll('.intake-field-error').forEach(element => element.remove());
+  }
+  function showIntakeError(element, message) {
+    if (!element) return;
+    element.classList.add('intake-invalid');
+    const note = document.createElement('p');
+    note.className = 'intake-field-error';
+    note.textContent = message;
+    const label = element.closest('label');
+    if (label) label.append(note);
+    else element.insertAdjacentElement('afterend', note);
+  }
+  function intakeProblems() {
+    const problems = [];
+    const modality = form.elements.modality.value;
+    const loan = modality === 'prestamo_temporal';
+    const donation = modality === 'donacion_permanente';
+    const add = (element, message) => { if (element) problems.push({ element, message }); };
+    const blank = name => !collectionFieldValue(form, name);
+    if (!modality) add(form.querySelector('input[name="modality"]'), 'Seleccione préstamo temporal o donación permanente.');
+    if (!form.elements.category.value) add(form.elements.category, 'Seleccione la clasificación.');
+    if (form.elements.category.value === 'Objeto personal' && blank('personal_object_description')) add(form.elements.personal_object_description, 'Indique la descripción del objeto personal.');
+    if (form.elements.category.value === 'Otro' && blank('object_type_specification')) add(form.elements.object_type_specification, 'Escriba el tipo de objeto.');
+    if (blank('title')) add(form.elements.title, 'El nombre o título es obligatorio.');
+    if (blank('description')) add(form.elements.description, 'La descripción es obligatoria.');
+    if (blank('location')) add(form.elements.location, 'La ubicación es obligatoria.');
+    if (!form.elements.physical_condition.value) add(form.elements.physical_condition, 'No se ha seleccionado la condición general de la pieza.');
+    if (!form.elements.status.value) add(form.elements.status, 'Seleccione el estado museográfico de la pieza.');
+    if (loan || donation) {
+      if (blank('party_name')) add(form.elements.party_name, donation ? 'El nombre del donante es obligatorio.' : 'El nombre del prestamista es obligatorio.');
+      if (blank('party_email')) add(form.elements.party_email, 'El correo electrónico es obligatorio.');
+      else if (!form.elements.party_email.checkValidity()) add(form.elements.party_email, 'El correo electrónico no es válido.');
+      if (blank('party_phone')) add(form.elements.party_phone, 'El teléfono es obligatorio.');
+      if (blank('party_address')) add(form.elements.party_address, 'La dirección es obligatoria.');
+    }
+    if (loan) {
+      if (!form.elements.started_on.value) add(form.elements.started_on, 'La fecha de inicio es obligatoria.');
+      if (!form.elements.expected_return_on.value) add(form.elements.expected_return_on, 'La fecha estimada de devolución es obligatoria.');
+      else if (form.elements.started_on.value && form.elements.expected_return_on.value < form.elements.started_on.value) add(form.elements.expected_return_on, 'La fecha estimada de devolución no puede ser anterior a la fecha de inicio.');
+      const purposes = [...form.querySelectorAll('input[name="purpose"]:checked')];
+      if (!purposes.length) add(form.querySelector('input[name="purpose"]'), 'Seleccione el propósito del préstamo.');
+      if (purposes.some(input => input.value === 'Exhibición') && blank('activity_name')) add(form.elements.activity_name, 'Indique el nombre de la exhibición o actividad.');
+      if (purposes.some(input => input.value === 'Otros') && blank('purpose_details')) add(form.elements.purpose_details, 'Describa el propósito cuando selecciona Otros.');
+    }
+    if (donation && !form.elements.donation_on.value) add(form.elements.donation_on, 'La fecha de donación o ingreso es obligatoria.');
+    if (collectionFieldValue(form, 'reason').length < 3) add(form.elements.reason, 'Indique el motivo del registro.');
+    attachments.querySelectorAll('.intake-attachment').forEach(row => {
+      const file = row.querySelector('[data-attachment-file]').files[0];
+      if (!file) return;
+      const kindField = row.querySelector('[data-attachment-kind]');
+      const description = row.querySelector('[data-attachment-description]');
+      const kind = kindField.value;
+      if (!kind) add(kindField, 'Seleccione la categoría del anejo.');
+      if (kind === 'otro' && !description.value.trim()) add(description, 'La categoría Otros requiere una descripción.');
+    });
+    return problems;
   }
   function validateIntake() {
-    const modality = form.elements.modality.value;
-    if (!modality) { say('Seleccione préstamo temporal o donación permanente.', true); return false; }
-    if (!focusInvalid()) return false;
-    if (form.elements.category.value === 'Objeto personal' && !collectionFieldValue(form, 'personal_object_description')) {
-      say('Indique la descripción del objeto personal.', true); return false;
-    }
-    if (form.elements.category.value === 'Otro' && !collectionFieldValue(form, 'object_type_specification')) {
-      say('Escriba el tipo de objeto.', true); return false;
-    }
-    if (modality === 'prestamo_temporal') {
-      const purposes = [...form.querySelectorAll('input[name="purpose"]:checked')];
-      if (!purposes.length) { say('Seleccione el propósito del préstamo.', true); return false; }
-      if (form.elements.expected_return_on.value < form.elements.started_on.value) {
-        say('La fecha estimada de devolución no puede ser anterior a la fecha de inicio.', true); return false;
-      }
-    }
-    for (const row of attachments.querySelectorAll('.intake-attachment')) {
-      const file = row.querySelector('[data-attachment-file]').files[0];
-      if (!file) continue;
-      const kind = row.querySelector('[data-attachment-kind]').value;
-      const description = row.querySelector('[data-attachment-description]').value.trim();
-      if (!kind) { say('Seleccione la categoría del anejo.', true); return false; }
-      if (kind === 'otro' && !description) { say('La categoría Otros requiere una descripción.', true); return false; }
-    }
-    return true;
+    clearIntakeErrors();
+    const problems = intakeProblems();
+    if (!problems.length) return true;
+    problems.forEach(problem => showIntakeError(problem.element, problem.message));
+    const first = problems[0].element;
+    first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (typeof first.focus === 'function') first.focus();
+    say('No se puede guardar el ingreso. Corrija los campos indicados.', true);
+    return false;
+  }
+  function clearFixedIntakeError(element) {
+    if (!element?.classList?.contains('intake-invalid')) return;
+    const still = intakeProblems().some(problem => problem.element === element);
+    if (still) return;
+    element.classList.remove('intake-invalid');
+    element.closest('label')?.querySelector('.intake-field-error')?.remove();
+    element.parentElement?.querySelector(':scope > .intake-field-error')?.remove();
+    if (!form.querySelector('.intake-invalid') && status.textContent === 'No se puede guardar el ingreso. Corrija los campos indicados.') status.textContent = '';
   }
   function itemPayload() {
     const keys = ['personal_object_description', 'object_type_specification', 'author', 'dating', 'materials', 'dimensions', 'provenance', 'owner', 'acquisition', 'custody', 'donor', 'owner_phone', 'owner_email', 'owner_address', 'lender', 'received_date', 'fmv', 'currency', 'loan_reference', 'notes', 'cultural_history'];
@@ -647,7 +750,7 @@ function bindCollectionIntake() {
   async function loadContractSigned() {
     activeContractSignatures = {};
     contractSigned = false;
-    if (!created?.accession?.id || !['borrador', 'pendiente_firmas'].includes(created.accession.status)) return;
+    if (!created?.accession?.id) return;
     const signatures = await collectionRequest(`/rest/v1/collection_accession_signatures?select=signer_role,signed_at,status,signature_type&accession_id=eq.${encodeURIComponent(created.accession.id)}&signature_type=eq.contractual&status=eq.capturada`, undefined, 'GET');
     if (!Array.isArray(signatures)) throw Error('No se pudo confirmar la lectura de Colecciones.');
     signatures.forEach(row => rememberContractSignature(row));
@@ -886,6 +989,8 @@ function bindCollectionIntake() {
   applyModality();
   syncCollectionCategoryFields(form);
   refreshPhotoNote();
+  form.addEventListener('input', event => clearFixedIntakeError(event.target));
+  form.addEventListener('change', event => clearFixedIntakeError(event.target));
 
   form.onsubmit = async event => {
     event.preventDefault();
@@ -913,7 +1018,7 @@ function bindCollectionIntake() {
         response = await collectionUpdateIngressDraft(created.accession.id, created.accession.version, item, accessionPayload, form.elements.reason.value.trim());
       }
       rememberCreated(response, id);
-      pendingNote.hidden = false;
+      pendingNote.hidden = !uploadOutstanding();
       await uploadPending();
       clean = true;
       applyModality();
@@ -922,7 +1027,7 @@ function bindCollectionIntake() {
       say(notice);
     } catch (error) {
       console.error(error);
-      if (created?.accession?.id) pendingNote.hidden = false;
+      if (created?.accession?.id && uploadOutstanding()) pendingNote.hidden = false;
       say(error.message || 'No se pudo completar el ingreso. Los datos permanecen en este formulario.', true);
     } finally {
       saving = false;
@@ -936,10 +1041,7 @@ function bindCollectionIntake() {
     const filter = requested ? `&id=eq.${requested}` : `&client_request_id=eq.${pending.requestId}`;
     collectionRows('collection_accessions', filter).then(async rows => {
       const accession = rows[0];
-      if (!accession?.collection_item_id) {
-        if (pending?.requestId) pendingNote.hidden = false;
-        return;
-      }
+      if (!accession?.collection_item_id) return;
       const items = await collectionRows('collection_items', `&id=eq.${accession.collection_item_id}`);
       if (!items[0]) return;
       await fillExisting(accession, items[0]);
@@ -980,7 +1082,7 @@ function renderContractSnapshot(snapshot, host) {
     ['Descripción', documentSnapshot.description],
     ['Medidas', documentSnapshot.dimensions],
     ['Condición', documentSnapshot.physical_condition],
-    ['Prestamista / donante', documentSnapshot.party_name],
+    [documentSnapshot.modality === 'donacion_permanente' ? 'Donante' : 'Prestamista', documentSnapshot.party_name],
     ['Entidad', documentSnapshot.party_entity],
     ['Correo', documentSnapshot.party_email],
     ['Teléfono', documentSnapshot.party_phone],

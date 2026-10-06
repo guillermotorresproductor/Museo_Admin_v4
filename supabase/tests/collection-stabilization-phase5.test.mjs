@@ -66,6 +66,26 @@ test('la recepción recibida se muestra en solo lectura y no ofrece repetirla', 
   assert.doesNotMatch(intake, /6b9da695-fb31-45db-a3af-ed8a9ddda18a/);
 });
 
+test('el ingreso se muestra por etapas y no crea el expediente si el formulario está incompleto', () => {
+  const page = read('ingreso-articulo.html');
+  assert.match(page, /id="intake-expected-return"/);
+  assert.match(page, /Guardar ingreso/);
+  assert.match(page, /data-signature-progress/);
+  assert.equal([...page.matchAll(/id="intake-return"/g)].length, 1);
+  assert.match(intake, /No se puede guardar el ingreso\. Corrija los campos indicados\./);
+  assert.match(intake, /La fecha estimada de devolución es obligatoria\./);
+  assert.match(intake, /La fecha estimada de devolución no puede ser anterior a la fecha de inicio\./);
+  assert.match(intake, /El nombre del prestamista es obligatorio\./);
+  assert.match(intake, /No se ha seleccionado la condición general de la pieza\./);
+  assert.match(intake, /Firma pendiente/);
+  assert.match(intake, /Firma lista para registrar/);
+  assert.match(intake, /✓ Firma registrada — /);
+  assert.match(intake, /Firmas contractuales: /);
+  assert.match(intake, /Guardar cambios/);
+  assert.doesNotMatch(intake, /Prestamista \/ donante/);
+  assert.doesNotMatch(intake, /6b9da695-fb31-45db-a3af-ed8a9ddda18a/);
+});
+
 test('la confirmación de firma se reconstruye desde el servidor y no relanza el registro', () => {
   const page = read('ingreso-articulo.html');
   assert.match(intake, /Firma registrada correctamente/);

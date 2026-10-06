@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin | Ingreso de artículo</title>
   <link rel="stylesheet" href="css/main.css?v=instituva-catalog-20260729">
-  <link rel="stylesheet" href="css/collections.css?v=collections-20261005-phase4">
+  <link rel="stylesheet" href="css/collections.css?v=collections-20261006-stages">
 </head>
 <body>
   <div class="app-shell">
@@ -127,7 +127,7 @@
             <legend>Préstamo temporal</legend>
             <div class="form-row">
               <label class="field" for="intake-started"><span>Fecha de inicio *</span><input id="intake-started" name="started_on" type="date"></label>
-              <label class="field" for="intake-return"><span>Fecha estimada de devolución *</span><input id="intake-return" name="expected_return_on" type="date"></label>
+              <label class="field" for="intake-expected-return"><span>Fecha estimada de devolución *</span><input id="intake-expected-return" name="expected_return_on" type="date"></label>
               <fieldset>
                 <legend>Propósito *</legend>
                 <label><input type="checkbox" name="purpose" value="Exhibición"> Exhibición</label>
@@ -159,7 +159,8 @@
             <legend>Términos</legend>
             <p id="intake-terms">Mediante la firma del presente formulario, las partes reconocen y aceptan las condiciones aquí establecidas.</p>
           </fieldset>
-          <fieldset data-party-sign>
+          <p data-signature-progress hidden></p>
+          <fieldset data-party-sign hidden>
             <legend data-party-sign-legend>Propietario / Prestamista</legend>
             <p data-pad-status>Pad no disponible — firma en pantalla habilitada</p>
             <p>El nombre y la entidad salen del expediente. La fecha y la hora se registran al firmar.</p>
@@ -213,9 +214,9 @@
           <label class="field" for="intake-reason"><span>Motivo del registro *</span><textarea id="intake-reason" name="reason" required minlength="3" maxlength="2000" rows="2"></textarea></label>
           <p id="intake-signed-lock" hidden>Hay firmas vigentes. Para corregir el contrato hay que reabrir el expediente. Las firmas anteriores se conservan y dejan de validar el texto.</p>
           <div class="collection-toolbar">
-            <button class="button submit-button" id="intake-save" type="submit">Guardar borrador</button>
+            <button class="button submit-button" id="intake-save" type="submit">Guardar ingreso</button>
             <button class="button secondary" id="intake-reopen" type="button" hidden>Reabrir para corrección</button>
-            <button class="button" id="intake-formalize" type="button">Formalizar</button>
+            <button class="button" id="intake-formalize" type="button" hidden>Formalizar</button>
             <a class="button secondary" id="intake-document" hidden href="documento-ingreso.html">Documento</a>
             <a class="button secondary" href="inventario-colecciones.html">Volver al inventario</a>
           </div>
@@ -230,7 +231,7 @@
   <script src="js/services/collections.js?v=collections-20261006-signature-confirm"></script>
   <script src="js/collections.js?v=collections-20261006-item-status"></script>
   <script src="js/signature-capture.js?v=collections-20261005-phase4"></script>
-  <script src="js/collection-intake.js?v=collections-20261006-reception-confirm"></script>
+  <script src="js/collection-intake.js?v=collections-20261006-stages"></script>
   <script src="js/app.js?v=collections-20261005-phase4"></script>
 </body>
 </html>
