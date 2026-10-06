@@ -101,7 +101,7 @@
                 </select>
               </label>
               <label class="field" for="intake-conservation"><span>Observaciones de conservación</span><textarea id="intake-conservation" name="conservation_notes" rows="3" maxlength="10000"></textarea></label>
-              <label class="field" for="intake-status"><span>Estado del registro de la pieza *</span>
+              <label class="field" for="intake-status"><span>Estado museográfico de la pieza *</span>
                 <select id="intake-status" name="status" required>
                   <option value="ingreso">Ingreso / en documentación</option>
                   <option value="catalogada">Catalogada</option>
@@ -110,7 +110,7 @@
                 </select>
               </label>
               <label class="field" for="intake-fmv"><span>Valor estimado</span><span>USD</span><input id="intake-fmv" name="fmv" type="number" min="0" max="999999999999.99" step="0.01"></label>
-              <p>Estado del ingreso: <strong id="intake-status">Borrador</strong></p>
+              <p>Estado del ingreso: <strong id="intake-workflow-status">Borrador</strong></p>
             </div>
           </fieldset>
           <fieldset data-party hidden>
@@ -226,9 +226,9 @@
   <script src="js/config.js"></script>
   <script src="js/services/supabase.js?v=module-profiles-20260918"></script>
   <script src="js/services/collections.js?v=collections-20261005-phase5"></script>
-  <script src="js/collections.js?v=collections-20261006-photo-preview"></script>
+  <script src="js/collections.js?v=collections-20261006-item-status"></script>
   <script src="js/signature-capture.js?v=collections-20261005-phase4"></script>
-  <script src="js/collection-intake.js?v=collections-20261006-photo-preview"></script>
+  <script src="js/collection-intake.js?v=collections-20261006-item-status"></script>
   <script src="js/app.js?v=collections-20261005-phase4"></script>
 </body>
 </html>

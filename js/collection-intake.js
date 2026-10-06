@@ -253,7 +253,7 @@ function bindCollectionIntake() {
     const accession = created?.accession;
     const locked = accession && !['borrador', 'pendiente_firmas'].includes(accession.status);
     const signedLock = contractSigned && !locked;
-    document.querySelector('#intake-status').textContent = intakeStatusLabels[accession?.status] || 'Borrador';
+    document.querySelector('#intake-workflow-status').textContent = intakeStatusLabels[accession?.status] || 'Borrador';
     document.querySelector('#intake-signed-lock').hidden = !signedLock;
     document.querySelector('#intake-save').textContent = accession ? 'Guardar correcciones' : 'Guardar borrador';
     document.querySelector('#intake-save').disabled = saving || locked || signedLock || !canWrite;
