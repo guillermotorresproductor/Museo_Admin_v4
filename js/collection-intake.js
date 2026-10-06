@@ -92,6 +92,8 @@ function bindCollectionIntake() {
   let created = null;
   let clean = true;
   let contractSigned = false;
+  const photoPreviewUrls = {};
+  const photoSlotState = {};
   form.noValidate = true;
   form.elements.reason.value = 'Registro inicial';
   document.querySelector('#intake-terms').textContent = collectionContractAcceptance;
@@ -151,8 +153,101 @@ function bindCollectionIntake() {
     setRequired('purpose_details', other && form.elements.modality.value === 'prestamo_temporal' && editable());
   }
   function refreshPhotoNote() {
-    const selected = [1, 2, 3, 4].some(n => form.elements[`photo_${n}`]?.files?.[0]);
-    photoNote.hidden = !selected && !created;
+    const saved = [1, 2, 3, 4].some(n => photoSlotState[n] === 'saved');
+    photoNote.hidden = !saved;
+  }
+  function revokePhotoPreview(n) {
+    if (!photoPreviewUrls[n]) return;
+    URL.revokeObjectURL(photoPreviewUrls[n]);
+    delete photoPreviewUrls[n];
+  }
+  function paintPhotoSlot(n, mode, name) {
+    const preview = form.querySelector(`[data-photo-preview="${n}"]`);
+    const filename = form.querySelector(`[data-photo-filename="${n}"]`);
+    const slotStatus = form.querySelector(`[data-photo-status="${n}"]`);
+    const pick = form.querySelector(`[data-photo-pick="${n}"]`);
+    const clear = form.querySelector(`[data-photo-clear="${n}"]`);
+    const retry = form.querySelector(`[data-photo-retry="${n}"]`);
+    const input = form.elements[`photo_${n}`];
+    const labels = { pending: 'Lista para guardar', saved: 'Guardada', error: 'Error al cargar' };
+    if (preview) {
+      if (photoPreviewUrls[n]) { preview.src = photoPreviewUrls[n]; preview.hidden = false; }
+      else if (mode !== 'saved') { preview.removeAttribute('src'); preview.hidden = true; }
+    }
+    if (filename) { filename.textContent = name || ''; filename.hidden = !name; }
+    if (slotStatus) { slotStatus.textContent = labels[mode] || ''; slotStatus.hidden = !labels[mode]; }
+    if (pick) { pick.hidden = mode === 'saved'; pick.textContent = mode === 'empty' ? 'Seleccionar' : 'Cambiar'; }
+    if (clear) clear.hidden = mode !== 'pending' && mode !== 'error';
+    if (retry) retry.hidden = mode !== 'error';
+    if (input) input.disabled = mode === 'saved' || !canWrite || contractSigned;
+  }
+  function clearPhotoSlot(n) {
+    revokePhotoPreview(n);
+    photoSlotState[n] = 'empty';
+    const input = form.elements[`photo_${n}`];
+    if (input) input.value = '';
+    paintPhotoSlot(n, 'empty', '');
+  }
+  function showPendingPhoto(n, file) {
+    revokePhotoPreview(n);
+    photoPreviewUrls[n] = URL.createObjectURL(file);
+    photoSlotState[n] = 'pending';
+    paintPhotoSlot(n, 'pending', file.name);
+  }
+  function markPhotoSaved(n) {
+    photoSlotState[n] = 'saved';
+    const input = form.elements[`photo_${n}`];
+    const name = form.querySelector(`[data-photo-filename="${n}"]`)?.textContent || '';
+    if (input) input.value = '';
+    paintPhotoSlot(n, 'saved', name);
+  }
+  function markPhotoError(n) {
+    photoSlotState[n] = 'error';
+    const name = form.querySelector(`[data-photo-filename="${n}"]`)?.textContent || '';
+    paintPhotoSlot(n, 'error', name);
+  }
+  async function showStoredPhoto(n, path) {
+    revokePhotoPreview(n);
+    photoSlotState[n] = 'saved';
+    const input = form.elements[`photo_${n}`];
+    if (input) input.value = '';
+    paintPhotoSlot(n, 'saved', '');
+    const preview = form.querySelector(`[data-photo-preview="${n}"]`);
+    if (!preview || !path) return;
+    preview.hidden = false;
+    if (!path) { preview.hidden = true; preview.removeAttribute('src'); return; }
+    try { await collectionLoadPhoto(preview, path); }
+    catch (error) { console.error(error); preview.alt = 'No se pudo mostrar la fotografía guardada.'; }
+  }
+  async function loadSavedRolePhotos(itemId) {
+    const [roles, photos] = await Promise.all([
+      collectionRows('collection_photo_roles', `&item_id=eq.${itemId}`),
+      collectionRows('collection_active_photos', `&item_id=eq.${itemId}`)
+    ]);
+    const paths = new Map(photos.map(photo => [photo.id, photo.path]));
+    for (const role of roles) {
+      const n = Number(Object.entries(collectionPhotoRoles).find(([, name]) => name === role.role)?.[0]);
+      if (!n) continue;
+      await showStoredPhoto(n, paths.get(role.photo_id) || '');
+    }
+    refreshPhotoNote();
+  }
+  async function acceptPhoto(n) {
+    const input = form.elements[`photo_${n}`];
+    const file = input?.files?.[0];
+    if (photoSlotState[n] === 'saved') { if (input) input.value = ''; return; }
+    if (!file) { clearPhotoSlot(n); refreshPhotoNote(); return; }
+    try {
+      await collectionValidatePhoto(file);
+    } catch (error) {
+      if (input) input.value = '';
+      clearPhotoSlot(n);
+      refreshPhotoNote();
+      say(error.message, true);
+      return;
+    }
+    showPendingPhoto(n, file);
+    refreshPhotoNote();
   }
   function refreshMode() {
     const accession = created?.accession;
@@ -173,7 +268,8 @@ function bindCollectionIntake() {
     form.querySelectorAll('input, select, textarea').forEach(field => {
       if (field.name === 'modality') return;
       if (field.type === 'file' && String(field.name || '').startsWith('photo_')) {
-        field.disabled = !canWrite || signedLock;
+        const n = Number(String(field.name).replace('photo_', ''));
+        field.disabled = !canWrite || signedLock || photoSlotState[n] === 'saved';
         return;
       }
       const reception = field.closest('[data-reception]');
@@ -323,12 +419,23 @@ function bindCollectionIntake() {
     partySignature.setAccession(accession.id);
     let version = piece;
     const existingRoles = await collectionRows('collection_photo_roles', `&item_id=eq.${piece.id}`);
+    const existingPhotos = await collectionRows('collection_active_photos', `&item_id=eq.${piece.id}`);
+    const paths = new Map(existingPhotos.map(photo => [photo.id, photo.path]));
     for (const slot of slots) {
       const role = collectionPhotoRoles[slot.n];
-      if (existingRoles.some(row => row.role === role)) continue;
-      version = await collectionUpload(version, slot.file, '', role);
+      const savedRole = existingRoles.find(row => row.role === role);
+      if (photoSlotState[slot.n] === 'saved' || savedRole) {
+        if (savedRole) await showStoredPhoto(slot.n, paths.get(savedRole.photo_id) || '');
+        continue;
+      }
+      try {
+        version = await collectionUpload(version, slot.file, '', role);
+      } catch (error) {
+        markPhotoError(slot.n);
+        throw error;
+      }
       existingRoles.push({ role });
-      form.elements[`photo_${slot.n}`].value = '';
+      markPhotoSaved(slot.n);
     }
     created.item = version?.id ? version : piece;
     if (editable()) {
@@ -404,6 +511,7 @@ function bindCollectionIntake() {
     rememberCreated(created, accession.client_request_id);
     clean = true;
     applyModality();
+    await loadSavedRolePhotos(item.id);
   }
   async function loadContractSigned() {
     contractSigned = false;
@@ -420,6 +528,19 @@ function bindCollectionIntake() {
     if (event.target.name === 'party_name') partySignature.setSigner(event.target.value);
     refreshPhotoNote();
   });
+  form.addEventListener('change', event => {
+    const n = Number(event.target?.name?.match(/^photo_([1-4])$/)?.[1]);
+    if (n) acceptPhoto(n);
+  });
+  form.addEventListener('click', event => {
+    const pick = Number(event.target.closest('[data-photo-pick]')?.dataset.photoPick);
+    if (pick && !saving && photoSlotState[pick] !== 'saved') { form.elements[`photo_${pick}`]?.click(); return; }
+    const clear = Number(event.target.closest('[data-photo-clear]')?.dataset.photoClear);
+    if (clear && !saving && photoSlotState[clear] !== 'saved') { clearPhotoSlot(clear); refreshPhotoNote(); return; }
+    if (event.target.closest('[data-photo-retry]') && !saving) document.querySelector('#intake-retry')?.click();
+  });
+  window.addEventListener('pagehide', () => { [1, 2, 3, 4].forEach(revokePhotoPreview); });
+  [1, 2, 3, 4].forEach(n => paintPhotoSlot(n, 'empty', ''));
   document.querySelector('#intake-add-attachment').onclick = addAttachmentRow;
   document.querySelector('#intake-link-existing').disabled = true;
   document.querySelector('#intake-retry').onclick = async () => {

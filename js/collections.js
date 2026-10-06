@@ -149,9 +149,15 @@ async function bindCollectionsCatalog() {
     const preview = form.querySelector(`[data-photo-preview="${n}"]`);
     const filename = form.querySelector(`[data-photo-filename="${n}"]`);
     const clear = form.querySelector(`[data-photo-clear="${n}"]`);
+    const pick = form.querySelector(`[data-photo-pick="${n}"]`);
+    const slotStatus = form.querySelector(`[data-photo-status="${n}"]`);
+    const retry = form.querySelector(`[data-photo-retry="${n}"]`);
     revokePhotoPreview(n);
     if (filename) filename.textContent = file ? file.name : 'Ninguna seleccionada';
     if (clear) clear.hidden = !file;
+    if (pick) pick.textContent = file ? 'Cambiar' : 'Seleccionar fotografía';
+    if (slotStatus) { slotStatus.hidden = !file; slotStatus.textContent = file ? 'Lista para guardar' : ''; }
+    if (retry) retry.hidden = true;
     if (!preview) return;
     if (!file) { preview.removeAttribute('src'); preview.hidden = true; return; }
     photoPreviewUrls[n] = URL.createObjectURL(file);
@@ -455,6 +461,8 @@ async function bindCollectionsCatalog() {
   form.addEventListener('click', event => {
     const pick = Number(event.target.closest('[data-photo-pick]')?.dataset.photoPick);
     if (pick && !saving) { form.elements[`photo_${pick}`]?.click(); return; }
+    const retry = Number(event.target.closest('[data-photo-retry]')?.dataset.photoRetry);
+    if (retry && !saving) { form.requestSubmit(); return; }
     const n = Number(event.target.closest('[data-photo-clear]')?.dataset.photoClear);
     if (!n || saving) return;
     const input = form.elements[`photo_${n}`];
@@ -564,7 +572,13 @@ async function bindCollectionsCatalog() {
       say('Guardado correctamente.');
     } catch (error) {
       console.error(error);
-      if (photoFailed) say('La ficha fue guardada, pero una fotografía no pudo adjuntarse.', true);
+      if (photoFailed) {
+        const slotStatus = form.querySelector(`[data-photo-status="${failedSlot}"]`);
+        const retry = form.querySelector(`[data-photo-retry="${failedSlot}"]`);
+        if (slotStatus) { slotStatus.hidden = false; slotStatus.textContent = 'Error al cargar'; }
+        if (retry) retry.hidden = false;
+        say('La ficha fue guardada, pero una fotografía no pudo adjuntarse.', true);
+      }
       else if (saved) say('La ficha fue guardada, pero no se pudo confirmar en el listado. Sus datos permanecen en este formulario.', true);
       else say(error.message || 'No se pudo completar el guardado. Sus datos permanecen en este formulario.', true);
       if (saved) await reload().catch(reloadError => console.error(reloadError));

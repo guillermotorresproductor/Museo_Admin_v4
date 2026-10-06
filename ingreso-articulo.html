@@ -84,10 +84,10 @@
             <legend>Fotografías</legend>
             <p>Hasta cuatro fotografías de la pieza (JPG, PNG o WEBP, hasta 10 MB). No se repiten en los anejos.</p>
             <div class="collection-photo-slots">
-              <div class="collection-photo-slot" data-photo-role="frontal"><label class="field" for="intake-photo-1"><span>Fotografía frontal</span><input id="intake-photo-1" name="photo_1" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
-              <div class="collection-photo-slot" data-photo-role="posterior"><label class="field" for="intake-photo-2"><span>Fotografía posterior</span><input id="intake-photo-2" name="photo_2" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
-              <div class="collection-photo-slot" data-photo-role="lateral"><label class="field" for="intake-photo-3"><span>Fotografía lateral</span><input id="intake-photo-3" name="photo_3" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
-              <div class="collection-photo-slot" data-photo-role="adicional"><label class="field" for="intake-photo-4"><span>Fotografía adicional / detalle</span><input id="intake-photo-4" name="photo_4" type="file" accept="image/jpeg,image/png,image/webp"></label></div>
+              <div class="collection-photo-slot" data-photo-role="frontal"><label class="field" for="intake-photo-1"><span>Fotografía frontal</span><input id="intake-photo-1" name="photo_1" type="file" accept="image/jpeg,image/png,image/webp"></label><img data-photo-preview="1" alt="Vista previa de la fotografía frontal" hidden><p data-photo-filename="1" hidden></p><p data-photo-status="1" hidden></p><button class="button secondary" type="button" data-photo-pick="1">Seleccionar</button> <button class="button secondary" type="button" data-photo-clear="1" hidden>Quitar</button> <button class="button secondary" type="button" data-photo-retry="1" hidden>Reintentar</button></div>
+              <div class="collection-photo-slot" data-photo-role="posterior"><label class="field" for="intake-photo-2"><span>Fotografía posterior</span><input id="intake-photo-2" name="photo_2" type="file" accept="image/jpeg,image/png,image/webp"></label><img data-photo-preview="2" alt="Vista previa de la fotografía posterior" hidden><p data-photo-filename="2" hidden></p><p data-photo-status="2" hidden></p><button class="button secondary" type="button" data-photo-pick="2">Seleccionar</button> <button class="button secondary" type="button" data-photo-clear="2" hidden>Quitar</button> <button class="button secondary" type="button" data-photo-retry="2" hidden>Reintentar</button></div>
+              <div class="collection-photo-slot" data-photo-role="lateral"><label class="field" for="intake-photo-3"><span>Fotografía lateral</span><input id="intake-photo-3" name="photo_3" type="file" accept="image/jpeg,image/png,image/webp"></label><img data-photo-preview="3" alt="Vista previa de la fotografía lateral" hidden><p data-photo-filename="3" hidden></p><p data-photo-status="3" hidden></p><button class="button secondary" type="button" data-photo-pick="3">Seleccionar</button> <button class="button secondary" type="button" data-photo-clear="3" hidden>Quitar</button> <button class="button secondary" type="button" data-photo-retry="3" hidden>Reintentar</button></div>
+              <div class="collection-photo-slot" data-photo-role="adicional"><label class="field" for="intake-photo-4"><span>Fotografía adicional / detalle</span><input id="intake-photo-4" name="photo_4" type="file" accept="image/jpeg,image/png,image/webp"></label><img data-photo-preview="4" alt="Vista previa de la fotografía adicional" hidden><p data-photo-filename="4" hidden></p><p data-photo-status="4" hidden></p><button class="button secondary" type="button" data-photo-pick="4">Seleccionar</button> <button class="button secondary" type="button" data-photo-clear="4" hidden>Quitar</button> <button class="button secondary" type="button" data-photo-retry="4" hidden>Reintentar</button></div>
             </div>
             <p id="intake-photo-note" hidden>✓ Fotografías incorporadas al expediente</p>
           </fieldset>
@@ -226,9 +226,9 @@
   <script src="js/config.js"></script>
   <script src="js/services/supabase.js?v=module-profiles-20260918"></script>
   <script src="js/services/collections.js?v=collections-20261005-phase5"></script>
-  <script src="js/collections.js?v=collections-20261005-phase4"></script>
+  <script src="js/collections.js?v=collections-20261006-photo-preview"></script>
   <script src="js/signature-capture.js?v=collections-20261005-phase4"></script>
-  <script src="js/collection-intake.js?v=collections-20261005-phase5b"></script>
+  <script src="js/collection-intake.js?v=collections-20261006-photo-preview"></script>
   <script src="js/app.js?v=collections-20261005-phase4"></script>
 </body>
 </html>
