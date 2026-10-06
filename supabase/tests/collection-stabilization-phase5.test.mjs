@@ -82,6 +82,11 @@ test('el ingreso se muestra por etapas y no crea el expediente si el formulario 
   assert.match(intake, /✓ Firma registrada — /);
   assert.match(intake, /Firmas contractuales: /);
   assert.match(intake, /Guardar cambios/);
+  assert.match(page, /Las firmas estarán disponibles después de guardar el ingreso/);
+  assert.match(page, /id="intake-reason" name="reason" type="hidden" value="Registro inicial"/);
+  assert.match(intake, /const reason = 'Registro inicial'/);
+  assert.doesNotMatch(page, /Motivo del registro/);
+  assert.doesNotMatch(intake, /Indique el motivo del registro/);
   assert.doesNotMatch(intake, /Prestamista \/ donante/);
   assert.doesNotMatch(intake, /6b9da695-fb31-45db-a3af-ed8a9ddda18a/);
 });

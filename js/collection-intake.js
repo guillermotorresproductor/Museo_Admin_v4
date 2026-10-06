@@ -295,7 +295,7 @@ function bindCollectionIntake() {
     document.querySelector('#intake-sign-party').disabled = saving || !canWrite || !accession || locked || partyRecorded;
     if (document.querySelector('#intake-sign-director')) document.querySelector('#intake-sign-director').disabled = saving || !canDirect || !accession || locked || directorRecorded;
     document.querySelector('#intake-receive').disabled = saving || !canWrite || accession?.status !== 'formalizado';
-    form.elements.reason.required = !locked;
+    form.elements.reason.value = 'Registro inicial';
     [...form.elements.modality].forEach(input => { input.disabled = Boolean(accession) || !canWrite; });
     form.querySelectorAll('input, select, textarea').forEach(field => {
       if (field.name === 'modality') return;
@@ -372,6 +372,11 @@ function bindCollectionIntake() {
       const label = document.createElement('strong');
       label.textContent = 'Número de inventario';
       note.append(label, document.createElement('br'), document.createTextNode(created.item.accession_number));
+      if (created.accession?.file_number) {
+        const fileLabel = document.createElement('strong');
+        fileLabel.textContent = 'Número de expediente';
+        note.append(document.createElement('br'), fileLabel, document.createElement('br'), document.createTextNode(created.accession.file_number));
+      }
     }
     paintSignatureConfirmation();
     paintReceptionConfirmation();
@@ -479,6 +484,8 @@ function bindCollectionIntake() {
       progress.hidden = !showSignatures;
       progress.textContent = showSignatures ? `Firmas contractuales: ${recordedCount} de 2 registradas` : '';
     }
+    const signatureLater = document.querySelector('#intake-signature-later');
+    if (signatureLater) signatureLater.hidden = Boolean(accession);
     const formalize = document.querySelector('#intake-formalize');
     const formalizeReady = recordedCount === 2 && openDraft && canWrite && !saving;
     if (formalize) {
@@ -555,7 +562,6 @@ function bindCollectionIntake() {
       if (purposes.some(input => input.value === 'Otros') && blank('purpose_details')) add(form.elements.purpose_details, 'Describa el propósito cuando selecciona Otros.');
     }
     if (donation && !form.elements.donation_on.value) add(form.elements.donation_on, 'La fecha de donación o ingreso es obligatoria.');
-    if (collectionFieldValue(form, 'reason').length < 3) add(form.elements.reason, 'Indique el motivo del registro.');
     attachments.querySelectorAll('.intake-attachment').forEach(row => {
       const file = row.querySelector('[data-attachment-file]').files[0];
       if (!file) return;
@@ -1006,16 +1012,18 @@ function bindCollectionIntake() {
       const item = itemPayload();
       const accessionPayload = collectionIntakeAccession(form);
       const id = created?.accession?.client_request_id || requestId();
+      const reason = 'Registro inicial';
+      form.elements.reason.value = reason;
       let response = created;
       if (!created) {
         try {
-          response = await collectionCreateEntry(item, accessionPayload, form.elements.reason.value.trim(), id);
+          response = await collectionCreateEntry(item, accessionPayload, reason, id);
         } catch (error) {
           if (!error.timeout) throw error;
-          response = await collectionCreateEntry(item, accessionPayload, form.elements.reason.value.trim(), id);
+          response = await collectionCreateEntry(item, accessionPayload, reason, id);
         }
       } else {
-        response = await collectionUpdateIngressDraft(created.accession.id, created.accession.version, item, accessionPayload, form.elements.reason.value.trim());
+        response = await collectionUpdateIngressDraft(created.accession.id, created.accession.version, item, accessionPayload, reason);
       }
       rememberCreated(response, id);
       pendingNote.hidden = !uploadOutstanding();

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin | Ingreso de artículo</title>
   <link rel="stylesheet" href="css/main.css?v=instituva-catalog-20260729">
-  <link rel="stylesheet" href="css/collections.css?v=collections-20261006-stages">
+  <link rel="stylesheet" href="css/collections.css?v=collections-20261006-intake-note">
 </head>
 <body>
   <div class="app-shell">
@@ -211,8 +211,9 @@
             <p data-reception-state hidden role="status"></p>
             <button class="button" id="intake-receive" type="button">Certificar recepción</button>
           </fieldset>
-          <label class="field" for="intake-reason"><span>Motivo del registro *</span><textarea id="intake-reason" name="reason" required minlength="3" maxlength="2000" rows="2"></textarea></label>
+          <input id="intake-reason" name="reason" type="hidden" value="Registro inicial">
           <p id="intake-signed-lock" hidden>Hay firmas vigentes. Para corregir el contrato hay que reabrir el expediente. Las firmas anteriores se conservan y dejan de validar el texto.</p>
+          <p id="intake-signature-later" class="field-hint">Las firmas estarán disponibles después de guardar el ingreso.</p>
           <div class="collection-toolbar">
             <button class="button submit-button" id="intake-save" type="submit">Guardar ingreso</button>
             <button class="button secondary" id="intake-reopen" type="button" hidden>Reabrir para corrección</button>
@@ -231,7 +232,7 @@
   <script src="js/services/collections.js?v=collections-20261006-signature-confirm"></script>
   <script src="js/collections.js?v=collections-20261006-item-status"></script>
   <script src="js/signature-capture.js?v=collections-20261005-phase4"></script>
-  <script src="js/collection-intake.js?v=collections-20261006-stages"></script>
+  <script src="js/collection-intake.js?v=collections-20261006-intake-note"></script>
   <script src="js/app.js?v=collections-20261005-phase4"></script>
 </body>
 </html>
