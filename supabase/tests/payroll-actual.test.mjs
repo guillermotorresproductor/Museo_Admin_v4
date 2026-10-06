@@ -37,9 +37,10 @@ test("plaza assignment uses the museum Finanzas already loaded", () => {
   assert.doesNotMatch(page, /insert into public\.employee_budget_assignments/);
 });
 
-test("the finance screen keeps the budget grid and only displays the server result", () => {
-  assert.match(finance, /Nómina presupuestada/);
+test("the finance screen reuses the payroll module and only displays the server result", () => {
+  assert.match(finance, /activeTab === "nomina"/);
   assert.match(finance, /renderPayrollActualShell\(\)/);
+  assert.doesNotMatch(finance, /Nómina presupuestada/);
   assert.match(page, /\/rest\/v1\/rpc\/payroll_actual/);
   assert.doesNotMatch(page, /update_finance_record_amount/);
   assert.doesNotMatch(page, /finance_records/);

@@ -4889,7 +4889,7 @@ function bindFinanceModule() {
     }));
     await loadAudit();
     const notice = document.querySelector("[data-finance-message]");
-    if(notice)notice.textContent = records.length ? "Los importes provienen de registros guardados. Nómina presupuestada no ejecuta ni aprueba pagos." : "No hay registros financieros para este período. No se han creado datos ni aplicado valores predeterminados.";
+    if(notice)notice.textContent = records.length ? "Los importes provienen de registros guardados. La nómina real no modifica el presupuesto ni ejecuta pagos." : "No hay registros financieros para este período. No se han creado datos ni aplicado valores predeterminados.";
     setSyncStatus("connected", "Conectado a Supabase", `Datos cargados · ${syncTime()} · ${currentUser}`);
     return true;
   };
@@ -5031,8 +5031,10 @@ function bindFinanceModule() {
     if (activeTab === "ingresos") panel.innerHTML = renderFinanceTable("Ingresos", (row) => row.type === "income");
     if (activeTab === "gastos") panel.innerHTML = renderExpenseSummaryTable();
     if (activeTab === "nomina") {
-      panel.innerHTML = renderFinanceTable("Nómina presupuestada", (row) => row.category === "Nómina" || row.category === "Beneficios") + renderPayrollActualShell();
-      bindPayrollActual(currentProfile.museum_id);
+      const payroll = typeof renderPayrollActualShell === "function" ? renderPayrollActualShell() : "";
+      panel.innerHTML = payroll || `<p class="form-message">No tiene permiso para consultar la nómina.</p>`;
+      if (payroll) bindPayrollActual(currentProfile.museum_id);
+      return;
     }
     if (activeTab === "reportes") panel.innerHTML = renderReports();
     if (activeTab === "configuracion") panel.innerHTML = renderConfiguration();
