@@ -5036,6 +5036,16 @@ function bindFinanceModule() {
       if (payroll) bindPayrollActual(currentProfile.museum_id);
       return;
     }
+    if (activeTab === "asistencia") {
+      if (!hasPermission("attendance.history.read")) {
+        panel.innerHTML = `<p class="form-message">No tiene permiso para consultar la asistencia.</p>`;
+        return;
+      }
+      panel.innerHTML = renderAttendanceShell();
+      bindTodayStaffStatus();
+      bindAttendanceHistory();
+      return;
+    }
     if (activeTab === "reportes") panel.innerHTML = renderReports();
     if (activeTab === "configuracion") panel.innerHTML = renderConfiguration();
   };
@@ -5596,6 +5606,66 @@ function showExistingPayroll() {
   if (host.querySelector("[data-payroll-actual]") && typeof bindPayrollActual === "function") bindPayrollActual();
 }
 
+function renderAttendanceShell() {
+  return `
+    <div class="attendance-period" data-attendance-period>
+      <div class="form-row">
+        <label class="field"><span>Período</span>
+          <select name="attendancePeriod">
+            <option value="day" selected>Diario</option>
+            <option value="week">Semanal</option>
+            <option value="semimonth">Quincenal</option>
+            <option value="month">Mensual</option>
+            <option value="custom">Personalizado</option>
+          </select>
+        </label>
+        <label class="field"><span>Personal</span>
+          <select name="includeFormer">
+            <option value="0" selected>Solo empleados activos</option>
+            <option value="1">Incluir exempleados</option>
+          </select>
+        </label>
+        <label class="field" data-period-anchor><span>Fecha</span><input type="date" name="anchor"></label>
+        <label class="field" data-period-custom hidden><span>Fecha inicial</span><input type="date" name="from"></label>
+        <label class="field" data-period-custom hidden><span>Fecha final</span><input type="date" name="to"></label>
+      </div>
+      <div class="attendance-period-nav" data-period-nav>
+        <button class="button secondary" type="button" data-period-step="-1">Período anterior</button>
+        <button class="button secondary" type="button" data-period-today>Período actual</button>
+        <button class="button secondary" type="button" data-period-step="1">Período siguiente</button>
+      </div>
+      <p class="page-kicker" data-period-label></p>
+    </div>
+    <div data-today-staff>
+      <div class="panel-heading-inline">
+        <div>
+          <p class="page-kicker">Asistencia</p>
+          <h3>Estado del personal hoy</h3>
+          <p>Empleados activos con turno programado hoy, en hora de Puerto Rico.</p>
+        </div>
+        <button class="button secondary" type="button" data-today-refresh>Actualizar</button>
+      </div>
+      <div class="attendance-summary is-five" data-today-summary></div>
+      <p class="form-message" data-today-message></p>
+      <div class="table-wrap attendance-table-wrap">
+        <table class="data-table attendance-table">
+          <thead><tr><th>Empleado</th><th>Entrada</th><th>Estado actual</th><th>Inicio de almuerzo</th><th>Regreso</th><th>Salida</th><th>Horas trabajadas hoy</th></tr></thead>
+          <tbody data-today-body><tr><td colspan="7">Cargando estado de hoy...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div data-attendance-history hidden>
+      <p class="form-message" data-history-message></p>
+      <div class="table-wrap attendance-table-wrap">
+        <table class="data-table attendance-table">
+          <thead><tr><th>Empleado</th><th>Días programados</th><th>Días con ponches</th><th>Horas regulares</th><th>Horas extra aprobadas</th><th>Tardanzas</th><th>Incidencias</th><th>Correcciones</th><th></th></tr></thead>
+          <tbody data-history-body><tr><td colspan="9">Seleccione un período.</td></tr></tbody>
+        </table>
+      </div>
+      <div data-punch-editor hidden></div>
+    </div>`;
+}
+
 function bindAttendanceHistory() {
   const root = document.querySelector("[data-attendance-period]");
   const today = document.querySelector("[data-today-staff]");
@@ -5944,7 +6014,14 @@ function bindTodayStaffStatus() {
   };
   refreshButton.addEventListener("click", load);
   window.addEventListener("pagehide", () => { window.clearInterval(timer); timer = 0; }, { once: true });
-  timer = window.setInterval(load, 60000);
+  timer = window.setInterval(() => {
+    if (!root.isConnected) {
+      window.clearInterval(timer);
+      timer = 0;
+      return;
+    }
+    load();
+  }, 60000);
   return load();
 }
 
