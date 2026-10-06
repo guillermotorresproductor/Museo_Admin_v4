@@ -164,12 +164,14 @@
             <p data-pad-status>Pad no disponible — firma en pantalla habilitada</p>
             <p>El nombre y la entidad salen del expediente. La fecha y la hora se registran al firmar.</p>
             <div data-signature-capture data-signer-role="propietario"></div>
+            <p data-party-sign-state hidden role="status"></p>
             <button class="button" id="intake-sign-party" type="button">Registrar firma</button>
           </fieldset>
           <fieldset data-director-sign hidden>
             <legend>Director del Museo</legend>
             <p>Esta firma institucional no se autoriza con el permiso general de escritura de colecciones.</p>
             <div data-signature-director data-signer-role="director"></div>
+            <p data-director-sign-state hidden role="status"></p>
             <button class="button" id="intake-sign-director" type="button">Firmar como Director</button>
           </fieldset>
           <section id="intake-contract-preview" hidden>
@@ -224,10 +226,10 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/services/supabase.js?v=module-profiles-20260918"></script>
-  <script src="js/services/collections.js?v=collections-20261005-phase5"></script>
+  <script src="js/services/collections.js?v=collections-20261006-signature-confirm"></script>
   <script src="js/collections.js?v=collections-20261006-item-status"></script>
   <script src="js/signature-capture.js?v=collections-20261005-phase4"></script>
-  <script src="js/collection-intake.js?v=collections-20261006-upload-notice"></script>
+  <script src="js/collection-intake.js?v=collections-20261006-signature-confirm"></script>
   <script src="js/app.js?v=collections-20261005-phase4"></script>
 </body>
 </html>

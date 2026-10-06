@@ -55,6 +55,19 @@ test('la numeración sigue atómica, sin huecos y sin reinicio anual', () => {
   assert.match(numbering, /revoke all on function public\.collection_allocate_inventory_number\(\) from public, anon, authenticated/);
 });
 
+test('la confirmación de firma se reconstruye desde el servidor y no relanza el registro', () => {
+  const page = read('ingreso-articulo.html');
+  assert.match(intake, /Firma registrada correctamente/);
+  assert.match(intake, /Esta firma ya está registrada/);
+  assert.match(intake, /signer_role,signed_at,status,signature_type/);
+  assert.match(intake, /activeContractSignatures\[role\]/);
+  assert.match(page, /data-party-sign-state/);
+  assert.match(page, /data-director-sign-state/);
+  assert.match(service, /Esta firma ya está registrada/);
+  assert.doesNotMatch(intake, /6b9da695-fb31-45db-a3af-ed8a9ddda18a/);
+  assert.doesNotMatch(intake, /collection_reopen_ingress_correction\(\s*created/);
+});
+
 test('hay una sola superficie de firma y el service worker no cachea páginas', () => {
   assert.equal([...signature.matchAll(/class SignatureCapture/g)].length, 1);
   assert.match(signature, /class WacomSTUAdapter/);

@@ -45,6 +45,7 @@ async function collectionRequest(path, body, method = 'POST', extraHeaders = {},
       : data?.message?.includes('DIRECTOR_SIGNATURE_FORBIDDEN') ? 'Solo el perfil autorizado puede firmar como Director del Museo.'
       : data?.message?.includes('SIGNATURE_EMPTY') ? 'La firma está vacía.'
       : data?.message?.includes('SIGNATURE_ROLE') ? 'El firmante no corresponde a esta modalidad.'
+      : data?.message?.includes('SIGNATURE_ALREADY_CAPTURED') ? 'Esta firma ya está registrada.'
       : data?.message?.includes('RECEPTION_LOCATION_REQUIRED') ? 'Indique la ubicación inicial de la pieza.'
       : data?.message?.includes('RECEPTION_REQUIRES_FORMALIZATION') ? 'La recepción física se habilita después de formalizar.'
       : data?.message?.includes('CONTRACT_NOT_FORMALIZED') ? 'El documento oficial se imprime desde el snapshot, cuando el ingreso esté formalizado.'

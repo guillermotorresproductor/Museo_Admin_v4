@@ -102,6 +102,7 @@ function bindCollectionIntake() {
   let created = null;
   let clean = true;
   let contractSigned = false;
+  let activeContractSignatures = {};
   const photoPreviewUrls = {};
   const photoSlotState = {};
   form.noValidate = true;
@@ -271,8 +272,10 @@ function bindCollectionIntake() {
     document.querySelector('#intake-reopen').hidden = !canWrite || !signedLock;
     document.querySelector('#intake-reopen').disabled = saving || !signedLock;
     document.querySelector('#intake-formalize').disabled = saving || !canWrite || !accession || locked;
-    document.querySelector('#intake-sign-party').disabled = saving || !canWrite || !accession || locked;
-    if (document.querySelector('#intake-sign-director')) document.querySelector('#intake-sign-director').disabled = saving || !canDirect || !accession || locked;
+    const partyRecorded = Boolean(activeContractSignatures[contractPartyRole()]);
+    const directorRecorded = Boolean(activeContractSignatures.director);
+    document.querySelector('#intake-sign-party').disabled = saving || !canWrite || !accession || locked || partyRecorded;
+    if (document.querySelector('#intake-sign-director')) document.querySelector('#intake-sign-director').disabled = saving || !canDirect || !accession || locked || directorRecorded;
     document.querySelector('#intake-receive').disabled = saving || !canWrite || accession?.status !== 'formalizado';
     form.elements.reason.required = !locked;
     [...form.elements.modality].forEach(input => { input.disabled = Boolean(accession) || !canWrite; });
@@ -352,6 +355,63 @@ function bindCollectionIntake() {
       label.textContent = 'Número de inventario';
       note.append(label, document.createElement('br'), document.createTextNode(created.item.accession_number));
     }
+    paintSignatureConfirmation();
+  }
+  function contractPartyRole() {
+    return form.elements.modality.value === 'donacion_permanente' ? 'donante' : 'propietario';
+  }
+  function formatSignatureWhen(value) {
+    const date = new Date(value || '');
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('es-PR', {
+      timeZone: 'America/Puerto_Rico',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  }
+  function signatureStateText(row) {
+    if (!row) return '';
+    const when = formatSignatureWhen(row.signed_at);
+    return when ? `Firma registrada. ${when}` : 'Firma registrada';
+  }
+  function paintSignatureConfirmation() {
+    const party = activeContractSignatures[contractPartyRole()] || null;
+    const director = activeContractSignatures.director || null;
+    const partyState = document.querySelector('[data-party-sign-state]');
+    const directorState = document.querySelector('[data-director-sign-state]');
+    const partyButton = document.querySelector('#intake-sign-party');
+    const directorButton = document.querySelector('#intake-sign-director');
+    const partyCapture = document.querySelector('[data-signature-capture]');
+    const directorCapture = document.querySelector('[data-signature-director]');
+    if (partyState) {
+      partyState.hidden = !party;
+      partyState.textContent = signatureStateText(party);
+    }
+    if (directorState) {
+      directorState.hidden = !director;
+      directorState.textContent = signatureStateText(director);
+    }
+    if (partyCapture) partyCapture.hidden = Boolean(party);
+    if (directorCapture) directorCapture.hidden = Boolean(director);
+    if (partyButton) partyButton.hidden = Boolean(party) || !canWrite;
+    if (directorButton) directorButton.hidden = Boolean(director) || !canDirect;
+  }
+  function rememberContractSignature(signature) {
+    if (!signature?.signer_role || signature.status !== 'capturada' || signature.signature_type !== 'contractual') return;
+    activeContractSignatures[signature.signer_role] = {
+      signer_role: signature.signer_role,
+      signed_at: signature.signed_at,
+      status: signature.status,
+      signature_type: signature.signature_type
+    };
+    contractSigned = true;
+  }
+  function signatureAlreadyCaptured(error) {
+    const message = String(error?.message || '');
+    return message.includes('SIGNATURE_ALREADY_CAPTURED') || message.includes('Esta firma ya está registrada.');
   }
   function addAttachmentRow() {
     const row = document.createElement('div');
@@ -535,10 +595,48 @@ function bindCollectionIntake() {
     await loadSavedRolePhotos(item.id);
   }
   async function loadContractSigned() {
+    activeContractSignatures = {};
     contractSigned = false;
     if (!created?.accession?.id || !['borrador', 'pendiente_firmas'].includes(created.accession.status)) return;
-    const signatures = await collectionRequest(`/rest/v1/collection_accession_signatures?select=status&accession_id=eq.${encodeURIComponent(created.accession.id)}&signature_type=eq.contractual&status=eq.capturada&limit=1`, undefined, 'GET');
-    contractSigned = Array.isArray(signatures) && signatures.length > 0;
+    const signatures = await collectionRequest(`/rest/v1/collection_accession_signatures?select=signer_role,signed_at,status,signature_type&accession_id=eq.${encodeURIComponent(created.accession.id)}&signature_type=eq.contractual&status=eq.capturada`, undefined, 'GET');
+    if (!Array.isArray(signatures)) throw Error('No se pudo confirmar la lectura de Colecciones.');
+    signatures.forEach(row => rememberContractSignature(row));
+  }
+  async function recoverRecordedSignature() {
+    const rows = await collectionRows('collection_accessions', `&id=eq.${encodeURIComponent(created.accession.id)}`);
+    if (rows[0]) created.accession = rows[0];
+    await loadContractSigned();
+    clean = true;
+    applyModality();
+    say('Esta firma ya está registrada.');
+  }
+  async function recordContractRole(role, capture) {
+    if (saving || !savedForSignature() || activeContractSignatures[role]) return;
+    saving = true;
+    refreshMode();
+    try {
+      const response = await capture();
+      created.accession = response.accession;
+      rememberContractSignature(response.signature);
+      contractSigned = true;
+      clean = true;
+      applyModality();
+      say('Firma registrada correctamente.');
+    } catch (error) {
+      console.error(error);
+      if (signatureAlreadyCaptured(error)) {
+        try {
+          await recoverRecordedSignature();
+          return;
+        } catch (reloadError) {
+          console.error(reloadError);
+        }
+      }
+      say(error.message || 'No se pudo registrar la firma.', true);
+    } finally {
+      saving = false;
+      refreshMode();
+    }
   }
 
   form.elements.category.addEventListener('change', () => syncCollectionCategoryFields(form));
@@ -601,47 +699,14 @@ function bindCollectionIntake() {
       refreshMode();
     }
   };
-  document.querySelector('#intake-sign-party').onclick = async () => {
-    if (saving || !savedForSignature()) return;
-    saving = true;
-    refreshMode();
-    try {
-      const response = await partySignature.persist(record => collectionRecordSignature(
-        created.accession.id, created.accession.version, record.signer_role, record.capture_method, record.visual
-      ));
-      created.accession = response.accession;
-      contractSigned = true;
-      clean = true;
-      applyModality();
-      say('La firma del prestamista o donante quedó registrada. El ingreso sigue pendiente de la firma del Director y todavía no está formalizado. El contrato queda bloqueado hasta reabrirlo.');
-    } catch (error) {
-      console.error(error);
-      say(error.message || 'No se pudo registrar la firma.', true);
-    } finally {
-      saving = false;
-      refreshMode();
-    }
-  };
-  document.querySelector('#intake-sign-director').onclick = async () => {
-    if (saving || !directorSignature || !savedForSignature()) return;
-    saving = true;
-    refreshMode();
-    try {
-      const response = await directorSignature.persist(record => collectionRecordSignature(
-        created.accession.id, created.accession.version, 'director', record.capture_method, record.visual
-      ));
-      created.accession = response.accession;
-      contractSigned = true;
-      clean = true;
-      applyModality();
-      say('La firma del Director quedó registrada. El ingreso se formaliza solo cuando también existe la firma del prestamista o donante.');
-    } catch (error) {
-      console.error(error);
-      say(error.message || 'No se pudo registrar la firma del Director.', true);
-    } finally {
-      saving = false;
-      refreshMode();
-    }
+  document.querySelector('#intake-sign-party').onclick = () => recordContractRole(contractPartyRole(), () => partySignature.persist(record => collectionRecordSignature(
+    created.accession.id, created.accession.version, record.signer_role, record.capture_method, record.visual
+  )));
+  document.querySelector('#intake-sign-director').onclick = () => {
+    if (!directorSignature) return;
+    return recordContractRole('director', () => directorSignature.persist(record => collectionRecordSignature(
+      created.accession.id, created.accession.version, 'director', record.capture_method, record.visual
+    )));
   };
   document.querySelector('#intake-formalize').onclick = async () => {
     if (saving || !canWrite || !savedForSignature()) return;
