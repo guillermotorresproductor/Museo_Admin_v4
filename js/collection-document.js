@@ -61,10 +61,6 @@ function renderCollectionDocument(host, printed, events, signatures) {
   }
   const byId = new Map(signatures.map(signature => [signature.id, signature]));
   host.replaceChildren();
-  const pending = document.createElement('p');
-  pending.className = 'document-pending';
-  pending.textContent = 'PENDIENTE DE VALIDACIÓN. Esta es una plantilla estructural. No es el documento municipal definitivo: el repositorio no contiene el texto completo cotejado del formulario oficial.';
-  host.append(pending);
   host.append(sectionHeading('Museo de la Música de Puerto Rico', 'Documento de ingreso'));
   const identity = document.createElement('section');
   identity.className = 'document-section';
@@ -129,14 +125,12 @@ function renderCollectionDocument(host, printed, events, signatures) {
     : [['Referencias', 'Sin anejos en el snapshot']]));
   const terms = document.createElement('section');
   terms.className = 'document-section';
+  // El cotejo del formulario municipal completo sigue pendiente de forma interna y no se imprime.
   const termsTitle = document.createElement('h2');
   termsTitle.textContent = 'Términos oficiales';
-  const termsPending = document.createElement('p');
-  termsPending.className = 'document-pending';
-  termsPending.textContent = 'PENDIENTE DE VALIDACIÓN. Falta cotejar el texto completo del formulario municipal. No se añadieron cláusulas.';
   const acceptance = document.createElement('p');
   acceptance.textContent = source.acceptance || '';
-  terms.append(termsTitle, termsPending, acceptance);
+  terms.append(termsTitle, acceptance);
   host.append(terms);
   host.append(signatureSection('Firmas contractuales', snapshot.signatures || [], byId));
   const reception = events.find(event => event.action === 'pieza_recibida');

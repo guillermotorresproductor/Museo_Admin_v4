@@ -70,11 +70,18 @@ test('solo un préstamo recibido ofrece la devolución y la donación no', () =>
   assert.doesNotMatch(app, /documento-ingreso\.html": \(\) => canWriteCollections\(\)/);
 });
 
-test('el documento se imprime desde el snapshot, en carta, y deja el texto municipal pendiente', () => {
+test('el documento se imprime desde el snapshot, en carta, y sin la nota técnica', () => {
+  const technicalNote = 'El resto del texto del formulario municipal se validará contra el documento oficial antes de la impresión definitiva.';
   assert.match(documentPage, /collection-document\.js/);
   assert.match(documentScript, /collectionContractDocument/);
   assert.match(documentScript, /source\.acceptance/);
-  assert.match(documentScript, /PENDIENTE DE VALIDACIÓN/);
+  assert.equal(intake.includes(acceptance), true);
+  assert.equal(intake.includes(technicalNote), false);
+  assert.equal(documentScript.includes(technicalNote), false);
+  assert.equal(documentScript.includes('PENDIENTE DE VALIDACIÓN'), false);
+  assert.equal(documentScript.includes('plantilla estructural'), false);
+  assert.equal(read('supabase/migrations/202610050004_collection_return_print.sql').includes(technicalNote), false);
+  assert.equal(read('supabase/migrations/202610050003_collection_formalization.sql').includes(technicalNote), false);
   assert.match(documentScript, /No se sustituyó por otra firma/);
   assert.match(documentScript, /contract_hash/);
   assert.doesNotMatch(documentScript, /collection_items/);
