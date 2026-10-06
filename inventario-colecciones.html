@@ -9,8 +9,7 @@
 <div class="collection-toolbar"><label class="field" for="collection-search"><span>Buscar piezas</span><input id="collection-search" type="search" placeholder="Número, título, ubicación, donante o prestamista"></label>
 <label class="field" for="collection-modality-filter"><span>Tipo de alta</span><select id="collection-modality-filter"><option value="">Todas las piezas</option><option value="catalogacion_directa">Catalogación directa</option><option value="prestamo_temporal">Préstamo temporal</option><option value="donacion_permanente">Donación permanente</option><option value="registro_anterior">Registro anterior</option></select></label>
 <button class="button secondary" id="collection-reload">Actualizar listado</button><button class="button secondary" id="collection-print-list" type="button">IMPRIMIR LISTA</button><button class="button submit-button" id="collection-new" hidden>Nuevo artículo</button>
-<a class="button secondary" id="collection-intake" href="ingreso-articulo.html" hidden>Ingreso de artículo</a>
-<a class="button secondary" href="recibo-prestamo.html">Formulario de préstamo</a></div>
+<a class="button secondary" id="collection-intake" href="ingreso-articulo.html" hidden>Ingreso de artículo</a></div>
 <p id="collection-message" class="form-message" role="status" aria-live="polite">Cargando catálogo…</p>
 <p id="collection-draft" class="collection-draft" hidden>Se encontró un borrador sin guardar. <button class="button secondary" id="collection-draft-restore" type="button">Recuperar borrador</button> <button class="button secondary" id="collection-draft-discard" type="button">Descartar borrador</button></p><p id="collection-count"></p>
 <div class="table-wrap"><table class="data-table"><thead><tr><th>Número</th><th>Pieza</th><th>Clasificación</th><th>Alta</th><th>Ubicación</th><th>Conservación</th><th>Expediente</th></tr></thead><tbody id="collection-list"></tbody></table></div></section>
