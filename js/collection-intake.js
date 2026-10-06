@@ -74,6 +74,16 @@ function collectionIntakeAccession(form) {
   return accession;
 }
 
+async function collectionPhotoRoleRows(itemId) {
+  const rows = await collectionRequest(
+    `/rest/v1/collection_photo_roles?select=*&order=created_at.asc,photo_id.asc&limit=10&item_id=eq.${encodeURIComponent(itemId)}`,
+    undefined,
+    'GET'
+  );
+  if (!Array.isArray(rows)) throw Error('No se pudo confirmar la lectura de Colecciones.');
+  return rows;
+}
+
 function bindCollectionIntake() {
   const form = document.querySelector('#collection-intake-form');
   const canWrite = typeof canWriteCollections === 'function' && canWriteCollections();
@@ -221,7 +231,7 @@ function bindCollectionIntake() {
   }
   async function loadSavedRolePhotos(itemId) {
     const [roles, photos] = await Promise.all([
-      collectionRows('collection_photo_roles', `&item_id=eq.${itemId}`),
+      collectionPhotoRoleRows(itemId),
       collectionRows('collection_active_photos', `&item_id=eq.${itemId}`)
     ]);
     const paths = new Map(photos.map(photo => [photo.id, photo.path]));
@@ -418,7 +428,7 @@ function bindCollectionIntake() {
     for (const slot of slots) await collectionValidatePhoto(slot.file);
     partySignature.setAccession(accession.id);
     let version = piece;
-    const existingRoles = await collectionRows('collection_photo_roles', `&item_id=eq.${piece.id}`);
+    const existingRoles = await collectionPhotoRoleRows(piece.id);
     const existingPhotos = await collectionRows('collection_active_photos', `&item_id=eq.${piece.id}`);
     const paths = new Map(existingPhotos.map(photo => [photo.id, photo.path]));
     for (const slot of slots) {
