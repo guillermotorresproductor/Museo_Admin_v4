@@ -5018,8 +5018,13 @@ function bindFinanceModule() {
   const renderPanel = () => {
     renderSummary();
     if (activeTab !== "facturas" && typeof cancelFinanceDocuments === "function") cancelFinanceDocuments();
+    if (activeTab !== "cheques" && typeof cancelFinanceChecks === "function") cancelFinanceChecks();
     if (activeTab === "facturas") {
       renderFinanceDocuments();
+      return;
+    }
+    if (activeTab === "cheques") {
+      renderFinanceChecks({ canWrite: canWrite() });
       return;
     }
     if (activeTab === "resumen") panel.innerHTML = renderNetSummary();
