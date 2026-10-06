@@ -103,6 +103,7 @@ function bindCollectionIntake() {
   let clean = true;
   let contractSigned = false;
   let activeContractSignatures = {};
+  let receptionRecord = null;
   const photoPreviewUrls = {};
   const photoSlotState = {};
   form.noValidate = true;
@@ -356,6 +357,32 @@ function bindCollectionIntake() {
       note.append(label, document.createElement('br'), document.createTextNode(created.item.accession_number));
     }
     paintSignatureConfirmation();
+    paintReceptionConfirmation();
+  }
+  function paintReceptionConfirmation() {
+    const accession = created?.accession;
+    const done = Boolean(accession?.received_at);
+    const openDraft = !accession || ['borrador', 'pendiente_firmas'].includes(accession.status);
+    const state = document.querySelector('[data-reception-state]');
+    const button = document.querySelector('#intake-receive');
+    const capture = document.querySelector('[data-signature-reception]');
+    const receivedBy = document.querySelector('[data-received-by]');
+    const who = receptionRecord?.signer_name || '';
+    const when = formatSignatureWhen(accession?.received_at);
+    if (state) {
+      state.hidden = !done;
+      state.textContent = done ? ['Recepción certificada', accession.initial_location ? `Ubicación: ${accession.initial_location}` : '', who ? `Recibido por: ${who}` : '', when].filter(Boolean).join('. ') : '';
+    }
+    if (receivedBy && who) receivedBy.textContent = who;
+    if (button) {
+      button.hidden = done || !canWrite;
+      button.disabled = saving || !canWrite || accession?.status !== 'formalizado' || done;
+    }
+    if (capture) capture.hidden = done;
+    const save = document.querySelector('#intake-save');
+    const formalize = document.querySelector('#intake-formalize');
+    if (save) save.hidden = Boolean(accession) && !openDraft;
+    if (formalize) formalize.hidden = Boolean(accession) && !openDraft;
   }
   function contractPartyRole() {
     return form.elements.modality.value === 'donacion_permanente' ? 'donante' : 'propietario';
@@ -594,6 +621,29 @@ function bindCollectionIntake() {
     applyModality();
     await loadSavedRolePhotos(item.id);
   }
+  async function loadReceptionRecord() {
+    receptionRecord = null;
+    if (!created?.accession?.id || !created.accession.received_at) return;
+    const rows = await collectionRequest(`/rest/v1/collection_accession_signatures?select=signer_name,signed_at,status,signature_type,signer_role&accession_id=eq.${encodeURIComponent(created.accession.id)}&signature_type=eq.recepcion&status=eq.capturada&limit=1`, undefined, 'GET');
+    if (!Array.isArray(rows)) throw Error('No se pudo confirmar la lectura de Colecciones.');
+    receptionRecord = rows[0] ? {
+      signer_name: rows[0].signer_name,
+      signed_at: rows[0].signed_at,
+      status: rows[0].status,
+      signature_type: rows[0].signature_type,
+      signer_role: rows[0].signer_role
+    } : null;
+  }
+  function rememberReceptionSignature(signature) {
+    if (!signature || signature.signature_type !== 'recepcion') return;
+    receptionRecord = {
+      signer_name: signature.signer_name,
+      signed_at: signature.signed_at,
+      status: signature.status,
+      signature_type: signature.signature_type,
+      signer_role: signature.signer_role
+    };
+  }
   async function loadContractSigned() {
     activeContractSignatures = {};
     contractSigned = false;
@@ -792,7 +842,7 @@ function bindCollectionIntake() {
     }
   };
   document.querySelector('#intake-receive').onclick = async () => {
-    if (saving || !canWrite || created?.accession?.status !== 'formalizado') return;
+    if (saving || !canWrite || created?.accession?.status !== 'formalizado' || created?.accession?.received_at) return;
     const location = collectionFieldValue(form, 'initial_location');
     if (!location) { say('Indique la ubicación inicial de la pieza.', true); return; }
     saving = true;
@@ -803,10 +853,30 @@ function bindCollectionIntake() {
       ));
       created.accession = response.accession;
       created.item = response.item;
+      rememberReceptionSignature(response.signature);
       applyModality();
-      say('La pieza quedó recibida. Esta certificación es operativa y no es una tercera firma contractual.');
+      say('Recepción registrada correctamente.');
+      document.querySelector('[data-reception]')?.scrollIntoView({ block: 'center' });
     } catch (error) {
       console.error(error);
+      const message = String(error?.message || '');
+      const already = message.includes('RECEPTION_IMMUTABLE') || message.includes('RECEPTION_REQUIRES_FORMALIZATION') || message.includes('La recepción física se habilita después de formalizar.');
+      if (already && created?.accession?.id) {
+        try {
+          const rows = await collectionRows('collection_accessions', `&id=eq.${encodeURIComponent(created.accession.id)}`);
+          if (rows[0]?.received_at) {
+            created.accession = rows[0];
+            const items = await collectionRows('collection_items', `&id=eq.${encodeURIComponent(rows[0].collection_item_id)}`);
+            if (items[0]) created.item = items[0];
+            await loadReceptionRecord();
+            applyModality();
+            say('Esta recepción ya está registrada.');
+            return;
+          }
+        } catch (reloadError) {
+          console.error(reloadError);
+        }
+      }
       say(error.message || 'No se pudo certificar la recepción.', true);
     } finally {
       saving = false;
@@ -874,6 +944,7 @@ function bindCollectionIntake() {
       if (!items[0]) return;
       await fillExisting(accession, items[0]);
       await loadContractSigned();
+      await loadReceptionRecord();
       refreshMode();
       if (!settlePendingNotice()) say('Carga pendiente. Puede reintentar sin crear otra pieza.');
     }).catch(error => {

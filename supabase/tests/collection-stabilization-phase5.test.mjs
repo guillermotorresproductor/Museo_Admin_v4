@@ -55,6 +55,17 @@ test('la numeración sigue atómica, sin huecos y sin reinicio anual', () => {
   assert.match(numbering, /revoke all on function public\.collection_allocate_inventory_number\(\) from public, anon, authenticated/);
 });
 
+test('la recepción recibida se muestra en solo lectura y no ofrece repetirla', () => {
+  const page = read('ingreso-articulo.html');
+  assert.match(intake, /Recepción registrada correctamente/);
+  assert.match(intake, /Esta recepción ya está registrada/);
+  assert.match(intake, /Recepción certificada/);
+  assert.match(intake, /signature_type=eq\.recepcion/);
+  assert.match(intake, /created\?\.accession\?\.received_at/);
+  assert.match(page, /data-reception-state/);
+  assert.doesNotMatch(intake, /6b9da695-fb31-45db-a3af-ed8a9ddda18a/);
+});
+
 test('la confirmación de firma se reconstruye desde el servidor y no relanza el registro', () => {
   const page = read('ingreso-articulo.html');
   assert.match(intake, /Firma registrada correctamente/);

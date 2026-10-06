@@ -207,6 +207,7 @@
             <label class="field" for="intake-reception-notes"><span>Observaciones de recepción</span><textarea id="intake-reception-notes" name="reception_notes" rows="3" maxlength="10000"></textarea></label>
             <p id="intake-reception-terms">Certifico que la información contenida en este formulario es correcta y que la pieza fue recibida conforme a las condiciones descritas.</p>
             <div data-signature-reception data-signer-role="receptor"></div>
+            <p data-reception-state hidden role="status"></p>
             <button class="button" id="intake-receive" type="button">Certificar recepción</button>
           </fieldset>
           <label class="field" for="intake-reason"><span>Motivo del registro *</span><textarea id="intake-reason" name="reason" required minlength="3" maxlength="2000" rows="2"></textarea></label>
@@ -229,7 +230,7 @@
   <script src="js/services/collections.js?v=collections-20261006-signature-confirm"></script>
   <script src="js/collections.js?v=collections-20261006-item-status"></script>
   <script src="js/signature-capture.js?v=collections-20261005-phase4"></script>
-  <script src="js/collection-intake.js?v=collections-20261006-signature-confirm"></script>
+  <script src="js/collection-intake.js?v=collections-20261006-reception-confirm"></script>
   <script src="js/app.js?v=collections-20261005-phase4"></script>
 </body>
 </html>
