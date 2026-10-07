@@ -107,7 +107,6 @@ const moduleShortcutGroups = [
       { href: "direccion-ejecutiva.html", label: "Dirección Ejecutiva", icon: "briefcase" },
       { href: "recursos-humanos.html", label: "Recursos Humanos", icon: "users" },
       { href: "notificaciones.html", label: "Notificaciones", icon: "bell" },
-      { href: "reportes.html", label: "Nómina", icon: "chart" },
       { href: "finanzas.html", label: "Finanzas", icon: "dollar" }
     ]
   }
