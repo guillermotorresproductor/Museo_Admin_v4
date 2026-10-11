@@ -103,6 +103,8 @@ test('Mobile camera and gallery are available on new and existing equipment phot
   assert.match(html, /id="inventory-photo-camera"[^>]*capture="environment"/);
   assert.match(html, /data-inventory-attach-photo/);
   assert.match(html, /data-inventory-attach-camera/);
+  assert.match(html, /data-inventory-list-message/);
+  assert.match(app, /setListMessage\("Fotografía del equipo añadida correctamente\.", "success"\)/);
   assert.match(app, /data-inventory-add-photo/);
   assert.match(app, /data-inventory-take-photo/);
   assert.match(app, /const canAttachInventoryPhoto = \(\) => canEditInventory\(\) \|\| hasPermission\("inventory\.photo\.attach"\)/);
