@@ -114,7 +114,7 @@ test('Mobile camera and gallery are available on new and existing equipment phot
 
 test('Photo attachments use their own explicit, denyable permission', () => {
   assert.match(migration, /'inventory\.photo\.attach', 'Adjuntar primera fotografía/);
-  assert.match(migration, /if requested_permission=''inventory\.photo\.attach'' then return true;/);
+  assert.ok(migration.includes("requested_permission='inventory.photo.attach' and public.has_permission('modules.inventory.read')"));
   assert.match(migration, /inventory\.photo\.attach/);
   assert.doesNotMatch(migration, /\b(create|drop)\s+(table|schema)\s+.*collection_items/i);
 });
