@@ -51,6 +51,57 @@ begin
    select array_agg('modules.'||m||'.read' order by 'modules.'||m||'.read') into expected from unnest(chosen.modules) m;
    if actual is distinct from expected then raise exception 'Module mismatch % %: % versus %',chosen.code,base,actual,expected; end if;
    if public.has_permission('module_profiles.active') is not true then raise exception 'Profile marker missing'; end if;
+   -- Marketing receives equipment CREATE, never full inventory administration.
+   if base='empleado' then
+     if public.has_permission('inventory.create') is distinct from (chosen.code='contenido_marketing') then
+       raise exception 'Marketing equipment create grant mismatch for %', chosen.code;
+     end if;
+     if chosen.code='contenido_marketing' then
+       if public.has_permission('collections.read') or public.has_permission('collections.write') then
+         raise exception 'Marketing gained museographic collections access';
+       end if;
+       if public.has_permission('inventory.manage') then
+         raise exception 'Marketing gained equipment edit/archive management';
+       end if;
+       -- The real security-definer create RPC must accept the narrow new permission.
+       -- This fixture and all its audit events are rolled back.
+       declare
+         new_item public.inventory_items;
+         update_denied boolean := false;
+         archive_denied boolean := false;
+       begin
+         new_item := public.inventory_create(jsonb_build_object(
+           'asset_tag','TEST-MARKETING-ROLLBACK-' || substring(target::text,1,8),
+           'name','Marketing test equipment',
+           'category','Equipo',
+           'condition','buena',
+           'location','Prueba',
+           'status','activo',
+           'record_type','individual',
+           'quantity',1
+         ));
+         if new_item.created_by <> target or new_item.museum_id <> public.current_user_museum_id() then
+           raise exception 'Marketing inventory create wrong owner/museum';
+         end if;
+         begin
+           perform public.inventory_update(new_item.id,new_item.version,
+             jsonb_build_object('asset_tag',new_item.asset_tag,
+                                'name','INVALID UPDATE','category','Equipo',
+                                'condition','buena','location','Prueba',
+                                'status','activo'));
+         exception when insufficient_privilege then
+           update_denied := true;
+         end;
+         if not update_denied then raise exception 'Marketing could edit equipment'; end if;
+         begin
+           perform public.inventory_archive(new_item.id,new_item.version);
+         exception when insufficient_privilege then
+           archive_denied := true;
+         end;
+         if not archive_denied then raise exception 'Marketing could archive equipment'; end if;
+       end;
+     end if;
+   end if;
    if base='empleado' then
     foreach forbidden in array array['roles.assign','users.invite','employees.deactivate','inventory.manage','calendar.manage','usher.schedule.manage','collections.write','memberships.manage','rentals.manage','finance.write','system.configure'] loop
       if chosen.code='gerente_museografica' and forbidden='collections.write' then
