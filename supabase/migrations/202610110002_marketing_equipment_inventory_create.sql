@@ -127,7 +127,8 @@ using (
   )
 );
 
--- After initial upload, update a never-photographed item for an inventory viewer.
+-- After initial upload, attach a missing photo uploaded by the current user.
+-- No viewer can replace a file or associate a file created by another user.
 -- Administrators with inventory.manage retain their existing rights.
 do $marketing_inventory_photo_rpc$
 declare
@@ -138,6 +139,9 @@ declare
     'not (public.has_permission(''inventory.manage'') or '
     || '(public.has_permission(''modules.inventory.read'') and exists ('
     || 'select 1 from public.inventory_items i '
+    || 'join storage.objects s on s.bucket_id = ''inventory-photos'' '
+    || 'and s.name = i.museum_id::text || ''/'' || i.id::text || ''/main.webp'' '
+    || 'and s.owner_id = auth.uid()::text '
     || 'where i.id = p_id and i.museum_id = v_museum_id '
     || 'and i.photo_path is null and i.archived_at is null)))';
 begin
