@@ -117,6 +117,25 @@ begin
    if visible<>expected_visible then raise exception 'Calendar type boundary mismatch % %',chosen.code,base; end if;
    if (select count(*) from public.inventory_items where asset_tag='TEST-MODULE-ROLLBACK')<>
       (case when 'inventory'=any(chosen.modules) then 1 else 0 end) then raise exception 'Inventory RLS mismatch'; end if;
+   -- A user who may view Inventario can add its first photograph, including
+   -- users whose profile is read-only. This does not confer editing privileges.
+   if 'inventory'=any(chosen.modules) then
+     declare photo_item uuid; museum_photo uuid; valid_path text;
+     begin
+       select id, museum_id into photo_item, museum_photo
+       from public.inventory_items where asset_tag='TEST-MODULE-ROLLBACK';
+       valid_path := museum_photo::text || '/' || photo_item::text || '/main.webp';
+       if not public.can_create_inventory_photo(valid_path) then
+         raise exception 'Inventory viewer cannot attach missing photo for %',chosen.code;
+       end if;
+       if public.can_create_inventory_photo('00000000-0000-4000-8000-000000000000/' || photo_item::text || '/main.webp') then
+         raise exception 'Inventory photo cross-museum path accepted';
+       end if;
+       if public.can_create_inventory_photo(museum_photo::text || '/' || photo_item::text || '/other.webp') then
+         raise exception 'Inventory photo invalid filename accepted';
+       end if;
+     end;
+   end if;
    if (select count(*) from public.maintenance_tasks where task='TEST MODULE ROLLBACK')<>
       (case when 'maintenance'=any(chosen.modules) then 1 else 0 end) then raise exception 'Maintenance RLS mismatch'; end if;
    if base='empleado' then
