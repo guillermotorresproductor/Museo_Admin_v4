@@ -195,3 +195,16 @@ test('Permission migration matches the exact verified Staging and Production res
   assert.match(migration, /replace\(\s*source_sql,\s*anchor_sql,/);
   assert.match(migration, /replace\(\s*updated_sql,\s*pre_boundary_anchor,/);
 });
+
+
+test('Follow-up migration accepts both exact Production and Staging resolver anchors', () => {
+  const compact = "target_module:=public.permission_module(requested_permission);";
+  const spaced = "target_module := public.permission_module(requested_permission);";
+  assert.ok(manageFix.includes(compact));
+  assert.ok(manageFix.includes(spaced));
+  assert.match(manageFix, /position\('target_module:=public\.permission_module\(requested_permission\);' in current_def\) = 0/);
+  assert.match(manageFix, /position\('target_module := public\.permission_module\(requested_permission\);' in current_def\) = 0/);
+  assert.match(manageFix, /\band position\('target_module := public\.permission_module\(requested_permission\);' in current_def\) = 0/);
+  assert.match(manageFix, /raise exception 'MARKETING_INVENTORY_RESOLVER_UNEXPECTED'/);
+  assert.match(manageFix, /next_def := replace\(current_def, old_branch, new_branch\)/);
+});
