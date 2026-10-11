@@ -29,15 +29,30 @@ do $marketing_inventory_permission$
 declare
   source_sql text;
   updated_sql text;
-  anchor_sql constant text := 'if requested_permission=''modules.''||target_module||''.read''';
-  pre_boundary_anchor constant text := 'target_module:=public.permission_module(requested_permission);';
+  anchor_sql text;
+  pre_boundary_anchor text;
 begin
   source_sql := pg_get_functiondef('public.has_permission(text)'::regprocedure);
   if position('marketing_equipment_create_v1' in source_sql) > 0 then
     return;
   end if;
-  if position(anchor_sql in source_sql) = 0
-     or position(pre_boundary_anchor in source_sql) = 0 then
+  -- Support only the two exact resolver formats validated in Staging
+  -- (compact) and Production (spaced); fail closed on any other definition.
+  anchor_sql := case
+    when position('if requested_permission=''modules.''||target_module||''.read''' in source_sql) > 0
+      then 'if requested_permission=''modules.''||target_module||''.read'''
+    when position('if requested_permission = ''modules.'' || target_module || ''.read''' in source_sql) > 0
+      then 'if requested_permission = ''modules.'' || target_module || ''.read'''
+    else null
+  end;
+  pre_boundary_anchor := case
+    when position('target_module:=public.permission_module(requested_permission);' in source_sql) > 0
+      then 'target_module:=public.permission_module(requested_permission);'
+    when position('target_module := public.permission_module(requested_permission);' in source_sql) > 0
+      then 'target_module := public.permission_module(requested_permission);'
+    else null
+  end;
+  if anchor_sql is null or pre_boundary_anchor is null then
     raise exception 'INVENTORY_MARKETING_PERMISSION_RESOLVER_CHANGED' using errcode = '55000';
   end if;
   updated_sql := replace(
