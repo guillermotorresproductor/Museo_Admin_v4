@@ -8,6 +8,7 @@ on:
       - 'js/app.js'
       - 'js/services/supabase.js'
       - 'supabase/migrations/202610110002_marketing_equipment_inventory_create.sql'
+      - 'supabase/migrations/202610110003_marketing_inventory_explicit_manage_allow.sql'
       - 'supabase/tests/employee-module-profiles.sql'
       - 'supabase/tests/employee-module-profiles.test.mjs'
       - 'supabase/tests/marketing-equipment-inventory-access.test.mjs'
