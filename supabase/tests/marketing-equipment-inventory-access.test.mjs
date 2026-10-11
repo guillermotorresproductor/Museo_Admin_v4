@@ -37,7 +37,7 @@ test('The UI permits adding but does not give Marketing edit/archive access', ()
 });
 test('Any inventory viewer can attach a missing photo in their own museum', () => {
   assert.match(migration, /create or replace function public\.can_create_inventory_photo/);
-  assert.match(migration, /public\.has_permission\('modules\.inventory\.read'\)/);
+  assert.match(migration, /public\.has_permission\('inventory\.photo\.attach'\)/);
   assert.match(migration, /i\.museum_id = public\.current_user_museum_id\(\)/);
   assert.match(migration, /i\.photo_path is null/);
   assert.match(migration, /s\.owner_id = auth\.uid\(\)::text/);
@@ -105,7 +105,14 @@ test('Mobile camera and gallery are available on new and existing equipment phot
   assert.match(html, /data-inventory-attach-camera/);
   assert.match(app, /data-inventory-add-photo/);
   assert.match(app, /data-inventory-take-photo/);
-  assert.match(app, /const canAttachInventoryPhoto = \(\) => canEditInventory\(\) \|\| hasPermission\("modules\.inventory\.read"\)/);
+  assert.match(app, /const canAttachInventoryPhoto = \(\) => canEditInventory\(\) \|\| hasPermission\("inventory\.photo\.attach"\)/);
   assert.match(app, /InventoryImage\.process\(file\)/);
   assert.match(app, /uploadSupabaseInventoryPhoto\(record, processed\.blob\)/);
+});
+
+test('Photo attachments use their own explicit, denyable permission', () => {
+  assert.match(migration, /'inventory\.photo\.attach', 'Adjuntar primera fotografía/);
+  assert.match(migration, /if requested_permission=''inventory\.photo\.attach'' then return true;/);
+  assert.match(migration, /inventory\.photo\.attach/);
+  assert.doesNotMatch(migration, /\b(create|drop)\s+(table|schema)\s+.*collection_items/i);
 });
