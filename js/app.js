@@ -2838,8 +2838,6 @@ function bindInventoryModule() {
   const versionField = document.querySelector("#inventory-version");
   const photoInput = document.querySelector("#inventory-photo");
   const cameraInput = document.querySelector("#inventory-photo-camera");
-  const photoAttachInput = document.querySelector("[data-inventory-attach-photo]");
-  const cameraAttachInput = document.querySelector("[data-inventory-attach-camera]");
   const recordTypeInput = document.querySelector("#inventory-record-type");
   const quantityInput = document.querySelector("#inventory-quantity");
   const photoPreview = document.querySelector("[data-inventory-photo-preview]");
@@ -2849,7 +2847,6 @@ function bindInventoryModule() {
   let processedPhoto = null;
   let photoProcessing = null;
   let photoError = null;
-  let pendingPhotoRecord = null;
   let previewObjectUrl = "";
   let sortKey = "updated_at";
   let sortDirection = "desc";
@@ -2944,7 +2941,7 @@ function bindInventoryModule() {
           <div class="table-actions">
             <button type="button" data-inventory-view="${record.id}">Ver</button>
             ${canEditInventory() && !record.archived_at ? `<button type="button" data-inventory-edit="${record.id}">Editar</button><button type="button" data-inventory-archive="${record.id}">Archivar</button>` : ""}
-            ${canAttachInventoryPhoto() && !record.archived_at && !record.photo_path ? `<button type="button" data-inventory-add-photo="${record.id}">Subir foto</button><button type="button" data-inventory-take-photo="${record.id}">Cámara</button>` : ""}
+            ${canAttachInventoryPhoto() && !record.archived_at && !record.photo_path ? `<label class="inventory-file-action"><span>Galería</span><input type="file" accept="image/*,.heic,.heif" data-inventory-add-photo="${escapeHtml(record.id)}" aria-label="Seleccionar foto de ${escapeHtml(record.name)} desde la galería"></label><label class="inventory-file-action"><span>Cámara</span><input type="file" accept="image/*,.heic,.heif" capture="environment" data-inventory-take-photo="${escapeHtml(record.id)}" aria-label="Tomar foto de ${escapeHtml(record.name)} con la cámara"></label>` : ""}
           </div>
         </td>
       </tr>
@@ -3045,22 +3042,6 @@ function bindInventoryModule() {
     const viewButton = event.target.closest("[data-inventory-view]");
     const archiveButton = event.target.closest("[data-inventory-archive]");
     const sortButton = event.target.closest("[data-inventory-sort]");
-    const addPhotoButton = event.target.closest("[data-inventory-add-photo]");
-    const takePhotoButton = event.target.closest("[data-inventory-take-photo]");
-
-    if (addPhotoButton || takePhotoButton) {
-      const recordId = (addPhotoButton || takePhotoButton).dataset.inventoryAddPhoto
-        || (addPhotoButton || takePhotoButton).dataset.inventoryTakePhoto;
-      const record = records.find(item => item.id === recordId);
-      if (!canAttachInventoryPhoto() || !record || record.archived_at || record.photo_path) return;
-      const input = takePhotoButton ? cameraAttachInput : photoAttachInput;
-      if (!input) return;
-      pendingPhotoRecord = record;
-      input.value = "";
-      input.click();
-      return;
-    }
-
     if (editButton) {
       if (!canEditInventory()) return;
       const record = records.find((item) => item.id === editButton.dataset.inventoryEdit);
@@ -3162,8 +3143,8 @@ function bindInventoryModule() {
   cameraInput?.addEventListener("change", () => processFormPhoto(cameraInput.files?.[0], cameraInput));
 
   const attachExistingPhoto = async (input) => {
-    const record = pendingPhotoRecord;
-    pendingPhotoRecord = null;
+    const recordId = input?.dataset.inventoryAddPhoto || input?.dataset.inventoryTakePhoto;
+    const record = records.find((item) => item.id === recordId);
     const file = input?.files?.[0];
     if (!file || !record || !canAttachInventoryPhoto() || record.photo_path || record.archived_at) return;
     input.disabled = true;
@@ -3180,8 +3161,12 @@ function bindInventoryModule() {
       input.disabled = false;
     }
   };
-  photoAttachInput?.addEventListener("change", () => attachExistingPhoto(photoAttachInput));
-  cameraAttachInput?.addEventListener("change", () => attachExistingPhoto(cameraAttachInput));
+  list?.addEventListener("change", (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    if (!input.matches("[data-inventory-add-photo], [data-inventory-take-photo]")) return;
+    attachExistingPhoto(input);
+  });
 
   if (!canCreateInventory() && entryPanel) {
     entryPanel.hidden = true;

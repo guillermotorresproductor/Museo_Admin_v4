@@ -44,6 +44,8 @@ begin
     source_sql,
     anchor_sql,
     '-- marketing_equipment_create_v1: runs after explicit denies and the module boundary.'
+      || E'\n -- A higher technical role must not grant edit/archive. An earlier explicit allow still returns first.'
+      || E'\n if chosen=''contenido_marketing'' and requested_permission=''inventory.manage'' then return false; end if;'
       || E'\n if chosen=''contenido_marketing'' and requested_permission=''inventory.create'' then return true; end if;'
       || E'\n ' || anchor_sql
   );
@@ -82,6 +84,26 @@ begin
 end
 $marketing_inventory_rpc$;
 
+-- Canonical object only: {museum}/{equipment}/main.webp. No extra folders.
+create or replace function public.can_manage_inventory_photo(object_name text)
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select
+    auth.uid() is not null
+    and public.current_user_museum_id() is not null
+    and public.has_permission('inventory.manage')
+    and cardinality(storage.foldername(object_name)) = 2
+    and (storage.foldername(object_name))[1] = public.current_user_museum_id()::text
+    and storage.filename(object_name) = 'main.webp'
+    and exists (
+      select 1 from public.inventory_items i
+      where i.museum_id = public.current_user_museum_id()
+        and i.id::text = (storage.foldername(object_name))[2]
+        and i.archived_at is null
+    );
+$$;
+
 -- Any user with inventory module read access may attach a MISSING equipment photo,
 -- including on records created by colleagues in the same museum.
 -- Replacing attached photos requires inventory.manage as before.
@@ -92,6 +114,7 @@ as $$
   select
     auth.uid() is not null
     and public.has_permission('inventory.photo.attach')
+    and cardinality(storage.foldername(object_name)) = 2
     and (storage.foldername(object_name))[1] = public.current_user_museum_id()::text
     and storage.filename(object_name) = 'main.webp'
     and exists (
@@ -130,10 +153,7 @@ alter policy inventory_photos_manage_delete on storage.objects
 using (
   bucket_id = 'inventory-photos'
   and (
-    (
-      public.has_permission('inventory.manage')
-      and (storage.foldername(name))[1] = public.current_user_museum_id()::text
-    )
+    public.can_manage_inventory_photo(name)
     or (public.can_create_inventory_photo(name) and owner_id = auth.uid()::text)
   )
 );
@@ -157,11 +177,15 @@ declare
     || 'and i.photo_path is null and i.archived_at is null)))';
 begin
   source_sql := pg_get_functiondef('public.inventory_set_photo(uuid,bigint)'::regprocedure);
-  if position('inventory.create' in source_sql) = 0 then
+  if position('inventory.photo.attach' in source_sql) = 0 then
     if position(old_guard in source_sql) = 0 then
       raise exception 'INVENTORY_PHOTO_RPC_GUARD_CHANGED' using errcode = '55000';
     end if;
     updated_sql := replace(source_sql, old_guard, new_guard);
+    if position('inventory.photo.attach' in updated_sql) = 0
+       or position(old_guard in updated_sql) > 0 then
+      raise exception 'INVENTORY_PHOTO_RPC_PATCH_FAILED' using errcode = '55000';
+    end if;
     execute updated_sql;
   end if;
 end

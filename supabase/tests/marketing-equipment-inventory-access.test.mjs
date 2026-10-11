@@ -97,24 +97,67 @@ test('An unsuccessful attachment requests cleanup only for the new unattached ph
   assert.deepEqual(deleted,['museum-2/asset-2/main.webp']);
 });
 
-test('Mobile camera and gallery are available on new and existing equipment photos', () => {
+test('Mobile camera and gallery are direct controls on new and existing equipment', () => {
   const html = fs.readFileSync(new URL('inventario.html', root), 'utf8');
-  assert.match(html, /id="inventory-photo"[^>]*accept="image\/\*/);
-  assert.match(html, /id="inventory-photo-camera"[^>]*capture="environment"/);
-  assert.match(html, /data-inventory-attach-photo/);
-  assert.match(html, /data-inventory-attach-camera/);
+  const css = fs.readFileSync(new URL('css/main.css', root), 'utf8');
+  const start = app.indexOf('function bindInventoryModule()');
+  const end = app.indexOf('\nfunction bindCalendarModules(', start);
+  const inventory = app.slice(start, end);
+  assert.match(html, /<label class="field" for="inventory-photo">[\s\S]*id="inventory-photo"[^>]*accept="image\/\*,\.heic,\.heif"/);
+  assert.match(html, /<label class="field" for="inventory-photo-camera">[\s\S]*id="inventory-photo-camera"[^>]*accept="image\/\*,\.heic,\.heif"[^>]*capture="environment"/);
+  assert.doesNotMatch(html, /data-inventory-attach-photo|data-inventory-attach-camera|type="file"[^>]*\shidden/);
   assert.match(html, /data-inventory-list-message/);
-  assert.match(app, /setListMessage\("Fotografía del equipo añadida correctamente\.", "success"\)/);
-  assert.match(app, /data-inventory-add-photo/);
-  assert.match(app, /data-inventory-take-photo/);
-  assert.match(app, /const canAttachInventoryPhoto = \(\) => canEditInventory\(\) \|\| hasPermission\("inventory\.photo\.attach"\)/);
-  assert.match(app, /InventoryImage\.process\(file\)/);
-  assert.match(app, /uploadSupabaseInventoryPhoto\(record, processed\.blob\)/);
+  assert.match(inventory, /class="inventory-file-action"/);
+  assert.match(inventory, /data-inventory-add-photo=/);
+  assert.match(inventory, /accept="image\/\*,\.heic,\.heif"/);
+  assert.match(inventory, /capture="environment"/);
+  assert.match(inventory, /data-inventory-take-photo=/);
+  assert.match(inventory, /list\?\.addEventListener\("change"/);
+  assert.doesNotMatch(inventory, /\.click\(|pendingPhotoRecord|type="file"[^>]*hidden/);
+  const ruleStart = css.indexOf('.inventory-file-action input[type="file"]');
+  const ruleEnd = css.indexOf('.inventory-file-action:hover', ruleStart);
+  const fileRule = css.slice(ruleStart, ruleEnd);
+  assert.match(fileRule, /opacity:\s*0/);
+  assert.match(fileRule, /position:\s*absolute/);
+  assert.doesNotMatch(fileRule, /display:\s*none|visibility:\s*hidden/);
+  assert.match(inventory, /setListMessage\("Fotografía del equipo añadida correctamente\.", "success"\)/);
+  assert.match(inventory, /const canAttachInventoryPhoto = \(\) => canEditInventory\(\) \|\| hasPermission\("inventory\.photo\.attach"\)/);
+  assert.match(inventory, /const canEditInventory = \(\) => hasPermission\("inventory\.manage"\)/);
+  assert.match(inventory, /const canCreateInventory = \(\) => canEditInventory\(\) \|\| hasPermission\("inventory\.create"\)/);
+  assert.match(inventory, /InventoryImage\.process\(file\)/);
+  assert.match(inventory, /uploadSupabaseInventoryPhoto\(record, processed\.blob\)/);
 });
 
 test('Photo attachments use their own explicit, denyable permission', () => {
   assert.match(migration, /'inventory\.photo\.attach', 'Adjuntar primera fotografía/);
   assert.ok(migration.includes("requested_permission=''inventory.photo.attach'' and public.has_permission(''modules.inventory.read'')"));
-  assert.match(migration, /inventory\.photo\.attach/);
+  assert.match(migration, /chosen=''contenido_marketing'' and requested_permission=''inventory\.manage'' then return false/);
+  assert.match(migration, /cardinality\(storage\.foldername\(object_name\)\) = 2/);
+  assert.match(migration, /public\.can_manage_inventory_photo\(name\)/);
+  const photoRpc = migration.slice(migration.indexOf('$marketing_inventory_photo_rpc$'));
+  assert.match(photoRpc, /position\('inventory\.photo\.attach' in source_sql\) = 0/);
+  assert.doesNotMatch(photoRpc, /inventory\.create/);
   assert.doesNotMatch(migration, /\b(create|drop)\s+(table|schema)\s+.*collection_items/i);
+});
+
+test('Staging SQL covers deny, ownership, museum isolation and separate capabilities', () => {
+  const sql = fs.readFileSync(new URL('supabase/tests/employee-module-profiles.sql', root), 'utf8');
+  for (const expectation of [
+    'Marketing inherited equipment management from technical role',
+    'Marketing could edit equipment',
+    'Marketing could archive equipment',
+    'Equipment create grant mismatch',
+    'Inventory photo nested path accepted',
+    'Inventory photo cross-museum path accepted',
+    'Profile without inventory read can attach photos',
+    'Explicit inventory photo denial ignored',
+    'Explicit inventory create denial ignored',
+    'Foreign equipment photo owner accepted',
+    'Cross-museum equipment photo association accepted',
+    'Replacement without manage accepted',
+    'Explicit inventory manage allow ignored',
+    'Marketing kept manage after explicit allow was removed'
+  ]) {
+    assert.ok(sql.includes(expectation), expectation);
+  }
 });
