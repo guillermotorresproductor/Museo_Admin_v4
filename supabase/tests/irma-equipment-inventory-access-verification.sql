@@ -5,6 +5,7 @@ with target as (
          e.position, e.access_profile, e.access_level, e.status
   from public.employees e
   where e.museum_id = 'a1f597f7-44a2-44b2-9214-93364c2a12ff'::uuid
+    and lower(btrim(e.email)) = 'irodriguez@museodelamusicadepr.com'
     and lower(btrim(e.first_name)) = 'irma'
     and lower(btrim(e.last_name)) in ('rodríguez','rodriguez')
 ), grants as (
