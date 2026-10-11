@@ -96,12 +96,10 @@ grant execute on function public.can_create_inventory_photo(text) to authenticat
 
 do $marketing_inventory_photo_policy$
 begin
-  if not exists (
-    select 1 from pg_policies
-    where schemaname = 'storage' and tablename = 'objects'
-      and policyname = 'inventory_photos_manage_insert'
-  ) then
-    raise exception 'INVENTORY_PHOTO_INSERT_POLICY_MISSING' using errcode = '55000';
+  if (select count(*) from pg_policies
+      where schemaname = 'storage' and tablename = 'objects'
+        and policyname in ('inventory_photos_manage_insert', 'inventory_photos_manage_delete')) <> 2 then
+    raise exception 'INVENTORY_PHOTO_POLICIES_MISSING' using errcode = '55000';
   end if;
 end
 $marketing_inventory_photo_policy$;
@@ -110,6 +108,22 @@ with check (
   bucket_id = 'inventory-photos'
   and (
     public.can_manage_inventory_photo(name)
+    or public.can_create_inventory_photo(name)
+  )
+);
+
+-- A failed photo-attachment RPC must not leave an orphaned file. Permit the
+-- creator to clean up ONLY the not-yet-attached original image for their own
+-- active item in their current museum. Delete of attached photos remains
+-- limited to the existing inventory.manage permission.
+alter policy inventory_photos_manage_delete on storage.objects
+using (
+  bucket_id = 'inventory-photos'
+  and (
+    (
+      public.has_permission('inventory.manage')
+      and (storage.foldername(name))[1] = public.current_user_museum_id()::text
+    )
     or public.can_create_inventory_photo(name)
   )
 );
