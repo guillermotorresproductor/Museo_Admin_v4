@@ -48,8 +48,10 @@ test('New item photo insertion only for creator and initial photo', () => {
 
 test('A new photo needs INSERT only; a replacement still requests upsert', async () => {
   // Execute only the equipment-photo upload helpers, with a fake network.
-  const section = service.match(/function inventoryPhotoPath\\(item\\) \\{[\\s\\S]*?(?=\\nasync function deleteSupabaseInventoryPhoto)/);
-  assert.ok(section, 'Equipment photo upload helpers found');
+  const start = service.indexOf('function inventoryPhotoPath(item) {');
+  const end = service.indexOf('\nasync function deleteSupabaseInventoryPhoto', start);
+  assert.ok(start >= 0 && end > start, 'Equipment photo upload helpers found');
+  const section = service.slice(start, end);
   const requests = [];
   const calls = [];
   const ctx = vm.createContext({
@@ -64,7 +66,7 @@ test('A new photo needs INSERT only; a replacement still requests upsert', async
     inventoryServiceError: () => new Error('Storage error'),
     deleteSupabaseInventoryPhoto: async () => {},
   });
-  vm.runInContext(section[0], ctx);
+  vm.runInContext(section, ctx);
   const item = {id:'asset-1', museum_id:'museum-1',version:1,photo_path:null};
   await ctx.uploadSupabaseInventoryPhoto(item, 'webp-data');
   assert.equal(requests[0].opts.headers['x-upsert'],undefined,'Initial upload should NOT require UPDATE');
@@ -75,8 +77,10 @@ test('A new photo needs INSERT only; a replacement still requests upsert', async
 });
 
 test('An unsuccessful attachment requests cleanup only for the new unattached photo', async () => {
-  const section = service.match(/function inventoryPhotoPath\\(item\\) \\{[\\s\\S]*?(?=\\nasync function deleteSupabaseInventoryPhoto)/);
-  assert.ok(section);
+  const start = service.indexOf('function inventoryPhotoPath(item) {');
+  const end = service.indexOf('\nasync function deleteSupabaseInventoryPhoto', start);
+  assert.ok(start >= 0 && end > start, 'Equipment photo upload helpers found');
+  const section = service.slice(start, end);
   const deleted = [];
   const ctx = vm.createContext({
     supabaseUrl:'https://example.invalid',supabaseInventoryPhotosBucket:'inventory-photos',
@@ -86,7 +90,7 @@ test('An unsuccessful attachment requests cleanup only for the new unattached ph
     inventoryServiceError:() => new Error('upload error'),
     deleteSupabaseInventoryPhoto:async path => {deleted.push(path);},
   });
-  vm.runInContext(section[0],ctx);
+  vm.runInContext(section,ctx);
   await assert.rejects(ctx.uploadSupabaseInventoryPhoto({id:'asset-2',museum_id:'museum-2',version:1,photo_path:null},'webp'),/photo RPC fails/);
   assert.deepEqual(deleted,['museum-2/asset-2/main.webp']);
 });
