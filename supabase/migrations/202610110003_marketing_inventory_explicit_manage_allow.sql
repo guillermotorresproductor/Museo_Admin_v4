@@ -34,7 +34,10 @@ begin
 
   if position('marketing_equipment_create_v1' in current_def) = 0
      or position(old_branch in current_def) = 0
-     or position('target_module:=public.permission_module(requested_permission);' in current_def) = 0 then
+     or (
+       position('target_module:=public.permission_module(requested_permission);' in current_def) = 0
+       and position('target_module := public.permission_module(requested_permission);' in current_def) = 0
+     ) then
     raise exception 'MARKETING_INVENTORY_RESOLVER_UNEXPECTED'
       using errcode = '55000';
   end if;
