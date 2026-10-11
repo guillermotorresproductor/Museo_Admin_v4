@@ -556,13 +556,16 @@ function inventoryPhotoPath(item) {
 
 async function uploadSupabaseInventoryPhoto(item, webpBlob) {
   const path = inventoryPhotoPath(item);
+  // New photos need INSERT only; replacement of an attached photo requires UPDATE.
+  // Keeping these separate lets Marketing register equipment without manage rights.
+  const headers = {
+    ...(await supabaseAuthHeaders()),
+    "Content-Type": "image/webp"
+  };
+  if (item.photo_path) headers["x-upsert"] = "true";
   const response = await fetch(`${supabaseUrl}/storage/v1/object/${supabaseInventoryPhotosBucket}/${path}`, {
     method: "POST",
-    headers: {
-      ...(await supabaseAuthHeaders()),
-      "Content-Type": "image/webp",
-      "x-upsert": "true"
-    },
+    headers,
     body: webpBlob
   });
   const data = await response.json().catch(() => ({}));
