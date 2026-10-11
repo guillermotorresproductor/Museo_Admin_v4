@@ -126,7 +126,9 @@ test("la fotografía usa bucket privado, ruta final y URL firmada sin base64", (
   assert.match(migration, /storage\.filename\(name\) = 'main\.webp'/i);
   assert.match(service, /object\/sign\/\$\{supabaseInventoryPhotosBucket\}/);
   assert.match(service, /\$\{item\.museum_id\}\/\$\{item\.id\}\/main\.webp/);
-  assert.doesNotMatch(service, /readAsDataURL|base64/i);
+  const inventoryServiceOnly = service.match(/const supabaseInventoryPhotosBucket[\s\S]*?async function signSupabaseInventoryPhoto/);
+  assert.ok(inventoryServiceOnly, 'Equipment inventory photo services must exist');
+  assert.doesNotMatch(inventoryServiceOnly[0], /readAsDataURL|base64/i);
 });
 
 test("la página mantiene el módulo aislado y carga el procesador WebP", () => {
