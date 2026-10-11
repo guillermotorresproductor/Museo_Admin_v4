@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
+import vm from 'node:vm';
 
 const root = new URL('../../', import.meta.url);
 const migration = fs.readFileSync(new URL('supabase/migrations/202610110002_marketing_equipment_inventory_create.sql', root), 'utf8');
 const app = fs.readFileSync(new URL('js/app.js', root), 'utf8');
+const service = fs.readFileSync(new URL('js/services/supabase.js', root), 'utf8');
 const original = fs.readFileSync(new URL('supabase/migrations/202609180002_employee_module_profiles.sql', root), 'utf8');
 const inventory = fs.readFileSync(new URL('supabase/migrations/202609020003_inventory_practical_records.sql', root), 'utf8');
 
@@ -38,5 +40,53 @@ test('New item photo insertion only for creator and initial photo', () => {
   assert.match(migration, /i\.created_by = auth\.uid\(\)/);
   assert.match(migration, /i\.photo_path is null/);
   assert.match(migration, /alter policy inventory_photos_manage_insert/);
-  assert.doesNotMatch(migration, /alter policy inventory_photos_manage_update|alter policy inventory_photos_manage_delete/);
+  assert.doesNotMatch(migration, /alter policy inventory_photos_manage_update/);
+  assert.match(migration, /alter policy inventory_photos_manage_delete/);
+  assert.match(migration, /public\\.can_create_inventory_photo\\(name\\)/);
+  assert.match(migration, /i\\.photo_path is null/);
+});
+
+test('A new photo needs INSERT only; a replacement still requests upsert', async () => {
+  // Execute only the equipment-photo upload helpers, with a fake network.
+  const section = service.match(/function inventoryPhotoPath\\(item\\) \\{[\\s\\S]*?(?=\\nasync function deleteSupabaseInventoryPhoto)/);
+  assert.ok(section, 'Equipment photo upload helpers found');
+  const requests = [];
+  const calls = [];
+  const ctx = vm.createContext({
+    supabaseUrl: 'https://example.invalid',
+    supabaseInventoryPhotosBucket: 'inventory-photos',
+    supabaseAuthHeaders: async () => ({Authorization: 'Bearer fixture'}),
+    fetch: async (url, opts) => {
+      requests.push({url, opts});
+      return {ok: true, json: async () => ({})};
+    },
+    inventoryRpc: async (name, body) => {calls.push({name, body}); return {id:body.p_id};},
+    inventoryServiceError: () => new Error('Storage error'),
+    deleteSupabaseInventoryPhoto: async () => {},
+  });
+  vm.runInContext(section[0], ctx);
+  const item = {id:'asset-1', museum_id:'museum-1',version:1,photo_path:null};
+  await ctx.uploadSupabaseInventoryPhoto(item, 'webp-data');
+  assert.equal(requests[0].opts.headers['x-upsert'],undefined,'Initial upload should NOT require UPDATE');
+  assert.equal(requests[0].opts.method,'POST');
+  assert.equal(calls[0].name,'inventory_set_photo');
+  await ctx.uploadSupabaseInventoryPhoto({...item, photo_path:'museum-1/asset-1/main.webp'},'new-webp-data');
+  assert.equal(requests[1].opts.headers['x-upsert'],'true','Replacing existing photo preserves upsert');
+});
+
+test('An unsuccessful attachment requests cleanup only for the new unattached photo', async () => {
+  const section = service.match(/function inventoryPhotoPath\\(item\\) \\{[\\s\\S]*?(?=\\nasync function deleteSupabaseInventoryPhoto)/);
+  assert.ok(section);
+  const deleted = [];
+  const ctx = vm.createContext({
+    supabaseUrl:'https://example.invalid',supabaseInventoryPhotosBucket:'inventory-photos',
+    supabaseAuthHeaders:async () => ({}),
+    fetch:async () => ({ok:true,json:async () => ({})}),
+    inventoryRpc:async () => {throw new Error('fixture: photo RPC fails');},
+    inventoryServiceError:() => new Error('upload error'),
+    deleteSupabaseInventoryPhoto:async path => {deleted.push(path);},
+  });
+  vm.runInContext(section[0],ctx);
+  await assert.rejects(ctx.uploadSupabaseInventoryPhoto({id:'asset-2',museum_id:'museum-2',version:1,photo_path:null},'webp'),/photo RPC fails/);
+  assert.deepEqual(deleted,['museum-2/asset-2/main.webp']);
 });
