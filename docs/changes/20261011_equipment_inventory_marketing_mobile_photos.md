@@ -17,7 +17,7 @@
 |---|---|---|
 | `modules.inventory.read` | Lectura del inventario | Por museo |
 | `inventory.create` | Registrar equipo | Perfil `contenido_marketing` y usuarios con `inventory.manage` |
-| `inventory.photo.attach` | Adjuntar una primera fotografía faltante | Perfiles cuyo catálogo incluye Inventario; un `deny` individual prevalece |
+| `inventory.photo.attach` | Adjuntar una primera fotografía faltante | Usuarios con lectura autorizada de Inventario, incluso excepciones individuales; un `deny` individual prevalece |
 | `inventory.manage` | Administrar/editar/archivar/reemplazar fotos | No se amplía |
 
 Controles de foto: objeto `main.webp` dentro de la carpeta del museo/registro, equipo existente y no archivado, foto aún no asociada; la asociación mediante RPC exige además que el archivo haya sido subido por el usuario actual (`storage.objects.owner_id`). La limpieza de una carga fallida se limita al dueño del archivo todavía sin asociar.
