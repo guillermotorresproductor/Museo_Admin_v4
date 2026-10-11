@@ -2855,7 +2855,7 @@ function bindInventoryModule() {
 
   const canEditInventory = () => hasPermission("inventory.manage");
   const canCreateInventory = () => canEditInventory() || hasPermission("inventory.create");
-  const canAttachInventoryPhoto = () => canEditInventory() || hasPermission("modules.inventory.read");
+  const canAttachInventoryPhoto = () => canEditInventory() || hasPermission("inventory.photo.attach");
   const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const escapeHtml = (value) => safeHtml(String(value ?? ""));
   const label = (value) => String(value || "").replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
