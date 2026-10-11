@@ -2825,6 +2825,7 @@ function bindInventoryModule() {
   const entryPanel = document.querySelector("[data-inventory-entry-panel]");
   const list = document.querySelector("[data-inventory-list]");
   const message = document.querySelector("[data-inventory-message]");
+  const listMessage = document.querySelector("[data-inventory-list-message]");
   const search = document.querySelector("[data-inventory-search]");
   const locationFilter = document.querySelector("[data-inventory-filter-location]");
   const statusFilter = document.querySelector("[data-inventory-filter-status]");
@@ -2866,6 +2867,12 @@ function bindInventoryModule() {
     if (!message) return;
     message.textContent = text;
     message.className = `form-message ${type}`.trim();
+  };
+
+  const setListMessage = (text, type = "") => {
+    if (!listMessage) return;
+    listMessage.textContent = text;
+    listMessage.className = `form-message ${type}`.trim();
   };
 
   const populateFilters = () => {
@@ -3160,14 +3167,14 @@ function bindInventoryModule() {
     const file = input?.files?.[0];
     if (!file || !record || !canAttachInventoryPhoto() || record.photo_path || record.archived_at) return;
     input.disabled = true;
-    setMessage("Procesando y adjuntando fotografía del equipo...", "");
+    setListMessage("Procesando y adjuntando fotografía del equipo...", "");
     try {
       const processed = await InventoryImage.process(file);
       await uploadSupabaseInventoryPhoto(record, processed.blob);
-      setMessage("Fotografía del equipo añadida correctamente.", "success");
+      setListMessage("Fotografía del equipo añadida correctamente.", "success");
       await loadInventoryRecords();
     } catch (error) {
-      setMessage(error.message || "No se pudo guardar la fotografía.", "error");
+      setListMessage(error.message || "No se pudo guardar la fotografía.", "error");
     } finally {
       input.value = "";
       input.disabled = false;
