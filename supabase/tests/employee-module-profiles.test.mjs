@@ -8,7 +8,7 @@ const all=['personal','collections','calendar','rentals','memberships','ushers',
 const expected={
  mantenimiento:['personal','calendar','maintenance','announcements'],
  gerente_museografica:['personal','collections','calendar','ushers','documents','announcements'],
- contenido_marketing:['personal','calendar','ushers','documents','announcements'],
+ contenido_marketing:['personal','calendar','ushers','documents','announcements','inventory'],
  coordinadora_experiencia:['personal','calendar','ushers','documents','announcements'],
  tecnico_produccion:['personal','calendar','ushers','documents','announcements','inventory'],
  asistente_administrativa:all,director_ejecutivo:all,administrador_general:all,gerente_administrativo:all,it_programador:all
