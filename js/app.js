@@ -2850,6 +2850,7 @@ function bindInventoryModule() {
   let sortDirection = "desc";
 
   const canEditInventory = () => hasPermission("inventory.manage");
+  const canCreateInventory = () => canEditInventory() || hasPermission("inventory.create");
   const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const escapeHtml = (value) => safeHtml(String(value ?? ""));
   const label = (value) => String(value || "").replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
@@ -2988,8 +2989,8 @@ function bindInventoryModule() {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!canEditInventory()) {
-      setMessage("Solo Ejecutivos y Administradores pueden crear o editar inventario.", "error");
+    if (!(String(new FormData(form).get("id") || "") ? canEditInventory() : canCreateInventory())) {
+      setMessage("No tiene permiso para registrar o modificar este equipo.", "error");
       return;
     }
     if (!form.reportValidity()) {
@@ -3127,7 +3128,7 @@ function bindInventoryModule() {
     });
   });
 
-  if (!canEditInventory() && entryPanel) {
+  if (!canCreateInventory() && entryPanel) {
     entryPanel.hidden = true;
   }
   async function loadInventoryRecords() {
