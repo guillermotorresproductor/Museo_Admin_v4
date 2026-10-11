@@ -2836,6 +2836,9 @@ function bindInventoryModule() {
   const idField = document.querySelector("#inventory-id");
   const versionField = document.querySelector("#inventory-version");
   const photoInput = document.querySelector("#inventory-photo");
+  const cameraInput = document.querySelector("#inventory-photo-camera");
+  const photoAttachInput = document.querySelector("[data-inventory-attach-photo]");
+  const cameraAttachInput = document.querySelector("[data-inventory-attach-camera]");
   const recordTypeInput = document.querySelector("#inventory-record-type");
   const quantityInput = document.querySelector("#inventory-quantity");
   const photoPreview = document.querySelector("[data-inventory-photo-preview]");
@@ -2845,12 +2848,14 @@ function bindInventoryModule() {
   let processedPhoto = null;
   let photoProcessing = null;
   let photoError = null;
+  let pendingPhotoRecord = null;
   let previewObjectUrl = "";
   let sortKey = "updated_at";
   let sortDirection = "desc";
 
   const canEditInventory = () => hasPermission("inventory.manage");
   const canCreateInventory = () => canEditInventory() || hasPermission("inventory.create");
+  const canAttachInventoryPhoto = () => canEditInventory() || hasPermission("modules.inventory.read");
   const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const escapeHtml = (value) => safeHtml(String(value ?? ""));
   const label = (value) => String(value || "").replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
@@ -2932,6 +2937,7 @@ function bindInventoryModule() {
           <div class="table-actions">
             <button type="button" data-inventory-view="${record.id}">Ver</button>
             ${canEditInventory() && !record.archived_at ? `<button type="button" data-inventory-edit="${record.id}">Editar</button><button type="button" data-inventory-archive="${record.id}">Archivar</button>` : ""}
+            ${canAttachInventoryPhoto() && !record.archived_at && !record.photo_path ? `<button type="button" data-inventory-add-photo="${record.id}">Subir foto</button><button type="button" data-inventory-take-photo="${record.id}">Cámara</button>` : ""}
           </div>
         </td>
       </tr>
@@ -2959,6 +2965,8 @@ function bindInventoryModule() {
     processedPhoto = null;
     photoProcessing = null;
     photoError = null;
+    if (photoInput) photoInput.value = "";
+    if (cameraInput) cameraInput.value = "";
     if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
     previewObjectUrl = "";
     if (photoPreview) photoPreview.innerHTML = "<span>Sin fotografía seleccionada</span>";
@@ -3030,6 +3038,21 @@ function bindInventoryModule() {
     const viewButton = event.target.closest("[data-inventory-view]");
     const archiveButton = event.target.closest("[data-inventory-archive]");
     const sortButton = event.target.closest("[data-inventory-sort]");
+    const addPhotoButton = event.target.closest("[data-inventory-add-photo]");
+    const takePhotoButton = event.target.closest("[data-inventory-take-photo]");
+
+    if (addPhotoButton || takePhotoButton) {
+      const recordId = (addPhotoButton || takePhotoButton).dataset.inventoryAddPhoto
+        || (addPhotoButton || takePhotoButton).dataset.inventoryTakePhoto;
+      const record = records.find(item => item.id === recordId);
+      if (!canAttachInventoryPhoto() || !record || record.archived_at || record.photo_path) return;
+      const input = takePhotoButton ? cameraAttachInput : photoAttachInput;
+      if (!input) return;
+      pendingPhotoRecord = record;
+      input.value = "";
+      input.click();
+      return;
+    }
 
     if (editButton) {
       if (!canEditInventory()) return;
@@ -3107,11 +3130,12 @@ function bindInventoryModule() {
   });
   showArchived?.addEventListener("change", loadInventoryRecords);
   document.querySelector("[data-inventory-detail-close]")?.addEventListener("click", () => detailDialog?.close());
-  photoInput?.addEventListener("change", () => {
+  const processFormPhoto = (file, input) => {
     processedPhoto = null;
     photoError = null;
-    const file = photoInput.files?.[0];
     if (!file) return;
+    if (input === cameraInput && photoInput) photoInput.value = "";
+    if (input === photoInput && cameraInput) cameraInput.value = "";
     setMessage("Procesando fotografía...", "");
     photoProcessing = InventoryImage.process(file).then((result) => {
       processedPhoto = result;
@@ -3122,11 +3146,35 @@ function bindInventoryModule() {
       return result;
     }).catch((error) => {
       photoError = error;
-      photoInput.value = "";
+      input.value = "";
       setMessage(error.message, "error");
       return null;
     });
-  });
+  };
+  photoInput?.addEventListener("change", () => processFormPhoto(photoInput.files?.[0], photoInput));
+  cameraInput?.addEventListener("change", () => processFormPhoto(cameraInput.files?.[0], cameraInput));
+
+  const attachExistingPhoto = async (input) => {
+    const record = pendingPhotoRecord;
+    pendingPhotoRecord = null;
+    const file = input?.files?.[0];
+    if (!file || !record || !canAttachInventoryPhoto() || record.photo_path || record.archived_at) return;
+    input.disabled = true;
+    setMessage("Procesando y adjuntando fotografía del equipo...", "");
+    try {
+      const processed = await InventoryImage.process(file);
+      await uploadSupabaseInventoryPhoto(record, processed.blob);
+      setMessage("Fotografía del equipo añadida correctamente.", "success");
+      await loadInventoryRecords();
+    } catch (error) {
+      setMessage(error.message || "No se pudo guardar la fotografía.", "error");
+    } finally {
+      input.value = "";
+      input.disabled = false;
+    }
+  };
+  photoAttachInput?.addEventListener("change", () => attachExistingPhoto(photoAttachInput));
+  cameraAttachInput?.addEventListener("change", () => attachExistingPhoto(cameraAttachInput));
 
   if (!canCreateInventory() && entryPanel) {
     entryPanel.hidden = true;
