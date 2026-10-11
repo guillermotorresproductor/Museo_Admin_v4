@@ -46,3 +46,12 @@ Controles de foto: exactamente dos carpetas, `{museo}/{equipo}/main.webp`, equip
 ## Pruebas CI
 
 GitHub Actions: suite específica en `.github/workflows/marketing-equipment-inventory-guard.yml`. Las pruebas de Node verifican código, formulario, permiso mínimo, foto inicial, reemplazo administrativo y limpieza fallida. **Las pruebas CI no sustituyen las pruebas reales de Storage y autenticación en Staging.**
+
+
+## Corrección posterior a la validación de Staging — 11 octubre
+
+- El archivo `202610110002_marketing_equipment_inventory_create.sql` **ya fue aplicado individualmente en Staging** mediante el CLI, sin registrar una versión nueva en `supabase_migrations.schema_migrations`. No volver a aplicar migraciones en bloque con `db push`.
+- Las pruebas transaccionales específicas confirmaron la creación de equipos, la foto inicial, `deny` individual, el control de dueño y el aislamiento por museo. Una comprobación de `inventory.manage` con `allow` individual falló porque ese entorno no tenía la excepción histórica `inventory_individual_allow`.
+- Se incorpora **una sola migración correctiva**, `202610110003_marketing_inventory_explicit_manage_allow.sql`. Conserva la denegación de `inventory.manage` para Marketing por defecto y concede administración únicamente si ya existe una fila `allow` individual activa, en el mismo museo. Las comprobaciones previas de perfil activo, `deny` explícito y límite de módulo permanecen intactas. La migración es idempotente y falla sin cambios si el resolutor no coincide.
+- **Próximo paso en Staging:** ejecutar solo la migración correctiva mediante el flujo de desarrollo autorizado. Repetir la prueba SQL de `allow` y su revocación dentro de `ROLLBACK`, además de las pruebas aisladas de Inventario. No se requieren cambios en Recursos Humanos.
+- **Para un despliegue nuevo:** aplicar `202610110002` y luego `202610110003`, cada una mediante el proceso autorizado, sin arrastrar migraciones antiguas. Registrar la deriva existente entre historial de migraciones y base antes de cualquier `db push` futuro.
