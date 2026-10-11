@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Inventario</title>
-  <link rel="stylesheet" href="css/main.css?v=inventory-artist-rep-20260921">
+  <link rel="stylesheet" href="css/main.css?v=equipment-mobile-photo-20261011b">
 </head>
 <body>
   <div class="app-shell">
@@ -68,6 +68,7 @@
               </tbody>
             </table>
           </div>
+          <p class="form-message" data-inventory-list-message role="status" aria-live="polite"></p>
         </section>
 
         <section class="card panel inventory-panel" data-inventory-entry-panel>
@@ -219,8 +220,12 @@
             <div class="inventory-photo-field">
               <label class="field" for="inventory-photo">
                 <span>Fotografía del equipo</span>
-                <input id="inventory-photo" name="photo" type="file" accept=".jpg,.jpeg,.png,.heic,.heif,.webp,image/jpeg,image/png,image/heic,image/heif,image/webp">
-                <small>JPG, PNG, HEIC o WebP; máximo 10 MB y mínimo 800×600. Se guardará como WebP de 500 KB o menos.</small>
+                <input id="inventory-photo" name="photo" type="file" accept="image/*,.heic,.heif">
+                <small>Elija una fotografía desde su celular o computadora. JPG, PNG, HEIC o WebP; máximo 10 MB y mínimo 800×600. Se guardará como WebP de 500 KB o menos.</small>
+              </label>
+              <label class="field" for="inventory-photo-camera">
+                <span>Tomar foto con cámara</span>
+                <input id="inventory-photo-camera" type="file" accept="image/*,.heic,.heif" capture="environment">
               </label>
               <div class="inventory-photo-preview" data-inventory-photo-preview>
                 <span>Sin fotografía seleccionada</span>
@@ -244,8 +249,8 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/inventory-image.js?v=inventory-artist-rep-20260921"></script>
-  <script src="js/services/supabase.js?v=module-profiles-20260918"></script>
-  <script src="js/app.js?v=module-profiles-20260918"></script>
+  <script src="js/services/supabase.js?v=equipment-mobile-photo-20261011b"></script>
+  <script src="js/app.js?v=equipment-mobile-photo-20261011b"></script>
 </body>
 </html>
 

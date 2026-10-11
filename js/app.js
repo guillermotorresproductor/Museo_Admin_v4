@@ -2825,6 +2825,7 @@ function bindInventoryModule() {
   const entryPanel = document.querySelector("[data-inventory-entry-panel]");
   const list = document.querySelector("[data-inventory-list]");
   const message = document.querySelector("[data-inventory-message]");
+  const listMessage = document.querySelector("[data-inventory-list-message]");
   const search = document.querySelector("[data-inventory-search]");
   const locationFilter = document.querySelector("[data-inventory-filter-location]");
   const statusFilter = document.querySelector("[data-inventory-filter-status]");
@@ -2836,6 +2837,7 @@ function bindInventoryModule() {
   const idField = document.querySelector("#inventory-id");
   const versionField = document.querySelector("#inventory-version");
   const photoInput = document.querySelector("#inventory-photo");
+  const cameraInput = document.querySelector("#inventory-photo-camera");
   const recordTypeInput = document.querySelector("#inventory-record-type");
   const quantityInput = document.querySelector("#inventory-quantity");
   const photoPreview = document.querySelector("[data-inventory-photo-preview]");
@@ -2850,6 +2852,8 @@ function bindInventoryModule() {
   let sortDirection = "desc";
 
   const canEditInventory = () => hasPermission("inventory.manage");
+  const canCreateInventory = () => canEditInventory() || hasPermission("inventory.create");
+  const canAttachInventoryPhoto = () => canEditInventory() || hasPermission("inventory.photo.attach");
   const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const escapeHtml = (value) => safeHtml(String(value ?? ""));
   const label = (value) => String(value || "").replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
@@ -2860,6 +2864,12 @@ function bindInventoryModule() {
     if (!message) return;
     message.textContent = text;
     message.className = `form-message ${type}`.trim();
+  };
+
+  const setListMessage = (text, type = "") => {
+    if (!listMessage) return;
+    listMessage.textContent = text;
+    listMessage.className = `form-message ${type}`.trim();
   };
 
   const populateFilters = () => {
@@ -2931,6 +2941,7 @@ function bindInventoryModule() {
           <div class="table-actions">
             <button type="button" data-inventory-view="${record.id}">Ver</button>
             ${canEditInventory() && !record.archived_at ? `<button type="button" data-inventory-edit="${record.id}">Editar</button><button type="button" data-inventory-archive="${record.id}">Archivar</button>` : ""}
+            ${canAttachInventoryPhoto() && !record.archived_at && !record.photo_path ? `<label class="inventory-file-action"><span>Galería</span><input type="file" accept="image/*,.heic,.heif" data-inventory-add-photo="${escapeHtml(record.id)}" aria-label="Seleccionar foto de ${escapeHtml(record.name)} desde la galería"></label><label class="inventory-file-action"><span>Cámara</span><input type="file" accept="image/*,.heic,.heif" capture="environment" data-inventory-take-photo="${escapeHtml(record.id)}" aria-label="Tomar foto de ${escapeHtml(record.name)} con la cámara"></label>` : ""}
           </div>
         </td>
       </tr>
@@ -2958,6 +2969,8 @@ function bindInventoryModule() {
     processedPhoto = null;
     photoProcessing = null;
     photoError = null;
+    if (photoInput) photoInput.value = "";
+    if (cameraInput) cameraInput.value = "";
     if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
     previewObjectUrl = "";
     if (photoPreview) photoPreview.innerHTML = "<span>Sin fotografía seleccionada</span>";
@@ -2988,8 +3001,8 @@ function bindInventoryModule() {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!canEditInventory()) {
-      setMessage("Solo Ejecutivos y Administradores pueden crear o editar inventario.", "error");
+    if (!(String(new FormData(form).get("id") || "") ? canEditInventory() : canCreateInventory())) {
+      setMessage("No tiene permiso para registrar o modificar este equipo.", "error");
       return;
     }
     if (!form.reportValidity()) {
@@ -3029,7 +3042,6 @@ function bindInventoryModule() {
     const viewButton = event.target.closest("[data-inventory-view]");
     const archiveButton = event.target.closest("[data-inventory-archive]");
     const sortButton = event.target.closest("[data-inventory-sort]");
-
     if (editButton) {
       if (!canEditInventory()) return;
       const record = records.find((item) => item.id === editButton.dataset.inventoryEdit);
@@ -3106,11 +3118,12 @@ function bindInventoryModule() {
   });
   showArchived?.addEventListener("change", loadInventoryRecords);
   document.querySelector("[data-inventory-detail-close]")?.addEventListener("click", () => detailDialog?.close());
-  photoInput?.addEventListener("change", () => {
+  const processFormPhoto = (file, input) => {
     processedPhoto = null;
     photoError = null;
-    const file = photoInput.files?.[0];
     if (!file) return;
+    if (input === cameraInput && photoInput) photoInput.value = "";
+    if (input === photoInput && cameraInput) cameraInput.value = "";
     setMessage("Procesando fotografía...", "");
     photoProcessing = InventoryImage.process(file).then((result) => {
       processedPhoto = result;
@@ -3121,13 +3134,41 @@ function bindInventoryModule() {
       return result;
     }).catch((error) => {
       photoError = error;
-      photoInput.value = "";
+      input.value = "";
       setMessage(error.message, "error");
       return null;
     });
+  };
+  photoInput?.addEventListener("change", () => processFormPhoto(photoInput.files?.[0], photoInput));
+  cameraInput?.addEventListener("change", () => processFormPhoto(cameraInput.files?.[0], cameraInput));
+
+  const attachExistingPhoto = async (input) => {
+    const recordId = input?.dataset.inventoryAddPhoto || input?.dataset.inventoryTakePhoto;
+    const record = records.find((item) => item.id === recordId);
+    const file = input?.files?.[0];
+    if (!file || !record || !canAttachInventoryPhoto() || record.photo_path || record.archived_at) return;
+    input.disabled = true;
+    setListMessage("Procesando y adjuntando fotografía del equipo...", "");
+    try {
+      const processed = await InventoryImage.process(file);
+      await uploadSupabaseInventoryPhoto(record, processed.blob);
+      setListMessage("Fotografía del equipo añadida correctamente.", "success");
+      await loadInventoryRecords();
+    } catch (error) {
+      setListMessage(error.message || "No se pudo guardar la fotografía.", "error");
+    } finally {
+      input.value = "";
+      input.disabled = false;
+    }
+  };
+  list?.addEventListener("change", (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement)) return;
+    if (!input.matches("[data-inventory-add-photo], [data-inventory-take-photo]")) return;
+    attachExistingPhoto(input);
   });
 
-  if (!canEditInventory() && entryPanel) {
+  if (!canCreateInventory() && entryPanel) {
     entryPanel.hidden = true;
   }
   async function loadInventoryRecords() {
