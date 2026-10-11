@@ -175,3 +175,23 @@ test('Marketing inventory.manage remains denied unless an active per-user allow 
   assert.match(manageFix, /raise exception 'MARKETING_INVENTORY_RESOLVER_UNEXPECTED'/);
   assert.doesNotMatch(manageFix, /update public\.employees|update public\.profiles|collections\.write|finance\.write|insert into public\.user_permissions/i);
 });
+
+
+test('Permission migration matches the exact verified Staging and Production resolver formats', () => {
+  const anchors = [
+    "if requested_permission=''modules.''||target_module||''.read''",
+    "if requested_permission = ''modules.'' || target_module || ''.read''",
+    "target_module:=public.permission_module(requested_permission);",
+    "target_module := public.permission_module(requested_permission);"
+  ];
+  for (const anchor of anchors) {
+    assert.ok(migration.includes(anchor), `Missing resolver compatibility anchor: ${anchor}`);
+  }
+  assert.match(migration, /anchor_sql := case/);
+  assert.match(migration, /pre_boundary_anchor := case/);
+  assert.match(migration, /if anchor_sql is null or pre_boundary_anchor is null then/);
+  assert.match(migration, /raise exception 'INVENTORY_MARKETING_PERMISSION_RESOLVER_CHANGED'/);
+  assert.match(migration, /if position\('marketing_equipment_create_v1' in source_sql\) > 0 then/);
+  assert.match(migration, /replace\(\s*source_sql,\s*anchor_sql,/);
+  assert.match(migration, /replace\(\s*updated_sql,\s*pre_boundary_anchor,/);
+});
