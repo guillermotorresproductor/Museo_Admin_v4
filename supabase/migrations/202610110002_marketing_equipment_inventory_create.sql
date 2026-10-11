@@ -71,22 +71,22 @@ begin
 end
 $marketing_inventory_rpc$;
 
--- Allow an initial photo for a NEW item created by the same Marketing user.
--- Updates/deletes of existing photos and other users' equipment stay restricted.
+-- Any user with inventory module read access may attach a MISSING equipment photo,
+-- including on records created by colleagues in the same museum.
+-- Replacing attached photos requires inventory.manage as before.
 create or replace function public.can_create_inventory_photo(object_name text)
 returns boolean
 language sql stable security definer set search_path = ''
 as $$
   select
     auth.uid() is not null
-    and public.has_permission('inventory.create')
+    and public.has_permission('modules.inventory.read')
     and (storage.foldername(object_name))[1] = public.current_user_museum_id()::text
     and storage.filename(object_name) = 'main.webp'
     and exists (
       select 1 from public.inventory_items i
       where i.museum_id = public.current_user_museum_id()
         and i.id::text = (storage.foldername(object_name))[2]
-        and i.created_by = auth.uid()
         and i.photo_path is null
         and i.archived_at is null
     );
@@ -113,9 +113,8 @@ with check (
 );
 
 -- A failed photo-attachment RPC must not leave an orphaned file. Permit the
--- creator to clean up ONLY the not-yet-attached original image for their own
--- active item in their current museum. Delete of attached photos remains
--- limited to the existing inventory.manage permission.
+-- uploader to clean up ONLY a not-yet-attached image they uploaded themselves,
+-- on an active item in the same museum. Attached photos still require manage.
 alter policy inventory_photos_manage_delete on storage.objects
 using (
   bucket_id = 'inventory-photos'
@@ -124,11 +123,11 @@ using (
       public.has_permission('inventory.manage')
       and (storage.foldername(name))[1] = public.current_user_museum_id()::text
     )
-    or public.can_create_inventory_photo(name)
+    or (public.can_create_inventory_photo(name) and owner_id = auth.uid()::text)
   )
 );
 
--- After initial upload, update only the calling user's never-photographed item.
+-- After initial upload, update a never-photographed item for an inventory viewer.
 -- Administrators with inventory.manage retain their existing rights.
 do $marketing_inventory_photo_rpc$
 declare
@@ -137,10 +136,10 @@ declare
   old_guard constant text := 'not public.has_permission(''inventory.manage'')';
   new_guard constant text :=
     'not (public.has_permission(''inventory.manage'') or '
-    || '(public.has_permission(''inventory.create'') and exists ('
+    || '(public.has_permission(''modules.inventory.read'') and exists ('
     || 'select 1 from public.inventory_items i '
     || 'where i.id = p_id and i.museum_id = v_museum_id '
-    || 'and i.created_by = auth.uid() and i.photo_path is null and i.archived_at is null)))';
+    || 'and i.photo_path is null and i.archived_at is null)))';
 begin
   source_sql := pg_get_functiondef('public.inventory_set_photo(uuid,bigint)'::regprocedure);
   if position('inventory.create' in source_sql) = 0 then
