@@ -5,6 +5,7 @@ import vm from 'node:vm';
 
 const root = new URL('../../', import.meta.url);
 const migration = fs.readFileSync(new URL('supabase/migrations/202610110002_marketing_equipment_inventory_create.sql', root), 'utf8');
+const manageFix = fs.readFileSync(new URL('supabase/migrations/202610110003_marketing_inventory_explicit_manage_allow.sql', root), 'utf8');
 const app = fs.readFileSync(new URL('js/app.js', root), 'utf8');
 const service = fs.readFileSync(new URL('js/services/supabase.js', root), 'utf8');
 const original = fs.readFileSync(new URL('supabase/migrations/202609180002_employee_module_profiles.sql', root), 'utf8');
@@ -160,4 +161,17 @@ test('Staging SQL covers deny, ownership, museum isolation and separate capabili
   ]) {
     assert.ok(sql.includes(expectation), expectation);
   }
+});
+
+test('Marketing inventory.manage remains denied unless an active per-user allow is present', () => {
+  assert.match(manageFix, /marketing_inventory_manage_explicit_allow_v1/);
+  assert.match(manageFix, /requested_permission='inventory\.manage'/);
+  assert.match(manageFix, /u\.user_id = auth\.uid\(\)/);
+  assert.match(manageFix, /u\.museum_id = public\.current_user_museum_id\(\)/);
+  assert.match(manageFix, /u\.effect = 'allow'/);
+  assert.match(manageFix, /u\.valid_until is null or u\.valid_until > now\(\)/);
+  assert.match(manageFix, /current_def := pg_get_functiondef\('public\.has_permission\(text\)'::regprocedure\)/);
+  assert.match(manageFix, /if position\('marketing_inventory_manage_explicit_allow_v1' in current_def\) > 0 then/);
+  assert.match(manageFix, /raise exception 'MARKETING_INVENTORY_RESOLVER_UNEXPECTED'/);
+  assert.doesNotMatch(manageFix, /update public\.employees|update public\.profiles|collections\.write|finance\.write|insert into public\.user_permissions/i);
 });
