@@ -30,21 +30,30 @@ declare
   source_sql text;
   updated_sql text;
   anchor_sql constant text := 'if requested_permission=''modules.''||target_module||''.read''';
+  pre_boundary_anchor constant text := 'target_module:=public.permission_module(requested_permission);';
 begin
   source_sql := pg_get_functiondef('public.has_permission(text)'::regprocedure);
   if position('marketing_equipment_create_v1' in source_sql) > 0 then
     return;
   end if;
-  if position(anchor_sql in source_sql) = 0 then
+  if position(anchor_sql in source_sql) = 0
+     or position(pre_boundary_anchor in source_sql) = 0 then
     raise exception 'INVENTORY_MARKETING_PERMISSION_RESOLVER_CHANGED' using errcode = '55000';
   end if;
   updated_sql := replace(
     source_sql,
     anchor_sql,
     '-- marketing_equipment_create_v1: runs after explicit denies and the module boundary.'
-      || E'\n if requested_permission=''inventory.photo.attach'' then return true; end if;'
       || E'\n if chosen=''contenido_marketing'' and requested_permission=''inventory.create'' then return true; end if;'
       || E'\n ' || anchor_sql
+  );
+  -- A linked user with individual Inventory read access is also eligible;
+  -- the preceding user-level deny and active-account checks still apply.
+  updated_sql := replace(
+    updated_sql,
+    pre_boundary_anchor,
+    'if requested_permission=''inventory.photo.attach'' and public.has_permission(''modules.inventory.read'') then return true; end if;'
+      || E'\n ' || pre_boundary_anchor
   );
   if updated_sql = source_sql then
     raise exception 'INVENTORY_MARKETING_PERMISSION_PATCH_FAILED' using errcode = '55000';
