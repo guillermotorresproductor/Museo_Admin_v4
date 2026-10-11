@@ -37,6 +37,8 @@ begin
    and pr.museum_id = e.museum_id
    and lower(btrim(pr.email)) = lower(btrim(e.email))
   where e.museum_id = target_museum
+    and lower(btrim(e.email)) = 'irodriguez@museodelamusicadepr.com'
+    and lower(btrim(pr.email)) = 'irodriguez@museodelamusicadepr.com'
     and lower(btrim(e.first_name)) = 'irma'
     and lower(btrim(e.last_name)) in ('rodríguez', 'rodriguez')
     and e.access_profile = 'contenido_marketing'
