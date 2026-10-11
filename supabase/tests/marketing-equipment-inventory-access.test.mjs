@@ -35,10 +35,12 @@ test('The UI permits adding but does not give Marketing edit/archive access', ()
   assert.match(app, /canEditInventory\(\) && !record\.archived_at/);
   assert.match(app, /String\(new FormData\(form\)\.get\("id"\)/);
 });
-test('New item photo insertion only for creator and initial photo', () => {
+test('Any inventory viewer can attach a missing photo in their own museum', () => {
   assert.match(migration, /create or replace function public\.can_create_inventory_photo/);
-  assert.match(migration, /i\.created_by = auth\.uid\(\)/);
+  assert.match(migration, /public\.has_permission\('modules\.inventory\.read'\)/);
+  assert.match(migration, /i\.museum_id = public\.current_user_museum_id\(\)/);
   assert.match(migration, /i\.photo_path is null/);
+  assert.match(migration, /s\.owner_id = auth\.uid\(\)::text/);
   assert.match(migration, /alter policy inventory_photos_manage_insert/);
   assert.doesNotMatch(migration, /alter policy inventory_photos_manage_update/);
   assert.match(migration, /alter policy inventory_photos_manage_delete/);
@@ -93,4 +95,17 @@ test('An unsuccessful attachment requests cleanup only for the new unattached ph
   vm.runInContext(section,ctx);
   await assert.rejects(ctx.uploadSupabaseInventoryPhoto({id:'asset-2',museum_id:'museum-2',version:1,photo_path:null},'webp'),/photo RPC fails/);
   assert.deepEqual(deleted,['museum-2/asset-2/main.webp']);
+});
+
+test('Mobile camera and gallery are available on new and existing equipment photos', () => {
+  const html = fs.readFileSync(new URL('inventario.html', root), 'utf8');
+  assert.match(html, /id="inventory-photo"[^>]*accept="image\/\*/);
+  assert.match(html, /id="inventory-photo-camera"[^>]*capture="environment"/);
+  assert.match(html, /data-inventory-attach-photo/);
+  assert.match(html, /data-inventory-attach-camera/);
+  assert.match(app, /data-inventory-add-photo/);
+  assert.match(app, /data-inventory-take-photo/);
+  assert.match(app, /const canAttachInventoryPhoto = \(\) => canEditInventory\(\) \|\| hasPermission\("modules\.inventory\.read"\)/);
+  assert.match(app, /InventoryImage\.process\(file\)/);
+  assert.match(app, /uploadSupabaseInventoryPhoto\(record, processed\.blob\)/);
 });
