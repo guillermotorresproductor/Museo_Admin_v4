@@ -55,3 +55,21 @@ GitHub Actions: suite específica en `.github/workflows/marketing-equipment-inve
 - Se incorpora **una sola migración correctiva**, `202610110003_marketing_inventory_explicit_manage_allow.sql`. Conserva la denegación de `inventory.manage` para Marketing por defecto y concede administración únicamente si ya existe una fila `allow` individual activa, en el mismo museo. Las comprobaciones previas de perfil activo, `deny` explícito y límite de módulo permanecen intactas. La migración es idempotente y falla sin cambios si el resolutor no coincide.
 - **Próximo paso en Staging:** ejecutar solo la migración correctiva mediante el flujo de desarrollo autorizado. Repetir la prueba SQL de `allow` y su revocación dentro de `ROLLBACK`, además de las pruebas aisladas de Inventario. No se requieren cambios en Recursos Humanos.
 - **Para un despliegue nuevo:** aplicar `202610110002` y luego `202610110003`, cada una mediante el proceso autorizado, sin arrastrar migraciones antiguas. Registrar la deriva existente entre historial de migraciones y base antes de cualquier `db push` futuro.
+
+
+## Compatibilidad de Producción — 11 octubre
+
+El preflight de Producción (`kfokfjngozgcwjpzxcsu`) confirmó que la definición vigente de `has_permission` utiliza espacios en dos anclas SQL, a diferencia de Staging. La ejecución de la migración `202610110002` **no comenzó en Producción**: el mecanismo de control abortó antes de cambiar datos.
+
+La misma migración `202610110002` admite ahora **exactamente ambos formatos verificados** (con y sin espacios), preserva el texto original al inyectar las condiciones y **aborta la transacción** si no reconoce las anclas. `202610110003` permanece sin cambios.
+
+Antes de volver a desplegar en Producción:
+
+1. Sincronizar el PR #82 y verificar que su CI esté en verde.
+2. Ejecutar el preflight `supabase/tests/marketing-equipment-inventory-preflight.sql` en modo lectura. Comprobar ambos indicadores de anclas, los guardas de los RPC y que `deployed=false`.
+3. Confirmar mediante lectura de `pg_get_functiondef` que los dos RPC contienen el guarda textual previsto; si difieren, detenerse y **no forzar ni ampliar cambios**.
+4. Con el respaldo de Producción disponible, solicitar aprobación antes de ejecutar solo `202610110002` seguido de `202610110003`; sin `db push`.
+5. Repetir el preflight; ejecutar la suite aislada de Inventario con `ROLLBACK` y prueba funcional. No modificar Recursos Humanos por la aserción preexistente.
+6. Fusionar el PR únicamente después de las validaciones de la base en Producción; verificar que el frontend se publicó correctamente.
+
+El respaldo previo de Producción se encuentra en el equipo local del operador (archivo `museo-pr82-production-backup-20261011.json`, SHA-256 `FF5DC3A6BC1EDD6E10B47896F1946B0875673E9EF6BB487AE4A6C248039309B2`). No compartir ni subir este respaldo al repositorio.
