@@ -219,8 +219,12 @@
             <div class="inventory-photo-field">
               <label class="field" for="inventory-photo">
                 <span>Fotografía del equipo</span>
-                <input id="inventory-photo" name="photo" type="file" accept=".jpg,.jpeg,.png,.heic,.heif,.webp,image/jpeg,image/png,image/heic,image/heif,image/webp">
-                <small>JPG, PNG, HEIC o WebP; máximo 10 MB y mínimo 800×600. Se guardará como WebP de 500 KB o menos.</small>
+                <input id="inventory-photo" name="photo" type="file" accept="image/*,.heic,.heif">
+                <small>Elija una fotografía desde su celular o computadora. JPG, PNG, HEIC o WebP; máximo 10 MB y mínimo 800×600. Se guardará como WebP de 500 KB o menos.</small>
+              </label>
+              <label class="field" for="inventory-photo-camera">
+                <span>Tomar foto con cámara</span>
+                <input id="inventory-photo-camera" type="file" accept="image/*" capture="environment">
               </label>
               <div class="inventory-photo-preview" data-inventory-photo-preview>
                 <span>Sin fotografía seleccionada</span>
@@ -235,6 +239,9 @@
           </form>
         </section>
       </main>
+      <!-- Authorized inventory viewers can attach the first photo of an existing equipment record. -->
+      <input type="file" accept="image/*,.heic,.heif" data-inventory-attach-photo hidden aria-label="Seleccionar foto del equipo">
+      <input type="file" accept="image/*" capture="environment" data-inventory-attach-camera hidden aria-label="Tomar foto del equipo">
       <dialog class="inventory-detail-dialog" data-inventory-detail-dialog>
         <div data-inventory-detail></div>
         <div class="inventory-actions"><button class="button secondary" type="button" data-inventory-detail-close>Cerrar</button></div>
