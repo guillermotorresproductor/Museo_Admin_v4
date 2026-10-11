@@ -42,8 +42,8 @@ test('New item photo insertion only for creator and initial photo', () => {
   assert.match(migration, /alter policy inventory_photos_manage_insert/);
   assert.doesNotMatch(migration, /alter policy inventory_photos_manage_update/);
   assert.match(migration, /alter policy inventory_photos_manage_delete/);
-  assert.match(migration, /public\\.can_create_inventory_photo\\(name\\)/);
-  assert.match(migration, /i\\.photo_path is null/);
+  assert.ok(migration.includes('public.can_create_inventory_photo(name)'));
+  assert.ok(migration.includes('i.photo_path is null'));
 });
 
 test('A new photo needs INSERT only; a replacement still requests upsert', async () => {
