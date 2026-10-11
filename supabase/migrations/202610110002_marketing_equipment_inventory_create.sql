@@ -18,7 +18,8 @@ end
 $marketing_inventory_catalog$;
 
 insert into public.permissions (code, description, sensitivity)
-values ('inventory.create', 'Registrar equipos nuevos en Inventario', 'sensitive')
+values ('inventory.create', 'Registrar equipos nuevos en Inventario', 'sensitive'),
+       ('inventory.photo.attach', 'Adjuntar primera fotografía de equipos en Inventario', 'sensitive')
 on conflict (code) do nothing;
 
 -- Preserve existing has_permission resolver and Ana's individual exception.
@@ -41,6 +42,7 @@ begin
     source_sql,
     anchor_sql,
     '-- marketing_equipment_create_v1: runs after explicit denies and the module boundary.'
+      || E'\n if requested_permission=''inventory.photo.attach'' then return true; end if;'
       || E'\n if chosen=''contenido_marketing'' and requested_permission=''inventory.create'' then return true; end if;'
       || E'\n ' || anchor_sql
   );
@@ -80,7 +82,7 @@ language sql stable security definer set search_path = ''
 as $$
   select
     auth.uid() is not null
-    and public.has_permission('modules.inventory.read')
+    and public.has_permission('inventory.photo.attach')
     and (storage.foldername(object_name))[1] = public.current_user_museum_id()::text
     and storage.filename(object_name) = 'main.webp'
     and exists (
@@ -137,7 +139,7 @@ declare
   old_guard constant text := 'not public.has_permission(''inventory.manage'')';
   new_guard constant text :=
     'not (public.has_permission(''inventory.manage'') or '
-    || '(public.has_permission(''modules.inventory.read'') and exists ('
+    || '(public.has_permission(''inventory.photo.attach'') and exists ('
     || 'select 1 from public.inventory_items i '
     || 'join storage.objects s on s.bucket_id = ''inventory-photos'' '
     || 'and s.name = i.museum_id::text || ''/'' || i.id::text || ''/main.webp'' '
