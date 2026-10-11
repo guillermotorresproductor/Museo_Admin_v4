@@ -1,4 +1,4 @@
--- READ ONLY. Safe to run before and after the approved Staging migration.
+-- READ ONLY. Safe before and after the approved migration in Staging or Production.
 -- Produces one audit record; no sensitive employee data and no DML/DDL.
 -- Expected BEFORE deployment: ready_for_migration=true, deployed=false.
 -- Expected AFTER deployment: ready_for_migration=true, deployed=true.
@@ -31,8 +31,20 @@ SELECT jsonb_build_object(
     SELECT 1 FROM information_schema.columns
     WHERE table_schema='storage' AND table_name='objects' AND column_name='owner_id'
   ),
-  'resolver_module_anchor', (SELECT position('target_module:=public.permission_module(requested_permission);' IN permission_def)>0 FROM functions),
-  'resolver_profile_anchor', (SELECT position('if requested_permission=''modules.''||target_module||''.read''' IN permission_def)>0 FROM functions),
+  'resolver_module_anchor', (SELECT
+    position('target_module:=public.permission_module(requested_permission);' IN permission_def)>0
+    OR position('target_module := public.permission_module(requested_permission);' IN permission_def)>0
+    FROM functions),
+  'resolver_profile_anchor', (SELECT
+    position('if requested_permission=''modules.''||target_module||''.read''' IN permission_def)>0
+    OR position('if requested_permission = ''modules.'' || target_module || ''.read''' IN permission_def)>0
+    FROM functions),
+  'create_guard_supported', (SELECT
+    position('not public.has_permission(''inventory.manage'')' IN create_def)>0
+    OR position('inventory.create' IN create_def)>0 FROM functions),
+  'photo_guard_supported', (SELECT
+    position('not public.has_permission(''inventory.manage'')' IN photo_def)>0
+    OR position('inventory.photo.attach' IN photo_def)>0 FROM functions),
   'create_rpc', to_regprocedure('public.inventory_create(jsonb)') IS NOT NULL,
   'photo_rpc', to_regprocedure('public.inventory_set_photo(uuid,bigint)') IS NOT NULL,
   'deployed', (
