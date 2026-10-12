@@ -3070,6 +3070,11 @@ body {
   color: var(--muted);
 }
 
+.inventory-add-button {
+  min-height: 44px;
+  flex: 0 0 auto;
+}
+
 .inventory-entry-header {
   display: flex;
   align-items: flex-start;
@@ -3304,8 +3309,19 @@ body {
 }
 
 @media (max-width: 960px) {
+  .inventory-list-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .inventory-entry-header {
     display: grid;
+  }
+
+  .inventory-list-header .inventory-add-button {
+    display: flex;
+    width: 100%;
+    justify-self: stretch;
   }
 
   .inventory-controls {
