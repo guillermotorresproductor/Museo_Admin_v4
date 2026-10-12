@@ -2853,6 +2853,7 @@ function bindInventoryModule() {
   let submitInFlight = false;
   let registeredItem = null;
   let registrationUncertain = false;
+  let uncertainSeal = "";
   let sortKey = "updated_at";
   let sortDirection = "desc";
 
@@ -3036,6 +3037,7 @@ function bindInventoryModule() {
     form.elements.status.value = "activo";
     registeredItem = null;
     registrationUncertain = false;
+    uncertainSeal = "";
     invalidatePhotoSelection();
     if (submitButton) submitButton.textContent = "Registrar equipo";
     if (cancelButton) cancelButton.hidden = true;
@@ -3063,6 +3065,31 @@ function bindInventoryModule() {
     warranty: String(data.get("warranty") || "").trim()
   });
 
+  const uncertainCreateMessage = () => {
+    const seal = uncertainSeal ? `«${uncertainSeal}»` : "indicado en el formulario";
+    return `No se pudo confirmar si el equipo con sello ${seal} quedó registrado. Busque ese sello en el listado antes de registrar otra vez. Si el equipo aparece, complete la fotografía con Galería o Cámara y no se creará un duplicado.`;
+  };
+
+  const rememberUncertainCreate = (seal) => {
+    registrationUncertain = true;
+    uncertainSeal = String(seal || "").trim();
+  };
+
+  const inventoryCreateConfirmationLost = (error) => {
+    if (!error || error.code === "INVENTORY_CREATE_UNCERTAIN") return true;
+    if (error.code === "INVENTORY_CONFLICT") return false;
+    const message = String(error.message || "");
+    if (/ya existe en este museo/i.test(message)) return false;
+    if (/no tiene permiso para administrar Inventario/i.test(message)) return false;
+    return true;
+  };
+
+  const keepUncertainRegistration = () => {
+    if (!registrationUncertain) return false;
+    setMessage(uncertainCreateMessage(), "error");
+    return true;
+  };
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (submitInFlight) return;
@@ -3089,7 +3116,7 @@ function bindInventoryModule() {
       while (photoProcessing) await photoProcessing;
       if (photoError) throw photoError;
       if (!id && registrationUncertain) {
-        throw new Error("Recargue el listado antes de registrar otro equipo. El intento anterior no confirmó el identificador y no se creará un duplicado.");
+        throw new Error(uncertainCreateMessage());
       }
       const retryingCreate = !id && registeredItem;
       let saved;
@@ -3098,9 +3125,18 @@ function bindInventoryModule() {
       } else if (retryingCreate) {
         saved = registeredItem;
       } else {
-        saved = await createSupabaseInventoryItem(payload);
+        try {
+          saved = await createSupabaseInventoryItem(payload);
+        } catch (createError) {
+          if (!inventoryCreateConfirmationLost(createError)) throw createError;
+          rememberUncertainCreate(payload.asset_tag);
+          await loadInventoryRecords();
+          const lost = new Error(uncertainCreateMessage());
+          lost.code = "INVENTORY_CREATE_UNCERTAIN";
+          throw lost;
+        }
         if (!saved?.id || !saved?.museum_id || saved.version == null) {
-          registrationUncertain = true;
+          rememberUncertainCreate(payload.asset_tag);
           throw new Error("El equipo pudo haberse registrado, pero la respuesta no incluye el identificador necesario para adjuntar la fotografía. Recargue el listado y, si el artículo aparece, use Galería o Cámara. No pulse Registrar de nuevo.");
         }
         registeredItem = saved;
@@ -3209,6 +3245,7 @@ function bindInventoryModule() {
 
   if (cancelButton) {
     cancelButton.addEventListener("click", () => {
+      if (keepUncertainRegistration()) return;
       const pending = registeredItem;
       resetForm();
       setMessage(pending ? "El equipo ya registrado permanece en el listado. Este formulario quedó listo para otro artículo." : "");
@@ -3272,6 +3309,10 @@ function bindInventoryModule() {
   clearPhotoButton?.addEventListener("click", () => {
     invalidatePhotoSelection();
     if (submitButton && !submitInFlight) submitButton.disabled = false;
+    if (registrationUncertain) {
+      setMessage(uncertainCreateMessage(), "error");
+      return;
+    }
     setMessage(registeredItem
       ? "Fotografía retirada. El equipo ya registrado no se duplicará; puede elegir otra imagen o continuar sin ella."
       : "Fotografía retirada. Puede registrar el equipo sin ella.", "");
@@ -3308,6 +3349,7 @@ function bindInventoryModule() {
     addButton.hidden = !canCreateInventory();
     addButton.addEventListener("click", () => {
       if (!canCreateInventory() || !entryPanel) return;
+      if (keepUncertainRegistration()) return;
       const pending = registeredItem;
       resetForm();
       entryPanel.hidden = false;

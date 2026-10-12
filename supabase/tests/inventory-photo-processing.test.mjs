@@ -249,7 +249,7 @@ test("un HEIC que el navegador no puede leer no deja el object URL abierto", asy
 
 test("el formulario de inventario usa el procesador corregido en la caché", () => {
   assert.match(html, /js\/inventory-image\.js\?v=inventory-photo-processing-20261012/);
-  assert.match(html, /js\/app\.js\?v=inventory-photo-processing-20261012/);
+  assert.match(html, /js\/app\.js\?v=inventory-photo-uncertain-create-20261012/);
   assert.match(html, /js\/services\/supabase\.js\?v=inventory-responsible-names-20261012/);
   assert.match(html, /data-inventory-photo-clear hidden>Quitar fotografía/);
 });
@@ -720,6 +720,112 @@ test("no hay doble envío mientras la fotografía se procesa o el equipo se guar
   await saveOne;
   await saveTwo;
   assert.equal(saving.calls.creates.length, 1);
+});
+
+test("una alta confirmada en el servidor con respuesta perdida no se duplica", async () => {
+  const harness = await readyHarness();
+  harness.elements.name.value = "Monitor de escenario";
+  harness.elements.asset_tag.value = "SELLO-PERDIDO";
+  let rejectCreate;
+  harness.sandbox.createSupabaseInventoryItem = (payload) => {
+    harness.calls.creates.push(payload);
+    harness.setItems([{
+      id: "equipo-perdido",
+      museum_id: "museo-1",
+      version: 1,
+      photo_path: null,
+      archived_at: null,
+      updated_at: "2026-10-12T12:00:00Z",
+      condition: "por_verificar",
+      record_type: payload.record_type,
+      quantity: payload.quantity,
+      name: payload.name,
+      asset_tag: payload.asset_tag,
+      category: payload.category,
+      location: payload.location,
+      status: payload.status,
+      brand: "",
+      model: "",
+      serial_number: "",
+      responsible: "",
+      description: ""
+    }]);
+    return new Promise((resolve, reject) => {
+      rejectCreate = () => reject(new TypeError("Failed to fetch"));
+    });
+  };
+  const firstSubmit = harness.submit();
+  const secondSubmit = harness.submit();
+  await harness.flush();
+  assert.equal(harness.calls.creates.length, 1);
+  rejectCreate();
+  await firstSubmit;
+  await secondSubmit;
+  assert.equal(harness.calls.creates.length, 1);
+  assert.equal(harness.calls.updates.length, 0);
+  assert.equal(harness.elements.name.value, "Monitor de escenario");
+  assert.equal(harness.elements.asset_tag.value, "SELLO-PERDIDO");
+  assert.match(harness.message.textContent, /SELLO-PERDIDO/);
+  assert.match(harness.message.textContent, /listado/);
+  assert.match(harness.message.textContent, /Galería o Cámara/);
+  assert.match(harness.message.textContent, /no se creará un duplicado/);
+  assert.doesNotMatch(harness.message.textContent, /No se pudo guardar el equipo/);
+  assert.match(harness.list.innerHTML, /data-inventory-add-photo="equipo-perdido"/);
+  assert.match(harness.list.innerHTML, /data-inventory-take-photo="equipo-perdido"/);
+  await harness.submit();
+  assert.equal(harness.calls.creates.length, 1);
+  harness.sandbox.document.querySelector("[data-inventory-add]").listeners.click.forEach((fn) => fn({}));
+  harness.sandbox.document.querySelector("[data-inventory-cancel]").listeners.click.forEach((fn) => fn({}));
+  assert.equal(harness.elements.name.value, "Monitor de escenario");
+  assert.equal(harness.elements.asset_tag.value, "SELLO-PERDIDO");
+  assert.match(harness.message.textContent, /SELLO-PERDIDO/);
+  await harness.submit();
+  assert.equal(harness.calls.creates.length, 1);
+  const input = new harness.sandbox.HTMLInputElement();
+  input.dataset.inventoryTakePhoto = "equipo-perdido";
+  input.files = [photoFile({ name: "camara-recuperada.jpg", size: 800 * 1024 })];
+  const recovered = makeBlob(72 * 1024);
+  harness.setProcess(async () => ({ blob: recovered, width: 1200, height: 900, bytes: recovered.size, type: "image/webp" }));
+  await harness.list.listeners.change[0]({ target: input });
+  await harness.flush();
+  assert.equal(harness.calls.creates.length, 1);
+  assert.equal(harness.calls.uploads.length, 1);
+  assert.equal(harness.calls.uploads[0].id, "equipo-perdido");
+  assert.equal(harness.calls.uploads[0].blob, recovered);
+  assert.match(harness.listMessage.textContent, /Fotografía del equipo añadida correctamente/);
+});
+
+test("un rechazo confirmado del servidor no se confunde con una respuesta perdida", async () => {
+  const harness = await readyHarness();
+  harness.sandbox.createSupabaseInventoryItem = async (payload) => {
+    harness.calls.creates.push(payload);
+    throw new Error("El número de sello o la serie ya existe en este museo.");
+  };
+  await harness.submit();
+  assert.match(harness.message.textContent, /ya existe en este museo/);
+  assert.doesNotMatch(harness.message.textContent, /No se pudo confirmar/);
+  harness.sandbox.createSupabaseInventoryItem = async (payload) => {
+    harness.calls.creates.push(payload);
+    return {
+      id: "equipo-reintento",
+      museum_id: "museo-1",
+      version: 1,
+      photo_path: null,
+      name: payload.name,
+      asset_tag: payload.asset_tag,
+      record_type: "individual",
+      quantity: 1,
+      category: payload.category,
+      location: payload.location,
+      status: payload.status,
+      condition: "por_verificar",
+      archived_at: null,
+      updated_at: "2026-10-12T12:00:00Z"
+    };
+  };
+  await harness.submit();
+  assert.equal(harness.calls.creates.length, 2);
+  assert.match(harness.message.textContent, /Equipo registrado correctamente/);
 });
 
 test("una respuesta de alta sin identificador no dispara otro inventory_create", async () => {
