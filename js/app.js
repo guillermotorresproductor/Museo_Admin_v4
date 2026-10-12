@@ -7881,7 +7881,17 @@ function renderExecutiveFinanceResult(result) {
   const money = (value) => Number(value).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   const included = (result.months || []).filter((month) => month.included);
   const caption = included.length ? `${financeCalendarMonths()[included[0].month - 1]} ${included[0].year}${included.length > 1 ? ` – ${financeCalendarMonths()[included.at(-1).month - 1]} ${included.at(-1).year}` : ""}` : "";
-  message.textContent = caption;
+  message.replaceChildren();
+  if (caption) {
+    const period = document.createElement("span");
+    period.textContent = caption;
+    message.append(period);
+  }
+  if (result.message) {
+    const note = document.createElement("span");
+    note.textContent = result.message;
+    message.append(note);
+  }
   totals.hidden = false;
   totals.innerHTML = `<div><span>Total ingresos</span><strong>${money(result.income)}</strong></div><div><span>Total gastos (incluyendo nómina)</span><strong>${money(result.expense)}</strong></div><div><span>Balance neto</span><strong>${money(result.net)}</strong></div>`;
 }

@@ -184,9 +184,14 @@ test("the executive screen is isolated and does not punch or invent a finance to
     };
   };
   await context.renderExecutiveFinance(context.profile, { from: { year: 2026, month: 10 }, to: { year: 2026, month: 10 } });
-  assert.equal(window.document.querySelector("[data-executive-finance-totals]").hidden, true);
-  assert.match(window.document.querySelector("[data-executive-finance-message]").textContent, /Resumen financiero no disponible/);
-  assert.doesNotMatch(window.document.querySelector("[data-executive-finance-totals]").textContent, /3333/);
+  const rangeTotals = window.document.querySelector("[data-executive-finance-totals]");
+  const rangeMessage = window.document.querySelector("[data-executive-finance-message]");
+  assert.equal(rangeTotals.hidden, false);
+  assert.match(rangeTotals.textContent, /Total ingresos/);
+  assert.match(rangeTotals.textContent, /Total gastos \(incluyendo nómina\)/);
+  assert.match(rangeMessage.textContent, /No se contó como pago/);
+  assert.doesNotMatch(rangeTotals.textContent, /3333/);
+  assert.doesNotMatch(rangeMessage.textContent, /3333/);
 });
 
 test("other profiles keep the personal portal and the executive block stays hidden", () => {
