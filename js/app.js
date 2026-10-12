@@ -2958,8 +2958,54 @@ function bindInventoryModule() {
     });
   };
 
+  let preservedSupplier = "";
+  let preservedCondition = "por_verificar";
+  let responsibleNames = [];
+  const preservedResponsibles = new Set();
+  const responsibleSelect = form.elements.responsible;
+  const categorySelect = form.elements.category;
+  const locationSelect = form.elements.location;
+  const baseCategoryValues = new Set([...categorySelect.options].map((option) => option.value));
+  const baseLocationValues = new Set([...locationSelect.options].map((option) => option.value));
+  const restoreListedOptions = (select, base) => {
+    [...select.options].forEach((option) => {
+      if (!base.has(option.value)) option.remove();
+    });
+  };
+  const ensureSelectValue = (select, value) => {
+    const text = String(value ?? "").trim();
+    if (!select || !text) return;
+    if (![...select.options].some((option) => option.value === text)) select.add(new Option(text, text));
+    select.value = text;
+  };
+  const renderResponsibleOptions = (names = []) => {
+    if (!responsibleSelect) return;
+    const selected = responsibleSelect.value;
+    const active = names.map((name) => String(name || "").trim()).filter(Boolean);
+    const options = [...new Set([...active, ...preservedResponsibles])].filter(Boolean).sort((left, right) => left.localeCompare(right, "es"));
+    responsibleSelect.replaceChildren(new Option("Sin asignar", ""));
+    options.forEach((name) => responsibleSelect.add(new Option(name, name)));
+    if (selected) ensureSelectValue(responsibleSelect, selected);
+  };
+  const loadResponsibleOptions = async () => {
+    try {
+      responsibleNames = await fetchActiveMuseumEmployeeNames();
+      renderResponsibleOptions(responsibleNames);
+    } catch {
+      responsibleNames = [];
+      renderResponsibleOptions(responsibleNames);
+      setListMessage("No se pudieron cargar los empleados activos. Puede continuar con «Sin asignar».", "error");
+    }
+  };
+
   const resetForm = () => {
     form.reset();
+    restoreListedOptions(categorySelect, baseCategoryValues);
+    restoreListedOptions(locationSelect, baseLocationValues);
+    preservedSupplier = "";
+    preservedCondition = "por_verificar";
+    preservedResponsibles.clear();
+    renderResponsibleOptions(responsibleNames);
     if (idField) idField.value = "";
     if (versionField) versionField.value = "";
     form.elements.quantity.value = "1";
@@ -2989,10 +3035,10 @@ function bindInventoryModule() {
     record_type: String(data.get("record_type") || "individual"),
     quantity: Number(data.get("quantity") || 1),
     purchase_order: String(data.get("purchase_order") || "").trim(),
-    supplier: String(data.get("supplier") || "").trim(),
+    supplier: String(data.get("id") || "") ? preservedSupplier : "",
     received_date: String(data.get("received_date") || ""),
     cost: String(data.get("cost") || ""),
-    condition: String(data.get("condition") || ""),
+    condition: String(data.get("id") || "") ? preservedCondition : "por_verificar",
     location: String(data.get("location") || "").trim(),
     responsible: String(data.get("responsible") || "").trim(),
     status: String(data.get("status") || ""),
@@ -3052,6 +3098,13 @@ function bindInventoryModule() {
       });
       idField.value = record.id;
       versionField.value = record.version;
+      preservedSupplier = String(record.supplier || "");
+      preservedCondition = String(record.condition || "por_verificar");
+      if (record.responsible) preservedResponsibles.add(String(record.responsible));
+      ensureSelectValue(form.elements.category, record.category);
+      ensureSelectValue(form.elements.location, record.location);
+      renderResponsibleOptions(responsibleNames);
+      ensureSelectValue(form.elements.responsible, record.responsible);
       if (quantityInput) quantityInput.readOnly = record.record_type !== "lot";
       if (photoPreview) photoPreview.innerHTML = record.photo_path ? "<span>Fotografía actual; seleccione otra para reemplazarla.</span>" : "<span>Sin fotografía actual.</span>";
       if (submitButton) submitButton.textContent = "Actualizar equipo";
@@ -3198,6 +3251,7 @@ function bindInventoryModule() {
 
   resetForm();
   loadInventoryRecords();
+  loadResponsibleOptions();
 }
 
 function bindCalendarModules() {

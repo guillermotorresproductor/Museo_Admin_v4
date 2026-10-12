@@ -69,7 +69,8 @@ test("los estados de recepción amplían solamente las restricciones existentes"
   assert.match(intakeStatesMigration, /drop constraint inventory_items_status_check/i);
   assert.match(intakeStatesMigration, /'recibido'/i);
   assert.doesNotMatch(intakeStatesMigration, /create table|create policy|create or replace function/i);
-  assert.match(html, /<option value="por_verificar">Por verificar<\/option>/i);
+  assert.match(app, /condition: String\(data\.get\("id"\) \|\| ""\) \? preservedCondition : "por_verificar"/);
+  assert.doesNotMatch(html, /<span>Condición<\/span>/);
   assert.match(html, /<option value="recibido">Recibido<\/option>/i);
 });
 
@@ -136,6 +137,47 @@ test("la página mantiene el módulo aislado y carga el procesador WebP", () => 
   assert.match(html, /js\/inventory-image\.js/);
   assert.match(html, /data-inventory-show-archived/);
   assert.doesNotMatch(html, /Instituva_App/i);
+});
+
+test("el registro de equipos usa listas cerradas y conserva los datos que ya no se editan", () => {
+  for (const category of ["Utilería", "Eléctricos", "Mantenimiento", "Producción"]) {
+    assert.match(html, new RegExp(`<option>${category}</option>`));
+  }
+  for (const location of ["Almacén 1", "Sala Itinerante \\(Ball Room\\)", "Oficina", "Oficina de Producción", "Taller", "Área de Mantenimiento"]) {
+    assert.match(html, new RegExp(`<option>${location}</option>`));
+  }
+  assert.match(html, /<select id="inventory-category" name="category" required>/);
+  assert.match(html, /<option value="">Sin asignar<\/option>/);
+  assert.match(html, /data-inventory-add hidden>\+ Añadir artículo/);
+  assert.match(html, /id="inventory-photo-camera"[^>]*capture="environment"/);
+  assert.doesNotMatch(html, /Artista \/ representante/);
+  assert.doesNotMatch(html, /name="supplier"/);
+  assert.doesNotMatch(html, /name="condition"/);
+  assert.match(app, /supplier: String\(data\.get\("id"\) \|\| ""\) \? preservedSupplier : ""/);
+  assert.match(app, /ensureSelectValue\(form\.elements\.category, record\.category\)/);
+  assert.match(app, /ensureSelectValue\(form\.elements\.location, record\.location\)/);
+  assert.match(app, /ensureSelectValue\(form\.elements\.responsible, record\.responsible\)/);
+  assert.match(app, /canEditInventory\(\) && !record\.archived_at/);
+  const names = service.slice(service.indexOf("async function fetchActiveMuseumEmployeeNames()"), service.indexOf("async function fetchSupabaseEmployees()"));
+  assert.match(names, /\/rest\/v1\/rpc\/inventory_active_employee_names/);
+  assert.doesNotMatch(names, /\/rest\/v1\/employees/);
+  assert.doesNotMatch(names, /email|phone|address/);
+  assert.match(app, /restoreListedOptions\(categorySelect, baseCategoryValues\)/);
+  assert.match(app, /restoreListedOptions\(locationSelect, baseLocationValues\)/);
+  assert.match(app, /No se pudieron cargar los empleados activos/);
+  const migration = fs.readFileSync(new URL("supabase/migrations/202610120002_inventory_active_employee_names.sql", root), "utf8");
+  assert.match(migration, /inventory_active_employee_names\(\)/);
+  assert.match(migration, /security definer/i);
+  assert.match(migration, /set search_path = ''/);
+  assert.match(migration, /e\.status = 'activo'/);
+  assert.match(migration, /has_permission\('inventory\.manage'\) or public\.has_permission\('inventory\.create'\)/);
+  assert.match(migration, /revoke all on function public\.inventory_active_employee_names\(\) from public, anon/i);
+  assert.match(migration, /grant execute on function public\.inventory_active_employee_names\(\) to authenticated/i);
+  assert.doesNotMatch(migration, /\bgrant\s+employees\.read\.all\b|\bcreate policy\b|\balter policy\b/i);
+  const sql = fs.readFileSync(new URL("supabase/tests/inventory-active-employee-names.sql", root), "utf8");
+  for (const expectation of ["MARKETING_CREATE_MISSING", "FORBIDDEN_NAME_RETURNED", "DENY_IGNORED", "UNAUTHORIZED_ALLOWED", "INACTIVE_ACCOUNT_ALLOWED", "rollback"]) {
+    assert.match(sql, new RegExp(expectation, "i"));
+  }
 });
 
 test("la corrección RLS usa el nombre del objeto y privilegio mínimo", () => {

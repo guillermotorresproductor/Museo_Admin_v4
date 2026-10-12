@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Museo Admin v4.0 | Inventario</title>
-  <link rel="stylesheet" href="css/main.css?v=inventory-add-button-20261012c">
+  <link rel="stylesheet" href="css/main.css?v=inventory-responsible-names-20261012">
 </head>
 <body>
   <div class="app-shell">
@@ -105,7 +105,13 @@
             <div class="form-row">
               <label class="field" for="inventory-category">
                 <span>Categoría</span>
-                <input id="inventory-category" name="category" type="text" maxlength="100" required>
+                <select id="inventory-category" name="category" required>
+                  <option value="">Seleccione...</option>
+                  <option>Utilería</option>
+                  <option>Eléctricos</option>
+                  <option>Mantenimiento</option>
+                  <option>Producción</option>
+                </select>
               </label>
               <label class="field" for="inventory-serial">
                 <span>Número de serie</span>
@@ -138,14 +144,10 @@
               </label>
             </div>
 
-            <div class="form-row form-row-three">
+            <div class="form-row">
               <label class="field" for="inventory-purchase-order">
                 <span>Orden de compra</span>
                 <input id="inventory-purchase-order" name="purchase_order" type="text" maxlength="100">
-              </label>
-              <label class="field" for="inventory-supplier">
-                <span>Artista / representante</span>
-                <input id="inventory-supplier" name="supplier" type="text" maxlength="160">
               </label>
               <label class="field" for="inventory-received-date">
                 <span>Fecha recibida</span>
@@ -153,22 +155,10 @@
               </label>
             </div>
 
-            <div class="form-row form-row-three">
+            <div class="form-row">
               <label class="field" for="inventory-cost">
                 <span>Costo</span>
                 <input id="inventory-cost" name="cost" type="number" min="0" step="0.01" inputmode="decimal">
-              </label>
-              <label class="field" for="inventory-condition">
-                <span>Condición</span>
-                <select id="inventory-condition" name="condition" required>
-                  <option value="">Seleccione...</option>
-                  <option value="excelente">Excelente</option>
-                  <option value="buena">Buena</option>
-                  <option value="regular">Regular</option>
-                  <option value="necesita_reparacion">Necesita reparación</option>
-                  <option value="fuera_de_servicio">Fuera de servicio</option>
-                  <option value="por_verificar">Por verificar</option>
-                </select>
               </label>
               <label class="field" for="inventory-location">
                 <span>Ubicación</span>
@@ -191,15 +181,20 @@
                   <option>Salón Experimental Guaynabo</option>
                   <option>Área Foyer</option>
                   <option>Sala Itinerante (Ball Room)</option>
+                  <option>Oficina</option>
+                  <option>Oficina de Producción</option>
+                  <option>Taller</option>
+                  <option>Área de Mantenimiento</option>
                 </select>
               </label>
-
             </div>
 
             <div class="form-row form-row-three">
               <label class="field" for="inventory-responsible">
                 <span>Responsable</span>
-                <input id="inventory-responsible" name="responsible" type="text" maxlength="160">
+                <select id="inventory-responsible" name="responsible">
+                  <option value="">Sin asignar</option>
+                </select>
               </label>
               <label class="field" for="inventory-status">
                 <span>Estado</span>
@@ -250,8 +245,8 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/inventory-image.js?v=inventory-artist-rep-20260921"></script>
-  <script src="js/services/supabase.js?v=inventory-add-button-20261012c"></script>
-  <script src="js/app.js?v=inventory-add-button-20261012c"></script>
+  <script src="js/services/supabase.js?v=inventory-responsible-names-20261012"></script>
+  <script src="js/app.js?v=inventory-responsible-names-20261012"></script>
 </body>
 </html>
 

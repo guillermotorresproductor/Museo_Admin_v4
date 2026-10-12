@@ -83,6 +83,13 @@ function employeeToSupabasePayload(employee, museumId) {
   };
 }
 
+async function fetchActiveMuseumEmployeeNames() {
+  const data = await supabasePost("/rest/v1/rpc/inventory_active_employee_names", {});
+  const rows = Array.isArray(data) ? data : [];
+  const names = rows.map((row) => String(typeof row === "string" ? row : row?.full_name || "").trim()).filter(Boolean);
+  return [...new Set(names)].sort((left, right) => left.localeCompare(right, "es"));
+}
+
 async function fetchSupabaseEmployees() {
   const data = await supabaseGet("/rest/v1/employees?select=id,profile_id,access_level,access_profile,first_name,last_name,photo_url,position,department,email,phone,address,hire_date,work_schedule,education_level,status,created_at&order=created_at.asc");
   return Promise.all(data.map(resolveSupabaseEmployeePhoto));
