@@ -78,8 +78,10 @@ for (const permissions of [["profile.read.self"],["profile.read.self","schedules
  function element(key){if(!elements.has(key))elements.set(key,{hidden:false,textContent:"",dataset:{},classList:{toggle(){}},closest(){return element(key+" parent");},setAttribute(k){if(k==="hidden")this.hidden=true;},addEventListener(k,fn){this[k]=fn;}});return elements.get(key);}
  const ctx=vm.createContext({Date,Boolean,Promise,document:{querySelector:element},navigator:{},
  getSupabaseSession:()=>({access_token:"fixture",user:{id:"own"}}),fetchSupabaseProfile:async()=>({email:"own@example.invalid"}),
- fetchOwnSupabaseEmployee:async()=>({id:employeeId,nombre:"Own",correo:"own@example.invalid",horario:"09:00",posicion:"Director"}),
+ fetchOwnSupabaseEmployee:async()=>({id:employeeId,nombre:"Own",correo:"own@example.invalid",horario:"09:00",posicion:"Guía"}),
  employeeDisplayName:()=>"Own",hasPermission:p=>permissions.includes(p),formatPortalDate:()=>"date",renderPortalTools(){},
+ bindMyAssignedShifts(){},bindAttendanceOperationalAlerts(){},bindPunchCorrections(){},bindOvertimeReviews(){},
+ fetchMyCurrentPunchState:async()=>({events:[],historical_open:[]}),
  fetchOwnSupabaseTimeEntries:async(n,id)=>{calls.push(["time",id]);return [];},fetchOwnSupabaseAttendanceEvents:async(n,id)=>{calls.push(["events",id]);return [];},
  renderPortalTimeEntries(){},fetchOwnSupabaseNotifications:async()=>{throw Error("notifications not permitted");},renderPortalNotifications(){},
  bindPortalAttendanceCorrections:()=>{throw Error("corrections not permitted");}});
@@ -89,7 +91,7 @@ for (const permissions of [["profile.read.self"],["profile.read.self","schedules
  assert.equal(element(".portal-schedule").hidden,!permissions.includes("schedules.read.self"));
  assert.equal(element("[data-portal-time-list] parent").hidden,!permissions.includes("time.read.self"));
  assert.match(element("[data-portal-account]").textContent,/own@example.invalid/);
- assert.equal(calls.length,permissions.includes("time.read.self")?2:0);
+ assert.equal(calls.length,permissions.includes("time.read.self")?1:0);
  assert.ok(calls.every(c=>c[1]===employeeId));
  if(!permissions.includes("time.clock"))await element("[data-portal-clock-button]").click();
 });

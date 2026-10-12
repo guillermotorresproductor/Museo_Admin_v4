@@ -7692,12 +7692,326 @@ function bindMyAssignedShifts(employee) {
   load(null, null).catch((error) => { list.innerHTML = `<p class="portal-empty">${safeHtml(assignedShiftMessage(error, "No se pudo cargar el horario."))}</p>`; });
 }
 
+function executiveStaffRows(employees, shifts) {
+  const priority = { INCONSISTENCIA: 5, "NO HA PONCHADO": 4, TRABAJANDO: 3, ALMUERZO: 2, "JORNADA TERMINADA": 1 };
+  const people = new Map();
+  const known = new Map((employees || []).map((employee) => [employee.id, employee]));
+  const include = (employee) => employee?.accessProfile !== "director_ejecutivo" && (!employee?.statusCode || employee.statusCode === "activo");
+  for (const employee of employees || []) {
+    if (!include(employee)) continue;
+    people.set(employee.id, { employee, status: "SIN TURNO", rank: 0 });
+  }
+  for (const shift of shifts || []) {
+    const employee = known.get(shift.employee_id);
+    if (employee?.accessProfile === "director_ejecutivo") continue;
+    if (employee && !include(employee)) continue;
+    const rank = priority[shift.status] || 0;
+    const current = people.get(shift.employee_id);
+    if (!current || rank > current.rank) {
+      people.set(shift.employee_id, {
+        employee: employee || { id: shift.employee_id, nombreCompleto: shift.name || "Empleado", avatar: "" },
+        status: shift.status || "SIN TURNO",
+        rank
+      });
+    }
+  }
+  return [...people.values()].sort((a, b) => executivePersonName(a.employee).localeCompare(executivePersonName(b.employee), "es"));
+}
+
+function executivePersonName(employee) {
+  return employee?.nombreCompleto || `${employee?.nombre || ""} ${employee?.apellidos || ""}`.trim() || "Empleado";
+}
+
+function executivePhotoUrl(employee) {
+  const photo = String(employee?.foto || "");
+  return /^https:\/\//.test(photo) ? photo : "";
+}
+
+function executivePhoneHref(phone) {
+  const text = String(phone || "").trim();
+  if (!/^[0-9+().\-\s]{7,24}$/.test(text)) return "";
+  const href = text.replace(/[^\d+]/g, "");
+  return /^\+?[0-9]{7,15}$/.test(href) ? `tel:${href}` : "";
+}
+
+function executiveUpcomingEvents(events, today) {
+  return (events || [])
+    .filter((event) => String(event?.event_date || "") >= String(today || ""))
+    .sort((a, b) => String(a.event_date).localeCompare(String(b.event_date)) || String(a.start_time || "").localeCompare(String(b.start_time || "")));
+}
+
+function executiveEventTime(value) {
+  const match = /^(\d{2}):(\d{2})/.exec(String(value || ""));
+  if (!match) return "";
+  return new Intl.DateTimeFormat("es-PR", { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 1, Number(match[1]), Number(match[2]))));
+}
+
+function executiveEventDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ""));
+  if (!match) return "";
+  return new Intl.DateTimeFormat("es-PR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))));
+}
+
+function executiveStaffLabel(status) {
+  const labels = {
+    "SIN TURNO": "Sin turno",
+    TRABAJANDO: "Trabajando",
+    ALMUERZO: "Almuerzo",
+    "JORNADA TERMINADA": "Jornada terminada",
+    "NO HA PONCHADO": "No ha ponchado",
+    INCONSISTENCIA: "Inconsistencia"
+  };
+  return labels[status] || status || "Sin turno";
+}
+
+async function bindExecutiveEmployeePortal(profile, employee) {
+  const root = document.querySelector("[data-employee-portal]");
+  root?.classList.add("is-executive");
+  document.title = "Mi Espacio Ejecutivo | Museo de la Música";
+  const heading = document.querySelector(".portal-welcome h1");
+  if (heading) heading.textContent = "Mi Espacio Ejecutivo";
+  const role = document.querySelector("[data-portal-role]");
+  if (role) role.textContent = employeeDisplayName(employee);
+  const date = document.querySelector("[data-portal-date]");
+  if (date) date.textContent = formatPortalDate(new Date(), { weekday: "long", month: "long", day: "numeric" });
+  document.querySelector("[data-portal-account]")?.closest(".portal-section")?.setAttribute("hidden", "");
+  document.querySelector(".portal-clock-card")?.setAttribute("hidden", "");
+  document.querySelector("[data-my-shifts]")?.setAttribute("hidden", "");
+  document.querySelector("[data-portal-time-list]")?.closest(".portal-section")?.setAttribute("hidden", "");
+  document.querySelector("[data-portal-corrections]")?.setAttribute("hidden", "");
+  document.querySelector("[data-executive-space]")?.removeAttribute("hidden");
+  document.querySelector("[data-portal-logout]")?.addEventListener("click", () => clearLoginState(true, "logout"));
+  renderPortalTools();
+  const notifications = document.querySelector("[data-portal-notifications]")?.closest(".portal-section");
+  if (notifications) notifications.hidden = !hasPermission("notifications.read.self");
+  if (hasPermission("notifications.read.self")) {
+    fetchOwnSupabaseNotifications(5).then(renderPortalNotifications).catch(() => {
+      const list = document.querySelector("[data-portal-notifications]");
+      if (list) list.innerHTML = '<p class="portal-empty">No se pudieron cargar los avisos.</p>';
+    });
+  }
+  const employeesPromise = fetchSupabaseEmployees();
+  await Promise.allSettled([
+    renderExecutiveAttendance(employeesPromise),
+    renderExecutiveDirectory(employeesPromise),
+    renderExecutiveCalendar(),
+    renderExecutiveFinance(profile, null)
+  ]);
+}
+
+async function renderExecutiveAttendance(employeesPromise) {
+  const body = document.querySelector("[data-executive-staff]");
+  if (!body) return;
+  const show = (text) => { body.innerHTML = `<p class="portal-empty">${safeHtml(text)}</p>`; };
+  try {
+    if (!hasPermission("attendance.today.read")) {
+      show("No tiene permiso para consultar la asistencia de hoy.");
+      return;
+    }
+    const [employees, shifts] = await Promise.all([employeesPromise, fetchTodayStaffStatus()]);
+    const rows = executiveStaffRows(employees, shifts);
+    body.innerHTML = rows.length ? rows.map((row) => {
+      const name = executivePersonName(row.employee);
+      const photo = executivePhotoUrl(row.employee);
+      const portrait = photo
+        ? `<img class="executive-photo" src="${safeHtml(photo)}" alt="">`
+        : `<span class="executive-avatar" aria-hidden="true">${safeHtml(row.employee.avatar || name.slice(0, 1))}</span>`;
+      return `<div class="executive-staff-row"><span>${portrait}</span><strong>${safeHtml(name)}</strong><span class="executive-status" data-status="${safeHtml(row.status)}">${safeHtml(executiveStaffLabel(row.status))}</span></div>`;
+    }).join("") : `<p class="portal-empty">No hay personal activo para mostrar.</p>`;
+  } catch (error) {
+    show(error.message || "No se pudo consultar la asistencia.");
+  }
+}
+
+async function renderExecutiveDirectory(employeesPromise) {
+  const list = document.querySelector("[data-executive-directory]");
+  const search = document.querySelector("[data-executive-directory-search]");
+  if (!list) return;
+  try {
+    const employees = await employeesPromise;
+    const render = () => {
+      const query = String(search?.value || "").trim().toLocaleLowerCase("es");
+      const visible = employees.filter((employee) => executivePersonName(employee).toLocaleLowerCase("es").includes(query));
+      list.innerHTML = visible.length ? visible.map((employee) => {
+        const name = executivePersonName(employee);
+        const photo = executivePhotoUrl(employee);
+        const portrait = photo
+          ? `<img class="executive-photo" src="${safeHtml(photo)}" alt="">`
+          : `<span class="executive-avatar" aria-hidden="true">${safeHtml(employee.avatar || name.slice(0, 1))}</span>`;
+        const role = [employee.posicion, employee.departamento].filter(Boolean).join(" · ");
+        const phone = executivePhoneHref(employee.telefono);
+        const phoneHtml = phone
+          ? `<a class="executive-phone" href="${safeHtml(phone)}">${safeHtml(employee.telefono)}</a>`
+          : "";
+        return `<article class="executive-person">${portrait}<div><strong>${safeHtml(name)}</strong><span>${safeHtml(role || "Sin puesto registrado")}</span>${phoneHtml}</div></article>`;
+      }).join("") : `<p class="portal-empty">Ningún nombre coincide.</p>`;
+    };
+    search?.addEventListener("input", render);
+    render();
+  } catch (error) {
+    list.innerHTML = `<p class="portal-empty">${safeHtml(error.message || "No se pudo consultar el directorio.")}</p>`;
+  }
+}
+
+async function renderExecutiveCalendar() {
+  const list = document.querySelector("[data-executive-calendar]");
+  if (!list) return;
+  try {
+    const events = executiveUpcomingEvents(await fetchSupabaseCalendarEvents("general"), puertoRicoToday());
+    list.innerHTML = events.length ? events.map((event) => {
+      const time = executiveEventTime(event.start_time);
+      const place = String(event.location || "").trim();
+      return `<article class="executive-event"><time datetime="${safeHtml(event.event_date)}">${safeHtml(executiveEventDate(event.event_date))}${time ? ` · ${safeHtml(time)}` : ""}</time><strong>${safeHtml(event.title || "Actividad")}</strong>${place ? `<span>${safeHtml(place)}</span>` : ""}</article>`;
+    }).join("") : `<p class="portal-empty">No hay actividades próximas.</p>`;
+  } catch (error) {
+    list.innerHTML = `<p class="portal-empty">${safeHtml(error.message || "No se pudo consultar el calendario.")}</p>`;
+  }
+}
+
+function renderExecutiveFinanceResult(result) {
+  const totals = document.querySelector("[data-executive-finance-totals]");
+  const message = document.querySelector("[data-executive-finance-message]");
+  if (!totals || !message) return;
+  if (!result || result.status !== "ready") {
+    totals.hidden = true;
+    totals.textContent = "";
+    message.innerHTML = `<strong>Resumen financiero no disponible</strong><span>${safeHtml(result?.message || "No se pudo consultar el resumen.")}</span>`;
+    return;
+  }
+  const money = (value) => Number(value).toLocaleString("es-PR", { style: "currency", currency: "USD" });
+  const included = (result.months || []).filter((month) => month.included);
+  const caption = included.length ? `${financeCalendarMonths()[included[0].month - 1]} ${included[0].year}${included.length > 1 ? ` – ${financeCalendarMonths()[included.at(-1).month - 1]} ${included.at(-1).year}` : ""}` : "";
+  message.textContent = caption;
+  totals.hidden = false;
+  totals.innerHTML = `<div><span>Total ingresos</span><strong>${money(result.income)}</strong></div><div><span>Total gastos (incluyendo nómina)</span><strong>${money(result.expense)}</strong></div><div><span>Balance neto</span><strong>${money(result.net)}</strong></div>`;
+}
+
+async function loadExecutiveFinance(profile, range) {
+  if (!hasPermission("finance.read")) {
+    return { status: "blocked", message: "No tiene permiso para consultar las finanzas." };
+  }
+  if (!hasPermission("compensation.read") || !hasPermission("attendance.history.read")) {
+    return { status: "blocked", message: "No tiene permiso para consultar la nómina." };
+  }
+  if (typeof executiveFinanceSummary !== "function") {
+    return { status: "blocked", message: "No se pudo consultar el resumen." };
+  }
+  const today = puertoRicoToday();
+  let months;
+  let fiscalStartMonth;
+  if (range) {
+    const selected = executiveFinanceSelectedMonths(range);
+    if (selected.error) return executiveFinanceSummary({ today, range, movements: [], payrollByMonth: {} });
+    months = selected.months;
+  } else {
+    const museumRows = await supabaseGet(`/rest/v1/museums?select=fiscal_year_start_month&id=eq.${encodeURIComponent(profile.museum_id)}&limit=1`);
+    fiscalStartMonth = Number(museumRows[0]?.fiscal_year_start_month);
+    const fiscal = executiveFinanceFiscalWindow(fiscalStartMonth, today);
+    if (fiscal.error) return executiveFinanceSummary({ fiscalStartMonth, today, movements: [], payrollByMonth: {} });
+    months = fiscal.months;
+  }
+  const included = months.filter((month) => month.from <= today);
+  const payrollByMonth = {};
+  await Promise.all(included.map(async (month) => {
+    try {
+      payrollByMonth[month.from] = { payload: await supabasePost("/rest/v1/rpc/payroll_actual", { p_from: month.from, p_to: month.to }) };
+    } catch (error) {
+      payrollByMonth[month.from] = { error: error.message || "PAYROLL_UNAVAILABLE" };
+    }
+  }));
+  const movements = [];
+  for (let offset = 0; ; offset += 1000) {
+    const page = await fetchActiveFinanceMovements(profile.museum_id, offset);
+    movements.push(...page.map((movement) => {
+      const line = movement.finance_budget_lines || {};
+      return {
+        id: movement.id,
+        occurred_on: movement.occurred_on,
+        amount: movement.amount,
+        voided_at: movement.voided_at,
+        record_type: line.record_type,
+        category: line.category,
+        counts_in_operating_balance: line.counts_in_operating_balance
+      };
+    }));
+    if (page.length < 1000) break;
+  }
+  return executiveFinanceSummary({ today, fiscalStartMonth, range, movements, payrollByMonth });
+}
+
+async function renderExecutiveFinance(profile, range) {
+  const message = document.querySelector("[data-executive-finance-message]");
+  if (message && !range) message.textContent = "Consultando movimientos y nómina…";
+  try {
+    renderExecutiveFinanceResult(await loadExecutiveFinance(profile, range));
+  } catch (error) {
+    renderExecutiveFinanceResult({ status: "blocked", message: error.message || "No se pudo consultar el resumen." });
+  }
+}
+
+function bindExecutiveFinanceControls(profile) {
+  const globalButton = document.querySelector("[data-executive-finance-global]");
+  const rangeButton = document.querySelector("[data-executive-finance-range]");
+  const form = document.querySelector("[data-executive-finance-form]");
+  if (!globalButton || !rangeButton || !form || form.dataset.bound === "1") return;
+  form.dataset.bound = "1";
+  const today = puertoRicoToday();
+  const year = Number(today.slice(0, 4));
+  const month = Number(today.slice(5, 7));
+  const months = financeCalendarMonths();
+  const fill = (select, selected) => {
+    select.innerHTML = months.map((name, index) => `<option value="${index + 1}"${index + 1 === selected ? " selected" : ""}>${name}</option>`).join("");
+  };
+  fill(form.elements.fromMonth, month);
+  fill(form.elements.toMonth, month);
+  [form.elements.fromYear, form.elements.toYear].forEach((select) => {
+    select.innerHTML = [year - 1, year, year + 1].map((value) => `<option value="${value}"${value === year ? " selected" : ""}>${value}</option>`).join("");
+  });
+  const activate = (global) => {
+    globalButton.setAttribute("aria-selected", global ? "true" : "false");
+    rangeButton.setAttribute("aria-selected", global ? "false" : "true");
+    form.hidden = global;
+  };
+  globalButton.addEventListener("click", () => {
+    activate(true);
+    renderExecutiveFinance(profile, null);
+  });
+  rangeButton.addEventListener("click", () => {
+    activate(false);
+    const totals = document.querySelector("[data-executive-finance-totals]");
+    const message = document.querySelector("[data-executive-finance-message]");
+    if (totals) { totals.hidden = true; totals.textContent = ""; }
+    if (message) message.textContent = "Elija el mes inicial y el mes final.";
+  });
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    renderExecutiveFinance(profile, {
+      from: { year: Number(form.elements.fromYear.value), month: Number(form.elements.fromMonth.value) },
+      to: { year: Number(form.elements.toYear.value), month: Number(form.elements.toMonth.value) }
+    });
+  });
+}
+
 async function bindEmployeePortal() {
   if (!document.querySelector("[data-employee-portal]")) return;
   const session = getSupabaseSession();
   if (!session?.access_token) { window.location.replace(`login.html?environment=${encodeURIComponent(museoEnvironment.name)}`); return; }
   const profile = await fetchSupabaseProfile();
-  const employee = await fetchOwnSupabaseEmployee();
+  let employee = null;
+  try {
+    employee = await fetchOwnSupabaseEmployee();
+  } catch (error) {
+    if (!String(error?.message || "").includes("ambiguo")) throw error;
+    document.querySelector(".portal-clock-card")?.setAttribute("hidden", "");
+    const account = document.querySelector("[data-portal-account]");
+    if (account) account.textContent = "No se pudo confirmar un vínculo único de empleado.";
+    return;
+  }
+  if (employee?.accessProfile === "director_ejecutivo") {
+    bindExecutiveFinanceControls(profile);
+    await bindExecutiveEmployeePortal(profile, employee);
+    return;
+  }
   document.querySelector("[data-portal-name]").textContent = employee ? employeeDisplayName(employee) : (profile?.full_name || session.user?.email || "Usuario");
   document.querySelector("[data-portal-role]").textContent = employee?.posicion || (hasPermission("attendance.corrections.approve") ? "Recursos Humanos" : "Usuario autorizado");
   bindMyAssignedShifts(employee);
@@ -7708,6 +8022,8 @@ async function bindEmployeePortal() {
   }
   const personal = { clock: Boolean(employee && hasPermission("time.clock")), attendance: Boolean(employee && hasPermission("time.read.self")), schedule: Boolean(employee && hasPermission("schedules.read.self")) };
   document.querySelector(".portal-clock-card").hidden = !personal.clock && !personal.schedule;
+  const scheduleLine = document.querySelector(".portal-schedule");
+  if (scheduleLine) scheduleLine.hidden = !personal.schedule;
   document.querySelector("[data-portal-corrections]").hidden = !employee || !hasPermission("attendance.corrections.request");
   document.querySelector("[data-portal-notifications]").closest(".portal-section").hidden = !hasPermission("notifications.read.self");
   document.querySelector("[data-portal-clock-button]").hidden = !personal.clock;
