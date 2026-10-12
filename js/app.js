@@ -4938,6 +4938,27 @@ function payrollActualTotal(payload) {
   return Math.round(amount * 100) / 100;
 }
 
+function renderFinanceGlobal(real) {
+  if (!real) return `<p class="form-message">No se pudo determinar el período fiscal vigente.</p>`;
+  const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
+  return `
+    <p class="page-kicker">Global</p>
+    <h3>${real.label}</h3>
+    <div class="table-wrap">
+      <table class="data-table finance-table">
+        <thead>
+          <tr><th>Global</th><th>Valor</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Total de ingresos registrados</td><td>${money(real.income)}</td></tr>
+          <tr><td>Total de gastos registrados</td><td>${money(real.expense)}</td></tr>
+          <tr><td><strong>Balance neto</strong></td><td><strong>${money(real.net)}</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 function renderFinanceNetRegion(data, real) {
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   return `
@@ -5168,6 +5189,18 @@ function bindFinanceModule() {
     return { ...summary, label: `${financeMonths[index]} ${period.slice(0, 4)}` };
   };
 
+  const globalSummary = () => {
+    if (!financeYear || !fiscalYearStartMonth) return null;
+    const index = financeMovementMonthIndex(puertoRicoToday(), financeYear, fiscalYearStartMonth);
+    if (index < 0) return null;
+    const start = financePeriodDate(financeYear, 0, fiscalYearStartMonth);
+    const current = financePeriodDate(financeYear, index, fiscalYearStartMonth);
+    const label = index === 0
+      ? `${financeMonths[0]} ${start.slice(0, 4)}`
+      : `${financeMonths[0]} ${start.slice(0, 4)} – ${financeMonths[index]} ${current.slice(0, 4)}`;
+    return { ...financeRealThroughMonth(realMovements, index), label };
+  };
+
   const renderSummary = () => {
     if (summary) summary.innerHTML = "";
   };
@@ -5261,6 +5294,7 @@ function bindFinanceModule() {
       return;
     }
     if (activeTab === "resumen") panel.innerHTML = renderNetSummary();
+    if (activeTab === "global") panel.innerHTML = renderFinanceGlobal(globalSummary());
     if (activeTab === "ingresos") panel.innerHTML = renderFinanceTable("Ingresos", (row) => row.type === "income");
     if (activeTab === "gastos") panel.innerHTML = renderExpenseSummaryTable();
     if (activeTab === "nomina") {

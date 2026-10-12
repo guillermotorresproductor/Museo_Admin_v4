@@ -120,6 +120,18 @@ function financeRealFromMovements(movements, fiscalYear, startMonth) {
   };
 }
 
+function financeRealThroughMonth(movementReal, throughIndex) {
+  const last = Number(throughIndex);
+  if (!Number.isInteger(last) || last < 0 || last > 11) throw Error("Mes fiscal no reconocido.");
+  let income = 0;
+  let expense = 0;
+  for (let index = 0; index <= last; index += 1) {
+    income += Math.round(Number(movementReal.monthIncome(index) || 0) * 100);
+    expense += Math.round(Number(movementReal.monthExpense(index) || 0) * 100);
+  }
+  return { income: income / 100, expense: expense / 100, net: (income - expense) / 100 };
+}
+
 function financeMonthReal(movementReal, payrollAmount, monthIndex) {
   const incomeCents = Math.round(Number(movementReal.monthIncome(monthIndex) || 0) * 100);
   const expenseCents = Math.round(Number(movementReal.monthExpense(monthIndex) || 0) * 100) + Math.round(Number(payrollAmount || 0) * 100);
