@@ -158,6 +158,7 @@ function bindCollectionIntake() {
     form.querySelector('[data-donation]').hidden = !donation;
     form.querySelector('[data-party]').hidden = !loan && !donation;
     form.querySelector('[data-donation-note]').hidden = !donation;
+    form.querySelector('[data-donation-declaration]').hidden = !donation;
     form.querySelector('[data-party-name-label]').textContent = loan ? 'Nombre del propietario / prestamista *' : 'Nombre del donante *';
     form.querySelector('[data-party-legend]').textContent = loan ? 'Propietario / prestamista' : 'Donante';
     form.querySelector('[data-party-sign-legend]').textContent = loan ? 'Propietario / Prestamista' : donation ? 'Donante' : 'Propietario / Prestamista';
