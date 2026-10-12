@@ -6,6 +6,7 @@ on:
       - 'inventario.html'
       - 'css/main.css'
       - 'js/app.js'
+      - 'js/inventory-image.js'
       - 'js/services/supabase.js'
       - 'supabase/migrations/202610110002_marketing_equipment_inventory_create.sql'
       - 'supabase/migrations/202610110003_marketing_inventory_explicit_manage_allow.sql'
@@ -13,6 +14,7 @@ on:
       - 'supabase/tests/employee-module-profiles.test.mjs'
       - 'supabase/tests/marketing-equipment-inventory-access.test.mjs'
       - 'supabase/tests/inventory-v1.test.mjs'
+      - 'supabase/tests/inventory-photo-processing.test.mjs'
       - '.github/workflows/marketing-equipment-inventory-guard.yml'
   workflow_dispatch:
 
@@ -29,10 +31,13 @@ jobs:
         with:
           node-version: '22'
       - name: Check JavaScript syntax
-        run: node --check js/app.js
+        run: |
+          node --check js/app.js
+          node --check js/inventory-image.js
       - name: Verify profile and inventory regressions
         run: |
           node --test \
             supabase/tests/marketing-equipment-inventory-access.test.mjs \
             supabase/tests/employee-module-profiles.test.mjs \
-            supabase/tests/inventory-v1.test.mjs
+            supabase/tests/inventory-v1.test.mjs \
+            supabase/tests/inventory-photo-processing.test.mjs

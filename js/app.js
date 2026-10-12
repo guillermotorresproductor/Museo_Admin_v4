@@ -2841,6 +2841,7 @@ function bindInventoryModule() {
   const recordTypeInput = document.querySelector("#inventory-record-type");
   const quantityInput = document.querySelector("#inventory-quantity");
   const photoPreview = document.querySelector("[data-inventory-photo-preview]");
+  const clearPhotoButton = document.querySelector("[data-inventory-photo-clear]");
   const detailDialog = document.querySelector("[data-inventory-detail-dialog]");
   const detail = document.querySelector("[data-inventory-detail]");
   let records = [];
@@ -2848,6 +2849,11 @@ function bindInventoryModule() {
   let photoProcessing = null;
   let photoError = null;
   let previewObjectUrl = "";
+  let photoRequest = 0;
+  let submitInFlight = false;
+  let registeredItem = null;
+  let registrationUncertain = false;
+  let uncertainSeal = "";
   let sortKey = "updated_at";
   let sortDirection = "desc";
 
@@ -2998,6 +3004,23 @@ function bindInventoryModule() {
     }
   };
 
+  const releasePreview = () => {
+    if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    previewObjectUrl = "";
+  };
+
+  const invalidatePhotoSelection = () => {
+    photoRequest += 1;
+    processedPhoto = null;
+    photoError = null;
+    photoProcessing = null;
+    if (photoInput) photoInput.value = "";
+    if (cameraInput) cameraInput.value = "";
+    releasePreview();
+    if (photoPreview) photoPreview.innerHTML = "<span>Sin fotografía seleccionada</span>";
+    if (clearPhotoButton) clearPhotoButton.hidden = true;
+  };
+
   const resetForm = () => {
     form.reset();
     restoreListedOptions(categorySelect, baseCategoryValues);
@@ -3012,16 +3035,13 @@ function bindInventoryModule() {
     form.elements.record_type.value = "individual";
     if (quantityInput) quantityInput.readOnly = true;
     form.elements.status.value = "activo";
-    processedPhoto = null;
-    photoProcessing = null;
-    photoError = null;
-    if (photoInput) photoInput.value = "";
-    if (cameraInput) cameraInput.value = "";
-    if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-    previewObjectUrl = "";
-    if (photoPreview) photoPreview.innerHTML = "<span>Sin fotografía seleccionada</span>";
+    registeredItem = null;
+    registrationUncertain = false;
+    uncertainSeal = "";
+    invalidatePhotoSelection();
     if (submitButton) submitButton.textContent = "Registrar equipo";
     if (cancelButton) cancelButton.hidden = true;
+    if (submitButton && !submitInFlight) submitButton.disabled = false;
   };
 
   const payloadFromForm = (data) => ({
@@ -3045,8 +3065,34 @@ function bindInventoryModule() {
     warranty: String(data.get("warranty") || "").trim()
   });
 
+  const uncertainCreateMessage = () => {
+    const seal = uncertainSeal ? `«${uncertainSeal}»` : "indicado en el formulario";
+    return `No se pudo confirmar si el equipo con sello ${seal} quedó registrado. Busque ese sello en el listado antes de registrar otra vez. Si el equipo aparece, complete la fotografía con Galería o Cámara y no se creará un duplicado.`;
+  };
+
+  const rememberUncertainCreate = (seal) => {
+    registrationUncertain = true;
+    uncertainSeal = String(seal || "").trim();
+  };
+
+  const inventoryCreateConfirmationLost = (error) => {
+    if (!error || error.code === "INVENTORY_CREATE_UNCERTAIN") return true;
+    if (error.code === "INVENTORY_CONFLICT") return false;
+    const message = String(error.message || "");
+    if (/ya existe en este museo/i.test(message)) return false;
+    if (/no tiene permiso para administrar Inventario/i.test(message)) return false;
+    return true;
+  };
+
+  const keepUncertainRegistration = () => {
+    if (!registrationUncertain) return false;
+    setMessage(uncertainCreateMessage(), "error");
+    return true;
+  };
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (submitInFlight) return;
     if (!(String(new FormData(form).get("id") || "") ? canEditInventory() : canCreateInventory())) {
       setMessage("No tiene permiso para registrar o modificar este equipo.", "error");
       return;
@@ -3063,23 +3109,68 @@ function bindInventoryModule() {
       setMessage("La cantidad debe ser un entero mayor o igual a 1; un registro individual siempre contiene una pieza.", "error");
       return;
     }
+    submitInFlight = true;
     submitButton.disabled = true;
     setMessage("Guardando equipo...", "");
     try {
-      if (photoProcessing) await photoProcessing;
+      while (photoProcessing) await photoProcessing;
       if (photoError) throw photoError;
-      let saved = id
-        ? await updateSupabaseInventoryItem(id, version, payload)
-        : await createSupabaseInventoryItem(payload);
-      if (processedPhoto?.blob) saved = await uploadSupabaseInventoryPhoto(saved, processedPhoto.blob);
+      if (!id && registrationUncertain) {
+        throw new Error(uncertainCreateMessage());
+      }
+      const retryingCreate = !id && registeredItem;
+      let saved;
+      if (id) {
+        saved = await updateSupabaseInventoryItem(id, version, payload);
+      } else if (retryingCreate) {
+        saved = registeredItem;
+      } else {
+        try {
+          saved = await createSupabaseInventoryItem(payload);
+        } catch (createError) {
+          if (!inventoryCreateConfirmationLost(createError)) throw createError;
+          rememberUncertainCreate(payload.asset_tag);
+          await loadInventoryRecords();
+          const lost = new Error(uncertainCreateMessage());
+          lost.code = "INVENTORY_CREATE_UNCERTAIN";
+          throw lost;
+        }
+        if (!saved?.id || !saved?.museum_id || saved.version == null) {
+          rememberUncertainCreate(payload.asset_tag);
+          throw new Error("El equipo pudo haberse registrado, pero la respuesta no incluye el identificador necesario para adjuntar la fotografía. Recargue el listado y, si el artículo aparece, use Galería o Cámara. No pulse Registrar de nuevo.");
+        }
+        registeredItem = saved;
+      }
+      const hadPhoto = Boolean(processedPhoto?.blob);
+      if (hadPhoto) {
+        try {
+          saved = await uploadSupabaseInventoryPhoto(id ? saved : registeredItem, processedPhoto.blob);
+        } catch (uploadError) {
+          if (!id && registeredItem) {
+            await loadInventoryRecords();
+            const pending = new Error("El equipo quedó registrado sin fotografía. Use Galería o Cámara en el listado para adjuntarla, o elija otra imagen y pulse Registrar equipo. No se creará un artículo duplicado.");
+            pending.code = "INVENTORY_REGISTERED_WITHOUT_PHOTO";
+            throw pending;
+          }
+          throw uploadError;
+        }
+      }
+      const finishedWithoutNewPhoto = retryingCreate && !hadPhoto;
+      registeredItem = null;
+      registrationUncertain = false;
       resetForm();
-      setMessage(id ? "Equipo actualizado correctamente." : "Equipo registrado correctamente.", "success");
+      setMessage(id
+        ? "Equipo actualizado correctamente."
+        : finishedWithoutNewPhoto
+          ? "El equipo ya estaba registrado y permanece sin fotografía. Puede adjuntarla con Galería o Cámara en el listado."
+          : "Equipo registrado correctamente.", "success");
       await loadInventoryRecords();
     } catch (error) {
       setMessage(error.message || "No se pudo guardar el equipo.", "error");
       if (error.code === "INVENTORY_CONFLICT") await loadInventoryRecords();
     } finally {
-      submitButton.disabled = false;
+      submitInFlight = false;
+      if (submitButton) submitButton.disabled = false;
     }
   });
 
@@ -3154,8 +3245,10 @@ function bindInventoryModule() {
 
   if (cancelButton) {
     cancelButton.addEventListener("click", () => {
+      if (keepUncertainRegistration()) return;
+      const pending = registeredItem;
       resetForm();
-      setMessage("");
+      setMessage(pending ? "El equipo ya registrado permanece en el listado. Este formulario quedó listo para otro artículo." : "");
     });
   }
 
@@ -3172,28 +3265,58 @@ function bindInventoryModule() {
   showArchived?.addEventListener("change", loadInventoryRecords);
   document.querySelector("[data-inventory-detail-close]")?.addEventListener("click", () => detailDialog?.close());
   const processFormPhoto = (file, input) => {
+    if (!file) return;
+    const request = ++photoRequest;
     processedPhoto = null;
     photoError = null;
-    if (!file) return;
     if (input === cameraInput && photoInput) photoInput.value = "";
     if (input === photoInput && cameraInput) cameraInput.value = "";
+    releasePreview();
+    if (photoPreview) photoPreview.innerHTML = "<span>Procesando fotografía...</span>";
+    if (clearPhotoButton) clearPhotoButton.hidden = false;
+    if (submitButton && !submitInFlight) submitButton.disabled = true;
     setMessage("Procesando fotografía...", "");
-    photoProcessing = InventoryImage.process(file).then((result) => {
+    const pending = Promise.resolve().then(() => InventoryImage.process(file)).then((result) => {
+      if (request !== photoRequest) return null;
       processedPhoto = result;
-      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+      photoError = null;
+      releasePreview();
       previewObjectUrl = URL.createObjectURL(result.blob);
-      photoPreview.innerHTML = `<img src="${previewObjectUrl}" alt="Previsualización"><span>${result.width}×${result.height} · ${Math.ceil(result.bytes / 1024)} KB · WebP</span>`;
+      if (photoPreview) {
+        photoPreview.innerHTML = `<img src="${previewObjectUrl}" alt="Previsualización de la fotografía que se guardará"><span>${result.width}×${result.height} · ${Math.ceil(result.bytes / 1024)} KB · WebP</span>`;
+      }
       setMessage("Fotografía lista. Se eliminaron los metadatos EXIF.", "success");
       return result;
     }).catch((error) => {
+      if (request !== photoRequest) return null;
+      processedPhoto = null;
       photoError = error;
       input.value = "";
+      releasePreview();
+      if (photoPreview) photoPreview.innerHTML = "<span>No se pudo preparar la fotografía</span>";
+      if (clearPhotoButton) clearPhotoButton.hidden = false;
       setMessage(error.message, "error");
       return null;
+    }).finally(() => {
+      if (request !== photoRequest) return;
+      photoProcessing = null;
+      if (submitButton && !submitInFlight) submitButton.disabled = false;
     });
+    photoProcessing = pending;
   };
   photoInput?.addEventListener("change", () => processFormPhoto(photoInput.files?.[0], photoInput));
   cameraInput?.addEventListener("change", () => processFormPhoto(cameraInput.files?.[0], cameraInput));
+  clearPhotoButton?.addEventListener("click", () => {
+    invalidatePhotoSelection();
+    if (submitButton && !submitInFlight) submitButton.disabled = false;
+    if (registrationUncertain) {
+      setMessage(uncertainCreateMessage(), "error");
+      return;
+    }
+    setMessage(registeredItem
+      ? "Fotografía retirada. El equipo ya registrado no se duplicará; puede elegir otra imagen o continuar sin ella."
+      : "Fotografía retirada. Puede registrar el equipo sin ella.", "");
+  });
 
   const attachExistingPhoto = async (input) => {
     const recordId = input?.dataset.inventoryAddPhoto || input?.dataset.inventoryTakePhoto;
@@ -3226,8 +3349,11 @@ function bindInventoryModule() {
     addButton.hidden = !canCreateInventory();
     addButton.addEventListener("click", () => {
       if (!canCreateInventory() || !entryPanel) return;
+      if (keepUncertainRegistration()) return;
+      const pending = registeredItem;
       resetForm();
       entryPanel.hidden = false;
+      if (pending) setMessage("El equipo ya registrado permanece en el listado.", "");
       const title = document.querySelector("[data-inventory-form-title]");
       if (title) title.textContent = "Registro de Equipos";
       entryPanel.scrollIntoView({ behavior: "smooth", block: "start" });
