@@ -3168,6 +3168,19 @@ function bindInventoryModule() {
     attachExistingPhoto(input);
   });
 
+  const addButton = document.querySelector("[data-inventory-add]");
+  if (addButton) {
+    addButton.hidden = !canCreateInventory();
+    addButton.addEventListener("click", () => {
+      if (!canCreateInventory() || !entryPanel) return;
+      resetForm();
+      entryPanel.hidden = false;
+      const title = document.querySelector("[data-inventory-form-title]");
+      if (title) title.textContent = "Registro de Equipos";
+      entryPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      form.elements.name?.focus({ preventScroll: true });
+    });
+  }
   if (!canCreateInventory() && entryPanel) {
     entryPanel.hidden = true;
   }
