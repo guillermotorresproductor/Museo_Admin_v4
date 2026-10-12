@@ -83,6 +83,15 @@ function employeeToSupabasePayload(employee, museumId) {
   };
 }
 
+async function fetchActiveMuseumEmployeeNames() {
+  const rows = await supabaseGet("/rest/v1/employees?select=first_name,last_name,status&status=eq.activo");
+  const names = (Array.isArray(rows) ? rows : [])
+    .filter((row) => row?.status === "activo")
+    .map((row) => `${row.first_name || ""} ${row.last_name || ""}`.trim())
+    .filter(Boolean);
+  return [...new Set(names)].sort((left, right) => left.localeCompare(right, "es"));
+}
+
 async function fetchSupabaseEmployees() {
   const data = await supabaseGet("/rest/v1/employees?select=id,profile_id,access_level,access_profile,first_name,last_name,photo_url,position,department,email,phone,address,hire_date,work_schedule,education_level,status,created_at&order=created_at.asc");
   return Promise.all(data.map(resolveSupabaseEmployeePhoto));

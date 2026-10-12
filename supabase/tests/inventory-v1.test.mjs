@@ -69,7 +69,8 @@ test("los estados de recepción amplían solamente las restricciones existentes"
   assert.match(intakeStatesMigration, /drop constraint inventory_items_status_check/i);
   assert.match(intakeStatesMigration, /'recibido'/i);
   assert.doesNotMatch(intakeStatesMigration, /create table|create policy|create or replace function/i);
-  assert.match(html, /<option value="por_verificar">Por verificar<\/option>/i);
+  assert.match(app, /condition: String\(data\.get\("id"\) \|\| ""\) \? preservedCondition : "por_verificar"/);
+  assert.doesNotMatch(html, /<span>Condición<\/span>/);
   assert.match(html, /<option value="recibido">Recibido<\/option>/i);
 });
 
@@ -136,6 +137,31 @@ test("la página mantiene el módulo aislado y carga el procesador WebP", () => 
   assert.match(html, /js\/inventory-image\.js/);
   assert.match(html, /data-inventory-show-archived/);
   assert.doesNotMatch(html, /Instituva_App/i);
+});
+
+test("el registro de equipos usa listas cerradas y conserva los datos que ya no se editan", () => {
+  for (const category of ["Utilería", "Eléctricos", "Mantenimiento", "Producción"]) {
+    assert.match(html, new RegExp(`<option>${category}</option>`));
+  }
+  for (const location of ["Almacén 1", "Sala Itinerante \\(Ball Room\\)", "Oficina", "Oficina de Producción", "Taller", "Área de Mantenimiento"]) {
+    assert.match(html, new RegExp(`<option>${location}</option>`));
+  }
+  assert.match(html, /<select id="inventory-category" name="category" required>/);
+  assert.match(html, /<option value="">Sin asignar<\/option>/);
+  assert.match(html, /data-inventory-add hidden>\+ Añadir artículo/);
+  assert.match(html, /id="inventory-photo-camera"[^>]*capture="environment"/);
+  assert.doesNotMatch(html, /Artista \/ representante/);
+  assert.doesNotMatch(html, /name="supplier"/);
+  assert.doesNotMatch(html, /name="condition"/);
+  assert.match(app, /supplier: String\(data\.get\("id"\) \|\| ""\) \? preservedSupplier : ""/);
+  assert.match(app, /ensureSelectValue\(form\.elements\.category, record\.category\)/);
+  assert.match(app, /ensureSelectValue\(form\.elements\.location, record\.location\)/);
+  assert.match(app, /ensureSelectValue\(form\.elements\.responsible, record\.responsible\)/);
+  assert.match(app, /canEditInventory\(\) && !record\.archived_at/);
+  const names = service.slice(service.indexOf("async function fetchActiveMuseumEmployeeNames()"), service.indexOf("async function fetchSupabaseEmployees()"));
+  assert.match(names, /select=first_name,last_name,status&status=eq\.activo/);
+  assert.match(names, /row\?\.status === "activo"/);
+  assert.doesNotMatch(names, /email|phone|address/);
 });
 
 test("la corrección RLS usa el nombre del objeto y privilegio mínimo", () => {
