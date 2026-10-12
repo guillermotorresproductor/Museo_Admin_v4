@@ -159,9 +159,25 @@ test("el registro de equipos usa listas cerradas y conserva los datos que ya no 
   assert.match(app, /ensureSelectValue\(form\.elements\.responsible, record\.responsible\)/);
   assert.match(app, /canEditInventory\(\) && !record\.archived_at/);
   const names = service.slice(service.indexOf("async function fetchActiveMuseumEmployeeNames()"), service.indexOf("async function fetchSupabaseEmployees()"));
-  assert.match(names, /select=first_name,last_name,status&status=eq\.activo/);
-  assert.match(names, /row\?\.status === "activo"/);
+  assert.match(names, /\/rest\/v1\/rpc\/inventory_active_employee_names/);
+  assert.doesNotMatch(names, /\/rest\/v1\/employees/);
   assert.doesNotMatch(names, /email|phone|address/);
+  assert.match(app, /restoreListedOptions\(categorySelect, baseCategoryValues\)/);
+  assert.match(app, /restoreListedOptions\(locationSelect, baseLocationValues\)/);
+  assert.match(app, /No se pudieron cargar los empleados activos/);
+  const migration = fs.readFileSync(new URL("supabase/migrations/202610120002_inventory_active_employee_names.sql", root), "utf8");
+  assert.match(migration, /inventory_active_employee_names\(\)/);
+  assert.match(migration, /security definer/i);
+  assert.match(migration, /set search_path = ''/);
+  assert.match(migration, /e\.status = 'activo'/);
+  assert.match(migration, /has_permission\('inventory\.manage'\) or public\.has_permission\('inventory\.create'\)/);
+  assert.match(migration, /revoke all on function public\.inventory_active_employee_names\(\) from public, anon/i);
+  assert.match(migration, /grant execute on function public\.inventory_active_employee_names\(\) to authenticated/i);
+  assert.doesNotMatch(migration, /\bgrant\s+employees\.read\.all\b|\bcreate policy\b|\balter policy\b/i);
+  const sql = fs.readFileSync(new URL("supabase/tests/inventory-active-employee-names.sql", root), "utf8");
+  for (const expectation of ["MARKETING_CREATE_MISSING", "FORBIDDEN_NAME_RETURNED", "DENY_IGNORED", "UNAUTHORIZED_ALLOWED", "INACTIVE_ACCOUNT_ALLOWED", "rollback"]) {
+    assert.match(sql, new RegExp(expectation, "i"));
+  }
 });
 
 test("la corrección RLS usa el nombre del objeto y privilegio mínimo", () => {

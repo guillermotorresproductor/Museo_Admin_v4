@@ -84,11 +84,9 @@ function employeeToSupabasePayload(employee, museumId) {
 }
 
 async function fetchActiveMuseumEmployeeNames() {
-  const rows = await supabaseGet("/rest/v1/employees?select=first_name,last_name,status&status=eq.activo");
-  const names = (Array.isArray(rows) ? rows : [])
-    .filter((row) => row?.status === "activo")
-    .map((row) => `${row.first_name || ""} ${row.last_name || ""}`.trim())
-    .filter(Boolean);
+  const data = await supabasePost("/rest/v1/rpc/inventory_active_employee_names", {});
+  const rows = Array.isArray(data) ? data : [];
+  const names = rows.map((row) => String(typeof row === "string" ? row : row?.full_name || "").trim()).filter(Boolean);
   return [...new Set(names)].sort((left, right) => left.localeCompare(right, "es"));
 }
 

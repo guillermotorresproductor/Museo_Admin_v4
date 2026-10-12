@@ -2963,6 +2963,15 @@ function bindInventoryModule() {
   let responsibleNames = [];
   const preservedResponsibles = new Set();
   const responsibleSelect = form.elements.responsible;
+  const categorySelect = form.elements.category;
+  const locationSelect = form.elements.location;
+  const baseCategoryValues = new Set([...categorySelect.options].map((option) => option.value));
+  const baseLocationValues = new Set([...locationSelect.options].map((option) => option.value));
+  const restoreListedOptions = (select, base) => {
+    [...select.options].forEach((option) => {
+      if (!base.has(option.value)) option.remove();
+    });
+  };
   const ensureSelectValue = (select, value) => {
     const text = String(value ?? "").trim();
     if (!select || !text) return;
@@ -2981,14 +2990,18 @@ function bindInventoryModule() {
   const loadResponsibleOptions = async () => {
     try {
       responsibleNames = await fetchActiveMuseumEmployeeNames();
+      renderResponsibleOptions(responsibleNames);
     } catch {
       responsibleNames = [];
+      renderResponsibleOptions(responsibleNames);
+      setListMessage("No se pudieron cargar los empleados activos. Puede continuar con «Sin asignar».", "error");
     }
-    renderResponsibleOptions(responsibleNames);
   };
 
   const resetForm = () => {
     form.reset();
+    restoreListedOptions(categorySelect, baseCategoryValues);
+    restoreListedOptions(locationSelect, baseLocationValues);
     preservedSupplier = "";
     preservedCondition = "por_verificar";
     preservedResponsibles.clear();
