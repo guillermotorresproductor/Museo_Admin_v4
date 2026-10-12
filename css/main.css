@@ -4196,3 +4196,31 @@ body {
   body.payroll-printing .payroll-print-date{overflow:hidden;white-space:nowrap;font-weight:400;font-size:9pt}
   body.payroll-printing .payroll-print-caption{margin-bottom:.14in}
 }
+body:has(.employee-portal.is-executive){overflow-x:hidden}
+.employee-portal.is-executive{overflow-x:hidden}
+.employee-portal.is-executive .portal-welcome h1{font-size:clamp(1.55rem,7vw,2rem)}
+.executive-staff-row,.executive-person{display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #e4e7ec}
+.executive-staff-row{grid-template-columns:44px minmax(0,1fr) auto}
+.executive-photo,.executive-avatar{width:40px;height:40px;border-radius:50%;object-fit:cover}
+.executive-avatar{display:grid;place-items:center;background:#050505;color:#fff;font-size:.78rem;font-weight:800}
+.executive-staff-row strong,.executive-person strong,.executive-event strong{overflow-wrap:anywhere}
+.executive-status{justify-self:end;border-radius:999px;padding:6px 8px;background:#edf0f3;color:#3d4450;font-size:.72rem;font-weight:800;text-align:right}
+.executive-status[data-status="NO HA PONCHADO"]{background:#fff4df;color:#8a5a00}
+.executive-status[data-status="SIN TURNO"]{background:#f3f4f6;color:#69707d}
+.executive-status[data-status="TRABAJANDO"]{background:#e6f7ec;color:#147a3c}
+.executive-status[data-status="INCONSISTENCIA"]{background:#fdecec;color:#9b1c1c}
+.executive-event{display:grid;gap:2px;padding:10px 0;border-bottom:1px solid #e4e7ec}
+.executive-event time,.executive-person span,.executive-search span{color:#69707d;font-size:.82rem}
+.executive-search{display:grid;gap:6px;margin:8px 0 4px}
+.executive-search input,.executive-finance-form select,.executive-finance-form button,.executive-finance-tabs button,.executive-phone{min-height:44px}
+.executive-search input,.executive-finance-form select{width:100%;border:1px solid #d5d9e0;border-radius:10px;padding:10px 12px;font:inherit}
+.executive-phone{display:inline-flex;align-items:center;color:#0b57d0;font-weight:800;text-decoration:none}
+.executive-finance-tabs,.executive-finance-form{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.executive-finance-tabs button,.executive-finance-form button{border:0;border-radius:999px;padding:10px 14px;background:#e7e9ee;color:#101114;font:inherit;font-weight:800}
+.executive-finance-tabs button[aria-selected="true"]{background:#050505;color:#fff}
+.executive-finance-form{display:grid}
+.executive-finance-form label{display:grid;grid-template-columns:4.5rem minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center}
+.executive-finance-message{display:grid;gap:4px;margin:8px 0;color:#3d4450}
+.executive-finance-totals{display:grid;gap:8px}
+.executive-finance-totals div{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #e4e7ec}
+.executive-finance-totals strong{font-size:1.05rem;text-align:right}

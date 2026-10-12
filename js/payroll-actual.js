@@ -218,6 +218,10 @@ function payrollConsultText(error) {
   if (detail.includes("INVALID_PERIOD")) return "El período indicado no es válido.";
   if (detail.includes("RANGE_TOO_LONG")) return "El período no puede pasar de 366 días.";
   if (detail.includes("FISCAL_START_MISSING")) return "No se pudo determinar el año fiscal del museo.";
+  if (detail.includes("SALARY_CONFIGURATION_INCOMPLETE")) return "Hay un sueldo fijo mensual sin importe o sin período. No se inventó un cero.";
+  if (detail.includes("SALARY_PERIOD_UNSUPPORTED")) return "Ese sueldo fijo no es mensual. No se convirtió a tarifa por hora.";
+  if (detail.includes("SALARY_CHANGE_UNDEFINED")) return "El sueldo cambió dentro del mes. No hay una regla para dividirlo.";
+  if (detail.includes("SALARY_HIRE_DATE_PARTIAL")) return "La contratación cae dentro del mes. No hay una regla para dividir el sueldo.";
   return payrollNetworkText(detail, "No se pudo consultar la nómina real.");
 }
 function payrollAdminText(error) {

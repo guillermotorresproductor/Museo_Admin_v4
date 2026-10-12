@@ -60,6 +60,8 @@ function employeeFromSupabase(row) {
     usuario: row.email || "",
     passwordTemporal: "",
     acceso: employeeAccessLabel(row.access_profile || row.access_level),
+    accessProfile: row.access_profile || "",
+    statusCode: row.status || "",
     estado: row.status === "inactivo" ? "Inactivo" : "Activo",
     notificaciones: "",
     source: "supabase"
@@ -855,7 +857,7 @@ async function fetchProcessedFinanceDocuments() {
 }
 
 async function fetchActiveFinanceMovements(museumId, offset = 0) {
-  return supabaseGet(`/rest/v1/finance_movements?select=id,budget_line_id,occurred_on,amount,voided_at,finance_budget_lines(record_type,counts_in_operating_balance)&museum_id=eq.${encodeURIComponent(museumId)}&voided_at=is.null&order=id.asc&limit=1000&offset=${offset}`);
+  return supabaseGet(`/rest/v1/finance_movements?select=id,budget_line_id,occurred_on,amount,voided_at,finance_budget_lines(record_type,category,counts_in_operating_balance)&museum_id=eq.${encodeURIComponent(museumId)}&voided_at=is.null&order=id.asc&limit=1000&offset=${offset}`);
 }
 
 async function fetchInvoiceBudgetLines() {
