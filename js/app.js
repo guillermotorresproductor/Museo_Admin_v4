@@ -7881,7 +7881,12 @@ function renderExecutiveFinanceResult(result) {
   const money = (value) => Number(value).toLocaleString("es-PR", { style: "currency", currency: "USD" });
   const included = (result.months || []).filter((month) => month.included);
   const caption = included.length ? `${financeCalendarMonths()[included[0].month - 1]} ${included[0].year}${included.length > 1 ? ` – ${financeCalendarMonths()[included.at(-1).month - 1]} ${included.at(-1).year}` : ""}` : "";
-  message.textContent = caption;
+  message.replaceChildren();
+  if (caption) {
+    const period = document.createElement("span");
+    period.textContent = caption;
+    message.append(period);
+  }
   totals.hidden = false;
   totals.innerHTML = `<div><span>Total ingresos</span><strong>${money(result.income)}</strong></div><div><span>Total gastos (incluyendo nómina)</span><strong>${money(result.expense)}</strong></div><div><span>Balance neto</span><strong>${money(result.net)}</strong></div>`;
 }
@@ -7890,35 +7895,20 @@ async function loadExecutiveFinance(profile, range) {
   if (!hasPermission("finance.read")) {
     return { status: "blocked", message: "No tiene permiso para consultar las finanzas." };
   }
-  if (!hasPermission("compensation.read") || !hasPermission("attendance.history.read")) {
-    return { status: "blocked", message: "No tiene permiso para consultar la nómina." };
-  }
   if (typeof executiveFinanceSummary !== "function") {
     return { status: "blocked", message: "No se pudo consultar el resumen." };
   }
   const today = puertoRicoToday();
-  let months;
   let fiscalStartMonth;
   if (range) {
     const selected = executiveFinanceSelectedMonths(range);
-    if (selected.error) return executiveFinanceSummary({ today, range, movements: [], payrollByMonth: {} });
-    months = selected.months;
+    if (selected.error) return executiveFinanceSummary({ today, range, movements: [] });
   } else {
     const museumRows = await supabaseGet(`/rest/v1/museums?select=fiscal_year_start_month&id=eq.${encodeURIComponent(profile.museum_id)}&limit=1`);
     fiscalStartMonth = Number(museumRows[0]?.fiscal_year_start_month);
     const fiscal = executiveFinanceFiscalWindow(fiscalStartMonth, today);
-    if (fiscal.error) return executiveFinanceSummary({ fiscalStartMonth, today, movements: [], payrollByMonth: {} });
-    months = fiscal.months;
+    if (fiscal.error) return executiveFinanceSummary({ fiscalStartMonth, today, movements: [] });
   }
-  const included = months.filter((month) => month.from <= today);
-  const payrollByMonth = {};
-  await Promise.all(included.map(async (month) => {
-    try {
-      payrollByMonth[month.from] = { payload: await supabasePost("/rest/v1/rpc/payroll_actual", { p_from: month.from, p_to: month.to }) };
-    } catch (error) {
-      payrollByMonth[month.from] = { error: error.message || "PAYROLL_UNAVAILABLE" };
-    }
-  }));
   const movements = [];
   for (let offset = 0; ; offset += 1000) {
     const page = await fetchActiveFinanceMovements(profile.museum_id, offset);
@@ -7936,12 +7926,12 @@ async function loadExecutiveFinance(profile, range) {
     }));
     if (page.length < 1000) break;
   }
-  return executiveFinanceSummary({ today, fiscalStartMonth, range, movements, payrollByMonth });
+  return executiveFinanceSummary({ today, fiscalStartMonth, range, movements });
 }
 
 async function renderExecutiveFinance(profile, range) {
   const message = document.querySelector("[data-executive-finance-message]");
-  if (message && !range) message.textContent = "Consultando movimientos y nómina…";
+  if (message && !range) message.textContent = "Consultando movimientos…";
   try {
     renderExecutiveFinanceResult(await loadExecutiveFinance(profile, range));
   } catch (error) {

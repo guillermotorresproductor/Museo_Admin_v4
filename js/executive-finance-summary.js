@@ -1,6 +1,5 @@
-// Calculation for the executive summary. It does not write records or change payroll.
+// Executive summary of registered finance movements. It does not read payroll or write records.
 // A month counts only when the query covers that whole calendar month and the month has started.
-// Salary errors and an inactive or terminated monthly salary stay blocked. Totals stay empty.
 
 function executiveFinanceCents(value) {
   const amount = Number(value);
@@ -82,50 +81,6 @@ function executiveFinanceFiscalWindow(startMonth, today) {
   return { months };
 }
 
-function executiveFinancePayrollBlock(error) {
-  const detail = String(error && (error.message || error) || "");
-  if (detail.includes("FORBIDDEN") || detail.includes("42501")) {
-    return ["FORBIDDEN", "No tiene permiso para consultar la nómina."];
-  }
-  if (detail.includes("SALARY_CONFIGURATION_INCOMPLETE")) {
-    return ["SALARY_CONFIGURATION_INCOMPLETE", "Hay un sueldo fijo mensual sin importe o sin período. No se muestra un total."];
-  }
-  if (detail.includes("SALARY_PERIOD_UNSUPPORTED")) {
-    return ["SALARY_PERIOD_UNSUPPORTED", "Hay un sueldo fijo que no es mensual. No se muestra un total."];
-  }
-  if (detail.includes("SALARY_CHANGE_UNDEFINED")) {
-    return ["SALARY_CHANGE_UNDEFINED", "El sueldo cambió dentro del mes. No hay una regla para dividirlo."];
-  }
-  if (detail.includes("SALARY_HIRE_DATE_PARTIAL")) {
-    return ["SALARY_HIRE_DATE_PARTIAL", "La contratación cae dentro del mes. No hay una regla para dividir el sueldo."];
-  }
-  return ["PAYROLL_UNAVAILABLE", "La nómina de un mes incluido no está disponible. No se sustituyó por cero."];
-}
-
-function executiveFinancePersonBlock(person) {
-  const type = String(person.compensation_type || "");
-  const status = String(person.employment_status || "").toLowerCase();
-  if (!type || type === "unconfigured") {
-    return ["SALARY_CONFIGURATION_INCOMPLETE", "Hay un empleado sin compensación configurada. No se inventó un cero."];
-  }
-  if (type !== "hourly" && type !== "salary") {
-    return ["SALARY_PERIOD_UNSUPPORTED", "Hay una compensación que no es sueldo mensual ni tarifa por hora. No se muestra un total."];
-  }
-  if (person.state === "SIN TARIFA") {
-    return ["SALARY_CONFIGURATION_INCOMPLETE", "Hay tiempo trabajado sin tarifa. No se inventó un cero."];
-  }
-  if (person.state === "PERIODO PARCIAL") {
-    return ["PARTIAL_PERIOD", "Hay un período que no cubre el mes completo. No se prorrateó el sueldo."];
-  }
-  if (type === "salary" && (status === "inactivo" || status === "terminado")) {
-    return ["EMPLOYMENT_STATUS_UNDEFINED", "Hay un sueldo mensual de un empleado inactivo o terminado. No existe una fecha de salida que indique hasta qué mes corresponde pagarlo."];
-  }
-  if (type === "salary" && status !== "activo") {
-    return ["EMPLOYMENT_STATUS_UNDEFINED", "Hay un sueldo mensual sin una situación laboral reconocida. No se muestra un total."];
-  }
-  return null;
-}
-
 function executiveFinanceSummary(input) {
   const source = input || {};
   const today = String(source.today || "");
@@ -154,36 +109,9 @@ function executiveFinanceSummary(input) {
     return executiveFinanceBlocked("FUTURE_ONLY", "Los meses seleccionados todavía no han comenzado. No se anticipó un gasto.", months);
   }
 
-  const payroll = source.payrollByMonth || {};
-  let payrollCents = 0;
-  for (const month of included) {
-    const entry = payroll[month.from];
-    if (!entry || entry.error) {
-      const reason = executiveFinancePayrollBlock(entry && entry.error);
-      return executiveFinanceBlocked(reason[0], reason[1], months);
-    }
-    const payload = entry.payload;
-    if (!payload || payload.full_month !== true || payload.from !== month.from || payload.to !== month.to) {
-      return executiveFinanceBlocked("PARTIAL_PERIOD", "La nómina recibida no corresponde a un mes calendario completo.", months);
-    }
-    const seen = new Set();
-    for (const person of payload.employees || []) {
-      if (!person || !person.employee_id || seen.has(person.employee_id)) {
-        return executiveFinanceBlocked("PAYROLL_UNAVAILABLE", "La nómina de un mes incluido no se pudo leer sin duplicar empleados.", months);
-      }
-      seen.add(person.employee_id);
-      const personBlock = executiveFinancePersonBlock(person);
-      if (personBlock) return executiveFinanceBlocked(personBlock[0], personBlock[1], months);
-      const cents = executiveFinanceCents(person.actual_amount);
-      if (cents == null) {
-        return executiveFinanceBlocked("PAYROLL_UNAVAILABLE", "La nómina devolvió un importe ilegible. No se sustituyó por cero.", months);
-      }
-      payrollCents += cents;
-    }
-  }
-
   let incomeCents = 0;
   let expenseCents = 0;
+  let registeredPayrollCents = 0;
   const seenMovements = new Set();
   for (const movement of source.movements || []) {
     if (!movement || !movement.id || seenMovements.has(movement.id)) {
@@ -198,24 +126,25 @@ function executiveFinanceSummary(input) {
     if (!movement.category || !["income", "expense"].includes(movement.record_type)) {
       return executiveFinanceBlocked("MOVEMENT_UNAVAILABLE", "Hay un movimiento financiero sin categoría o sin tipo. No se sumó por suposición.", months);
     }
-    if (movement.record_type === "expense" && movement.category === "Nómina") continue;
     const cents = executiveFinanceCents(movement.amount);
     if (cents == null) {
       return executiveFinanceBlocked("MOVEMENT_UNAVAILABLE", "Hay un movimiento financiero con importe ilegible.", months);
     }
     if (movement.record_type === "income") incomeCents += cents;
-    else expenseCents += cents;
+    else {
+      expenseCents += cents;
+      if (movement.category === "Nómina") registeredPayrollCents += cents;
+    }
   }
 
-  const expense = expenseCents + payrollCents;
   return {
     status: "ready",
     code: null,
     message: "",
     income: executiveFinanceMoney(incomeCents),
-    expense: executiveFinanceMoney(expense),
-    payroll: executiveFinanceMoney(payrollCents),
-    net: executiveFinanceMoney(incomeCents - expense),
+    expense: executiveFinanceMoney(expenseCents),
+    payroll: executiveFinanceMoney(registeredPayrollCents),
+    net: executiveFinanceMoney(incomeCents - expenseCents),
     months
   };
 }
