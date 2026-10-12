@@ -59,14 +59,12 @@ test("the fiscal window keeps started months and drops future months", () => {
   assert.equal(result.payroll, 4000);
   assert.equal(result.expense, 4011.25);
   assert.equal(result.net, -3911.15);
-  assert.match(result.message, /6,666\.66/);
-  assert.match(result.message, /4,000\.00/);
-  assert.match(result.message, /no se sumó como pago/);
+  assert.equal(result.message, "");
   assert.equal(result.months.filter((month) => month.included).length, 2);
   assert.equal(result.months.find((month) => month.from === "2026-11-01").included, false);
 });
 
-test("a month range accepts only complete months and keeps hourly pay", () => {
+test("a month range accepts only complete months and ignores calculated pay", () => {
   context.input = {
     today,
     range: { from: { year: 2026, month: 9 }, to: { year: 2026, month: 10 } },
@@ -84,8 +82,7 @@ test("a month range accepts only complete months and keeps hourly pay", () => {
   assert.equal(result.payroll, 0);
   assert.equal(result.expense, 0);
   assert.equal(result.net, 0);
-  assert.match(result.message, /5,977\.83/);
-  assert.match(result.message, /no se sumó como pago/);
+  assert.equal(result.message, "");
 });
 
 test("daily dates and a partial payroll payload do not become a total", () => {
@@ -104,47 +101,21 @@ test("daily dates and a partial payroll payload do not become a total", () => {
   assert.equal(partial.status, "ready");
   assert.equal(partial.income, 20);
   assert.equal(partial.expense, 0);
-  assert.match(partial.message, /No se usó como pago/);
+  assert.equal(partial.message, "");
 });
 
-test("missing payroll and compensation gaps leave the registered movements visible", () => {
+test("registered movements stay visible without payroll data or compensation notices", () => {
   const base = {
     today,
     range: { from: { year: 2026, month: 10 }, to: { year: 2026, month: 10 } },
     movements: [{ id: "in-1", occurred_on: "2026-10-02", amount: 20, record_type: "income", category: "Ingresos", counts_in_operating_balance: true }]
   };
-  context.input = { ...base, payrollByMonth: {} };
+  context.input = { ...base };
   const missing = run("executiveFinanceSummary(input)");
   assert.equal(missing.status, "ready");
   assert.equal(missing.income, 20);
   assert.equal(missing.expense, 0);
-  assert.match(missing.message, /No se sustituyó por un pago/);
-
-  for (const error of [
-    "SALARY_CONFIGURATION_INCOMPLETE",
-    "SALARY_PERIOD_UNSUPPORTED",
-    "SALARY_CHANGE_UNDEFINED",
-    "SALARY_HIRE_DATE_PARTIAL",
-    "FORBIDDEN"
-  ]) {
-    context.input = { ...base, payrollByMonth: { "2026-10-01": { error } } };
-    const visible = run("executiveFinanceSummary(input)");
-    assert.equal(visible.status, "ready");
-    assert.equal(visible.income, 20);
-    assert.equal(visible.net, 20);
-    assert.match(visible.message, /No se sustituyó por un pago/);
-  }
-
-  context.input = { ...base, payrollByMonth: { "2026-10-01": monthPayload("2026-10-01", "2026-10-31", [salary("director", 3333.33, "inactivo")]) } };
-  const inactive = run("executiveFinanceSummary(input)");
-  assert.equal(inactive.status, "ready");
-  assert.equal(inactive.income, 20);
-  assert.equal(inactive.expense, 0);
-  assert.match(inactive.message, /No se contó como pago/);
-
-  context.input = { ...base, payrollByMonth: { "2026-10-01": monthPayload("2026-10-01", "2026-10-31", [salary("director", 3333.33, "terminado")]) } };
-  assert.equal(run("executiveFinanceSummary(input)").status, "ready");
-  assert.match(run("executiveFinanceSummary(input)").message, /No se contó como pago/);
+  assert.equal(missing.message, "");
 
   context.input = {
     ...base,
@@ -163,8 +134,7 @@ test("missing payroll and compensation gaps leave the registered movements visib
   assert.equal(open.expense, 8);
   assert.equal(open.net, 12);
   assert.equal(open.payroll, 0);
-  assert.match(open.message, /No se les añadió un gasto salarial/);
-  assert.doesNotMatch(open.message, /900|400/);
+  assert.equal(open.message, "");
 });
 
 test("a registered payroll payment is counted once and a matching calculation is not added again", () => {
@@ -190,9 +160,7 @@ test("a registered payroll payment is counted once and a matching calculation is
   const different = run("executiveFinanceSummary(input)");
   assert.equal(different.expense, 105);
   assert.equal(different.payroll, 100);
-  assert.match(different.message, /150\.00/);
-  assert.match(different.message, /100\.00/);
-  assert.match(different.message, /no se sumó como pago/);
+  assert.equal(different.message, "");
 });
 
 test("a future-only selection does not report zero as a result", () => {
@@ -208,9 +176,13 @@ test("a future-only selection does not report zero as a result", () => {
   assert.equal(result.net, null);
 });
 
-test("the executive calculation is on the portal and not on the finance page", () => {
+test("the executive summary reads registered movements and leaves payroll on its own screen", () => {
+  const loader = finance.slice(finance.indexOf("async function loadExecutiveFinance"), finance.indexOf("async function renderExecutiveFinance"));
   assert.match(finance, /executiveFinanceSummary/);
   assert.match(portal, /executive-finance-summary/);
+  assert.match(loader, /finance\.read/);
+  assert.doesNotMatch(loader, /compensation\.read|attendance\.history\.read|payroll_actual/);
+  assert.doesNotMatch(summary, /payroll_actual|compensation_type|payrollByMonth/);
   assert.doesNotMatch(fs.readFileSync("finanzas.html", "utf8"), /executive-finance-summary/);
   assert.match(finance, /payrollActualTotal\(await supabasePost\("\/rest\/v1\/rpc\/payroll_actual"/);
   assert.match(payrollPage, /round\(d\.payable_minutes \* d\.hourly_rate \/ 60\.0, 2\)|payroll_actual/);

@@ -1,6 +1,5 @@
-// Calculation for the executive summary. It does not write records or change payroll.
+// Executive summary of registered finance movements. It does not read payroll or write records.
 // A month counts only when the query covers that whole calendar month and the month has started.
-// Registered movements stay visible. Calculated payroll is not treated as a payment.
 
 function executiveFinanceCents(value) {
   const amount = Number(value);
@@ -82,26 +81,6 @@ function executiveFinanceFiscalWindow(startMonth, today) {
   return { months };
 }
 
-function executiveFinancePersonNotice(person) {
-  const type = String(person.compensation_type || "");
-  const status = String(person.employment_status || "").toLowerCase();
-  if (!type || type === "unconfigured") return "unconfigured";
-  if (person.state === "SIN TARIFA") return "no-rate";
-  if (person.state === "PERIODO PARCIAL") return "partial";
-  if (type !== "hourly" && type !== "salary") return "unsupported";
-  if (type === "salary" && status !== "activo") return "inactive-salary";
-  return "calculated";
-}
-
-function executiveFinanceAmountLabel(cents) {
-  const negative = cents < 0;
-  const absolute = Math.abs(cents);
-  const whole = Math.floor(absolute / 100);
-  const fraction = String(absolute % 100).padStart(2, "0");
-  const grouped = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `${negative ? "-" : ""}${grouped}.${fraction}`;
-}
-
 function executiveFinanceSummary(input) {
   const source = input || {};
   const today = String(source.today || "");
@@ -158,75 +137,10 @@ function executiveFinanceSummary(input) {
     }
   }
 
-  const payroll = source.payrollByMonth || {};
-  const notices = [];
-  let calculatedCents = 0;
-  let calculationComplete = true;
-  const note = (text) => { if (!notices.includes(text)) notices.push(text); };
-  for (const month of included) {
-    const entry = payroll[month.from];
-    if (!entry || entry.error) {
-      calculationComplete = false;
-      note("La nómina calculada no está disponible para uno o más meses. No se sustituyó por un pago.");
-      continue;
-    }
-    const payload = entry.payload;
-    if (!payload || payload.full_month !== true || payload.from !== month.from || payload.to !== month.to) {
-      calculationComplete = false;
-      note("La nómina calculada no cubre un mes completo. No se usó como pago.");
-      continue;
-    }
-    const seen = new Set();
-    for (const person of payload.employees || []) {
-      if (!person || !person.employee_id || seen.has(person.employee_id)) {
-        calculationComplete = false;
-        note("La nómina calculada no se pudo leer sin duplicar empleados. No se usó como pago.");
-        continue;
-      }
-      seen.add(person.employee_id);
-      const kind = executiveFinancePersonNotice(person);
-      if (kind === "unconfigured") {
-        calculationComplete = false;
-        note("Hay empleados sin compensación configurada. No se les añadió un gasto salarial.");
-        continue;
-      }
-      if (kind === "no-rate") {
-        calculationComplete = false;
-        note("Hay tiempo trabajado sin tarifa. No se inventó un pago.");
-        continue;
-      }
-      if (kind === "partial") {
-        calculationComplete = false;
-        note("Hay un período de sueldo que no cubre el mes completo. No se prorrateó ni se contó como pago.");
-        continue;
-      }
-      if (kind === "unsupported") {
-        calculationComplete = false;
-        note("Hay compensaciones que no corresponden a un pago registrado. No se sumaron.");
-        continue;
-      }
-      if (kind === "inactive-salary") {
-        calculationComplete = false;
-        note("Hay un sueldo mensual de un empleado que no está activo. No se contó como pago.");
-        continue;
-      }
-      const cents = executiveFinanceCents(person.actual_amount);
-      if (cents == null) {
-        calculationComplete = false;
-        note("La nómina calculada devolvió un importe ilegible. No se sustituyó por un pago.");
-        continue;
-      }
-      calculatedCents += cents;
-    }
-  }
-  if (calculationComplete && calculatedCents !== registeredPayrollCents) {
-    note(`La nómina calculada del período es ${executiveFinanceAmountLabel(calculatedCents)} y los pagos de nómina registrados son ${executiveFinanceAmountLabel(registeredPayrollCents)}. El cálculo no se sumó como pago.`);
-  }
-
   return {
     status: "ready",
     code: null,
-    message: notices.join(" "),
+    message: "",
     income: executiveFinanceMoney(incomeCents),
     expense: executiveFinanceMoney(expenseCents),
     payroll: executiveFinanceMoney(registeredPayrollCents),

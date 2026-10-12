@@ -139,8 +139,6 @@ test("the executive screen is isolated and does not punch or invent a finance to
   assert.doesNotMatch(window.document.querySelector("#executive-finance-title").closest("section").textContent, /\$|3333|0\.00/);
 
   permissions.add("finance.read");
-  permissions.add("compensation.read");
-  permissions.add("attendance.history.read");
   context.fetchActiveFinanceMovements = async (museumId) => {
     assert.equal(museumId, "museum-a");
     return [{
@@ -170,28 +168,23 @@ test("the executive screen is isolated and does not punch or invent a finance to
   assert.match(totals.textContent, /Total ingresos/);
   assert.match(totals.textContent, /Total gastos \(incluyendo nómina\)/);
   assert.match(totals.textContent, /Balance neto/);
-  assert.equal(posts.length, 2);
-  assert.ok(posts.every((call) => call.path === "/rest/v1/rpc/payroll_actual"));
-  assert.deepEqual(posts.map((call) => call.body.p_from).sort(), ["2026-09-01", "2026-10-01"]);
+  assert.match(totals.textContent, /\$25\.50/);
+  assert.match(totals.textContent, /\$10\.00/);
+  assert.match(totals.textContent, /\$15\.50/);
+  assert.equal(posts.length, 0);
+  assert.doesNotMatch(window.document.querySelector("[data-executive-finance-message]").textContent, /compensaci|nómina calculada|3333/);
 
-  context.supabasePost = async (path, body) => {
-    posts.push({ path, body });
-    return {
-      full_month: true,
-      from: body.p_from,
-      to: body.p_to,
-      employees: [{ employee_id: "guide", compensation_type: "salary", employment_status: "inactivo", state: "CALCULADA", actual_amount: 3333.33 }]
-    };
-  };
   await context.renderExecutiveFinance(context.profile, { from: { year: 2026, month: 10 }, to: { year: 2026, month: 10 } });
   const rangeTotals = window.document.querySelector("[data-executive-finance-totals]");
   const rangeMessage = window.document.querySelector("[data-executive-finance-message]");
   assert.equal(rangeTotals.hidden, false);
   assert.match(rangeTotals.textContent, /Total ingresos/);
   assert.match(rangeTotals.textContent, /Total gastos \(incluyendo nómina\)/);
-  assert.match(rangeMessage.textContent, /No se contó como pago/);
-  assert.doesNotMatch(rangeTotals.textContent, /3333/);
-  assert.doesNotMatch(rangeMessage.textContent, /3333/);
+  assert.match(rangeTotals.textContent, /\$25\.50/);
+  assert.match(rangeTotals.textContent, /\$10\.00/);
+  assert.match(rangeMessage.textContent, /Octubre 2026/);
+  assert.doesNotMatch(rangeMessage.textContent, /compensaci|nómina calculada|3333/);
+  assert.equal(posts.length, 0);
 });
 
 test("other profiles keep the personal portal and the executive block stays hidden", () => {
