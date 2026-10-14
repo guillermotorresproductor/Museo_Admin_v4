@@ -34,13 +34,11 @@
 .collection-dialog li { margin-bottom:1rem; }
 
 @media print {
-  body.collection-label-printing * { visibility:hidden !important; }
-  body.collection-label-printing .collection-print-label,
-  body.collection-label-printing .collection-print-label * { visibility:visible !important; }
+  /* Hide the application layout completely: invisible content still occupies printed pages. */
+  body.collection-label-printing > :not(.collection-print-label) { display:none !important; }
   body.collection-label-printing .collection-print-label {
-    display:block;
-    position:fixed;
-    inset:0 auto auto 0;
+    display:block !important;
+    position:static;
     width:3.75in;
     min-height:2.25in;
     padding:.16in;
