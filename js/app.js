@@ -2857,7 +2857,8 @@ function bindInventoryModule() {
   let sortKey = "updated_at";
   let sortDirection = "desc";
 
-  const canEditInventory = () => hasPermission("inventory.manage");
+  const canEditInventory = () => hasPermission("inventory.manage") || hasPermission("inventory.edit");
+  const canArchiveInventory = () => hasPermission("inventory.manage");
   const canCreateInventory = () => canEditInventory() || hasPermission("inventory.create");
   const canAttachInventoryPhoto = () => canEditInventory() || hasPermission("inventory.photo.attach");
   const normalize = (value) => String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -2946,7 +2947,8 @@ function bindInventoryModule() {
         <td>
           <div class="table-actions">
             <button type="button" data-inventory-view="${record.id}">Ver</button>
-            ${canEditInventory() && !record.archived_at ? `<button type="button" data-inventory-edit="${record.id}">Editar</button><button type="button" data-inventory-archive="${record.id}">Archivar</button>` : ""}
+            ${canEditInventory() && !record.archived_at ? `<button type="button" data-inventory-edit="${record.id}">Editar</button>` : ""}
+            ${canArchiveInventory() && !record.archived_at ? `<button type="button" data-inventory-archive="${record.id}">Archivar</button>` : ""}
             ${canAttachInventoryPhoto() && !record.archived_at && !record.photo_path ? `<label class="inventory-file-action"><span>Galería</span><input type="file" accept="image/*,.heic,.heif" data-inventory-add-photo="${escapeHtml(record.id)}" aria-label="Seleccionar foto de ${escapeHtml(record.name)} desde la galería"></label><label class="inventory-file-action"><span>Cámara</span><input type="file" accept="image/*,.heic,.heif" capture="environment" data-inventory-take-photo="${escapeHtml(record.id)}" aria-label="Tomar foto de ${escapeHtml(record.name)} con la cámara"></label>` : ""}
           </div>
         </td>
@@ -3224,7 +3226,7 @@ function bindInventoryModule() {
       detailDialog?.showModal();
     }
     if (archiveButton) {
-      if (!canEditInventory()) return;
+      if (!canArchiveInventory()) return;
       const record = records.find((item) => item.id === archiveButton.dataset.inventoryArchive);
       if (!record || !window.confirm(`¿Archivar el equipo “${record.name}”? Permanecerá en el historial.`)) return;
       try {
