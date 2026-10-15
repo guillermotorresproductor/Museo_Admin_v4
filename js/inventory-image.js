@@ -58,12 +58,16 @@
     return { sizes: sizeLadder(originalWidth, originalHeight), qualities: qualityLadder() };
   }
 
-  async function decodeInventoryImage(file) {
+  function isHeicFile(file) {
+    return /\.(heic|heif)$/i.test(file.name || "") || /image\/hei[cf]/i.test(file.type || "");
+  }
+
+  async function decodeBrowserImage(file) {
     if (typeof createImageBitmap === "function") {
       try {
         return await createImageBitmap(file, { imageOrientation: "from-image" });
       } catch {
-        // Algunos navegadores decodifican HEIC mediante <img>, aunque createImageBitmap no lo haga.
+        // Si createImageBitmap falla, probar la decodificación mediante <img>.
       }
     }
     return new Promise((resolve, reject) => {
@@ -75,10 +79,25 @@
       };
       image.onerror = () => {
         URL.revokeObjectURL(objectUrl);
-        reject(new Error("Este navegador no pudo leer la fotografía. Para HEIC, use un navegador con soporte HEIC o conviértala a JPG."));
+        reject(new Error("Este navegador no pudo leer la fotografía."));
       };
       image.src = objectUrl;
     });
+  }
+
+  async function decodeInventoryImage(file) {
+    try {
+      return await decodeBrowserImage(file);
+    } catch (error) {
+      if (!isHeicFile(file)) throw error;
+      const converter = typeof window !== "undefined" && window.InventoryPhotoCodecs?.convertHeic;
+      if (!converter) throw new Error("No se pudo cargar el conversor HEIC/HEIF.");
+      try {
+        return await decodeBrowserImage(await converter(file));
+      } catch {
+        throw new Error("No se pudo convertir la fotografía HEIC/HEIF. Intente con otra fotografía.");
+      }
+    }
   }
 
   function canvasToBlob(canvas, type, quality) {
@@ -114,6 +133,7 @@
       if (!context) throw new Error("El navegador no permite procesar esta fotografía.");
 
       const plan = searchPlan(originalWidth, originalHeight);
+      let requiresCompatibleEncoder = false;
       for (const size of plan.sizes) {
         canvas.width = size.width;
         canvas.height = size.height;
@@ -121,7 +141,27 @@
         context.fillRect(0, 0, size.width, size.height);
         context.drawImage(image, 0, 0, size.width, size.height);
         for (const quality of plan.qualities) {
-          const output = await canvasToBlob(canvas, "image/webp", quality);
+          let output = null;
+          if (!requiresCompatibleEncoder) {
+            try {
+              output = await canvasToBlob(canvas, "image/webp", quality);
+            } catch {
+              // Algunos navegadores no generan ningún blob WebP: usar el mismo fallback.
+              requiresCompatibleEncoder = true;
+            }
+          }
+          if (!output || String(output.type || "").toLowerCase() !== "image/webp") {
+            // Safari devuelve PNG al pedir image/webp. Utilizar libwebp (WASM)
+            // exclusivamente en el navegador, sin cambiar Storage ni el RPC.
+            requiresCompatibleEncoder = true;
+            const encode = typeof window !== "undefined" && window.InventoryPhotoCodecs?.encodeWebp;
+            if (!encode) throw new Error("No se pudo cargar el conversor WebP compatible con Safari.");
+            try {
+              output = await encode(canvas, quality);
+            } catch {
+              throw new Error("No se pudo convertir la fotografía a WebP. Verifique su conexión e intente de nuevo.");
+            }
+          }
           await assertAuthenticWebp(output);
           if (output.size <= MAX_OUTPUT_BYTES) {
             return { blob: output, width: size.width, height: size.height, bytes: output.size, type: "image/webp" };
