@@ -284,8 +284,8 @@ test("un HEIC que el navegador no puede leer no deja el object URL abierto", asy
 });
 
 test("el formulario de inventario usa el procesador corregido en la caché", () => {
-  assert.match(html, /inventory-photo-codecs\\.js\\?v=inventory-safari-20261015/);
-  assert.match(html, /inventory-image\\.js\\?v=inventory-safari-20261015/);
+  assert.ok(html.includes("js/inventory-photo-codecs.js?v=inventory-safari-20261015"));
+  assert.ok(html.includes("js/inventory-image.js?v=inventory-safari-20261015"));
   assert.ok(html.indexOf("js/inventory-photo-codecs.js") < html.indexOf("js/inventory-image.js"));
   assert.match(html, /inventory-irma-edit-20261014/);
   assert.match(html, /js\/services\/supabase\.js\?v=inventory-responsible-names-20261012/);
