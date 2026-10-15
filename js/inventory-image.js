@@ -141,7 +141,15 @@
         context.fillRect(0, 0, size.width, size.height);
         context.drawImage(image, 0, 0, size.width, size.height);
         for (const quality of plan.qualities) {
-          let output = requiresCompatibleEncoder ? null : await canvasToBlob(canvas, "image/webp", quality);
+          let output = null;
+          if (!requiresCompatibleEncoder) {
+            try {
+              output = await canvasToBlob(canvas, "image/webp", quality);
+            } catch {
+              // Algunos navegadores no generan ningún blob WebP: usar el mismo fallback.
+              requiresCompatibleEncoder = true;
+            }
+          }
           if (!output || String(output.type || "").toLowerCase() !== "image/webp") {
             // Safari devuelve PNG al pedir image/webp. Utilizar libwebp (WASM)
             // exclusivamente en el navegador, sin cambiar Storage ni el RPC.
