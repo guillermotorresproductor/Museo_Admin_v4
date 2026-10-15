@@ -190,6 +190,24 @@ test("Safari convierte PNG generado por Canvas a un WebP auténtico con el codif
   assert.equal(result.bytes, 95 * 1024);
 });
 
+test("Safari usa el codificador alterno si canvas.toBlob falla sin devolver archivo", async () => {
+  const processor = loadProcessor();
+  processor.setEncode(() => null);
+  let calls = 0;
+  processor.sandbox.window = {
+    InventoryPhotoCodecs: {
+      async encodeWebp() {
+        calls += 1;
+        return makeBlob(110 * 1024);
+      }
+    }
+  };
+  const result = await processor.image.process(photoFile());
+  assert.equal(calls, 1);
+  assert.equal(result.type, "image/webp");
+  assert.equal(result.bytes, 110 * 1024);
+});
+
 test("Safari sin codificador auxiliar indica el problema y no sube un PNG falso", async () => {
   const processor = loadProcessor();
   processor.setEncode(() => makeBlob(80 * 1024, { type: "image/png", webp: false }));
