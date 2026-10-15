@@ -171,15 +171,29 @@ test("acepta la imagen solo cuando la última combinación de calidad y tamaño 
   assert.equal(processor.calls.closed, 1);
 });
 
-test("rechaza la salida cuando el navegador devuelve PNG en lugar de WebP", async () => {
+test("Safari convierte PNG generado por Canvas a un WebP auténtico con el codificador local", async () => {
   const processor = loadProcessor();
   processor.setEncode(() => makeBlob(80 * 1024, { type: "image/png", webp: false }));
-  await assert.rejects(
-    () => processor.image.process(photoFile()),
-    /no generó una imagen WebP/
-  );
-  assert.equal(processor.calls.encodes.length, 1);
-  assert.equal(processor.calls.closed, 1);
+  let usedEncoder = 0;
+  processor.sandbox.window = {
+    InventoryPhotoCodecs: {
+      async encodeWebp(canvas, quality) {
+        usedEncoder += 1;
+        assert.ok(canvas.width > 0 && quality > 0);
+        return makeBlob(95 * 1024);
+      }
+    }
+  };
+  const result = await processor.image.process(photoFile());
+  assert.equal(usedEncoder, 1);
+  assert.equal(result.type, "image/webp");
+  assert.equal(result.bytes, 95 * 1024);
+});
+
+test("Safari sin codificador auxiliar indica el problema y no sube un PNG falso", async () => {
+  const processor = loadProcessor();
+  processor.setEncode(() => makeBlob(80 * 1024, { type: "image/png", webp: false }));
+  await assert.rejects(() => processor.image.process(photoFile()), /conversor WebP compatible con Safari/);
 });
 
 test("rechaza un archivo cuyo tipo dice WebP pero cuya firma no lo es", async () => {
@@ -239,6 +253,28 @@ test("la ruta de imagen revoca el object URL y conserva la orientación", async 
   assert.deepEqual(processor.calls.revoked, ["blob:inventory-test"]);
 });
 
+test("HEIC no decodificable se convierte localmente a JPG antes de guardar WebP", async () => {
+  const processor = loadProcessor();
+  processor.useImageFallback({ width: 3024, height: 4032, unreadable: true });
+  processor.setEncode(() => makeBlob(120 * 1024));
+  let calls = 0;
+  processor.sandbox.window = {
+    InventoryPhotoCodecs: {
+      async convertHeic(original) {
+        assert.match(original.name, /heic$/);
+        calls += 1;
+        processor.useImageFallback({ width: 3024, height: 4032, unreadable: false });
+        return photoFile({ name: "converted.jpg", type: "image/jpeg", width: 3024, height: 4032 });
+      }
+    }
+  };
+  const result = await processor.image.process(photoFile({ name: "iphone.heic", type: "image/heic", bitmapError: true, width: 3024, height: 4032 }));
+  assert.equal(calls, 1);
+  assert.ok(result.height > result.width);
+  assert.equal(result.type, "image/webp");
+  assert.equal(processor.calls.revoked.length, 2);
+});
+
 test("un HEIC que el navegador no puede leer no deja el object URL abierto", async () => {
   const processor = loadProcessor();
   const file = photoFile({ name: "iphone.heic", type: "image/heic", width: 3024, height: 4032, unreadable: true });
@@ -248,8 +284,10 @@ test("un HEIC que el navegador no puede leer no deja el object URL abierto", asy
 });
 
 test("el formulario de inventario usa el procesador corregido en la caché", () => {
-  assert.match(html, /js\/inventory-image\.js\?v=inventory-photo-processing-20261012/);
-  assert.match(html, /js\/app\.js\?v=inventory-photo-uncertain-create-20261012/);
+  assert.match(html, /inventory-photo-codecs\\.js\\?v=inventory-safari-20261015/);
+  assert.match(html, /inventory-image\\.js\\?v=inventory-safari-20261015/);
+  assert.ok(html.indexOf("js/inventory-photo-codecs.js") < html.indexOf("js/inventory-image.js"));
+  assert.match(html, /inventory-irma-edit-20261014/);
   assert.match(html, /js\/services\/supabase\.js\?v=inventory-responsible-names-20261012/);
   assert.match(html, /data-inventory-photo-clear hidden>Quitar fotografía/);
 });
