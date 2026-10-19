@@ -121,36 +121,34 @@ function financeDetailExpenseEntries(invoices, lines) {
   return entries;
 }
 
+
 function renderFinanceDetailExpenseList(container, invoices, lines, lineMap) {
   const entries = financeDetailExpenseEntries(invoices, lines);
   container.innerHTML = `
-    <div>
-      <h3>Listado de gastos</h3>
-      <p>Seleccione el concepto de gasto para consultar sus facturas cargadas durante el mes elegido.</p>
+    <div class="field" style="max-width: 380px;">
+      <label for="finance-detail-expense">Listado de gastos</label>
+      <select id="finance-detail-expense" data-detail-expense-select>
+        <option value="">Seleccione un gasto</option>
+        ${entries.map((entry, index) => `<option value="${index}">${invoiceEscape(entry.name)}</option>`).join("")}
+      </select>
     </div>
-    ${entries.length ? `
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th>Categoría</th><th>Gasto</th><th>Facturas cargadas</th><th></th></tr></thead>
-          <tbody>
-            ${entries.map((entry, index) => `<tr>
-              <td>${invoiceEscape(entry.category)}</td>
-              <td><strong>${invoiceEscape(entry.name)}</strong></td>
-              <td>${entry.invoices.length}</td>
-              <td><button class="button secondary" type="button" data-detail-expense-index="${index}">Ver facturas</button></td>
-            </tr>`).join("")}
-          </tbody>
-        </table>
-      </div>
-    ` : '<p class="empty-state">No hay líneas de gastos disponibles.</p>'}
+    <div data-detail-expense-results></div>
   `;
-  container.querySelectorAll("[data-detail-expense-index]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const entry = entries[Number(button.dataset.detailExpenseIndex)];
-      if (!entry) return;
-      const back = () => renderFinanceDetailExpenseList(container, invoices, lines, lineMap);
-      renderFinanceDetailList(container, entry.invoices, lineMap, entry.name, back);
-    });
+  const selector = container.querySelector("[data-detail-expense-select]");
+  const results = container.querySelector("[data-detail-expense-results]");
+  selector.disabled = entries.length === 0;
+  selector.addEventListener("change", () => {
+    const index = selector.value === "" ? -1 : Number(selector.value);
+    const entry = Number.isInteger(index) ? entries[index] : null;
+    if (!entry) {
+      results.replaceChildren();
+      return;
+    }
+    const back = () => {
+      selector.value = "";
+      results.replaceChildren();
+    };
+    renderFinanceDetailList(results, entry.invoices, lineMap, entry.name, back);
   });
 }
 
