@@ -5286,6 +5286,7 @@ function bindFinanceModule() {
   const renderPanel = () => {
     renderSummary();
     if (activeTab !== "facturas" && typeof cancelFinanceDocuments === "function") cancelFinanceDocuments();
+    if (activeTab !== "detalle" && typeof cancelFinanceDetail === "function") cancelFinanceDetail();
     if (activeTab !== "cheques" && typeof cancelFinanceChecks === "function") cancelFinanceChecks();
     if (activeTab === "facturas") {
       renderFinanceDocuments();
@@ -5299,6 +5300,10 @@ function bindFinanceModule() {
     if (activeTab === "global") panel.innerHTML = renderFinanceGlobal(globalSummary());
     if (activeTab === "ingresos") panel.innerHTML = renderFinanceTable("Ingresos", (row) => row.type === "income");
     if (activeTab === "gastos") panel.innerHTML = renderExpenseSummaryTable();
+    if (activeTab === "detalle") {
+      renderFinanceDetail(panel, currentProfile.museum_id, financeYear, fiscalYearStartMonth, financeMonths);
+      return;
+    }
     if (activeTab === "nomina") {
       const payroll = typeof renderPayrollActualShell === "function" ? renderPayrollActualShell() : "";
       panel.innerHTML = payroll || `<p class="form-message">No tiene permiso para consultar la nómina.</p>`;
