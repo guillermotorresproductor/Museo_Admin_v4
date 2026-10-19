@@ -635,7 +635,7 @@ function renderInvoiceReview(panel, invoice, token, notice = "") {
           <textarea id="invoice-description" name="description" maxlength="500" ${canDecide ? "" : "disabled"}>${invoiceEscape(snapshot.description || "")}</textarea>
         </div>
         <div class="field">
-          <label for="invoice-line">Línea presupuestaria</label>
+          <label for="invoice-line">Línea de gastos</label>
           <select id="invoice-line" name="budget_line_id" ${canDecide ? "" : "disabled"}>${invoiceLineOptions(snapshot.budget_line_id)}</select>
         </div>
         ${canDecide ? `<div class="invoice-actions"><button class="button submit-button" type="submit">Guardar revisión</button><button class="button secondary" type="button" data-invoice-reject>Rechazar factura</button><button class="button" type="button" data-invoice-confirm>Confirmar factura</button></div>` : `<p>Puede consultar la factura.</p>`}
