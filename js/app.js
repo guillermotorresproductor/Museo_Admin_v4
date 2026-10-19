@@ -5249,10 +5249,13 @@ function bindFinanceModule() {
   };
 
   const renderExpenseSummaryTable = () => {
-    return renderFinanceTable("Gastos", (row) =>
+    const table = renderFinanceTable("Gastos", (row) =>
       row.type === "expense" && ["Gastos Operacionales", "Servicios Contratados", "Otros Gastos"].includes(row.category),
       { showReal: true }
     );
+    // Subpestaña solo de consulta, dentro de Gastos y sin alterar la tabla.
+    return table.replace("<h3>Gastos</h3>",
+      '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:12px;"><h3 style="margin:0">Gastos</h3><button class="admin-tab" type="button" data-finance-expense-detail>DETALLE</button></div>');
   };
 
   const renderReports = () => {
@@ -5286,7 +5289,7 @@ function bindFinanceModule() {
   const renderPanel = () => {
     renderSummary();
     if (activeTab !== "facturas" && typeof cancelFinanceDocuments === "function") cancelFinanceDocuments();
-    if (activeTab !== "detalle" && typeof cancelFinanceDetail === "function") cancelFinanceDetail();
+    if (typeof cancelFinanceDetail === "function") cancelFinanceDetail();
     if (activeTab !== "cheques" && typeof cancelFinanceChecks === "function") cancelFinanceChecks();
     if (activeTab === "facturas") {
       renderFinanceDocuments();
@@ -5299,10 +5302,11 @@ function bindFinanceModule() {
     if (activeTab === "resumen") panel.innerHTML = renderNetSummary();
     if (activeTab === "global") panel.innerHTML = renderFinanceGlobal(globalSummary());
     if (activeTab === "ingresos") panel.innerHTML = renderFinanceTable("Ingresos", (row) => row.type === "income");
-    if (activeTab === "gastos") panel.innerHTML = renderExpenseSummaryTable();
-    if (activeTab === "detalle") {
-      renderFinanceDetail(panel, currentProfile.museum_id, financeYear, fiscalYearStartMonth, financeMonths);
-      return;
+    if (activeTab === "gastos") {
+      panel.innerHTML = renderExpenseSummaryTable();
+      panel.querySelector("[data-finance-expense-detail]")?.addEventListener("click", () =>
+        renderFinanceDetail(panel, currentProfile.museum_id, financeYear, fiscalYearStartMonth, financeMonths, renderPanel)
+      );
     }
     if (activeTab === "nomina") {
       const payroll = typeof renderPayrollActualShell === "function" ? renderPayrollActualShell() : "";

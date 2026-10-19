@@ -23,7 +23,16 @@ async function fetchFinanceDetailMonth(museumId, from, until) {
   }
 }
 
-function renderFinanceDetail(panel, museumId, fiscalYear, startMonth, months) {
+function financeDetailUploadLabel(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("es-PR", {
+    timeZone: "America/Puerto_Rico", dateStyle: "medium", timeStyle: "short"
+  }).format(date);
+}
+
+function renderFinanceDetail(panel, museumId, fiscalYear, startMonth, months, onBack) {
   cancelFinanceDetail();
   if (!panel || !museumId || !Array.isArray(months) || months.length !== 12) {
     if (panel) panel.innerHTML = '<p class="form-message error">Período financiero no disponible.</p>';
@@ -35,13 +44,17 @@ function renderFinanceDetail(panel, museumId, fiscalYear, startMonth, months) {
     const { from } = financeDetailBounds(fiscalYear, startMonth, index);
     return `<option value="${index}"${index === defaultIndex ? " selected" : ""}>${invoiceEscape(name)} ${from.slice(0, 4)}</option>`;
   }).join("");
+
   panel.innerHTML = `
     <section class="invoice-list" data-finance-detail>
-      <p class="page-kicker">DETALLE</p>
-      <h3>Facturas por mes</h3>
-      <p>Consulta administrativa de facturas por fecha de carga en Puerto Rico. Solo lectura.</p>
-      <div class="field" style="max-width: 340px;">
-        <label for="finance-detail-month">Seleccionar mes</label>
+      <p class="page-kicker">Gastos</p>
+      <div class="invoice-actions" style="align-items:center;gap:18px;">
+        <h3 style="margin:0;">DETALLE</h3>
+        <button class="admin-tab" type="button" data-finance-detail-back-expenses>Volver a Gastos</button>
+      </div>
+      <p>Mes de carga → Gasto → Facturas del mes → Detalle de factura. Consulta exclusivamente de lectura.</p>
+      <div class="field" style="max-width:340px;">
+        <label for="finance-detail-month">Seleccionar mes de carga</label>
         <select id="finance-detail-month" data-finance-detail-month>${options}</select>
       </div>
       <p class="form-message" aria-live="polite" data-finance-detail-message></p>
@@ -49,6 +62,10 @@ function renderFinanceDetail(panel, museumId, fiscalYear, startMonth, months) {
     </section>
   `;
   const root = panel.querySelector("[data-finance-detail]");
+  root.querySelector("[data-finance-detail-back-expenses]").addEventListener("click", () => {
+    cancelFinanceDetail();
+    if (typeof onBack === "function") onBack();
+  });
   const selector = root.querySelector("[data-finance-detail-month]");
   const load = () => {
     const index = Number(selector.value);
@@ -65,7 +82,7 @@ async function loadFinanceDetail(root, museumId, fiscalYear, startMonth, index) 
   const message = root.querySelector("[data-finance-detail-message]");
   const container = root.querySelector("[data-finance-detail-content]");
   message.className = "form-message";
-  message.textContent = "Consultando facturas…";
+  message.textContent = "Consultando gastos y facturas…";
   container.replaceChildren();
   try {
     const { from, until } = financeDetailBounds(fiscalYear, startMonth, index);
@@ -75,65 +92,119 @@ async function loadFinanceDetail(root, museumId, fiscalYear, startMonth, index) 
     ]);
     if (token !== financeDetailToken || !root.isConnected) return;
     const lineMap = new Map(lines.map((line) => [line.id, line]));
-    message.textContent = `${invoices.length} factura${invoices.length === 1 ? "" : "s"} cargada${invoices.length === 1 ? "" : "s"} en este mes.`;
-    renderFinanceDetailList(container, invoices, lineMap);
+    message.textContent = `${invoices.length} factura${invoices.length === 1 ? "" : "s"} cargada${invoices.length === 1 ? "" : "s"} en este mes. Seleccione un gasto para ver sus facturas.`;
+    renderFinanceDetailExpenseList(container, invoices, lines, lineMap);
   } catch (error) {
     if (token !== financeDetailToken || !root.isConnected) return;
     message.className = "form-message error";
-    message.textContent = error.message || "No fue posible consultar las facturas.";
+    message.textContent = error.message || "No fue posible consultar los gastos y facturas.";
   }
 }
 
 function financeDetailLine(invoice, lineMap) {
   const line = lineMap.get(invoice.budget_line_id);
-  return line ? `${line.category} · ${line.name}` : "Línea de gastos no disponible";
+  return line ? `${line.category} · ${line.name}` : "Línea de gastos no asignada";
 }
 
-function renderFinanceDetailList(container, invoices, lineMap) {
-  if (!invoices.length) {
-    container.innerHTML = '<p class="empty-state">No hay facturas cargadas en este mes.</p>';
-    return;
+function financeDetailExpenseEntries(invoices, lines) {
+  const ids = new Set(lines.map((line) => line.id));
+  const entries = lines.map((line) => ({
+    name: line.name,
+    category: line.category,
+    id: line.id,
+    invoices: invoices.filter((invoice) => invoice.budget_line_id === line.id)
+  }));
+  const unassigned = invoices.filter((invoice) => !ids.has(invoice.budget_line_id));
+  if (unassigned.length) {
+    entries.push({ name: "Sin línea de gastos asignada", category: "Sin clasificar", id: null, invoices: unassigned });
   }
+  return entries;
+}
+
+function renderFinanceDetailExpenseList(container, invoices, lines, lineMap) {
+  const entries = financeDetailExpenseEntries(invoices, lines);
   container.innerHTML = `
-    <div class="table-wrap">
-      <table class="data-table">
-        <thead><tr><th>Fecha de carga</th><th>Proveedor</th><th>Descripción</th><th>Línea de gastos</th><th>Total</th><th>Estado</th><th></th></tr></thead>
-        <tbody>
-        ${invoices.map((invoice) => `<tr>
-          <td>${invoiceEscape(invoiceUploadedLabel(invoice.uploaded_at))}</td>
-          <td>${invoiceEscape(invoice.vendor_name || "No indicado")}</td>
-          <td>${invoiceEscape(invoice.description || "—")}</td>
-          <td>${invoiceEscape(financeDetailLine(invoice, lineMap))}</td>
-          <td>${invoiceEscape(invoiceMoney(invoice.total))}</td>
-          <td>${invoiceEscape(invoice.status === "pending_review" ? "Pendiente de revisión" : invoiceStatusLabel(invoice.status))}</td>
-          <td><button class="button secondary" type="button" data-detail-invoice-id="${invoiceEscape(invoice.id)}">Ver detalle</button></td>
-        </tr>`).join("")}
-        </tbody>
-      </table>
-    </div>`;
-  container.querySelectorAll("[data-detail-invoice-id]").forEach((button) => {
+    <div>
+      <h3>Listado de gastos</h3>
+      <p>Seleccione el concepto de gasto para consultar sus facturas cargadas durante el mes elegido.</p>
+    </div>
+    ${entries.length ? `
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Categoría</th><th>Gasto</th><th>Facturas cargadas</th><th></th></tr></thead>
+          <tbody>
+            ${entries.map((entry, index) => `<tr>
+              <td>${invoiceEscape(entry.category)}</td>
+              <td><strong>${invoiceEscape(entry.name)}</strong></td>
+              <td>${entry.invoices.length}</td>
+              <td><button class="button secondary" type="button" data-detail-expense-index="${index}">Ver facturas</button></td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    ` : '<p class="empty-state">No hay líneas de gastos disponibles.</p>'}
+  `;
+  container.querySelectorAll("[data-detail-expense-index]").forEach((button) => {
     button.addEventListener("click", () => {
-      const invoice = invoices.find((item) => item.id === button.dataset.detailInvoiceId);
-      if (invoice) renderFinanceDetailInvoice(container, invoice, invoices, lineMap);
+      const entry = entries[Number(button.dataset.detailExpenseIndex)];
+      if (!entry) return;
+      const back = () => renderFinanceDetailExpenseList(container, invoices, lines, lineMap);
+      renderFinanceDetailList(container, entry.invoices, lineMap, entry.name, back);
     });
   });
 }
 
-function renderFinanceDetailInvoice(container, invoice, invoices, lineMap) {
+function renderFinanceDetailList(container, invoices, lineMap, expenseName, backToExpenses) {
+  container.innerHTML = `
+    <div>
+      <h3>Facturas del mes · ${invoiceEscape(expenseName)}</h3>
+      <button class="button secondary" type="button" data-detail-return-expenses>Volver al listado de gastos</button>
+    </div>
+    ${invoices.length ? `
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Fecha de carga</th><th>Proveedor</th><th>Descripción</th><th>Línea de gastos</th><th>Total</th><th>Estado</th><th></th></tr>
+          </thead>
+          <tbody>
+            ${invoices.map((invoice) => `<tr>
+              <td>${invoiceEscape(financeDetailUploadLabel(invoice.uploaded_at))}</td>
+              <td>${invoiceEscape(invoice.vendor_name || "No indicado")}</td>
+              <td>${invoiceEscape(invoice.description || "—")}</td>
+              <td>${invoiceEscape(financeDetailLine(invoice, lineMap))}</td>
+              <td>${invoiceEscape(invoiceMoney(invoice.total))}</td>
+              <td>${invoiceEscape(invoice.status === "pending_review" ? "Pendiente de revisión" : invoiceStatusLabel(invoice.status))}</td>
+              <td><button class="button secondary" type="button" data-detail-invoice-id="${invoiceEscape(invoice.id)}">Ver detalle</button></td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    ` : '<p class="empty-state">No hay facturas cargadas para este gasto durante el mes seleccionado.</p>'}
+  `;
+  container.querySelector("[data-detail-return-expenses]").addEventListener("click", backToExpenses);
+  container.querySelectorAll("[data-detail-invoice-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const invoice = invoices.find((item) => item.id === button.dataset.detailInvoiceId);
+      if (invoice) renderFinanceDetailInvoice(container, invoice, invoices, lineMap, expenseName, backToExpenses);
+    });
+  });
+}
+
+function renderFinanceDetailInvoice(container, invoice, invoices, lineMap, expenseName, backToExpenses) {
   container.innerHTML = `
     <div class="invoice-review">
       <div>
-        <p class="page-kicker">Detalle de factura</p>
+        <p class="page-kicker">DETALLE DE FACTURA</p>
         <h3>${invoiceEscape(invoice.vendor_name || invoice.original_filename || "Factura")}</h3>
         <p>${invoiceEscape(invoice.status === "pending_review" ? "Pendiente de revisión" : invoiceStatusLabel(invoice.status))} · Solo lectura</p>
       </div>
       <div class="invoice-actions">
-        <button class="button secondary" type="button" data-detail-back>Volver al listado</button>
+        <button class="button secondary" type="button" data-detail-back>Volver a facturas</button>
       </div>
       <div class="table-wrap">
         <table class="data-table"><tbody>
           <tr><th>Proveedor</th><td>${invoiceEscape(invoice.vendor_name || "No indicado")}</td></tr>
-          <tr><th>Fecha de carga</th><td>${invoiceEscape(invoiceUploadedLabel(invoice.uploaded_at))}</td></tr>
+          <tr><th>Fecha de carga</th><td>${invoiceEscape(financeDetailUploadLabel(invoice.uploaded_at))}</td></tr>
           <tr><th>Fecha de factura</th><td>${invoiceEscape(invoiceDateLabel(invoice.invoice_date))}</td></tr>
           <tr><th>Número</th><td>${invoiceEscape(invoice.invoice_number || "—")}</td></tr>
           <tr><th>Descripción</th><td>${invoiceEscape(invoice.description || "—")}</td></tr>
@@ -143,9 +214,10 @@ function renderFinanceDetailInvoice(container, invoice, invoices, lineMap) {
         </tbody></table>
       </div>
       <div class="invoice-preview" data-detail-file><p class="empty-state">Cargando archivo original…</p></div>
-    </div>`;
+    </div>
+  `;
   container.querySelector("[data-detail-back]").addEventListener("click", () => {
-    renderFinanceDetailList(container, invoices, lineMap);
+    renderFinanceDetailList(container, invoices, lineMap, expenseName, backToExpenses);
   });
   const file = container.querySelector("[data-detail-file]");
   const token = financeDetailToken;
@@ -161,10 +233,10 @@ function renderFinanceDetailInvoice(container, invoice, invoices, lineMap) {
         frame.src = url;
         file.replaceChildren(frame);
       } else if (["image/jpeg", "image/png"].includes(invoice.original_mime)) {
-        const image = window.document.createElement("img");
-        image.alt = "Factura original";
-        image.src = url;
-        file.replaceChildren(image);
+        const picture = window.document.createElement("img");
+        picture.alt = "Factura original";
+        picture.src = url;
+        file.replaceChildren(picture);
       } else {
         file.textContent = "Este archivo no admite vista previa.";
       }
