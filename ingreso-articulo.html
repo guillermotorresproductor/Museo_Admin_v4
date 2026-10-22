@@ -26,10 +26,10 @@
             <legend>Modalidad de ingreso</legend>
             <div class="intake-choice">
               <label><input type="radio" name="modality" value="prestamo_temporal"> <span>Préstamo temporal</span></label>
-              <label><input type="radio" name="modality" value="donacion_permanente"> <span>Donación permanente</span></label>
+              <label><input type="radio" name="modality" value="donacion_permanente"> <span>Préstamo permanente</span></label>
             </div>
             <p>Titularidad: <strong data-ownership>Seleccione la modalidad</strong></p>
-            <p data-donation-note hidden>Seleccionar donación permanente no convierte la titularidad en propiedad del Museo. Eso ocurre al formalizar el expediente.</p>
+            <p data-donation-note hidden>La modalidad seleccionada no cambia la titularidad al guardar el borrador. Revise los términos del expediente antes de formalizar.</p>
           </fieldset>
           <fieldset>
             <legend>Pieza</legend>
@@ -145,8 +145,8 @@
             </div>
           </fieldset>
           <fieldset data-donation hidden>
-            <legend>Donación permanente</legend>
-            <label class="field" for="intake-donation-on"><span>Fecha de donación / ingreso *</span><input id="intake-donation-on" name="donation_on" type="date"></label>
+            <legend>Préstamo permanente</legend>
+            <label class="field" for="intake-donation-on"><span>Fecha de ingreso *</span><input id="intake-donation-on" name="donation_on" type="date"></label>
             <p>No se solicita fecha de devolución ni propósito de préstamo.</p>
           </fieldset>
           <fieldset>
