@@ -537,7 +537,7 @@ function bindCollectionIntake() {
     const donation = modality === 'donacion_permanente';
     const add = (element, message) => { if (element) problems.push({ element, message }); };
     const blank = name => !collectionFieldValue(form, name);
-    if (!modality) add(form.querySelector('input[name="modality"]'), 'Seleccione préstamo temporal o donación permanente.');
+    if (!modality) add(form.querySelector('input[name="modality"]'), 'Seleccione préstamo temporal o préstamo permanente.');
     if (!form.elements.category.value) add(form.elements.category, 'Seleccione la clasificación.');
     if (form.elements.category.value === 'Objeto personal' && blank('personal_object_description')) add(form.elements.personal_object_description, 'Indique la descripción del objeto personal.');
     if (form.elements.category.value === 'Otro' && blank('object_type_specification')) add(form.elements.object_type_specification, 'Escriba el tipo de objeto.');
@@ -562,7 +562,7 @@ function bindCollectionIntake() {
       if (purposes.some(input => input.value === 'Exhibición') && blank('activity_name')) add(form.elements.activity_name, 'Indique el nombre de la exhibición o actividad.');
       if (purposes.some(input => input.value === 'Otros') && blank('purpose_details')) add(form.elements.purpose_details, 'Describa el propósito cuando selecciona Otros.');
     }
-    if (donation && !form.elements.donation_on.value) add(form.elements.donation_on, 'La fecha de donación o ingreso es obligatoria.');
+    if (donation && !form.elements.donation_on.value) add(form.elements.donation_on, 'La fecha de ingreso es obligatoria.');
     attachments.querySelectorAll('.intake-attachment').forEach(row => {
       const file = row.querySelector('[data-attachment-file]').files[0];
       if (!file) return;
