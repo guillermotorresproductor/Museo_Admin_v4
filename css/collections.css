@@ -80,3 +80,22 @@
 .contract-preview { white-space:pre-wrap; background:#f7f8fa; border-radius:12px; padding:1rem; }
 [data-return-reference], [data-return-summary] { white-space:pre-wrap; }
 #intake-pending { padding:.75rem 1rem; background:#fff7e8; border-radius:12px; }
+
+.collection-select-column { width:32px; text-align:center; }
+.collection-select-column input { width:17px; height:17px; cursor:pointer; }
+.collection-print-selection { display:none; }
+@media print {
+  @page collection-selection-letter { size:letter portrait; margin:.55in; }
+  body.collection-selection-printing { background:#fff !important; }
+  body.collection-selection-printing > :not(.collection-print-selection) { display:none !important; }
+  body.collection-selection-printing .collection-print-selection {
+    display:block !important; page:collection-selection-letter; color:#111; background:#fff; font:10pt Arial,sans-serif;
+  }
+  .collection-print-selection header { margin-bottom:.2in; }
+  .collection-print-selection header p { margin:0 0 .06in; }
+  .collection-print-selection h1 { font-size:15pt; margin:.08in 0 .12in; }
+  .collection-selection-record { display:grid; grid-template-columns:1.55in 1fr; gap:.18in; padding:.16in 0; border-bottom:1px solid #bbb; break-inside:avoid; page-break-inside:avoid; }
+  .collection-selection-photo { width:1.55in; height:1.35in; display:flex; align-items:center; justify-content:center; font-size:8pt; text-align:center; border:1px solid #ddd; }
+  .collection-selection-photo img { max-width:100%; max-height:100%; object-fit:contain; }
+  .collection-selection-facts p { margin:0 0 .07in; white-space:pre-wrap; overflow-wrap:anywhere; }
+}
