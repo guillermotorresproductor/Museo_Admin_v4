@@ -94,10 +94,18 @@ async function bindAdministrativeLeave(employee, employeesPromise) {
     const button = form.querySelector('[type="submit"]');
     button.disabled = true;
     try {
-      await supabasePost("/rest/v1/employee_leave_requests", {
-        employee_id: data.get("employeeId"), start_date, end_date,
-        leave_type: data.get("type"), reason: String(data.get("reason")).trim()
+      const response = await fetch(`${supabaseUrl}/rest/v1/employee_leave_requests`, {
+        method: "POST",
+        headers: { ...(await supabaseAuthHeaders()), Prefer: "return=representation" },
+        body: JSON.stringify({
+          employee_id: data.get("employeeId"), start_date, end_date,
+          leave_type: data.get("type"), reason: String(data.get("reason")).trim()
+        })
       });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || "No se pudo registrar la solicitud.");
+      }
       message.textContent = "Solicitud registrada. Pendiente de evaluación.";
       form.reset(); if (employee?.id) choice.value = employee.id;
       await refresh();
