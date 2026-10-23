@@ -130,6 +130,7 @@ async function bindCollectionsCatalog() {
   form.noValidate = true;
   const detail = document.querySelector('#collection-detail'), dialog = document.querySelector('#collection-dialog');
   const search = document.querySelector('#collection-search');
+  const printSelectedIds = new Set();
   let items = [], accessions = [], editing = null, saving = false, viewedItem = null, viewedQrDataUrl = '', createRequestId = null;
   const canWrite = canWriteCollections();
   const canReplacePhoto = hasPermission('collections.write');
@@ -335,7 +336,12 @@ async function bindCollectionsCatalog() {
       const text = [i.accession_number,i.title,i.description,i.category,i.location,i.details?.donor,i.details?.lender,i.details?.personal_object_description,i.details?.object_type_specification].join(' ').toLocaleLowerCase('es');
       return modeOk && text.includes(term);
     });
-    document.querySelector('#collection-count').textContent = `${selected.length} de ${items.length} piezas`;
+    document.querySelector('#collection-count').textContent = `${selected.length} de ${items.length} piezas · ${printSelectedIds.size} seleccionadas`;
+    const selectAll = document.querySelector('#collection-select-all');
+    const selectedVisible = selected.filter(item => printSelectedIds.has(item.id)).length;
+    selectAll.checked = selected.length > 0 && selectedVisible === selected.length;
+    selectAll.indeterminate = selectedVisible > 0 && selectedVisible < selected.length;
+    selectAll.disabled = !selected.length;
     list.innerHTML = selected.length ? selected.map(i => {
       const label = collectionModalityLabels[modalityOf(i)] || 'Registro anterior';
       const accession = accessions.filter(row => row.collection_item_id === i.id).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
@@ -347,8 +353,8 @@ async function bindCollectionsCatalog() {
         links.push(`<a class="button secondary" href="ingreso-articulo.html?expediente=${encodeURIComponent(accession.id)}">${accession.status === 'formalizado' ? 'Recepción' : 'Continuar ingreso'}</a>`);
       }
       const continueIntake = links.length ? ` ${links.join(' ')}` : '';
-      return `<tr><td>${esc(i.accession_number)}</td><td>${esc(i.title)}</td><td>${esc(collectionCategoryLabel(i.category))}</td><td>${esc(label)}</td><td>${esc(i.location)}</td><td>${esc(i.condition)}</td><td><button class="button secondary" data-piece-view="${i.id}">Ver expediente</button>${canWrite ? ` <button class="button secondary" data-piece-edit="${i.id}">Editar</button>` : ''}${continueIntake}</td></tr>`;
-    }).join('') : '<tr><td colspan="7">No hay piezas que coincidan con la búsqueda.</td></tr>';
+      return `<tr><td class="collection-select-column"><input type="checkbox" data-piece-select="${i.id}" aria-label="Seleccionar ${esc(i.accession_number)}" ${printSelectedIds.has(i.id) ? "checked" : ""}></td><td>${esc(i.accession_number)}</td><td>${esc(i.title)}</td><td>${esc(collectionCategoryLabel(i.category))}</td><td>${esc(label)}</td><td>${esc(i.location)}</td><td>${esc(i.condition)}</td><td><button class="button secondary" data-piece-view="${i.id}">Ver expediente</button>${canWrite ? ` <button class="button secondary" data-piece-edit="${i.id}">Editar</button>` : ''}${continueIntake}</td></tr>`;
+    }).join('') : '<tr><td colspan="8">No hay piezas que coincidan con la búsqueda.</td></tr>';
   }
   async function reload() {
     const [nextItems, nextAccessions] = await Promise.all([
@@ -357,6 +363,8 @@ async function bindCollectionsCatalog() {
     ]);
     items = nextItems;
     accessions = nextAccessions;
+    const validIds = new Set(items.map(item => item.id));
+    for (const id of printSelectedIds) if (!validIds.has(id)) printSelectedIds.delete(id);
     render();
   }
   function historyChanges(h) {
@@ -381,6 +389,76 @@ async function bindCollectionsCatalog() {
     window.addEventListener('afterprint', cleanup, { once: true });
     window.print();
     window.setTimeout(() => { if (document.body.contains(sheet)) cleanup(); }, 3000);
+  }
+
+  function catalogPrintValue(item) {
+    const values = accessions.filter(row => row.collection_item_id === item.id).sort((a,b) => String(b.created_at).localeCompare(String(a.created_at)));
+    const accession = values[0];
+    const registered = item.details?.fmv;
+    const value = registered !== undefined && registered !== null && String(registered).trim() !== '' ? registered : accession?.estimated_value;
+    const currency = item.details?.currency || accession?.currency || 'USD';
+    const number = Number(value);
+    return value !== undefined && value !== null && String(value).trim() !== '' && Number.isFinite(number)
+      ? new Intl.NumberFormat('en-US', {style:'currency', currency:currency === 'USD' || currency === 'EUR' ? currency : 'USD'}).format(number)
+      : 'No registrado';
+  }
+  function catalogPrintLender(item) {
+    const lender = String(item.details?.lender || '').trim();
+    if (lender) return lender;
+    const accession = accessions.filter(row => row.collection_item_id === item.id).sort((a,b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+    return String(accession?.party_name || item.details?.donor || item.details?.owner || '').trim() || 'No registrado';
+  }
+  async function printCollectionSelection() {
+    const button = document.querySelector('#collection-print-selection');
+    if (button.disabled) return;
+    const chosen = items.filter(item => printSelectedIds.has(item.id));
+    if (!chosen.length) { say('Seleccione al menos una pieza en la primera columna para imprimir.', true); return; }
+    button.disabled = true;
+    say('Preparando fotografías de las piezas seleccionadas…');
+    const sheet = document.createElement('section');
+    sheet.className = 'collection-print-selection';
+    sheet.setAttribute('aria-hidden', 'true');
+    try {
+      const photos = await collectionRows('collection_active_photos');
+      const byItem = new Map();
+      for (const photo of photos) {
+        const existing = byItem.get(photo.item_id);
+        if (!existing || (photo.role === 'frontal' && existing.role !== 'frontal')) byItem.set(photo.item_id, photo);
+      }
+      const images = new Map();
+      // Protected photos must be embedded: browser print windows cannot send authorization headers.
+      for (const item of chosen) {
+        const photo = byItem.get(item.id);
+        if (!photo) continue;
+        try {
+          const url = await collectionPhotoUrl(photo.path);
+          const response = await fetch(url, { headers: await supabaseAuthHeaders(), cache: 'no-store' });
+          if (!response.ok) throw Error('Fotografía no disponible');
+          const blob = await response.blob();
+          if (!blob.type.startsWith('image/')) throw Error('Formato inválido');
+          const dataUrl = await new Promise((resolve,reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          images.set(item.id, dataUrl);
+        } catch (error) { console.warn('No se pudo cargar una foto para imprimir', item.accession_number, error); }
+      }
+      const printedAt = new Date().toLocaleString('es-PR', { dateStyle:'long', timeStyle:'short' });
+      sheet.innerHTML = `<header><p>MUSEO DE LA MÚSICA DE PUERTO RICO</p><h1>INVENTARIO DE COLECCIONES · SELECCIÓN</h1><p>Fecha de impresión: ${esc(printedAt)} · Total de piezas: ${chosen.length}</p></header><div class="collection-selection-records">${chosen.map(item => `<article class="collection-selection-record"><div class="collection-selection-photo">${images.has(item.id) ? `<img src="${images.get(item.id)}" alt="Fotografía de la pieza">` : '<span>Sin fotografía disponible</span>'}</div><div class="collection-selection-facts"><p><strong>Número de inventario:</strong> ${esc(item.accession_number)}</p><p><strong>Nombre:</strong> ${esc(item.title)}</p><p><strong>Descripción:</strong> ${esc(item.description || 'No registrada')}</p><p><strong>Valor:</strong> ${esc(catalogPrintValue(item))}</p><p><strong>Prestamista / propietario:</strong> ${esc(catalogPrintLender(item))}</p></div></article>`).join('')}</div>`;
+      document.body.append(sheet);
+      document.body.classList.add('collection-selection-printing');
+      const cleanup = () => { document.body.classList.remove('collection-selection-printing'); sheet.remove(); };
+      window.addEventListener('afterprint', cleanup, {once:true});
+      await Promise.all([...sheet.querySelectorAll('img')].map(img => img.decode?.().catch(()=>{}) || Promise.resolve()));
+      window.print();
+      window.setTimeout(() => { if (document.body.contains(sheet)) cleanup(); }, 3000);
+      say(`Se prepararon ${chosen.length} piezas para imprimir.`);
+    } catch (error) {
+      sheet.remove(); document.body.classList.remove('collection-selection-printing');
+      say('No se pudo preparar el listado: ' + error.message, true);
+    } finally { button.disabled = false; }
   }
   function printLabel() {
     if (!viewedItem || !viewedQrDataUrl) return;
@@ -478,6 +556,21 @@ async function bindCollectionsCatalog() {
   dialog.addEventListener('cancel', event => { if(replacingPhoto) event.preventDefault(); });
   document.querySelector('#collection-print-label').onclick = printLabel;
   document.querySelector('#collection-print-list').onclick = printCollectionList;
+  document.querySelector('#collection-print-selection').onclick = printCollectionSelection;
+  document.querySelector('#collection-select-all').onchange = event => {
+    const term = search.value.trim().toLocaleLowerCase('es');
+    const mode = modalityFilter?.value || '';
+    items.filter(i => (!mode || (mode === 'registro_anterior' ? !modalityOf(i) : modalityOf(i) === mode)) && [i.accession_number,i.title,i.description,i.category,i.location,i.details?.donor,i.details?.lender,i.details?.personal_object_description,i.details?.object_type_specification].join(' ').toLocaleLowerCase('es').includes(term))
+      .forEach(i => event.target.checked ? printSelectedIds.add(i.id) : printSelectedIds.delete(i.id));
+    render();
+  };
+  list.addEventListener('change', event => {
+    const input = event.target.closest('[data-piece-select]');
+    if (!input) return;
+    if (input.checked) printSelectedIds.add(input.dataset.pieceSelect);
+    else printSelectedIds.delete(input.dataset.pieceSelect);
+    render();
+  });
   document.querySelector('#collection-reload').onclick = () => reload().then(()=>say('Listado actualizado.')).catch(e=>say(e.message,true));
   search.oninput = render;
   if (modalityFilter) modalityFilter.onchange = render;
