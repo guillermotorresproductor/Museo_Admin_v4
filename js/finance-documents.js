@@ -14,9 +14,27 @@ let invoiceProcessed = [];
 let invoiceCanDecide = false;
 let invoiceLines = [];
 let invoiceUploading = false;
+let invoiceScanBusy = false;
+let invoiceScanPending = null;
+let invoiceScanPreviewUrl = "";
+
+function invoiceScanRelease() {
+  if (invoiceScanPreviewUrl) URL.revokeObjectURL(invoiceScanPreviewUrl);
+  invoiceScanPreviewUrl = "";
+  invoiceScanPending = null;
+}
+
+function invoiceByteLabel(bytes) {
+  if (!Number.isFinite(bytes)) return "—";
+  return bytes >= 1048576
+    ? (bytes / 1048576).toFixed(2) + " MiB"
+    : Math.max(1, Math.round(bytes / 1024)) + " KiB";
+}
+
 
 function cancelFinanceDocuments() {
   invoiceRenderToken += 1;
+  invoiceScanRelease();
 }
 
 function invoiceCanUpload() {
@@ -421,10 +439,36 @@ function renderInvoiceList(panel, notice = "", noticeState = "") {
         <h3>Facturas pendientes</h3>
         <p>Una factura pendiente es evidencia. Guardar la revisión no crea un gasto ni cambia el presupuesto.</p>
         ${invoiceCanUpload() ? `
-          <div class="invoice-upload">
-            <input id="invoice-upload-file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" hidden>
-            <button class="button" type="button" data-invoice-upload ${invoiceUploading ? "disabled" : ""}>Subir factura</button>
+          <div class="invoice-upload invoice-upload-mobile">
+            <input id="invoice-capture-file" type="file" accept="image/*" capture="environment" hidden>
+            <input id="invoice-upload-file" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,application/pdf,image/*" hidden>
+            <button class="button" type="button" data-invoice-capture ${invoiceUploading || invoiceScanBusy ? "disabled" : ""}>Tomar foto</button>
+            <button class="button secondary" type="button" data-invoice-upload ${invoiceUploading || invoiceScanBusy ? "disabled" : ""}>Seleccionar archivo</button>
+            <p class="invoice-upload-note">Las fotografías se escanean en blanco y negro y se comprimen antes de subirlas. Los PDF se conservan sin cambios.</p>
           </div>
+          ${invoiceScanBusy ? '<p class="form-message" role="status">Procesando la fotografía en este dispositivo…</p>' : ""}
+          ${invoiceScanPending ? `
+            <section class="invoice-scan-review" aria-label="Vista previa del archivo a guardar">
+              <h4>Revisar factura antes de guardar</h4>
+              <p>Archivo: ${invoiceEscape(invoiceScanPending.file.name)}</p>
+              <p>Tamaño: ${invoiceEscape(invoiceByteLabel(invoiceScanPending.originalSize))} → <strong>${invoiceEscape(invoiceByteLabel(invoiceScanPending.processedSize))}</strong></p>
+              ${invoiceScanPending.kind === "image" ? `
+                <label class="invoice-scan-option">Tipo de escaneo
+                  <select data-invoice-scan-mode ${invoiceUploading ? "disabled" : ""}>
+                    <option value="scan" ${invoiceScanPending.mode === "scan" ? "selected" : ""}>Blanco y negro — texto legible</option>
+                    <option value="high" ${invoiceScanPending.mode === "high" ? "selected" : ""}>Blanco y negro puro — alto contraste</option>
+                  </select>
+                </label>
+                <img src="${invoiceEscape(invoiceScanPreviewUrl)}" alt="Vista previa de factura escaneada en blanco y negro">
+                <p class="invoice-upload-note">Confirme que los números, fecha, monto y nombre del proveedor se leen completos.</p>
+              ` : '<p class="invoice-upload-note">El PDF se guardará en su formato original, conservando todas sus páginas.</p>'}
+              <div class="invoice-actions">
+                <button type="button" class="button" data-invoice-scan-save ${invoiceUploading ? "disabled" : ""}>Guardar factura</button>
+                <button type="button" class="button secondary" data-invoice-scan-cancel ${invoiceUploading ? "disabled" : ""}>Cancelar</button>
+              </div>
+            </section>
+          ` : ""}
+
         ` : ""}
         ${notice ? `<p class="form-message${noticeState === "error" ? " error" : ""}">${invoiceEscape(notice)}</p>` : ""}
       </div>
@@ -495,20 +539,61 @@ function renderInvoiceList(panel, notice = "", noticeState = "") {
 }
 
 function bindInvoiceUpload(panel) {
-  const button = panel.querySelector("[data-invoice-upload]");
-  const input = panel.querySelector("#invoice-upload-file");
-  if (!button || !input || button.dataset.bound === "1") return;
-  button.dataset.bound = "1";
-  button.addEventListener("click", () => {
-    if (invoiceUploading) return;
-    input.click();
+  const upload = panel.querySelector("[data-invoice-upload]");
+  const uploadInput = panel.querySelector("#invoice-upload-file");
+  const camera = panel.querySelector("[data-invoice-capture]");
+  const cameraInput = panel.querySelector("#invoice-capture-file");
+
+  [[upload, uploadInput], [camera, cameraInput]].forEach(([button, input]) => {
+    if (!button || !input) return;
+    button.addEventListener("click", () => {
+      if (!invoiceUploading && !invoiceScanBusy) input.click();
+    });
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      input.value = "";
+      if (file && !invoiceUploading && !invoiceScanBusy) void prepareInvoiceScan(panel, file);
+    });
   });
-  input.addEventListener("change", () => {
-    const file = input.files && input.files[0];
-    input.value = "";
-    if (!file || invoiceUploading) return;
-    void submitInvoiceUpload(panel, file);
+
+  panel.querySelector("[data-invoice-scan-mode]")?.addEventListener("change", (event) => {
+    if (invoiceScanPending?.source) void prepareInvoiceScan(panel, invoiceScanPending.source, event.target.value);
   });
+  panel.querySelector("[data-invoice-scan-save]")?.addEventListener("click", () => {
+    if (invoiceScanPending?.file && !invoiceUploading && !invoiceScanBusy) {
+      void submitInvoiceUpload(panel, invoiceScanPending.file);
+    }
+  });
+  panel.querySelector("[data-invoice-scan-cancel]")?.addEventListener("click", () => {
+    if (invoiceUploading || invoiceScanBusy) return;
+    invoiceScanRelease();
+    renderInvoiceList(panel);
+  });
+}
+
+async function prepareInvoiceScan(panel, file, mode = "scan") {
+  if (invoiceScanBusy || invoiceUploading) return;
+  const token = invoiceRenderToken;
+  invoiceScanBusy = true;
+  invoiceScanRelease();
+  renderInvoiceList(panel);
+  try {
+    if (!window.InvoiceScanner?.prepare) throw new Error("No se pudo iniciar el escáner de facturas.");
+    const prepared = await window.InvoiceScanner.prepare(file, mode);
+    if (token !== invoiceRenderToken) return;
+    const validation = invoiceUploadClientError(prepared.file);
+    if (validation) throw new Error(validation);
+    invoiceScanPending = prepared;
+    if (prepared.kind === "image") invoiceScanPreviewUrl = URL.createObjectURL(prepared.file);
+    invoiceScanBusy = false;
+    renderInvoiceList(panel);
+  } catch (error) {
+    if (token !== invoiceRenderToken) return;
+    invoiceScanBusy = false;
+    renderInvoiceList(panel, error.message || "No se pudo procesar la imagen.", "error");
+  } finally {
+    invoiceScanBusy = false;
+  }
 }
 
 async function submitInvoiceUpload(panel, file) {
@@ -519,15 +604,16 @@ async function submitInvoiceUpload(panel, file) {
   }
   const token = invoiceRenderToken;
   invoiceUploading = true;
-  renderInvoiceList(panel, "Subiendo factura...");
+  renderInvoiceList(panel, "Guardando la factura…");
   try {
     const created = await ingestFinanceDocument(file);
     if (created?.status !== "pending_review") {
       throw Object.assign(new Error("La factura no quedó pendiente."), { code: "INGEST_FAILED" });
     }
     invoiceUploading = false;
+    invoiceScanRelease();
     if (token !== invoiceRenderToken) return;
-    await loadFinanceDocuments(token, "Factura cargada correctamente.");
+    await loadFinanceDocuments(token, "Factura escaneada y guardada correctamente.");
   } catch (error) {
     invoiceUploading = false;
     if (token !== invoiceRenderToken) return;
@@ -536,6 +622,7 @@ async function submitInvoiceUpload(panel, file) {
 }
 
 function openFinanceDocument(documentId) {
+  invoiceScanRelease();
   const token = ++invoiceRenderToken;
   const panel = document.querySelector("[data-finance-panel]");
   const invoice = invoiceDocuments.find((item) => item.id === documentId);
@@ -544,6 +631,7 @@ function openFinanceDocument(documentId) {
 }
 
 function openProcessedFinanceDocument(documentId) {
+  invoiceScanRelease();
   const token = ++invoiceRenderToken;
   const panel = document.querySelector("[data-finance-panel]");
   const invoice = invoiceProcessed.find((item) => item.id === documentId);
