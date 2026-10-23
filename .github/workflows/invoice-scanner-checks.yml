@@ -1,0 +1,24 @@
+name: Invoice scanner checks
+on:
+  pull_request:
+    paths:
+      - 'js/invoice-scan.js'
+      - 'js/finance-documents.js'
+      - 'finanzas.html'
+      - 'tests/invoice-scanner.test.cjs'
+      - '.github/workflows/invoice-scanner-checks.yml'
+  workflow_dispatch:
+jobs:
+  invoice-scanner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: |
+          node --check js/invoice-scan.js
+          node --check js/finance-documents.js
+      - name: Scanner unit tests
+        run: node --test tests/invoice-scanner.test.cjs
