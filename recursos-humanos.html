@@ -215,7 +215,8 @@
               <label class="field"><span>Entrada</span><input type="time" name="startsLocal" required></label>
               <label class="field"><span>Salida</span><input type="time" name="endsLocal" required></label>
               <label class="field"><span>Almuerzo en minutos</span><input type="number" name="lunchMinutes" min="0" step="1"><small class="field-hint">Vacío conserva el almuerzo actual o hereda el del empleado.</small></label>
-              <label class="field"><span>Motivo</span><input type="text" name="reason" maxlength="240"><small class="field-hint">Obligatorio para cambiar, cancelar o marcar día libre. Si la salida es menor que la entrada, el turno termina al día siguiente.</small></label>
+              <label class="field"><span>Motivo</span><input type="text" name="reason" maxlength="240"><small class="field-hint">Obligatorio para cambiar, cancelar o marcar día libre. Si la semana pasaría de 40 horas, escriba una autorización excepcional. Los ponches no se bloquean.</small></label>
+              <label class="field"><span>Autorización excepcional</span><input type="checkbox" name="exceptionalAuthorization"><small class="field-hint">Solo si esta programación debe superar 40 horas en la semana.</small></label>
               <button class="button" type="submit" data-assigned-save>Guardar turno</button>
               <button class="button secondary" type="button" data-assigned-new>Nuevo turno</button>
               <button class="button secondary" type="button" data-assigned-day-off>Día libre</button>
@@ -292,7 +293,7 @@
   </div>
   <script src="js/config.js"></script>
   <script src="js/services/supabase.js?v=assigned-shifts-20260928"></script>
-  <script src="js/app.js?v=nomina-module-20260929"></script>
+  <script src="js/app.js?v=nomina-additional-20261026"></script>
 </body>
 </html>
 
