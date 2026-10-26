@@ -161,10 +161,28 @@ test("an approved review cannot be approved again and only authorized profiles c
   assert.match(decision, /audit_logs/);
   assert.match(decision, /director_ejecutivo','gerente_administrativo'/);
   assert.match(overtimeProfiles, /attendance\.overtime\.decide/);
-  assert.match(overtimeProfiles, /director_ejecutivo'',''gerente_administrativo/);
-  assert.match(overtimeProfiles, /COMPENSATION_GRANT_REMOVED/);
+  assert.match(overtimeProfiles, /administrador_general'',''director_ejecutivo'',''gerente_administrativo/);
+  assert.match(overtimeProfiles, /effect = ''deny''/);
+  assert.match(decisionTest, /GENERAL_ADMIN_DENIED/);
+  assert.match(decisionTest, /INDIVIDUAL_DENY_IGNORED/);
   assert.match(decisionTest, /SECOND_DECISION/);
   assert.match(decisionTest, /OVERTIME_ALREADY_DECIDED/);
+  assert.match(migration, /autorizaci\[oó\]n excepcional/);
+  assert.doesNotMatch(migration, /Ã/);
+});
+
+test("schedule_employee_shift keeps the previous behavior and only adds the weekly guard", () => {
+  function grab(path) {
+    const source = fs.readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+    const start = source.indexOf("create or replace function public.schedule_employee_shift(");
+    return source.slice(start, source.indexOf("end $$;", start));
+  }
+  const previous = grab("supabase/migrations/202609280003_assigned_shift_rpcs.sql");
+  const proposed = grab("supabase/migrations/202610260002_legal_overtime_and_week_guard.sql")
+    .replace(/\n    perform public\.attendance_week_schedule_guard\(museum, p_employee_id, p_shift_date, null, v_start, v_end, v_lunch, v_reason\);\n/g, "\n")
+    .replace(/\n    perform public\.attendance_week_schedule_guard\(museum, p_employee_id, p_shift_date, p_shift_id, v_start, v_end, v_lunch, v_reason\);\n/g, "\n");
+  assert.equal(proposed, previous);
+  assert.equal((migration.match(/attendance_week_schedule_guard\(museum/g) || []).length, 2);
 });
 
 test("Finance attendance decides through the existing review and hides the action without permission", () => {

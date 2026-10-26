@@ -36,7 +36,19 @@ begin
   update public.employees set access_profile = 'gerente_museografica' where profile_id = profile_user;
   if public.has_permission('attendance.overtime.decide') then raise exception 'MUSEUM_MANAGER_ALLOWED'; end if;
   update public.employees set access_profile = 'administrador_general' where profile_id = profile_user;
-  if public.has_permission('attendance.overtime.decide') then raise exception 'GENERAL_ADMIN_ALLOWED'; end if;
+  if not public.has_permission('attendance.overtime.decide') then raise exception 'GENERAL_ADMIN_DENIED'; end if;
+  insert into public.user_permissions (museum_id, user_id, permission_id, effect)
+  select public.current_user_museum_id(), profile_user, p.id, 'deny'
+  from public.permissions p
+  where p.code = 'attendance.overtime.decide';
+  if public.has_permission('attendance.overtime.decide') then raise exception 'INDIVIDUAL_DENY_IGNORED'; end if;
+  delete from public.user_permissions up
+  using public.permissions p
+  where up.permission_id = p.id
+    and p.code = 'attendance.overtime.decide'
+    and up.user_id = profile_user
+    and up.effect = 'deny';
+  if not public.has_permission('attendance.overtime.decide') then raise exception 'GENERAL_ADMIN_DENIED'; end if;
   perform set_config('request.jwt.claim.sub', employee_user::text, true);
   if public.has_permission('attendance.overtime.decide') then raise exception 'EMPLOYEE_ALLOWED'; end if;
   perform set_config('request.jwt.claim.sub', profile_user::text, true);
@@ -178,18 +190,15 @@ begin
   end if;
   perform set_config('request.jwt.claim.sub', profile_user::text, true);
   update public.employees set access_profile='administrador_general' where profile_id=profile_user;
-  begin
-    perform public.decide_overtime_review('f3000000-0000-4000-8000-000000000005','approve_all',null,'Administrador general');
-    raise exception 'GENERAL_ADMIN_DECIDED';
-  exception when insufficient_privilege or sqlstate '42501' then null;
-  end;
+  perform public.decide_overtime_review('f3000000-0000-4000-8000-000000000005','approve_all',null,'Administrador general');
+  if (select status from public.attendance_overtime_reviews where id='f3000000-0000-4000-8000-000000000005') <> 'approved' then raise exception 'GENERAL_ADMIN_DENIED'; end if;
   update public.employees set access_profile='gerente_museografica' where profile_id=profile_user;
   begin
-    perform public.decide_overtime_review('f3000000-0000-4000-8000-000000000005','reject',null,'Gerente museografica');
+    perform public.decide_overtime_review('f3000000-0000-4000-8000-000000000003','reject',null,'Gerente museografica');
     raise exception 'MUSEUM_MANAGER_DECIDED';
   exception when insufficient_privilege or sqlstate '42501' then null;
   end;
-  if (select status from public.attendance_overtime_reviews where id='f3000000-0000-4000-8000-000000000005') <> 'pending' then raise exception 'UNAUTHORIZED_WROTE'; end if;
+  if (select status from public.attendance_overtime_reviews where id='f3000000-0000-4000-8000-000000000003') <> 'pending' then raise exception 'UNAUTHORIZED_WROTE'; end if;
   raise notice 'OVERTIME_DECISION_OK';
 end
 $test$;

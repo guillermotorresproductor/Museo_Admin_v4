@@ -90,6 +90,32 @@ begin
      or position('record_employee_attendance' in pg_get_functiondef('public.attendance_week_schedule_guard(uuid,uuid,date,uuid,timestamptz,timestamptz,integer,text)'::regprocedure)) > 0 then
     raise exception 'SCHEDULE_GUARD_TOUCHES_PUNCHES';
   end if;
+  begin
+    perform public.attendance_week_schedule_guard(
+      '00000000-0000-0000-0000-000000000001',
+      '00000000-0000-0000-0000-000000000099',
+      date '2026-10-12', null,
+      timestamptz '2026-10-12 08:00:00-04',
+      timestamptz '2026-10-14 00:01:00-04',
+      0, null);
+    raise exception 'LIMIT_NOT_ENFORCED';
+  exception when sqlstate 'P0001' then
+    if sqlerrm <> 'WEEKLY_SCHEDULE_LIMIT' then raise; end if;
+  end;
+  perform public.attendance_week_schedule_guard(
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000099',
+    date '2026-10-12', null,
+    timestamptz '2026-10-12 08:00:00-04',
+    timestamptz '2026-10-14 00:01:00-04',
+    0, 'Autorización excepcional. Cierre');
+  perform public.attendance_week_schedule_guard(
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000099',
+    date '2026-10-12', null,
+    timestamptz '2026-10-12 08:00:00-04',
+    timestamptz '2026-10-14 00:01:00-04',
+    0, 'autorizacion excepcional');
 
   if position('status = ''pending''' in pg_get_functiondef('public.decide_overtime_review(uuid,text,integer,text)'::regprocedure)) = 0
      or position('OVERTIME_ALREADY_DECIDED' in pg_get_functiondef('public.decide_overtime_review(uuid,text,integer,text)'::regprocedure)) = 0

@@ -655,7 +655,7 @@ begin
     and s.shift_date between week_start and week_start + 6
     and s.id is distinct from p_shift_id;
   if existing + added > 2400
-     and coalesce(p_reason, '') !~* 'autorizaci[oÃ³]n excepcional' then
+     and coalesce(p_reason, '') !~* 'autorizaci[oó]n excepcional' then
     raise exception 'WEEKLY_SCHEDULE_LIMIT' using errcode = 'P0001';
   end if;
 end
