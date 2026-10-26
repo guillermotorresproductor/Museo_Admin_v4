@@ -7655,29 +7655,57 @@ function bindFinanceAdditionalTimeReview() {
       refresh.disabled = false;
     }
   };
+  rows.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-decision]");
+    if (button) button.closest("form")?.setAttribute("data-clicked-decision", button.dataset.decision);
+  });
   rows.addEventListener("submit", async (event) => {
     const form = event.target.closest("[data-finance-additional-decision]");
-    if (!form || !hasPermission("attendance.overtime.decide")) return;
+    if (!form) return;
     event.preventDefault();
     if (busy) return;
-    const decision = event.submitter?.dataset.decision;
-    if (!decision) return;
-    const reason = new FormData(form).get("reason");
+    let feedback = form.querySelector("[data-decision-feedback]");
+    if (!feedback) {
+      feedback = document.createElement("p");
+      feedback.className = "form-message";
+      feedback.setAttribute("data-decision-feedback", "");
+      feedback.setAttribute("role", "status");
+      feedback.setAttribute("aria-live", "polite");
+      form.appendChild(feedback);
+    }
+    if (!hasPermission("attendance.overtime.decide")) {
+      feedback.textContent = "No tienes permiso para aprobar estas horas.";
+      return;
+    }
+    const decision = event.submitter?.dataset.decision || form.dataset.clickedDecision;
+    if (!decision) {
+      feedback.textContent = "No se identificó la decisión. Actualiza la página e inténtalo nuevamente.";
+      return;
+    }
+    const reason = String(new FormData(form).get("reason") || "").trim();
     const minutes = new FormData(form).get("minutes");
-    let reloadDecided = false;
+    if (!reason) {
+      feedback.textContent = "Escribe la razón obligatoria antes de aprobar.";
+      form.querySelector('[name="reason"]')?.focus();
+      return;
+    }
     busy = true;
+    feedback.textContent = "Guardando decisión en Supabase...";
+    message.textContent = "Guardando decisión...";
     form.querySelectorAll("button").forEach((button) => { button.disabled = true; });
     try {
-      render(await decideOvertimeReview(form.dataset.financeAdditionalDecision, decision, minutes === "" ? null : Number(minutes), reason));
-      message.textContent = "Decisión registrada. La nómina la toma al calcular; no se ejecutó un pago.";
+      const result = await decideOvertimeReview(form.dataset.financeAdditionalDecision, decision, minutes === "" ? null : Number(minutes), reason);
+      feedback.textContent = "Decisión registrada correctamente.";
+      render(result);
+      message.textContent = "Decisión registrada. La nómina se recalcula; no se ejecutó un pago.";
     } catch (error) {
-      message.textContent = decisionError(error.message || "");
-      reloadDecided = (error.message || "").includes("OVERTIME_ALREADY_DECIDED");
+      const detail = decisionError(error?.message || "");
+      feedback.textContent = detail;
+      message.textContent = detail;
     } finally {
       busy = false;
       form.querySelectorAll("button").forEach((button) => { button.disabled = false; });
     }
-    if (reloadDecided) await load();
   });
   toggle.addEventListener("click", () => {
     body.hidden = !body.hidden;
