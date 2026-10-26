@@ -7614,9 +7614,9 @@ function bindFinanceAdditionalTimeReview() {
           <td><form data-finance-additional-decision="${safeHtml(item.id)}">
             <input name="reason" required placeholder="Razón obligatoria">
             <input name="minutes" type="number" min="1" placeholder="Minutos parciales">
-            <button class="button secondary" type="submit" data-decision="approve_all">Aprobar</button>
-            <button class="button secondary" type="submit" data-decision="approve_partial">Aprobar parcialmente</button>
-            <button class="button secondary" type="submit" data-decision="reject">Rechazar</button>
+            <button class="button secondary" type="button" data-decision="approve_all">Aprobar</button>
+            <button class="button secondary" type="button" data-decision="approve_partial">Aprobar parcialmente</button>
+            <button class="button secondary" type="button" data-decision="reject">Rechazar</button>
           </form></td>
         </tr>`).join("");
     const recentRows = recent.map((item) => `
@@ -7655,14 +7655,12 @@ function bindFinanceAdditionalTimeReview() {
       refresh.disabled = false;
     }
   };
-  rows.addEventListener("click", (event) => {
+  rows.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-decision]");
-    if (button) button.closest("form")?.setAttribute("data-clicked-decision", button.dataset.decision);
-  });
-  rows.addEventListener("submit", async (event) => {
-    const form = event.target.closest("[data-finance-additional-decision]");
-    if (!form) return;
+    if (!button || !rows.contains(button)) return;
     event.preventDefault();
+    const form = button.closest("[data-finance-additional-decision]");
+    if (!form) return;
     if (busy) return;
     let feedback = form.querySelector("[data-decision-feedback]");
     if (!feedback) {
@@ -7677,7 +7675,7 @@ function bindFinanceAdditionalTimeReview() {
       feedback.textContent = "No tienes permiso para aprobar estas horas.";
       return;
     }
-    const decision = event.submitter?.dataset.decision || form.dataset.clickedDecision;
+    const decision = button.dataset.decision;
     if (!decision) {
       feedback.textContent = "No se identificó la decisión. Actualiza la página e inténtalo nuevamente.";
       return;
