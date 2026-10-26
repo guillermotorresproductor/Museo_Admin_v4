@@ -5319,9 +5319,25 @@ function bindFinanceModule() {
         panel.innerHTML = `<p class="form-message">No tiene permiso para consultar la asistencia.</p>`;
         return;
       }
-      panel.innerHTML = renderAttendanceShell();
+      panel.innerHTML = renderAttendanceShell() + (hasPermission("attendance.overtime.decide") ? `
+        <section class="card panel" data-finance-additional-time>
+          <div class="finance-actions">
+            <button class="button secondary" type="button" data-finance-additional-open aria-expanded="false">Revisar horas adicionales</button>
+          </div>
+          <div data-finance-additional-body hidden>
+            <h3>Revisión de tiempo adicional</h3>
+            <p>Estas solicitudes son registros de asistencia pendientes. Su aprobación NO equivale a clasificar horas ordinarias ni garantiza su inclusión en nómina. La aprobación queda deshabilitada hasta integrar y verificar el cálculo de nómina.</p>
+            <p class="form-message" data-finance-additional-message></p>
+            <div class="table-wrap"><table class="data-table">
+              <thead><tr><th>Empleado</th><th>Salida real</th><th>Minutos pendientes</th><th>Clasificación</th><th>Estado</th></tr></thead>
+              <tbody data-finance-additional-rows><tr><td colspan="5">Abra el panel para consultar.</td></tr></tbody>
+            </table></div>
+            <button class="button secondary" type="button" data-finance-additional-refresh>Actualizar</button>
+          </div>
+        </section>` : "");
       bindTodayStaffStatus();
       bindAttendanceHistory();
+      bindFinanceAdditionalTimeReview();
       return;
     }
     if (activeTab === "reportes") panel.innerHTML = renderReports();
@@ -7535,6 +7551,48 @@ function bindPunchCorrections() {
   window.addEventListener("pagehide", () => { window.clearInterval(timer); timer = 0; }, { once: true });
   timer = window.setInterval(load, 60000);
   return load();
+}
+
+function bindFinanceAdditionalTimeReview() {
+  const root = document.querySelector("[data-finance-additional-time]");
+  if (!root || !hasPermission("attendance.overtime.decide")) return;
+  const toggle = root.querySelector("[data-finance-additional-open]");
+  const body = root.querySelector("[data-finance-additional-body]");
+  const rows = root.querySelector("[data-finance-additional-rows]");
+  const message = root.querySelector("[data-finance-additional-message]");
+  const refresh = root.querySelector("[data-finance-additional-refresh]");
+  let busy = false;
+  const load = async () => {
+    if (busy) return;
+    busy = true;
+    refresh.disabled = true;
+    message.textContent = "Consultando solicitudes pendientes...";
+    try {
+      const payload = await fetchOvertimeReviews();
+      const pending = Array.isArray(payload?.pending) ? payload.pending : [];
+      rows.innerHTML = pending.length ? pending.map((item) => `
+        <tr>
+          <td>${safeHtml(item.name || "Empleado")}</td>
+          <td>${safeHtml(item.clock_out ? formatPortalDate(item.clock_out, { dateStyle: "short", timeStyle: "short" }) : "—")}</td>
+          <td>${Number(item.additional_minutes) || 0} min</td>
+          <td>Pendiente de clasificación</td>
+          <td>Pendiente de revisión</td>
+        </tr>`).join("") : '<tr><td colspan="5">No hay solicitudes pendientes.</td></tr>';
+      message.textContent = `${pending.length} solicitud(es) pendiente(s). No se ha autorizado ningún pago.`;
+    } catch (error) {
+      message.textContent = error?.message || "No fue posible consultar las solicitudes.";
+      rows.innerHTML = '<tr><td colspan="5">Consulta no disponible.</td></tr>';
+    } finally {
+      busy = false;
+      refresh.disabled = false;
+    }
+  };
+  toggle.addEventListener("click", () => {
+    body.hidden = !body.hidden;
+    toggle.setAttribute("aria-expanded", String(!body.hidden));
+    if (!body.hidden) load();
+  });
+  refresh.addEventListener("click", load);
 }
 
 function bindOvertimeReviews() {
