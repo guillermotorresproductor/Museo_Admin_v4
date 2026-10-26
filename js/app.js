@@ -5326,11 +5326,11 @@ function bindFinanceModule() {
           </div>
           <div data-finance-additional-body hidden>
             <h3>Revisión de tiempo adicional</h3>
-            <p>Estas solicitudes son registros de asistencia pendientes. Su aprobación NO equivale a clasificar horas ordinarias ni garantiza su inclusión en nómina. La aprobación queda deshabilitada hasta integrar y verificar el cálculo de nómina.</p>
+            <p>La nómina suma solo los minutos aprobados y no vuelve a contar la jornada ya registrada. En Puerto Rico, lo que pasa de 8 horas en el día es extraordinario aunque la semana no llegue a 40. Lo que pasa de 40 horas ordinarias en la semana también es extraordinario. El mismo minuto no se paga dos veces. Una solicitud ya decidida no se puede aprobar otra vez.</p>
             <p class="form-message" data-finance-additional-message></p>
             <div class="table-wrap"><table class="data-table">
-              <thead><tr><th>Empleado</th><th>Salida real</th><th>Minutos pendientes</th><th>Clasificación</th><th>Estado</th></tr></thead>
-              <tbody data-finance-additional-rows><tr><td colspan="5">Abra el panel para consultar.</td></tr></tbody>
+              <thead><tr><th>Empleado</th><th>Salida real</th><th>Minutos</th><th>Clasificación</th><th>Estado</th><th>Decisión</th></tr></thead>
+              <tbody data-finance-additional-rows><tr><td colspan="6">Abra el panel para consultar.</td></tr></tbody>
             </table></div>
             <button class="button secondary" type="button" data-finance-additional-refresh>Actualizar</button>
           </div>
@@ -7561,39 +7561,98 @@ function bindFinanceAdditionalTimeReview() {
   const rows = root.querySelector("[data-finance-additional-rows]");
   const message = root.querySelector("[data-finance-additional-message]");
   const refresh = root.querySelector("[data-finance-additional-refresh]");
+  const statusLabel = { pending: "Pendiente", approved: "Aprobado", partially_approved: "Parcialmente aprobado", rejected: "Rechazado" };
+  const classification = "8 h diarias y 40 h semanales";
   let busy = false;
-  const load = async () => {
-    if (busy) return;
-    busy = true;
-    refresh.disabled = true;
-    message.textContent = "Consultando solicitudes pendientes...";
-    try {
-      const payload = await fetchOvertimeReviews();
-      const rawPending = Array.isArray(payload?.pending) ? payload.pending : [];
-      const seenIds = new Set();
-      const pending = rawPending.filter((item) => {
-        if (!item.id) return true;
-        if (seenIds.has(item.id)) return false;
-        seenIds.add(item.id);
-        return true;
-      });
-      rows.innerHTML = pending.length ? pending.map((item) => `
+  const unique = (items) => {
+    const seenIds = new Set();
+    return (Array.isArray(items) ? items : []).filter((item) => {
+      if (!item?.id) return false;
+      if (seenIds.has(item.id)) return false;
+      seenIds.add(item.id);
+      return true;
+    });
+  };
+  const decisionError = (text) => {
+    if (text.includes("OVERTIME_ALREADY_DECIDED")) return "Esa solicitud ya fue decidida y no se puede aprobar otra vez.";
+    if (text.includes("DECISION_REASON_REQUIRED")) return "Escribe una razón para la decisión.";
+    if (text.includes("PARTIAL_MINUTES_INVALID")) return "Los minutos parciales deben ser mayores que cero.";
+    if (text.includes("MINUTES_EXCEED_DETECTED")) return "No se pueden aprobar más minutos de los detectados.";
+    if (text.includes("USE_FULL_APPROVAL")) return "Esa cantidad es el total. Usa Aprobar.";
+    if (text.includes("FORBIDDEN")) return "No tienes autorización para decidir tiempo adicional.";
+    return text || "No se pudo registrar la decisión.";
+  };
+  const render = (payload) => {
+    const pending = unique(payload?.pending);
+    const recent = unique(payload?.recent);
+    const pendingRows = pending.map((item) => `
         <tr>
           <td>${safeHtml(item.name || "Empleado")}</td>
           <td>${safeHtml(item.clock_out ? formatPortalDate(item.clock_out, { dateStyle: "short", timeStyle: "short" }) : "—")}</td>
           <td>${Number(item.additional_minutes) || 0} min</td>
-          <td>Pendiente de clasificación</td>
-          <td>Pendiente de revisión</td>
-        </tr>`).join("") : '<tr><td colspan="5">No hay solicitudes pendientes.</td></tr>';
-      message.textContent = `${pending.length} solicitud(es) pendiente(s). No se ha autorizado ningún pago.`;
+          <td>${classification}</td>
+          <td>Pendiente</td>
+          <td><form data-finance-additional-decision="${safeHtml(item.id)}">
+            <input name="reason" required placeholder="Razón obligatoria">
+            <input name="minutes" type="number" min="1" placeholder="Minutos parciales">
+            <button class="button secondary" type="submit" data-decision="approve_all">Aprobar</button>
+            <button class="button secondary" type="submit" data-decision="approve_partial">Aprobar parcialmente</button>
+            <button class="button secondary" type="submit" data-decision="reject">Rechazar</button>
+          </form></td>
+        </tr>`).join("");
+    const recentRows = recent.map((item) => `
+        <tr>
+          <td>${safeHtml(item.name || "Empleado")}</td>
+          <td>${safeHtml(item.clock_out ? formatPortalDate(item.clock_out, { dateStyle: "short", timeStyle: "short" }) : "—")}</td>
+          <td>${Number(item.approved_minutes) || 0} de ${Number(item.additional_minutes) || 0} min</td>
+          <td>${classification}</td>
+          <td>${safeHtml(statusLabel[item.status] || item.status || "Decidida")}</td>
+          <td>Ya decidida</td>
+        </tr>`).join("");
+    rows.innerHTML = pendingRows || recentRows
+      ? pendingRows + recentRows
+      : '<tr><td colspan="6">No hay solicitudes pendientes.</td></tr>';
+    message.textContent = `${pending.length} solicitud(es) pendiente(s). No se ha registrado ningún pago.`;
+  };
+  const load = async () => {
+    if (busy || !hasPermission("attendance.overtime.decide")) return;
+    busy = true;
+    refresh.disabled = true;
+    message.textContent = "Consultando solicitudes pendientes...";
+    try {
+      render(await fetchOvertimeReviews());
     } catch (error) {
       message.textContent = error?.message || "No fue posible consultar las solicitudes.";
-      rows.innerHTML = '<tr><td colspan="5">Consulta no disponible.</td></tr>';
+      rows.innerHTML = '<tr><td colspan="6">Consulta no disponible.</td></tr>';
     } finally {
       busy = false;
       refresh.disabled = false;
     }
   };
+  rows.addEventListener("submit", async (event) => {
+    const form = event.target.closest("[data-finance-additional-decision]");
+    if (!form || !hasPermission("attendance.overtime.decide")) return;
+    event.preventDefault();
+    if (busy) return;
+    const decision = event.submitter?.dataset.decision;
+    if (!decision) return;
+    const reason = new FormData(form).get("reason");
+    const minutes = new FormData(form).get("minutes");
+    let reloadDecided = false;
+    busy = true;
+    form.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+    try {
+      render(await decideOvertimeReview(form.dataset.financeAdditionalDecision, decision, minutes === "" ? null : Number(minutes), reason));
+      message.textContent = "Decisión registrada. La nómina la toma al calcular; no se ejecutó un pago.";
+    } catch (error) {
+      message.textContent = decisionError(error.message || "");
+      reloadDecided = (error.message || "").includes("OVERTIME_ALREADY_DECIDED");
+    } finally {
+      busy = false;
+      form.querySelectorAll("button").forEach((button) => { button.disabled = false; });
+    }
+    if (reloadDecided) await load();
+  });
   toggle.addEventListener("click", () => {
     body.hidden = !body.hidden;
     toggle.setAttribute("aria-expanded", String(!body.hidden));
