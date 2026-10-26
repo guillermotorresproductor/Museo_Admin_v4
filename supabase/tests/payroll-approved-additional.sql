@@ -74,6 +74,23 @@ begin
     raise exception 'UNAPPROVED_COUNTED %', split;
   end if;
 
+  split := public.classify_approved_additional_minutes(0, 600, 0, 0);
+  if (split->>'regular_ordinary_minutes')::integer <> 480
+     or (split->>'regular_extraordinary_minutes')::integer <> 120 then
+    raise exception 'DAILY_OT_UNDER_40 %', split;
+  end if;
+
+  split := public.classify_approved_additional_minutes(0, 200, 2300, 0);
+  if (split->>'regular_ordinary_minutes')::integer <> 100
+     or (split->>'regular_extraordinary_minutes')::integer <> 100 then
+    raise exception 'WEEKLY_OT_ON_REGULAR %', split;
+  end if;
+
+  if position('WEEKLY_SCHEDULE_LIMIT' in pg_get_functiondef('public.attendance_week_schedule_guard(uuid,uuid,date,uuid,timestamptz,timestamptz,integer,text)'::regprocedure)) = 0
+     or position('record_employee_attendance' in pg_get_functiondef('public.attendance_week_schedule_guard(uuid,uuid,date,uuid,timestamptz,timestamptz,integer,text)'::regprocedure)) > 0 then
+    raise exception 'SCHEDULE_GUARD_TOUCHES_PUNCHES';
+  end if;
+
   if position('status = ''pending''' in pg_get_functiondef('public.decide_overtime_review(uuid,text,integer,text)'::regprocedure)) = 0
      or position('OVERTIME_ALREADY_DECIDED' in pg_get_functiondef('public.decide_overtime_review(uuid,text,integer,text)'::regprocedure)) = 0
      or position('attendance.overtime.decide' in pg_get_functiondef('public.decide_overtime_review(uuid,text,integer,text)'::regprocedure)) = 0

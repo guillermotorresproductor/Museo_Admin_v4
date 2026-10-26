@@ -3947,7 +3947,7 @@ function assignedShiftMessage(error, fallback) {
     REASON_REQUIRED: "Indique un motivo de al menos 3 caracteres.",
     INVALID_SHIFT_HOURS: "La salida tiene que ser distinta de la entrada.",
     EMPLOYEE_NOT_FOUND: "No se encontró el empleado en este museo.",
-    SHIFT_NOT_FOUND: "No se encontró el turno."
+    WEEKLY_SCHEDULE_LIMIT: "Esa semana pasaría de 40 horas. Márquela como autorización excepcional e indique el motivo. Los ponches ya registrados no se bloquean.",
   };
   const known = Object.keys(messages).find((item) => code.includes(item));
   return known ? messages[known] : providerNeutralMessage(error, fallback);
@@ -3971,6 +3971,7 @@ function bindAssignedShiftAdmin() {
   const message = region.querySelector("[data-assigned-shifts-message]");
   const showMessage = (text, type = "") => { message.textContent = text; message.className = `form-message ${type}`.trim(); };
   let loaded = null;
+  let weekWarning = "";
   const selectedEmployee = () => query.elements.employeeId.value;
   const selectedDate = () => query.elements.shiftDate.value;
   const resetEditor = () => {
@@ -3980,6 +3981,7 @@ function bindAssignedShiftAdmin() {
     form.elements.endsLocal.value = "";
     form.elements.lunchMinutes.value = "";
     form.elements.reason.value = "";
+    if (form.elements.exceptionalAuthorization) form.elements.exceptionalAuthorization.checked = false;
     region.querySelector("[data-assigned-cancel]").hidden = true;
     region.querySelector("[data-assigned-save]").textContent = "Guardar turno";
   };
@@ -4008,6 +4010,19 @@ function bindAssignedShiftAdmin() {
     if (loaded.self) showMessage("No puede modificar su propio turno.", "error");
     render();
     resetEditor();
+    weekWarning = "";
+    try {
+      const warnings = await fetchWeeklyHourWarnings(shiftDate, employeeId);
+      const item = Array.isArray(warnings) ? warnings[0] : null;
+      if (item) {
+        const hours = (Number(item.scheduled_minutes) / 60).toFixed(1);
+        weekWarning = item.level === "limit"
+          ? ` Alerta: ${hours} h programadas en la semana.`
+          : ` Alerta preventiva: ${hours} h programadas, cerca de 40.`;
+      }
+    } catch (error) {
+      weekWarning = "";
+    }
   };
   (async () => {
     const employees = getEmployeeRecords().filter((employee) => employee.estado !== "Inactivo" && employee.source === "supabase");
@@ -4016,7 +4031,7 @@ function bindAssignedShiftAdmin() {
   })().catch((error) => showMessage(assignedShiftMessage(error, "No se pudieron cargar los empleados."), "error"));
   query.addEventListener("submit", async (event) => {
     event.preventDefault();
-    try { await load(); if (!loaded?.self) showMessage("Turnos de la fecha cargados.", "success"); }
+    try { await load(); if (!loaded?.self) showMessage(`Turnos de la fecha cargados.${weekWarning}`, weekWarning ? "error" : "success"); }
     catch (error) { showMessage(assignedShiftMessage(error, "No se pudieron consultar los turnos."), "error"); }
   });
   list.addEventListener("click", (event) => {
@@ -4039,6 +4054,10 @@ function bindAssignedShiftAdmin() {
     event.preventDefault();
     if (loaded?.self) return;
     const lunch = form.elements.lunchMinutes.value;
+    let reason = String(form.elements.reason.value || "").trim();
+    if (form.elements.exceptionalAuthorization?.checked && !/autorizaci[oó]n excepcional/i.test(reason)) {
+      reason = `Autorización excepcional. ${reason}`.trim();
+    }
     try {
       await scheduleEmployeeShift({
         employeeId: selectedEmployee(),
@@ -4049,7 +4068,7 @@ function bindAssignedShiftAdmin() {
         setLunch: lunch !== "",
         lunchMinutes: lunch === "" ? null : Number(lunch),
         expectedUpdatedAt: form.elements.expectedUpdatedAt.value,
-        reason: form.elements.reason.value
+        reason
       });
       showMessage("Turno guardado.", "success");
       await load();
@@ -7621,6 +7640,13 @@ function bindFinanceAdditionalTimeReview() {
     message.textContent = "Consultando solicitudes pendientes...";
     try {
       render(await fetchOvertimeReviews());
+      try {
+        const warnings = await fetchWeeklyHourWarnings();
+        const count = Array.isArray(warnings) ? warnings.length : 0;
+        if (count) message.textContent = `${count} empleado(s) se acercan a 40 horas programadas esta semana. ${message.textContent}`;
+      } catch (error) {
+        /* A warning failure must not block the review or attendance punches. */
+      }
     } catch (error) {
       message.textContent = error?.message || "No fue posible consultar las solicitudes.";
       rows.innerHTML = '<tr><td colspan="6">Consulta no disponible.</td></tr>';

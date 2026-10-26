@@ -446,6 +446,13 @@ async function fetchMyCurrentPunchState() {
   return supabasePost("/rest/v1/rpc/my_current_punch_state", {});
 }
 
+async function fetchWeeklyHourWarnings(onDate, employeeId) {
+  return supabasePost("/rest/v1/rpc/list_weekly_hour_warnings", {
+    p_on: onDate || null,
+    p_employee_id: employeeId || null
+  });
+}
+
 async function scheduleEmployeeShift(shift) {
   return supabasePost("/rest/v1/rpc/schedule_employee_shift", {
     p_employee_id: shift.employeeId,

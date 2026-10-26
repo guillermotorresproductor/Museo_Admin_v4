@@ -295,7 +295,9 @@ begin
      or (person->>'worked_minutes')::integer is distinct from 2640
      or (person->>'payable_minutes')::integer is distinct from 2400
      or (person->>'over_limit_minutes')::integer is distinct from 240
-     or (person->>'actual_amount')::numeric is distinct from 720 then
+     or (person->>'extraordinary_approved_minutes')::integer is distinct from 0
+     or (person->>'regular_extraordinary_minutes')::integer is distinct from 240
+     or (person->>'actual_amount')::numeric is distinct from 828 then
     raise exception 'LONG_WEEK_MISMATCH %', person;
   end if;
 
@@ -305,7 +307,8 @@ begin
      or (person->>'worked_minutes')::integer is distinct from 2040
      or (person->>'payable_minutes')::integer is distinct from 1920
      or (person->>'over_limit_minutes')::integer is distinct from 120
-     or (person->>'actual_amount')::numeric is distinct from 576 then
+     or (person->>'regular_extraordinary_minutes')::integer is distinct from 120
+     or (person->>'actual_amount')::numeric is distinct from 630 then
     raise exception 'CROSSING_WEEK_MISMATCH %', person;
   end if;
   if result->>'full_month' <> 'false' then

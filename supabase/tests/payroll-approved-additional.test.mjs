@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const migration = fs.readFileSync("supabase/migrations/202610260001_payroll_approved_additional.sql", "utf8");
+const migration = fs.readFileSync("supabase/migrations/202610260002_legal_overtime_and_week_guard.sql", "utf8");
 const decision = fs.readFileSync("supabase/migrations/202609240003_overtime_decision.sql", "utf8");
+const overtimeProfiles = fs.readFileSync("supabase/migrations/202610260003_overtime_decide_profiles.sql", "utf8");
 const decisionTest = fs.readFileSync("supabase/tests/overtime-decision.sql", "utf8");
 const app = fs.readFileSync("js/app.js", "utf8");
 const financePage = fs.readFileSync("finanzas.html", "utf8");
@@ -14,12 +15,16 @@ function classifyApprovedAdditional(dayRegularBefore, shiftRegular, weekOrdinary
   const weekBefore = Math.max(0, weekOrdinaryBefore || 0);
   const extra = Math.max(0, approved || 0);
   const dayTotal = dayBefore + shift;
-  const weekAfterRegular = weekBefore + Math.min(shift, Math.max(0, 480 - dayBefore));
+  const shiftDailyOrdinary = Math.min(shift, Math.max(0, 480 - dayBefore));
+  const regularOrdinary = Math.min(shiftDailyOrdinary, Math.max(0, 2400 - weekBefore));
+  const weekAfterRegular = weekBefore + regularOrdinary;
   const ordinary = Math.min(extra, Math.max(0, 480 - dayTotal), Math.max(0, 2400 - weekAfterRegular));
   return {
     ordinary,
     extraordinary: extra - ordinary,
-    weekOrdinaryAfter: weekAfterRegular + ordinary,
+    regularOrdinary,
+    regularExtraordinary: shift - regularOrdinary,
+    weekOrdinaryAfter: weekBefore + regularOrdinary + ordinary,
     dayRegularAfter: dayTotal
   };
 }
@@ -115,7 +120,20 @@ test("pending or rejected minutes are not part of the approved input", () => {
   assert.equal(split.extraordinary, 0);
 });
 
-test("payroll adds only approved minutes and keeps the previous regular cap", () => {
+test("daily overtime on a completed shift is paid even when the week is under 40 hours", () => {
+  const split = classifyApprovedAdditional(0, 600, 0, 0);
+  assert.equal(split.regularOrdinary, 480);
+  assert.equal(split.regularExtraordinary, 120);
+  assert.equal(split.ordinary, 0);
+});
+
+test("weekly overtime on regular time is not dropped when the day is under 8 hours", () => {
+  const split = classifyApprovedAdditional(0, 200, 2300, 0);
+  assert.equal(split.regularOrdinary, 100);
+  assert.equal(split.regularExtraordinary, 100);
+});
+
+test("payroll pays legal overtime without converting a monthly salary or rewriting punches", () => {
   assert.match(migration, /coalesce\(\(day->>'regular_minutes'\)::integer, 0\)/);
   assert.match(migration, /day->>'approved_overtime_minutes'/);
   assert.match(migration, /least\(rec\.worked_minutes, remaining\)/);
@@ -124,6 +142,12 @@ test("payroll adds only approved minutes and keeps the previous regular cap", ()
   assert.match(migration, /least\(\s*shift_regular, greatest\(0, 480 - day_before\)\s*\)/);
   assert.match(migration, /greatest\(0, 480 - day_total\)/);
   assert.match(migration, /greatest\(0, 2400 - week_after_regular\)/);
+  assert.match(migration, /regular_extraordinary_minutes/);
+  assert.match(migration, /set amount = 0\s+from payroll_monthly_salary/);
+  assert.match(migration, /WEEKLY_SCHEDULE_LIMIT/);
+  assert.match(migration, /list_weekly_hour_warnings/);
+  assert.match(migration, /1920/);
+  assert.doesNotMatch(migration, /record_employee_attendance/);
   assert.doesNotMatch(migration, /update public\.finance_records/);
   assert.doesNotMatch(migration, /update public\.attendance_events/);
   assert.doesNotMatch(migration, /update public\.attendance_overtime_reviews/);
@@ -136,6 +160,9 @@ test("an approved review cannot be approved again and only authorized profiles c
   assert.match(decision, /OVERTIME_ALREADY_DECIDED/);
   assert.match(decision, /audit_logs/);
   assert.match(decision, /director_ejecutivo','gerente_administrativo'/);
+  assert.match(overtimeProfiles, /attendance\.overtime\.decide/);
+  assert.match(overtimeProfiles, /director_ejecutivo'',''gerente_administrativo/);
+  assert.match(overtimeProfiles, /COMPENSATION_GRANT_REMOVED/);
   assert.match(decisionTest, /SECOND_DECISION/);
   assert.match(decisionTest, /OVERTIME_ALREADY_DECIDED/);
 });
@@ -152,7 +179,9 @@ test("Finance attendance decides through the existing review and hides the actio
   assert.match(panel, /data-decision="approve_all"/);
   assert.match(panel, /Ya decidida/);
   assert.doesNotMatch(panel, /aprobación queda deshabilitada/);
-  assert.match(financePage, /js\/app\.js\?v=finance-additional-20261026/);
+  assert.match(panel, /fetchWeeklyHourWarnings/);
+  assert.match(app, /WEEKLY_SCHEDULE_LIMIT/);
+  assert.match(financePage, /js\/app\.js\?v=finance-week-20261026/);
   assert.match(fs.readFileSync("js/services/supabase.js", "utf8"), /\/rest\/v1\/rpc\/decide_overtime_review/);
   assert.match(fs.readFileSync("js/services/supabase.js", "utf8"), /\/rest\/v1\/rpc\/list_overtime_reviews/);
 });
