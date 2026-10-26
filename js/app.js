@@ -7569,7 +7569,14 @@ function bindFinanceAdditionalTimeReview() {
     message.textContent = "Consultando solicitudes pendientes...";
     try {
       const payload = await fetchOvertimeReviews();
-      const pending = Array.isArray(payload?.pending) ? payload.pending : [];
+      const rawPending = Array.isArray(payload?.pending) ? payload.pending : [];
+      const seenIds = new Set();
+      const pending = rawPending.filter((item) => {
+        if (!item.id) return true;
+        if (seenIds.has(item.id)) return false;
+        seenIds.add(item.id);
+        return true;
+      });
       rows.innerHTML = pending.length ? pending.map((item) => `
         <tr>
           <td>${safeHtml(item.name || "Empleado")}</td>
