@@ -11,7 +11,7 @@
 </style></head><body><div class="app-shell"><aside class="sidebar" data-sidebar></aside><div class="sidebar-backdrop" data-sidebar-backdrop></div><div class="main-area"><header class="site-header" data-header></header><main class="page-content">
 <section class="card panel" data-horarios-module>
 <p class="page-kicker">Administración / Recursos Humanos</p><h2>Horarios</h2>
-<p>Programación semanal de empleados. La fuente oficial son los turnos existentes de asistencia; los cambios se reflejan en Mi Espacio.</p>
+<p>Programación semanal de empleados. Se consultan los turnos oficiales de asistencia. Los borradores no se reflejan en Mi Espacio hasta su publicación mediante un proceso autorizado.</p>
 <div class="schedule-toolbar">
 <label>Semana del <input type="date" data-week-date></label>
 <label>Área o puesto <select data-area-filter><option value="">Todos</option></select></label>
@@ -22,14 +22,14 @@
 </div>
 <div class="inventory-actions"><button type="button" class="button secondary" data-export-draft>Exportar borrador JSON</button><label class="button secondary" for="horarios-draft-import">Importar borrador JSON</label><input id="horarios-draft-import" type="file" accept="application/json,.json" data-import-draft hidden><button type="button" class="button secondary" data-clear-draft>Descartar borrador</button></div><p class="schedule-note">Borrador local: no modifica Supabase. La publicación integral está deshabilitada hasta disponer de un procedimiento transaccional validado.</p><p class="form-message" role="status" aria-live="polite" data-schedule-status>Comprobando permisos...</p>
 <div class="table-wrap"><table class="schedule-table"><thead data-schedule-head></thead><tbody data-schedule-body></tbody></table></div>
-<p class="schedule-note">Las horas mostradas son programadas, no ponchadas. El cálculo de nómina no se modifica. Los cambios guardados usan las reglas actuales de turnos; todavía no existe un flujo independiente de borrador/publicación.</p>
+<p class="schedule-note">Las horas mostradas corresponden a programación y borradores, no a ponches ni horas pagadas. El cálculo de nómina no se modifica. Este módulo NO publica turnos: conserve el archivo exportado y no lo confunda con el horario oficial.</p>
 <form class="schedule-editor" data-editor hidden>
 <h3 data-editor-title>Asignar turno</h3><input type="hidden" name="employeeId"><input type="hidden" name="shiftDate"><input type="hidden" name="shiftId"><input type="hidden" name="expectedUpdatedAt">
 <label class="field">Entrada <input type="time" name="startsLocal" required></label>
 <label class="field">Salida <input type="time" name="endsLocal" required></label>
 <label class="field">Almuerzo (minutos) <input type="number" name="lunchMinutes" min="0" max="480" value="60" required></label>
 <label class="field">Motivo del cambio <input type="text" name="reason" maxlength="240"></label>
-<div class="inventory-actions"><button class="button" type="submit">Guardar turno</button><button class="button secondary" data-day-off type="button">Marcar libre</button><button class="button secondary" data-close-editor type="button">Cerrar</button></div>
+<div class="inventory-actions"><button class="button" type="submit">Guardar en borrador</button><button class="button secondary" data-day-off type="button">Marcar libre</button><button class="button secondary" data-close-editor type="button">Cerrar</button></div>
 </form>
 </section></main><footer class="site-footer" data-footer></footer></div></div>
 <script src="js/config.js"></script><script src="js/services/supabase.js?v=assigned-shifts-20260928"></script><script src="js/app.js?v=nomina-additional-20261026"></script><script src="js/horarios.js?v=1"></script>
