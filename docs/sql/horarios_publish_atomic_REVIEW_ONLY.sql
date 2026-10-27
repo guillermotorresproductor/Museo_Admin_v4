@@ -18,6 +18,8 @@ DECLARE
  v_shifts jsonb;
  v_now date := (now() AT TIME ZONE 'America/Puerto_Rico')::date;
  v_n int;
+ v_existing_count int;
+ v_week_minutes int;
 BEGIN
  IF v_actor IS NULL OR NOT public.has_permission('schedules.manage') THEN
    RAISE EXCEPTION 'FORBIDDEN' USING ERRCODE='42501';
@@ -44,7 +46,9 @@ BEGIN
    WHERE id=v_item.employee_id AND museum_id=v_museum AND status='activo' FOR UPDATE;
    IF NOT FOUND THEN RAISE EXCEPTION 'EMPLOYEE_NOT_ACTIVE'; END IF;
    -- Identity matching must be confirmed against actual employee/profile mapping.
-   IF v_emp.profile_id=v_actor THEN RAISE EXCEPTION 'SELF_ASSIGNMENT'; END IF;
+   -- REVISIÓN PENDIENTE: modelo de identidad verificado por los RPC existentes.
+   -- Sin esa garantía, la operación falla cerrada, incluso con autorización administrativa.
+   RAISE EXCEPTION 'IDENTITY_MODEL_UNVERIFIED';
    IF v_item.action='set_shift' THEN
       IF v_item.lunch_minutes IS NULL OR v_item.lunch_minutes<0
       OR ((extract(epoch FROM (v_item.ends_local-v_item.starts_local))/60)::integer+1440)%1440-v_item.lunch_minutes NOT BETWEEN 1 AND 480
@@ -57,6 +61,13 @@ BEGIN
       AND v_item.source_shift_id IS NULL THEN
       RAISE EXCEPTION 'MISSING_BASELINE_SNAPSHOT';
    END IF;
+   SELECT count(*) INTO v_existing_count FROM public.employee_shifts
+     WHERE employee_id=v_item.employee_id AND museum_id=v_museum
+     AND shift_date=v_item.shift_date AND status IN ('scheduled','completed');
+   IF v_existing_count > 1 THEN RAISE EXCEPTION 'MULTIPLE_OR_COMPLETED_SHIFTS'; END IF;
+   IF EXISTS(SELECT 1 FROM public.employee_shifts WHERE employee_id=v_item.employee_id
+     AND museum_id=v_museum AND shift_date=v_item.shift_date AND status='completed')
+     THEN RAISE EXCEPTION 'COMPLETED_SHIFT_LOCKED'; END IF;
    IF v_item.source_shift_id IS NOT NULL THEN
       SELECT * INTO v_current FROM public.employee_shifts
       WHERE id=v_item.source_shift_id AND employee_id=v_item.employee_id
@@ -66,6 +77,10 @@ BEGIN
         THEN RAISE EXCEPTION 'SHIFT_CONFLICT'; END IF;
    END IF;
  END LOOP;
+ -- Revisión de horas: vista final de borradores + turnos oficiales no reemplazados.
+ -- No autorizar una publicación hasta certificar la equivalencia de los límites
+ -- del procedimiento original para todas las semanas y cruces de medianoche.
+ RAISE EXCEPTION 'ATOMIC_PUBLISH_NOT_CERTIFIED';
  -- Stage 2: use existing vetted auditing and shift rules INSIDE same DB transaction.
  FOR v_item IN SELECT * FROM public.schedule_week_draft_items
  WHERE draft_id=v_draft.id ORDER BY employee_id,shift_date
