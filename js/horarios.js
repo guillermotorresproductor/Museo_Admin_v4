@@ -21,7 +21,7 @@ head.innerHTML="<tr><th>Empleado / posición</th>"+days.map(d=>"<th>"+safe(label
 body.innerHTML=visible.map(emp=>{const row=emp._week||{},cells=days.map(d=>{const item=row[d],ss=(item?.shifts||[]).filter(sh=>sh.status==="scheduled"),off=item?.day_off;
 const draft=drafts.get(emp.id+"|"+d);const line=emp._failed?"ERROR":draft?(draft.dayOff?"LIBRE (borrador)":draft.start+"–"+draft.end+" (borrador)"):off?"LIBRE":ss.length?ss.map(display).join(" / "):"—";
 return '<td><button class="schedule-cell" type="button" data-id="'+safe(emp.id)+'" data-date="'+d+'" '+(!editable?'disabled':'')+'>'+safe(line)+'</button></td>'}).join("");
-const all=days.flatMap(d=>(row[d]?.shifts||[]).filter(sh=>sh.status==="scheduled"));const total=all.reduce((n,s)=>n+minutes(s),0)/60;
+const total=days.reduce((sum,d)=>{const draft=drafts.get(emp.id+"|"+d);if(draft){if(draft.dayOff)return sum;let t=(Number(draft.end.slice(0,2))*60+Number(draft.end.slice(3)))-(Number(draft.start.slice(0,2))*60+Number(draft.start.slice(3)));if(t<0)t+=1440;return sum+Math.max(0,t-draft.lunch)}return sum+(row[d]?.shifts||[]).filter(sh=>sh.status==="scheduled").reduce((n,sh)=>n+minutes(sh),0)},0)/60;
 return "<tr><th>"+safe((emp.first_name||emp.nombre||"")+" "+(emp.last_name||emp.apellidos||""))+"<small style='display:block'>"+safe(emp.position||emp.posicion||"")+"</small></th>"+cells+"<td class='schedule-total'>"+total.toFixed(1)+" h</td></tr>"}).join("")||'<tr><td colspan="9">No hay empleados en esta selección.</td></tr>';
 }
 async function load(){
