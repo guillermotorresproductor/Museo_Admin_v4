@@ -16,13 +16,13 @@ if(/T/.test(a)&&/T/.test(b))return Math.max(0,(new Date(b)-new Date(a))/60000-Nu
 const [h,m]=String(a).slice(0,5).split(":").map(Number),[h2,m2]=String(b).slice(0,5).split(":").map(Number);let t=(h2*60+m2)-(h*60+m);if(t<0)t+=1440;return Math.max(0,t-Number(sh.expected_lunch_minutes||0))};
 const display=sh=>{let a=sh.starts_local||sh.starts_at||"",b=sh.ends_local||sh.ends_at||"";return hour(a)+"–"+hour(b)};
 function draw(){
-const visible=employees.filter(e=>!area.value||((e.departamento||e.posicion||"").trim()===area.value));
+const visible=employees.filter(e=>!area.value||((e.department||e.position||e.department||e.position||e.departamento||e.posicion||"").trim()===area.value));
 head.innerHTML="<tr><th>Empleado / posición</th>"+days.map(d=>"<th>"+safe(label(d))+"</th>").join("")+"<th>Total</th></tr>";
 body.innerHTML=visible.map(emp=>{const row=emp._week||{},cells=days.map(d=>{const item=row[d],ss=item?.shifts||[],off=item?.day_off;
 const line=emp._failed?"ERROR":off?"LIBRE":ss.length?ss.map(display).join(" / "):"—";
 return '<td><button class="schedule-cell" type="button" data-id="'+safe(emp.id)+'" data-date="'+d+'" '+(!editable?'disabled':'')+'>'+safe(line)+'</button></td>'}).join("");
 const all=days.flatMap(d=>row[d]?.shifts||[]);const total=all.reduce((n,s)=>n+minutes(s),0)/60;
-return "<tr><th>"+safe((emp.nombre||"")+" "+(emp.apellidos||""))+"<small style='display:block'>"+safe(emp.posicion||"")+"</small></th>"+cells+"<td class='schedule-total'>"+total.toFixed(1)+" h</td></tr>"}).join("")||'<tr><td colspan="9">No hay empleados en esta selección.</td></tr>';
+return "<tr><th>"+safe((emp.first_name||emp.first_name||emp.nombre||"")+" "+(emp.last_name||emp.last_name||emp.apellidos||""))+"<small style='display:block'>"+safe(emp.position||emp.posicion||"")+"</small></th>"+cells+"<td class='schedule-total'>"+total.toFixed(1)+" h</td></tr>"}).join("")||'<tr><td colspan="9">No hay empleados en esta selección.</td></tr>';
 }
 async function load(){
 editor.hidden=true;weekStart=monday(dateInput.value||new Intl.DateTimeFormat("en-CA",{timeZone:"America/Puerto_Rico",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()));dateInput.value=weekStart;
@@ -36,7 +36,7 @@ draw();msg(failures?("No se pudieron consultar "+failures+" empleados. No asumir
 async function start(){
 try{
 if(typeof hasPermission!=="function"||!hasPermission("schedules.manage")){root.innerHTML="<h2>Acceso restringido</h2><p>No tiene autorización para administrar horarios.</p>";return}
-editable=true;employees=(await fetchSupabaseEmployees()).filter(e=>e.estado!=="Inactivo"&&e.estado!=="inactivo");
+editable=true;employees=(await fetchSupabaseEmployees()).filter(e=>!["inactive","inactivo"].includes(String(e.status||e.estado||"").toLowerCase()));
 let names=[...new Set(employees.map(e=>(e.departamento||e.posicion||"").trim()).filter(Boolean))].sort();area.insertAdjacentHTML("beforeend",names.map(n=>'<option value="'+safe(n)+'">'+safe(n)+"</option>").join(""));
 dateInput.value=monday(new Date().toLocaleDateString("en-CA"));await load();
 }catch(e){msg("No fue posible abrir Horarios: "+(e.message||e),true)}
