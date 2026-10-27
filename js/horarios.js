@@ -16,16 +16,16 @@ if(/T/.test(a)&&/T/.test(b))return Math.max(0,(new Date(b)-new Date(a))/60000-Nu
 const [h,m]=String(a).slice(0,5).split(":").map(Number),[h2,m2]=String(b).slice(0,5).split(":").map(Number);let t=(h2*60+m2)-(h*60+m);if(t<0)t+=1440;return Math.max(0,t-Number(sh.expected_lunch_minutes||0))};
 const display=sh=>{let a=sh.local_start||sh.starts_local||sh.starts_at||"",b=sh.local_end||sh.ends_local||sh.ends_at||"";return hour(a)+"–"+hour(b)+(sh.crosses_midnight?" (+1)":"")};
 function draw(){
-const visible=employees.filter(e=>!area.value||((e.department||e.position||e.department||e.position||e.department||e.position||e.department||e.position||e.departamento||e.posicion||"").trim()===area.value));
+const visible=employees.filter(e=>!area.value||((e.department||e.position||e.departamento||e.posicion||"").trim()===area.value));
 head.innerHTML="<tr><th>Empleado / posición</th>"+days.map(d=>"<th>"+safe(label(d))+"</th>").join("")+"<th>Total</th></tr>";
-body.innerHTML=visible.map(emp=>{const row=emp._week||{},cells=days.map(d=>{const item=row[d],ss=item?.shifts||[],off=item?.day_off;
+body.innerHTML=visible.map(emp=>{const row=emp._week||{},cells=days.map(d=>{const item=row[d],ss=(item?.shifts||[]).filter(sh=>sh.status==="scheduled"),off=item?.day_off;
 const line=emp._failed?"ERROR":off?"LIBRE":ss.length?ss.map(display).join(" / "):"—";
 return '<td><button class="schedule-cell" type="button" data-id="'+safe(emp.id)+'" data-date="'+d+'" '+(!editable?'disabled':'')+'>'+safe(line)+'</button></td>'}).join("");
 const all=days.flatMap(d=>(row[d]?.shifts||[]).filter(sh=>sh.status==="scheduled"));const total=all.reduce((n,s)=>n+minutes(s),0)/60;
-return "<tr><th>"+safe((emp.first_name||emp.first_name||emp.nombre||"")+" "+(emp.last_name||emp.last_name||emp.apellidos||""))+"<small style='display:block'>"+safe(emp.position||emp.posicion||"")+"</small></th>"+cells+"<td class='schedule-total'>"+total.toFixed(1)+" h</td></tr>"}).join("")||'<tr><td colspan="9">No hay empleados en esta selección.</td></tr>';
+return "<tr><th>"+safe((emp.first_name||emp.nombre||"")+" "+(emp.last_name||emp.apellidos||""))+"<small style='display:block'>"+safe(emp.position||emp.posicion||"")+"</small></th>"+cells+"<td class='schedule-total'>"+total.toFixed(1)+" h</td></tr>"}).join("")||'<tr><td colspan="9">No hay empleados en esta selección.</td></tr>';
 }
 async function load(){
-editor.hidden=true;weekStart=monday(dateInput.value||new Intl.DateTimeFormat("en-CA",{timeZone:"America/Puerto_Rico",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()));dateInput.value=weekStart;
+editor.hidden=true;weekStart=monday(dateInput.value||new Date(Date.now()-4*3600000).toISOString().slice(0,10));dateInput.value=weekStart;
 days=Array.from({length:7},(_,i)=>addDays(weekStart,i));msg("Consultando turnos...");
 try{
 const results=await Promise.all(employees.map(e=>listEmployeeShifts(e.id,days[0],days[6]).then(v=>({e,v})).catch(error=>({e,error}))));
@@ -37,8 +37,8 @@ async function start(){
 try{
 if(typeof hasPermission!=="function"||!hasPermission("schedules.manage")){root.innerHTML="<h2>Acceso restringido</h2><p>No tiene autorización para administrar horarios.</p>";return}
 editable=true;employees=(await fetchSupabaseEmployees()).filter(e=>!["inactive","inactivo"].includes(String(e.status||e.estado||"").toLowerCase()));
-let names=[...new Set(employees.map(e=>(e.departamento||e.posicion||"").trim()).filter(Boolean))].sort();area.insertAdjacentHTML("beforeend",names.map(n=>'<option value="'+safe(n)+'">'+safe(n)+"</option>").join(""));
-dateInput.value=monday(new Intl.DateTimeFormat("en-CA",{timeZone:"America/Puerto_Rico",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()));await load();
+let names=[...new Set(employees.map(e=>(e.department||e.position||e.departamento||e.posicion||"").trim()).filter(Boolean))].sort();area.insertAdjacentHTML("beforeend",names.map(n=>'<option value="'+safe(n)+'">'+safe(n)+"</option>").join(""));
+dateInput.value=monday(new Date(Date.now()-4*3600000).toISOString().slice(0,10));await load();
 }catch(e){msg("No fue posible abrir Horarios: "+(e.message||e),true)}
 }
 body.addEventListener("click",ev=>{const b=ev.target.closest("[data-id]");if(!b||!editable)return;const emp=employees.find(e=>e.id===b.dataset.id);if(!emp)return;if(emp._failed){msg("No se puede editar: falló la consulta del empleado.",true);return}if(emp._self){msg("No puede modificar su propio turno.",true);return}
@@ -47,14 +47,14 @@ editor.elements.employeeId.value=emp.id;editor.elements.shiftDate.value=b.datase
 editor.elements.shiftId.value=sh?.id||"";editor.elements.expectedUpdatedAt.value=sh?.updated_at||"";
 editor.elements.startsLocal.value=hour(sh?.local_start||sh?.starts_local||sh?.starts_at)||"08:00";editor.elements.endsLocal.value=hour(sh?.local_end||sh?.ends_local||sh?.ends_at)||"17:00";
 editor.elements.lunchMinutes.value=sh?.expected_lunch_minutes??60;
-$("[data-editor-title]").textContent=(emp.nombre||"")+" "+(emp.apellidos||"")+" · "+b.dataset.date;
+$("[data-editor-title]").textContent=(emp.first_name||emp.nombre||"")+" "+(emp.last_name||emp.apellidos||"")+" · "+b.dataset.date;
 editor.hidden=false;editor.scrollIntoView({behavior:"smooth",block:"nearest"});
 });
 editor.addEventListener("submit",async e=>{e.preventDefault();const f=editor.elements;try{
 const a=f.startsLocal.value,b=f.endsLocal.value;if(a===b)throw Error("Entrada y salida no pueden coincidir.");
 const lunch=Number(f.lunchMinutes.value);let mins=(Number(b.slice(0,2))*60+Number(b.slice(3)))-(Number(a.slice(0,2))*60+Number(a.slice(3)));if(mins<0)mins+=1440;
-if(lunch<0||lunch>=mins)throw Error("El almuerzo debe ser menor que la duración del turno.");if(mins-lunch<=0)throw Error("La jornada no puede ser cero.");if(mins-lunch>480)throw Error("Este turno supera 8 horas ordinarias netas. Revise la programación.");
-const emp=employees.find(x=>x.id===f.employeeId.value);if(!emp||emp._failed||emp._self)throw Error("No autorizado o datos incompletos.");const existing=(emp._week||{});let other=days.filter(d=>d!==f.shiftDate.value).flatMap(d=>existing[d]?.shifts||[]).reduce((n,sh)=>n+minutes(sh),0);const current=(existing[f.shiftDate.value]?.shifts||[]).filter(sh=>sh.status==="scheduled");other+=current.filter(sh=>sh.id!==f.shiftId.value).reduce((n,sh)=>n+minutes(sh),0);if(other+mins-lunch>2400)throw Error("La programación excedería 40 horas semanales.");
+if(!Number.isFinite(lunch)||lunch<0||lunch>=mins)throw Error("El almuerzo debe ser menor que la duración del turno.");if(mins-lunch<=0)throw Error("La jornada no puede ser cero.");if(mins-lunch>480)throw Error("Este turno supera 8 horas ordinarias netas. Revise la programación.");
+const emp=employees.find(x=>x.id===f.employeeId.value);if(!emp||emp._failed||emp._self)throw Error("No autorizado o datos incompletos.");const existing=(emp._week||{});let other=days.filter(d=>d!==f.shiftDate.value).flatMap(d=>(existing[d]?.shifts||[]).filter(sh=>sh.status==="scheduled")).reduce((n,sh)=>n+minutes(sh),0);const current=(existing[f.shiftDate.value]?.shifts||[]).filter(sh=>sh.status==="scheduled");other+=current.filter(sh=>sh.id!==f.shiftId.value).reduce((n,sh)=>n+minutes(sh),0);if(other+mins-lunch>2400)throw Error("La programación excedería 40 horas semanales.");
 await scheduleEmployeeShift({employeeId:f.employeeId.value,shiftDate:f.shiftDate.value,shiftId:f.shiftId.value||null,expectedUpdatedAt:f.expectedUpdatedAt.value||null,startsLocal:a,endsLocal:b,setLunch:true,lunchMinutes:lunch,reason:f.reason.value||null});
 await load();msg("Turno guardado. El cambio ya es visible en el sistema existente.");}catch(err){msg("No se guardó: "+(err.message||err),true)}});
 $("[data-day-off]").addEventListener("click",async()=>{const f=editor.elements;const reason=f.reason.value.trim();if(!reason){msg("Debe indicar un motivo para marcar un día libre.",true);return}
