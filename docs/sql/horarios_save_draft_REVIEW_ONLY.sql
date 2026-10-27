@@ -29,7 +29,9 @@ BEGIN
    IF jsonb_typeof(v_item)<>'object' THEN RAISE EXCEPTION 'INVALID_ITEM'; END IF;
    SELECT * INTO v_employee FROM public.employees
    WHERE id=(v_item->>'employeeId')::uuid AND museum_id=v_museum AND status='activo';
-   IF NOT FOUND OR v_employee.profile_id IS NOT DISTINCT FROM v_user THEN RAISE EXCEPTION 'EMPLOYEE_FORBIDDEN'; END IF;
+   IF NOT FOUND THEN RAISE EXCEPTION 'EMPLOYEE_FORBIDDEN'; END IF;
+   -- Impedir escrituras hasta verificar la relación entre auth.uid y employees.
+   RAISE EXCEPTION 'IDENTITY_MODEL_UNVERIFIED';
    v_day := (v_item->>'date')::date;
    IF v_day<p_week_start OR v_day>p_week_start+6 THEN RAISE EXCEPTION 'DATE_OUTSIDE_WEEK'; END IF;
    v_key:=v_employee.id::text||'|'||v_day::text;
