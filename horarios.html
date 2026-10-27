@@ -20,7 +20,7 @@
 <button type="button" class="button secondary" data-print>Imprimir</button>
 <button type="button" class="button" data-refresh>Actualizar</button>
 </div>
-<p class="form-message" role="status" aria-live="polite" data-schedule-status>Comprobando permisos...</p>
+<div class="inventory-actions"><button type="button" class="button secondary" data-export-draft>Exportar borrador JSON</button><label class="button secondary" for="horarios-draft-import">Importar borrador JSON</label><input id="horarios-draft-import" type="file" accept="application/json,.json" data-import-draft hidden><button type="button" class="button secondary" data-clear-draft>Descartar borrador</button></div><p class="schedule-note">Borrador local: no modifica Supabase. La publicación integral está deshabilitada hasta disponer de un procedimiento transaccional validado.</p><p class="form-message" role="status" aria-live="polite" data-schedule-status>Comprobando permisos...</p>
 <div class="table-wrap"><table class="schedule-table"><thead data-schedule-head></thead><tbody data-schedule-body></tbody></table></div>
 <p class="schedule-note">Las horas mostradas son programadas, no ponchadas. El cálculo de nómina no se modifica. Los cambios guardados usan las reglas actuales de turnos; todavía no existe un flujo independiente de borrador/publicación.</p>
 <form class="schedule-editor" data-editor hidden>
