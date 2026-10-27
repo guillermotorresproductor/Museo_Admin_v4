@@ -10,13 +10,13 @@ const addDays=(d,n)=>{const a=new Date(d+"T12:00:00");a.setDate(a.getDate()+n);r
 const monday=d=>{const x=new Date(d+"T12:00:00");const day=(x.getDay()+6)%7;return addDays(d,-day)};
 const label=d=>new Date(d+"T12:00:00").toLocaleDateString("es-PR",{weekday:"short",day:"numeric",month:"short"});
 const msg=(s,bad=false)=>{status.textContent=s;status.className="form-message"+(bad?" error":"")};
-const hour=s=>{if(!s)return"";const x=String(s);const m=x.match(/T(\d\d):(\d\d)/);return m?m[1]+":"+m[2]:x.slice(0,5)};
+const hour=s=>{if(!s)return"";const x=String(s);if(x.includes("T")&&(/Z$/.test(x)||/[+-][0-9]{2}:?[0-9]{2}$/.test(x))){const d=new Date(x);if(!Number.isNaN(d.getTime()))return new Intl.DateTimeFormat("en-GB",{timeZone:"America/Puerto_Rico",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(d)}const m=x.match(/T(\d\d):(\d\d)/);return m?m[1]+":"+m[2]:x.slice(0,5)};
 const minutes=sh=>{if(sh.status==="cancelled")return 0;const a=sh.starts_at||sh.starts_local||sh.startsLocal,b=sh.ends_at||sh.ends_local||sh.endsLocal;if(!a||!b)return 0;
 if(/T/.test(a)&&/T/.test(b))return Math.max(0,(new Date(b)-new Date(a))/60000-Number(sh.expected_lunch_minutes||0));
 const [h,m]=String(a).slice(0,5).split(":").map(Number),[h2,m2]=String(b).slice(0,5).split(":").map(Number);let t=(h2*60+m2)-(h*60+m);if(t<0)t+=1440;return Math.max(0,t-Number(sh.expected_lunch_minutes||0))};
 const display=sh=>{let a=sh.starts_local||sh.starts_at||"",b=sh.ends_local||sh.ends_at||"";return hour(a)+"–"+hour(b)};
 function draw(){
-const visible=employees.filter(e=>!area.value||((e.department||e.position||e.department||e.position||e.departamento||e.posicion||"").trim()===area.value));
+const visible=employees.filter(e=>!area.value||((e.department||e.position||e.department||e.position||e.department||e.position||e.department||e.position||e.departamento||e.posicion||"").trim()===area.value));
 head.innerHTML="<tr><th>Empleado / posición</th>"+days.map(d=>"<th>"+safe(label(d))+"</th>").join("")+"<th>Total</th></tr>";
 body.innerHTML=visible.map(emp=>{const row=emp._week||{},cells=days.map(d=>{const item=row[d],ss=item?.shifts||[],off=item?.day_off;
 const line=emp._failed?"ERROR":off?"LIBRE":ss.length?ss.map(display).join(" / "):"—";
@@ -38,7 +38,7 @@ try{
 if(typeof hasPermission!=="function"||!hasPermission("schedules.manage")){root.innerHTML="<h2>Acceso restringido</h2><p>No tiene autorización para administrar horarios.</p>";return}
 editable=true;employees=(await fetchSupabaseEmployees()).filter(e=>!["inactive","inactivo"].includes(String(e.status||e.estado||"").toLowerCase()));
 let names=[...new Set(employees.map(e=>(e.departamento||e.posicion||"").trim()).filter(Boolean))].sort();area.insertAdjacentHTML("beforeend",names.map(n=>'<option value="'+safe(n)+'">'+safe(n)+"</option>").join(""));
-dateInput.value=monday(new Date().toLocaleDateString("en-CA"));await load();
+dateInput.value=monday(new Intl.DateTimeFormat("en-CA",{timeZone:"America/Puerto_Rico",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()));await load();
 }catch(e){msg("No fue posible abrir Horarios: "+(e.message||e),true)}
 }
 body.addEventListener("click",ev=>{const b=ev.target.closest("[data-id]");if(!b||!editable)return;const emp=employees.find(e=>e.id===b.dataset.id);if(!emp)return;if(emp._failed){msg("No se puede editar: falló la consulta del empleado.",true);return}if(emp._self){msg("No puede modificar su propio turno.",true);return}
