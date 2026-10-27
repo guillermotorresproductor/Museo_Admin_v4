@@ -43,6 +43,9 @@ BEGIN
       v_duration:=((extract(epoch FROM (v_end-v_start))/60)::integer+1440)%1440-v_lunch;
       IF v_duration<1 OR v_duration>480 THEN RAISE EXCEPTION 'INVALID_HOURS'; END IF;
    ELSE v_start:=NULL; v_end:=NULL; v_lunch:=NULL; END IF;
+   IF (SELECT count(*) FROM public.employee_shifts WHERE museum_id=v_museum
+       AND employee_id=v_employee.id AND shift_date=v_day AND status='scheduled')>1
+       THEN RAISE EXCEPTION 'MULTIPLE_SHIFTS_REQUIRE_MANUAL_REVIEW'; END IF;
    IF length(coalesce(v_item->>'reason',''))>240 THEN RAISE EXCEPTION 'INVALID_REASON'; END IF;
  END LOOP;
  DELETE FROM public.schedule_week_draft_items WHERE draft_id=v_draft.id;
@@ -54,7 +57,13 @@ BEGIN
    CASE WHEN coalesce((v_item->>'dayOff')::boolean,false) THEN NULL ELSE (v_item->>'start')::time END,
    CASE WHEN coalesce((v_item->>'dayOff')::boolean,false) THEN NULL ELSE (v_item->>'end')::time END,
    CASE WHEN coalesce((v_item->>'dayOff')::boolean,false) THEN NULL ELSE (v_item->>'lunch')::integer END,
-   coalesce(v_item->>'reason',''),NULL,NULL);
+   coalesce(v_item->>'reason',''),
+   (SELECT id FROM public.employee_shifts
+    WHERE museum_id=v_museum AND employee_id=(v_item->>'employeeId')::uuid
+    AND shift_date=(v_item->>'date')::date AND status='scheduled' LIMIT 1),
+   (SELECT updated_at FROM public.employee_shifts
+    WHERE museum_id=v_museum AND employee_id=(v_item->>'employeeId')::uuid
+    AND shift_date=(v_item->>'date')::date AND status='scheduled' LIMIT 1));
  END LOOP;
  UPDATE public.schedule_week_drafts SET revision=revision+1,updated_at=now() WHERE id=v_draft.id
  RETURNING * INTO v_draft;
