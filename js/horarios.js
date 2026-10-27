@@ -62,5 +62,12 @@ try{const emp=employees.find(e=>e.id===f.employeeId.value);if(!emp||emp._self||e
 $("[data-close-editor]").addEventListener("click",()=>editor.hidden=true);
 $("[data-prev-week]").addEventListener("click",()=>{dateInput.value=addDays(weekStart,-7);load()});$("[data-next-week]").addEventListener("click",()=>{dateInput.value=addDays(weekStart,7);load()});
 $("[data-refresh]").addEventListener("click",load);dateInput.addEventListener("change",load);area.addEventListener("change",draw);$("[data-print]").addEventListener("click",()=>window.print());
-start();
+if(document.body.classList.contains("app-ready")) start();
+else {
+  const observer=new MutationObserver(()=>{
+    if(!document.body.classList.contains("app-ready"))return;
+    observer.disconnect();start();
+  });
+  observer.observe(document.body,{attributes:true,attributeFilter:["class"]});
+}
 })();
