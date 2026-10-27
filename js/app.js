@@ -290,7 +290,7 @@ const profilePageModules = {
   "mantenimiento.html": "maintenance", "calendario-obras.html": "maintenance",
   "solicitud-materiales.html": "maintenance", "ruta-digital.html": "maintenance",
   "documentos.html": "documents", "deposito-artes.html": "documents", "empleados.html": "documents", "reglamento.html": "documents",
-  "administracion.html": "administration", "recursos-humanos.html": "administration", "perfil-empleado.html": "administration",
+  "administracion.html": "administration", "horarios.html": "administration", "recursos-humanos.html": "administration", "perfil-empleado.html": "administration",
   "notificaciones.html": "administration", "reportes.html": "administration", "finanzas.html": "administration", "direccion-ejecutiva.html": "administration",
   "boletin.html": "announcements", "inventario.html": "inventory"
 };
