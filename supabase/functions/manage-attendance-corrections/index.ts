@@ -52,6 +52,19 @@ Deno.serve(async (req) => {
       const { admin, user, profile } = await requirePermission(req, "attendance.corrections.approve");
       const decision = String(body.decision || "");
       if (!body.request_id || !["approved", "rejected"].includes(decision)) return json({ error: "Decision invalida." }, 400);
+      if (decision === "approved") {
+        const { data: restricted, error: restrictedError } = await admin
+          .from("employees")
+          .select("id")
+          .eq("profile_id", user.id)
+          .eq("museum_id", profile.museum_id)
+          .eq("access_profile", "gerente_administrativo")
+          .limit(1);
+        if (restrictedError) return errorResponse(restrictedError);
+        if (restricted && restricted.length > 0) {
+          return json({ error: "No tiene autorización para corregir ponches.", code: "FORBIDDEN" }, 403);
+        }
+      }
 
       const { data, error } = await admin.rpc("decide_attendance_correction", {
         actor_user_id: user.id,

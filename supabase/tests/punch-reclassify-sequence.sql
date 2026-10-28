@@ -93,11 +93,11 @@ begin
    limit 1;
   if puncher is null then raise exception 'FIXTURE_PUNCHER'; end if;
 
-  update public.employees set access_profile = 'gerente_administrativo' where id = manager;
+  update public.employees set access_profile = 'director_ejecutivo' where id = manager;
   perform set_config('request.jwt.claim.sub', actor::text, true);
   perform set_config('request.jwt.claim.role', 'authenticated', true);
   perform set_config('request.jwt.claims', json_build_object('sub', actor, 'role', 'authenticated')::text, true);
-  if not public.has_permission('attendance.punches.correct') then raise exception 'MANAGER_CANNOT_CORRECT'; end if;
+  if not public.has_permission('attendance.punches.correct') then raise exception 'ACTOR_CANNOT_CORRECT'; end if;
 
   select count(*) into others_before
     from public.attendance_events ev

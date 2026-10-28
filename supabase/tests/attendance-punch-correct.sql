@@ -10,7 +10,7 @@ begin
   select e.id into authorizer
   from public.employees e
   where e.museum_id = public.current_user_museum_id() and e.profile_id = auth.uid()
-    and e.status = 'activo' and e.access_profile in ('director_ejecutivo','gerente_administrativo')
+    and e.status = 'activo' and e.access_profile in ('administrador_general','director_ejecutivo')
   limit 1;
   return public.correct_shift_attendance_punches(p_shift_id, 'missed_clock_in', nullif(trim(coalesce(p_reason, '')), ''), authorizer, p_changes);
 end $$;
@@ -31,6 +31,8 @@ declare
   second uuid;
   it_person uuid;
   assistant uuid;
+  gerente_person uuid;
+  admin_person uuid;
   form_shift uuid := 'e2500000-0000-4000-8000-000000000004';
   history jsonb;
   effective_id uuid;
@@ -47,7 +49,7 @@ begin
   if other is null then other := employee; end if;
   insert into public.attendance_settings(museum_id, version)
   values (museum, 1) on conflict (museum_id) do nothing;
-  update public.employees set access_profile = 'gerente_administrativo' where id = employee;
+  update public.employees set access_profile = 'director_ejecutivo' where id = employee;
   perform set_config('request.jwt.claim.sub', actor::text, true);
   perform set_config('request.jwt.claim.role', 'authenticated', true);
 
@@ -74,10 +76,8 @@ begin
     jsonb_build_object('event_type','lunch_in','occurred_at', (date '2026-08-20' + time '13:00') at time zone 'America/Puerto_Rico', 'expected_event_id', null)));
 
   update public.employees set access_profile = 'administrador_general' where id = employee;
-  begin perform pg_temp.punch_correct(shift, 'No debe poder', jsonb_build_array(jsonb_build_object('event_type','clock_out','occurred_at', (date '2026-08-20' + time '17:00') at time zone 'America/Puerto_Rico', 'expected_event_id', null))); raise exception 'CASE_3';
-  exception when insufficient_privilege then null; end;
-  begin perform public.list_shift_punch_editor(other, date '2026-08-20'); raise exception 'EDITOR_OPEN';
-  exception when insufficient_privilege then null; end;
+  if not public.has_permission('attendance.punches.correct') then raise exception 'CASE_3'; end if;
+  if jsonb_typeof(public.list_shift_punch_editor(other, date '2026-08-20')) is distinct from 'object' then raise exception 'EDITOR_DENIED'; end if;
   if jsonb_typeof(public.list_shift_punch_history(shift)) is distinct from 'array' then raise exception 'HISTORY_READ'; end if;
   update public.employees set access_profile = null where id = employee;
   update public.profiles set role = 'administrador' where id = actor;
@@ -92,6 +92,9 @@ begin
   select actor, museum, id, 'deny' from public.permissions where code = 'attendance.punches.correct';
   if public.has_permission('attendance.punches.correct') then raise exception 'CASE_6'; end if;
   delete from public.user_permissions where user_id = actor;
+  if public.has_permission('attendance.punches.correct') then raise exception 'GERENTE_GRANT_RESTORED'; end if;
+  update public.employees set access_profile = 'director_ejecutivo' where id = employee;
+  if not public.has_permission('attendance.punches.correct') then raise exception 'DIRECTOR_DENIED'; end if;
 
   perform pg_temp.punch_correct(shift, 'Ponche de salida omitido por el empleado', jsonb_build_array(jsonb_build_object('event_type','clock_out','occurred_at', (date '2026-08-20' + time '17:00') at time zone 'America/Puerto_Rico', 'expected_event_id', null)));
   perform pg_temp.punch_correct(shift, 'Corrección de salida a almuerzo', jsonb_build_array(jsonb_build_object(
@@ -286,10 +289,19 @@ begin
   if not exists (
     select 1 from jsonb_array_elements(public.list_attendance_correction_authorizers()) item where item->>'id' = second::text
   ) then raise exception 'AUTHORIZER_LIST_MEMBER'; end if;
-  if (select access_profile from public.employees where id = employee) is distinct from 'gerente_administrativo' then raise exception 'GERENTE_PROFILE'; end if;
+  if (select access_profile from public.employees where id = employee) is distinct from 'director_ejecutivo' then raise exception 'ACTOR_PROFILE'; end if;
+  insert into public.employees(museum_id, first_name, last_name, email, access_profile)
+  values (museum, 'Perfil', 'Gerente', 'attendance-form-gerente-' || gen_random_uuid()::text || '@example.invalid', 'gerente_administrativo')
+  returning id into gerente_person;
+  if exists (
+    select 1 from jsonb_array_elements(public.list_attendance_correction_authorizers()) item where item->>'id' = gerente_person::text
+  ) then raise exception 'GERENTE_LISTED'; end if;
+  insert into public.employees(museum_id, first_name, last_name, email, access_profile)
+  values (museum, 'Perfil', 'General', 'attendance-form-admin-' || gen_random_uuid()::text || '@example.invalid', 'administrador_general')
+  returning id into admin_person;
   if not exists (
-    select 1 from jsonb_array_elements(public.list_attendance_correction_authorizers()) item where item->>'id' = employee::text
-  ) then raise exception 'GERENTE_MISSING'; end if;
+    select 1 from jsonb_array_elements(public.list_attendance_correction_authorizers()) item where item->>'id' = admin_person::text
+  ) then raise exception 'ADMIN_NOT_LISTED'; end if;
   insert into public.employees(museum_id, first_name, last_name, email, access_profile)
   values (museum, 'Perfil', 'Tecnico', 'attendance-form-it-' || gen_random_uuid()::text || '@example.invalid', 'it_programador')
   returning id into it_person;
@@ -301,6 +313,10 @@ begin
     where item->>'id' in (it_person::text, assistant::text)
   ) then raise exception 'UNAUTHORIZED_PROFILE_LISTED'; end if;
   select count(*) into before_events from public.attendance_events where shift_id = form_shift;
+  begin
+    perform public.correct_shift_attendance_punches(form_shift, 'missed_clock_in', null, gerente_person, jsonb_build_array(jsonb_build_object('event_type','clock_in','occurred_at', (date '2026-08-22' + time '08:06') at time zone 'America/Puerto_Rico', 'expected_event_id', effective_id)));
+    raise exception 'GERENTE_AUTHORIZER_ALLOWED';
+  exception when sqlstate 'P0001' then if sqlerrm <> 'AUTHORIZER_NOT_FOUND' then raise; end if; end;
   begin
     perform public.correct_shift_attendance_punches(form_shift, 'missed_clock_in', null, it_person, jsonb_build_array(jsonb_build_object('event_type','clock_in','occurred_at', (date '2026-08-22' + time '08:06') at time zone 'America/Puerto_Rico', 'expected_event_id', effective_id)));
     raise exception 'IT_ALLOWED';

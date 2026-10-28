@@ -7556,11 +7556,12 @@ function bindPunchCorrections() {
   const refresh = root.querySelector("[data-punch-corrections-refresh]");
   const labels = { clock_in: "Entrada", lunch_out: "Salida a almuerzo", lunch_in: "Regreso de almuerzo", clock_out: "Salida" };
   const statusLabel = { approved: "Aprobada", rejected: "Rechazada" };
+  const canApplyPunchCorrection = hasPermission("attendance.punches.correct");
   let timer = 0;
   let loading = false;
   const clock = (value) => value ? formatPortalDate(value, { hour: "numeric", minute: "2-digit" }) : "—";
   const when = (value) => value ? formatPortalDate(value, { dateStyle: "medium", timeStyle: "short" }) : "";
-  const card = (row, actionable) => `<article class="portal-alert"><header><strong>${safeHtml(row.name || "Empleado")}</strong><span>${safeHtml(labels[row.requested_event_type] || row.requested_event_type)}</span></header><p>Turno ${clock(row.starts_at)} – ${clock(row.ends_at)}. ${row.original_at ? `Original ${clock(row.original_at)}. ` : "Sin ponche original. "}Propuesta ${clock(row.proposed_at)}.${row.difference_minutes === null || row.difference_minutes === undefined ? "" : ` Diferencia ${row.difference_minutes} min.`}</p><small>${safeHtml(row.reason || "")}${row.decided_by_name ? ` Decidió ${safeHtml(row.decided_by_name)} ${when(row.decided_at)}. ${safeHtml(row.decision_reason || "")}` : ""}${row.status && statusLabel[row.status] ? ` ${statusLabel[row.status]}.` : ""}</small>${actionable ? `<form data-punch-correction="${row.id}"><input name="reason" required placeholder="Comentario obligatorio"><button class="portal-inline-button" type="submit" data-decision="approved">Aprobar</button><button class="portal-inline-button" type="submit" data-decision="rejected">Rechazar</button></form>` : ""}</article>`;
+  const card = (row, actionable) => `<article class="portal-alert"><header><strong>${safeHtml(row.name || "Empleado")}</strong><span>${safeHtml(labels[row.requested_event_type] || row.requested_event_type)}</span></header><p>Turno ${clock(row.starts_at)} – ${clock(row.ends_at)}. ${row.original_at ? `Original ${clock(row.original_at)}. ` : "Sin ponche original. "}Propuesta ${clock(row.proposed_at)}.${row.difference_minutes === null || row.difference_minutes === undefined ? "" : ` Diferencia ${row.difference_minutes} min.`}</p><small>${safeHtml(row.reason || "")}${row.decided_by_name ? ` Decidió ${safeHtml(row.decided_by_name)} ${when(row.decided_at)}. ${safeHtml(row.decision_reason || "")}` : ""}${row.status && statusLabel[row.status] ? ` ${statusLabel[row.status]}.` : ""}</small>${actionable ? `<form data-punch-correction="${row.id}"><input name="reason" required placeholder="Comentario obligatorio">${canApplyPunchCorrection ? `<button class="portal-inline-button" type="submit" data-decision="approved">Aprobar</button>` : ""}<button class="portal-inline-button" type="submit" data-decision="rejected">Rechazar</button></form>` : ""}</article>`;
   const render = (payload) => {
     const open = Array.isArray(payload?.pending) ? payload.pending : [];
     const past = Array.isArray(payload?.recent) ? payload.recent : [];
@@ -7585,6 +7586,10 @@ function bindPunchCorrections() {
     const form = event.target.closest("[data-punch-correction]");
     if (!form) return;
     event.preventDefault();
+    if (event.submitter?.dataset.decision === "approved" && !hasPermission("attendance.punches.correct")) {
+      message.textContent = "No tiene autorización para corregir ponches.";
+      return;
+    }
     try {
       render(await decideAttendanceCorrection(form.dataset.punchCorrection, event.submitter?.dataset.decision, new FormData(form).get("reason")));
       message.textContent = "Decisión registrada.";
