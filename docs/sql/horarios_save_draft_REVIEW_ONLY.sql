@@ -1,0 +1,3 @@
+-- Superseded by supabase/migrations/202610270001_schedule_week_drafts.sql
+-- Identity is employees.profile_id compared with auth.uid(), the same rule as schedule_employee_shift.
+-- Do not execute this file.

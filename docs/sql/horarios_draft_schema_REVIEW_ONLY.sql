@@ -1,0 +1,2 @@
+-- Superseded by supabase/migrations/202610270001_schedule_week_drafts.sql
+-- Do not execute this file. Do not apply that migration to production or to a shared database.

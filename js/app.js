@@ -17,6 +17,7 @@ const appPages = {
   "inventario-colecciones.html": { title: "Inventario de Colecciones", subtitle: "Expedientes de piezas y patrimonio museográfico." },
   "ingreso-articulo.html": { title: "Ingreso de artículo", subtitle: "Préstamo temporal o donación permanente hacia el inventario de colecciones." },
   "documento-ingreso.html": { title: "Documento de ingreso", subtitle: "Impresión del expediente desde el snapshot contractual." },
+  "horarios.html": { title: "Horarios", subtitle: "Programación semanal del personal." },
   "administracion.html": { title: "Administración", subtitle: "Dirección ejecutiva, recursos humanos, notificaciones, nómina y finanzas." },
   "recursos-humanos.html": { title: "Recursos Humanos", subtitle: "Directorio de empleados del museo." },
   "perfil-empleado.html": { title: "Perfil de Empleado", subtitle: "Información administrativa del empleado." },
@@ -289,7 +290,7 @@ const profilePageModules = {
   "mantenimiento.html": "maintenance", "calendario-obras.html": "maintenance",
   "solicitud-materiales.html": "maintenance", "ruta-digital.html": "maintenance",
   "documentos.html": "documents", "deposito-artes.html": "documents", "empleados.html": "documents", "reglamento.html": "documents",
-  "administracion.html": "administration", "recursos-humanos.html": "administration", "perfil-empleado.html": "administration",
+  "administracion.html": "administration", "horarios.html": "administration", "recursos-humanos.html": "administration", "perfil-empleado.html": "administration",
   "notificaciones.html": "administration", "reportes.html": "administration", "finanzas.html": "administration", "direccion-ejecutiva.html": "administration",
   "boletin.html": "announcements", "inventario.html": "inventory"
 };
@@ -299,6 +300,7 @@ function profilePageAllowed(page) {
   // Entering Administración does not grant access to protected administrative operations.
   const extra = {
     "recursos-humanos.html": () => hasPermission("employees.read.all"),
+    "horarios.html": () => hasPermission("schedules.manage"),
     "perfil-empleado.html": () => canManageEmployees() || hasPermission("roles.assign"),
     "notificaciones.html": () => hasPermission("notifications.manage"),
     "finanzas.html": () => hasPermission("finance.read"),
@@ -322,6 +324,7 @@ const canAccessPersonalSpace = () => ["profile.read.self", "employees.read.self"
 
 const EXECUTIVE_MODULE_ACCESS = {
   "administracion.html": () => canAccessAdministrationHub(),
+  "horarios.html": () => hasPermission("schedules.manage"),
   "renta-espacios.html": () => hasPermission("rentals.manage"),
   "renta-espacio.html": () => hasPermission("rentals.manage"),
   // Compatibilidad: si aún no existe memberships.manage en el entorno, usar acceso ejecutivo.
@@ -455,6 +458,12 @@ function enforceAuthenticatedPageAccess() {
       return true;
     }
     return false;
+  }
+
+  if (page === "horarios.html") {
+    if (hasPermission("schedules.manage")) return false;
+    showProtectedAccessDenied("No tiene permisos para administrar horarios.");
+    return true;
   }
 
   if (hasAdministrativeWorkspaceAccess()) return false;

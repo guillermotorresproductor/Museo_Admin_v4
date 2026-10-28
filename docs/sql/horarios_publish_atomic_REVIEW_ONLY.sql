@@ -1,0 +1,3 @@
+-- Superseded by supabase/migrations/202610270001_schedule_week_drafts.sql
+-- publish_schedule_week calls the existing shift RPCs in one transaction.
+-- Do not execute this file and do not apply the migration to production from this branch.

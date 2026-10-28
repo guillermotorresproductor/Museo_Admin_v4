@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instituva | Horarios</title>
+<link rel="stylesheet" href="css/main.css?v=assigned-shifts-20260928">
+<style>
+.schedule-toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:18px 0}
+.schedule-toolbar label{display:grid;gap:5px;min-width:180px}.schedule-toolbar input,.schedule-toolbar select{padding:9px;border:1px solid #b6b6b6;border-radius:6px}
+.schedule-table{width:100%;border-collapse:collapse;min-width:1050px}.schedule-table th,.schedule-table td{border:1px solid #ddd;padding:9px;vertical-align:top;text-align:left;font-size:13px}.schedule-table th{background:#f2f4f4}
+.schedule-cell{width:100%;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer;min-height:42px}.schedule-cell:hover,.schedule-cell:focus{background:#e8f5f1;outline:2px solid #2c7364}.schedule-cell.is-draft{background:#fff6d8}.schedule-total{font-weight:700}
+.schedule-editor{max-width:560px;padding:16px;border:1px solid #ccc;border-radius:10px;margin:16px 0}.schedule-editor .field{display:grid;gap:5px;margin:10px 0}.schedule-editor input{padding:9px}.schedule-note{font-size:13px;color:#555}
+.schedule-print-only{display:none}
+@media (max-width:720px){.schedule-toolbar label{min-width:100%}.schedule-editor{max-width:none}}
+@media print{.sidebar,.site-header,.site-footer,.schedule-toolbar,.inventory-actions,.schedule-editor,.schedule-note,.no-print{display:none !important}.schedule-print-only{display:block}.schedule-table{min-width:0}}
+</style></head><body><div class="app-shell"><aside class="sidebar" data-sidebar></aside><div class="sidebar-backdrop" data-sidebar-backdrop></div><div class="main-area"><header class="site-header" data-header></header><main class="page-content">
+<section class="card panel" data-horarios-module>
+<p class="page-kicker">Administración / Recursos Humanos</p><h2>Horarios</h2>
+<p>Programación semanal de empleados. Se consultan los turnos oficiales de asistencia. Los borradores no se reflejan en Mi Espacio hasta su publicación mediante un proceso autorizado.</p>
+<div class="schedule-toolbar">
+<label>Semana del <input type="date" data-week-date></label>
+<label>Departamento <select data-department-filter><option value="">Todos</option></select></label>
+<label>Posición <select data-position-filter><option value="">Todas</option></select></label>
+<button type="button" class="button secondary" data-prev-week>Semana anterior</button>
+<button type="button" class="button secondary" data-next-week>Semana siguiente</button>
+<button type="button" class="button secondary" data-print>Imprimir</button>
+<button type="button" class="button" data-refresh>Actualizar</button>
+</div>
+<div class="inventory-actions"><button type="button" class="button" data-save-draft>Guardar borrador</button><button type="button" class="button" data-publish-week>Publicar semana</button><button type="button" class="button secondary" data-clear-draft>Descartar borrador</button><button type="button" class="button secondary" data-export-draft>Exportar borrador JSON</button><label class="button secondary" for="horarios-draft-import">Importar borrador JSON</label><input id="horarios-draft-import" type="file" accept="application/json,.json" data-import-draft hidden></div><p class="schedule-note">El borrador solo lo ven quienes administran horarios. Mi Espacio muestra únicamente los turnos ya publicados.</p><p class="schedule-print-only" data-print-week></p><p class="form-message" role="status" aria-live="polite" data-schedule-status>Comprobando permisos...</p>
+<div class="table-wrap"><table class="schedule-table"><thead data-schedule-head></thead><tbody data-schedule-body></tbody></table></div>
+<p class="schedule-note">Las horas son de programación, no de ponches ni de nómina. Una jornada ordinaria neta llega hasta 8 horas y la semana ordinaria hasta 40.</p>
+<form class="schedule-editor" data-editor hidden>
+<h3 data-editor-title>Asignar turno</h3><input type="hidden" name="employeeId"><input type="hidden" name="shiftDate"><input type="hidden" name="shiftId"><input type="hidden" name="expectedUpdatedAt"><input type="hidden" name="baseline">
+<label class="field">Entrada <input type="time" name="startsLocal" required></label>
+<label class="field">Salida <input type="time" name="endsLocal" required></label>
+<label class="field">Almuerzo (minutos) <input type="number" name="lunchMinutes" min="0" max="480" value="60" required></label>
+<label class="field">Motivo del cambio <input type="text" name="reason" maxlength="240"></label>
+<div class="inventory-actions"><button class="button" type="submit">Añadir al borrador</button><button class="button secondary" data-day-off type="button">Marcar libre</button><button class="button secondary" data-close-editor type="button">Cerrar</button></div>
+</form>
+</section></main><footer class="site-footer" data-footer></footer></div></div>
+<script src="js/config.js"></script><script src="js/services/supabase.js?v=horarios-week-20261027"></script><script src="js/app.js?v=nomina-additional-20261026"></script><script src="js/horarios.js?v=horarios-week-20261027"></script>
+</body></html>
