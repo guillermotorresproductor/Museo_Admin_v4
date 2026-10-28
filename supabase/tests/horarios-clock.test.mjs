@@ -37,11 +37,9 @@ test("week, draft, and print cells use 12-hour text while the editor keeps 24-ho
       <button type="button" data-prev-week></button>
       <button type="button" data-next-week></button>
       <button type="button" data-refresh></button>
-      <button type="button" data-save-draft></button>
-      <button type="button" data-publish-week></button>
-      <button type="button" data-clear-draft></button>
-      <button type="button" data-export-draft></button>
-      <input data-import-draft>
+      <button type="button" data-edit-schedule>Editar horario</button>
+      <button type="button" data-save-schedule>Guardar horario</button>
+      <button type="button" data-cancel-schedule>Cancelar horario</button>
       <form data-editor hidden>
         <h3 data-editor-title></h3>
         <input type="hidden" name="employeeId">
@@ -53,7 +51,7 @@ test("week, draft, and print cells use 12-hour text while the editor keeps 24-ho
         <input type="time" name="endsLocal" data-clock-storage="24" required>
         <input type="number" name="lunchMinutes" value="60">
         <input type="text" name="reason">
-        <button type="submit">Añadir al borrador</button>
+        <button type="submit">Guardar horario</button>
         <button type="button" data-day-off></button>
         <button type="button" data-close-editor></button>
       </form>
@@ -89,8 +87,11 @@ test("week, draft, and print cells use 12-hour text while the editor keeps 24-ho
     revision: 2,
     items: [{ employeeId: "emp-1", date: addDays(week, 1), dayOff: false, start: "08:00", end: "17:00", lunch: 60, reason: "ajuste", baseline: "none" }]
   });
+  const published = [];
+  const cancelled = [];
   window.saveScheduleWeekDraft = async (_week, items) => { saved.push(items); return { id: "draft-1", revision: 3 }; };
-  window.publishScheduleWeek = async () => ({ count: 0 });
+  window.publishScheduleWeek = async (id, revision) => { published.push({ id, revision }); return { count: 1 }; };
+  window.cancelEmployeeShift = async (id, updatedAt, reason) => { cancelled.push({ id, updatedAt, reason }); return { status: "cancelled" }; };
   window.discardScheduleWeekDraft = async () => ({});
   load(fs.readFileSync("js/time-format.js", "utf8"));
   load(fs.readFileSync("js/horarios.js", "utf8"));
@@ -123,13 +124,21 @@ test("week, draft, and print cells use 12-hour text while the editor keeps 24-ho
   editor.elements.endsLocal.value = "16:00";
   editor.elements.reason.value = "ajuste de salida";
   editor.requestSubmit();
-  assert.equal((await cell(monday)).textContent, "8:00 AM – 4:00 PM (borrador)");
-  window.document.querySelector("[data-save-draft]").click();
-  for (let attempt = 0; attempt < 40 && !saved.length; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 25));
+  for (let attempt = 0; attempt < 40 && !published.length; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 25));
   const mondayItem = saved[0].find((item) => item.date === monday);
   assert.equal(mondayItem.start, "08:00");
   assert.equal(mondayItem.end, "16:00");
   const tuesdayItem = saved[0].find((item) => item.date === addDays(monday, 1));
   assert.equal(tuesdayItem.start, "08:00");
   assert.equal(tuesdayItem.end, "17:00");
+  assert.deepEqual(published[0], { id: "draft-1", revision: 3 });
+  assert.equal((await cell(monday)).textContent, "8:00 AM – 5:00 PM");
+  window.document.querySelector(`[data-date="${monday}"]`).click();
+  window.document.querySelector("[data-editor]").elements.reason.value = "retiro del turno";
+  window.confirm = () => true;
+  window.document.querySelector("[data-cancel-schedule]").click();
+  for (let attempt = 0; attempt < 40 && !cancelled.length; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.equal(cancelled[0].id, "shift-1");
+  assert.equal(cancelled[0].reason, "retiro del turno");
+  assert.equal(saved.length, 1);
 });

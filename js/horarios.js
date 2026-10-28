@@ -40,6 +40,7 @@
   let dirty = false;
   let baselineStale = false;
   let serverDraft = null;
+  let selected = null;
   const drafts = new Map();
   const safe = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
   const addDays = (date, count) => {
@@ -259,22 +260,20 @@
     }
   }
 
-  body.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-id]");
-    if (!button || !editable) return;
-    const employee = employees.find((person) => person.id === button.dataset.id);
-    if (!employee) return;
+  const openEditor = (employee, date) => {
+    if (!employee || !editable) return;
     if (employee._failed) { msg("No se puede editar: falló la consulta del empleado.", true); return; }
     if (employee._self) { msg("No puede modificar su propio turno.", true); return; }
-    const day = employee._week?.[button.dataset.date];
+    const day = employee._week?.[date];
     const base = baselineOf(day);
     if (base.baseline === "completed") { msg("Este turno ya está completado.", true); return; }
     if (base.baseline === "multiple") { msg("Hay varios turnos este día. Edítelos desde Recursos Humanos.", true); return; }
     const scheduled = scheduledOf(day)[0];
-    const draft = drafts.get(`${employee.id}|${button.dataset.date}`);
+    const draft = drafts.get(`${employee.id}|${date}`);
+    selected = { id: employee.id, date };
     editor.reset();
     editor.elements.employeeId.value = employee.id;
-    editor.elements.shiftDate.value = button.dataset.date;
+    editor.elements.shiftDate.value = date;
     editor.elements.shiftId.value = base.expectedShiftId;
     editor.elements.expectedUpdatedAt.value = base.expectedUpdatedAt;
     editor.elements.baseline.value = base.baseline;
@@ -282,9 +281,28 @@
     editor.elements.endsLocal.value = draft?.end || hour(scheduled?.local_end || scheduled?.ends_local || scheduled?.ends_at) || "17:00";
     editor.elements.lunchMinutes.value = draft && !draft.dayOff ? draft.lunch : (scheduled?.expected_lunch_minutes ?? 60);
     editor.elements.reason.value = draft?.reason || "";
-    $("[data-editor-title]").textContent = `${nameOf(employee)} · ${button.dataset.date}`;
+    $("[data-editor-title]").textContent = `Editar horario · ${nameOf(employee)} · ${date}`;
     editor.hidden = false;
     editor.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+  const commit = (entry, done) => run(async () => {
+    try {
+      remember(entry.employeeId, entry.date, entry);
+      const saved = await persist();
+      const published = await publishScheduleWeek(saved.id, saved.revision);
+      serverDraft = null;
+      drafts.clear();
+      dirty = false;
+      await load();
+      msg(done(published));
+    } catch (error) { msg(explain(error), true); }
+  });
+  body.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-id]");
+    if (!button || !editable) return;
+    const employee = employees.find((person) => person.id === button.dataset.id);
+    if (!employee) return;
+    openEditor(employee, button.dataset.date);
   });
 
   editor.addEventListener("submit", (event) => {
@@ -301,14 +319,13 @@
       const employee = employees.find((person) => person.id === fields.employeeId.value);
       if (!employee || employee._failed || employee._self) throw Error("No autorizado o datos incompletos.");
       if (fields.baseline.value === "scheduled" && fields.reason.value.trim().length < 3) throw Error("Indique un motivo de al menos 3 caracteres.");
-      if (weekNet(employee, fields.shiftDate.value, net) > 2400) throw Error("El borrador superaría 40 horas semanales.");
-      remember(employee.id, fields.shiftDate.value, {
+      if (weekNet(employee, fields.shiftDate.value, net) > 2400) throw Error("Este horario superaría 40 horas semanales.");
+      commit({
         employeeId: employee.id, date: fields.shiftDate.value, dayOff: false, start, end, lunch, reason: fields.reason.value.trim(),
         baseline: fields.baseline.value, expectedShiftId: fields.shiftId.value, expectedUpdatedAt: fields.expectedUpdatedAt.value
-      });
-      msg(`Añadido al borrador (${(net / 60).toFixed(1)} h netas). Aún no está guardado en el servidor.`);
+      }, (published) => `Horario guardado (${Number(published?.count || 0)} asignaciones). Ya es visible en Mi Espacio.`);
     } catch (error) {
-      msg(`No se añadió: ${error.message || error}`, true);
+      msg(`No se guardó: ${error.message || error}`, true);
     }
   });
 
@@ -318,91 +335,35 @@
     if (reason.length < 3) { msg("Indique un motivo de al menos 3 caracteres para el día libre.", true); return; }
     const employee = employees.find((person) => person.id === fields.employeeId.value);
     if (!employee || employee._self || employee._failed) { msg("No autorizado o datos incompletos.", true); return; }
-    remember(employee.id, fields.shiftDate.value, {
+    commit({
       employeeId: employee.id, date: fields.shiftDate.value, dayOff: true, reason,
       baseline: fields.baseline.value, expectedShiftId: fields.shiftId.value, expectedUpdatedAt: fields.expectedUpdatedAt.value
-    });
-    msg("Día libre añadido al borrador. Aún no está guardado en el servidor.");
+    }, () => "Día libre guardado. Ya es visible en Mi Espacio.");
   });
 
-  $("[data-save-draft]").addEventListener("click", () => run(async () => {
+  $("[data-edit-schedule]").addEventListener("click", () => {
+    if (!selected) { msg("Seleccione un día en la tabla.", true); return; }
+    openEditor(employees.find((person) => person.id === selected.id), selected.date);
+  });
+  $("[data-save-schedule]").addEventListener("click", () => {
+    if (editor.hidden) { msg("Use Editar horario antes de guardar.", true); return; }
+    if (typeof editor.requestSubmit === "function") editor.requestSubmit();
+    else editor.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  });
+  $("[data-cancel-schedule]").addEventListener("click", () => run(async () => {
+    const reason = editor.elements.reason.value.trim();
+    if (!selected || editor.hidden) { msg("Use Editar horario e indique el motivo antes de cancelar.", true); return; }
+    if (reason.length < 3) { msg("Indique un motivo de al menos 3 caracteres.", true); return; }
+    if (editor.elements.baseline.value !== "scheduled" || !editor.elements.shiftId.value) { msg("No hay un horario publicado para cancelar.", true); return; }
+    if (!window.confirm("¿Cancelar este horario? Se conserva el registro y el motivo.")) return;
     try {
-      const saved = await persist();
-      msg(`Borrador guardado. Revisión ${saved.revision}. Los turnos oficiales no cambiaron.`);
-    } catch (error) { msg(explain(error), true); }
-  }));
-
-  $("[data-publish-week]").addEventListener("click", () => run(async () => {
-    const warning = baselineStale ? " Algunos turnos oficiales cambiaron desde el último guardado." : "";
-    if (!window.confirm(`¿Publicar esta semana?${warning} Los turnos oficiales se actualizarán en una sola operación y cada empleado verá solo los suyos en Mi Espacio.`)) return;
-    try {
-      if (dirty || baselineStale || !serverDraft) await persist();
-      if (!serverDraft?.id) throw Error("No hay cambios para publicar.");
-      const published = await publishScheduleWeek(serverDraft.id, serverDraft.revision);
-      serverDraft = null;
-      drafts.clear();
-      dirty = false;
+      await cancelEmployeeShift(editor.elements.shiftId.value, editor.elements.expectedUpdatedAt.value, reason);
+      editor.hidden = true;
       await load();
-      msg(`Semana publicada (${published.count} asignaciones). Ya es visible en Mi Espacio.`);
+      msg("Horario cancelado. El registro y el motivo quedan en la bitácora.");
     } catch (error) { msg(explain(error), true); }
   }));
-
-  $("[data-clear-draft]").addEventListener("click", () => run(async () => {
-    if (drafts.size && !window.confirm("¿Descartar el borrador sin publicar?")) return;
-    try {
-      if (serverDraft?.id) await discardScheduleWeekDraft(serverDraft.id, serverDraft.revision);
-      drafts.clear();
-      serverDraft = null;
-      dirty = false;
-      baselineStale = false;
-      draw();
-      msg("Borrador descartado. Los turnos oficiales no cambiaron.");
-    } catch (error) { msg(explain(error), true); }
-  }));
-
   $("[data-close-editor]").addEventListener("click", () => { editor.hidden = true; });
-  $("[data-export-draft]").addEventListener("click", () => {
-    const data = { format: "instituva-horarios-draft", version: 2, createdAt: new Date().toISOString(), items: [...drafts.values()] };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "horarios-borrador.json";
-    link.click();
-    URL.revokeObjectURL(url);
-    msg("Borrador exportado. No se publicó.");
-  });
-  $("[data-import-draft]").addEventListener("change", async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    try {
-      if (file.size > 1000000) throw Error("Archivo demasiado grande");
-      const data = JSON.parse(await file.text());
-      if (data.format !== "instituva-horarios-draft" || ![1, 2].includes(data.version) || !Array.isArray(data.items) || data.items.length > 500) throw Error("Formato inválido");
-      const incoming = new Map();
-      for (const item of data.items) {
-        if (!employees.some((employee) => employee.id === item.employeeId) || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(item.date)) throw Error("Datos no válidos");
-        if (!item.dayOff && (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(item.start) || !/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(item.end) || !Number.isInteger(item.lunch))) throw Error("Datos no válidos");
-        if (!item.dayOff && (item.start === item.end || item.lunch < 0 || item.lunch >= span(item.start, item.end) || span(item.start, item.end) - item.lunch > 480)) throw Error("Turno fuera del límite diario");
-        const employee = employees.find((person) => person.id === item.employeeId);
-        const base = days.includes(item.date) ? baselineOf(employee?._week?.[item.date]) : { baseline: "unknown", expectedShiftId: "", expectedUpdatedAt: "" };
-        if (base.baseline === "completed" || base.baseline === "multiple") throw Error("El archivo pisa un turno cerrado o múltiple.");
-        incoming.set(`${item.employeeId}|${item.date}`, { ...item, dayOff: Boolean(item.dayOff), reason: String(item.reason || ""), ...base });
-      }
-      const totals = new Map();
-      for (const item of incoming.values()) {
-        if (item.dayOff) continue;
-        const key = `${item.employeeId}|${monday(item.date)}`;
-        totals.set(key, (totals.get(key) || 0) + span(item.start, item.end) - item.lunch);
-      }
-      if ([...totals.values()].some((value) => value > 2400)) throw Error("El borrador contiene más de 40 horas semanales");
-      drafts.clear();
-      for (const [key, value] of incoming) drafts.set(key, value);
-      dirty = true;
-      draw();
-      msg("Borrador importado en esta pantalla. Guárdelo para conservarlo. No se publicó.");
-    } catch (error) { msg(`Error al importar: ${error.message}`, true); }
-  });
 
   const move = (count) => {
     if (!abandon()) return;

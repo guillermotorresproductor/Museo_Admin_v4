@@ -38,10 +38,23 @@ test("draft tables are not granted to anonymous clients", () => {
   assert.match(sql, /revoke all on table public\.schedule_week_drafts from public/);
 });
 test("the page publishes through the week RPC, not one shift at a time", () => {
+  const page = fs.readFileSync(path.join(__dirname, "../horarios.html"), "utf8");
   assert.match(ui, /saveScheduleWeekDraft/);
   assert.match(ui, /publishScheduleWeek/);
+  assert.match(ui, /cancelEmployeeShift/);
   assert.doesNotMatch(ui, /scheduleEmployeeShift\(/);
   assert.doesNotMatch(ui, /setEmployeeDayOff\(/);
+  assert.match(page, /Editar horario/);
+  assert.match(page, /Guardar horario/);
+  assert.match(page, /Cancelar horario/);
+  assert.doesNotMatch(page, /Exportar borrador|Importar borrador|data-export-draft|data-import-draft/);
+});
+test("schedule permission adds only the general administrator to the existing grant", () => {
+  const migration = fs.readFileSync(path.join(__dirname, "../supabase/migrations/202610280001_schedule_manage_three_profiles.sql"), "utf8");
+  assert.match(migration, /schedules\.manage/);
+  assert.match(migration, /effect = ''deny''/);
+  assert.match(migration, /administrador_general'',''director_ejecutivo'',''gerente_administrativo/);
+  assert.doesNotMatch(migration, /finance\.|payroll|time\.correct|roles\.assign/);
 });
 test("Mi Espacio still reads only the existing assigned-shift RPC", () => {
   assert.match(portal, /function bindMyAssignedShifts/);
