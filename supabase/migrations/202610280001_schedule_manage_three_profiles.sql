@@ -8,6 +8,7 @@ declare
   marker constant text := 'requested_permission = ''schedules.manage''';
   old_list constant text := 'public.current_employee_module_profile() in (''director_ejecutivo'',''gerente_administrativo'')';
   new_list constant text := 'public.current_employee_module_profile() in (''administrador_general'',''director_ejecutivo'',''gerente_administrativo'')';
+  clause constant text := ' then';
   start_at integer;
   block text;
   before_count integer;
@@ -25,20 +26,21 @@ begin
   if position('u.effect = ''deny''' in substring(block from 1 for 900)) = 0 then
     raise exception 'SCHEDULES_MANAGE_EXPLICIT_DENY_MISSING' using errcode = '55000';
   end if;
-  if position(old_list in block) = 0 then
+  if position(old_list || clause in block) = 0 then
     raise exception 'SCHEDULES_MANAGE_PROFILE_LIST_MISSING' using errcode = '55000';
   end if;
   patched := overlay(
     src
-    placing new_list || E'\n -- schedules_manage_three_profiles'
-    from (start_at + position(old_list in block) - 1)
-    for char_length(old_list)
+    placing new_list || clause || E'\n -- schedules_manage_three_profiles'
+    from (start_at + position(old_list || clause in block) - 1)
+    for char_length(old_list || clause)
   );
   before_count := (char_length(src) - char_length(replace(src, old_list, ''))) / char_length(old_list);
   after_count := (char_length(patched) - char_length(replace(patched, old_list, ''))) / char_length(old_list);
   if after_count <> before_count - 1
      or position('schedules_manage_three_profiles' in patched) = 0
-     or position(new_list in substring(patched from start_at for 2500)) = 0 then
+     or position(new_list || clause in substring(patched from start_at for 2500)) = 0
+     or position('-- schedules_manage_three_profiles then' in patched) > 0 then
     raise exception 'SCHEDULES_MANAGE_PATCH_FAILED' using errcode = '55000';
   end if;
   execute patched;
