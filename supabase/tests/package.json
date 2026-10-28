@@ -2,7 +2,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:horarios": "node horarios-week-draft.mjs"
+    "test:horarios": "node horarios-week-draft.mjs",
+    "test:horarios:real": "node horarios-real-functions.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.0"
