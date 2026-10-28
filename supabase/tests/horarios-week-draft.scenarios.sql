@@ -9,7 +9,7 @@ begin
   perform public.test_as('44444444-4444-4444-8444-444444444444');
   perform public.test_fail(public.has_permission('schedules.manage'), 'manager denied');
   perform public.test_as('77777777-7777-4777-8777-777777777777');
-  perform public.test_fail(not public.has_permission('schedules.manage'), 'general admin allowed');
+  perform public.test_fail(public.has_permission('schedules.manage'), 'general admin denied');
   perform public.test_as('88888888-8888-4888-8888-888888888888');
   perform public.test_fail(not public.has_permission('schedules.manage'), 'assistant allowed');
   perform public.test_as('99999999-9999-4999-8999-999999999999');

@@ -24,7 +24,7 @@
 <button type="button" class="button secondary" data-print>Imprimir</button>
 <button type="button" class="button" data-refresh>Actualizar</button>
 </div>
-<div class="inventory-actions"><button type="button" class="button" data-save-draft>Guardar borrador</button><button type="button" class="button" data-publish-week>Publicar semana</button><button type="button" class="button secondary" data-clear-draft>Descartar borrador</button><button type="button" class="button secondary" data-export-draft>Exportar borrador JSON</button><label class="button secondary" for="horarios-draft-import">Importar borrador JSON</label><input id="horarios-draft-import" type="file" accept="application/json,.json" data-import-draft hidden></div><p class="schedule-note">El borrador solo lo ven quienes administran horarios. Mi Espacio muestra únicamente los turnos ya publicados.</p><p class="schedule-print-only" data-print-week></p><p class="form-message" role="status" aria-live="polite" data-schedule-status>Comprobando permisos...</p>
+<div class="inventory-actions"><button type="button" class="button" data-edit-schedule>Editar horario</button><button type="button" class="button" data-save-schedule>Guardar horario</button><button type="button" class="button secondary" data-cancel-schedule>Cancelar horario</button></div><p class="schedule-note">Guardar horario publica el cambio. Cancelar horario conserva el registro y exige un motivo. Un turno iniciado, completado o con asistencia no se modifica.</p><p class="schedule-print-only" data-print-week></p><p class="form-message" role="status" aria-live="polite" data-schedule-status>Comprobando permisos...</p>
 <div class="table-wrap"><table class="schedule-table"><thead data-schedule-head></thead><tbody data-schedule-body></tbody></table></div>
 <p class="schedule-note">Las horas son de programación, no de ponches ni de nómina. Una jornada ordinaria neta llega hasta 8 horas y la semana ordinaria hasta 40.</p>
 <form class="schedule-editor" data-editor hidden>
@@ -33,8 +33,8 @@
 <label class="field">Salida <input type="time" name="endsLocal" data-clock-storage="24" required></label>
 <label class="field">Almuerzo (minutos) <input type="number" name="lunchMinutes" min="0" max="480" value="60" required></label>
 <label class="field">Motivo del cambio <input type="text" name="reason" maxlength="240"></label>
-<div class="inventory-actions"><button class="button" type="submit">Añadir al borrador</button><button class="button secondary" data-day-off type="button">Marcar libre</button><button class="button secondary" data-close-editor type="button">Cerrar</button></div>
+<div class="inventory-actions"><button class="button" type="submit">Guardar horario</button><button class="button secondary" data-day-off type="button">Marcar libre</button><button class="button secondary" data-close-editor type="button">Cerrar</button></div>
 </form>
 </section></main><footer class="site-footer" data-footer></footer></div></div>
-<script src="js/config.js"></script><script src="js/time-format.js?v=us-time-20261028"></script><script src="js/services/supabase.js?v=horarios-week-20261027"></script><script src="js/app.js?v=nomina-additional-20261026"></script><script src="js/horarios.js?v=horarios-clock-20261028"></script>
+<script src="js/config.js"></script><script src="js/time-format.js?v=us-time-20261028"></script><script src="js/services/supabase.js?v=horarios-week-20261027"></script><script src="js/app.js?v=nomina-additional-20261026"></script><script src="js/horarios.js?v=horarios-simple-20261028"></script>
 </body></html>

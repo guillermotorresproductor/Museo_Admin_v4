@@ -134,7 +134,7 @@ begin
     where e.profile_id = uid and e.status = 'activo'
     order by e.id
     limit 1;
-    return profile in ('director_ejecutivo', 'gerente_administrativo');
+    return profile in ('administrador_general', 'director_ejecutivo', 'gerente_administrativo');
   end if;
   if requested_permission = 'schedules.read.self' then
     return exists (select 1 from public.employees e where e.profile_id = uid and e.status = 'activo');

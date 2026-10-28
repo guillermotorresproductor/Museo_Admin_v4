@@ -95,13 +95,12 @@ begin
   update public.employees set access_profile = 'administrador_general' where id = general_employee;
   perform set_config('request.jwt.claim.sub', general_user::text, true);
   perform set_config('request.jwt.claims', json_build_object('sub', general_user, 'role', 'authenticated')::text, true);
-  if public.has_permission('schedules.manage') then raise exception 'GENERAL_ALLOWED'; end if;
-  begin
-    perform public.schedule_employee_shift(subject, monday, time '08:00', time '17:00');
-    raise exception 'GENERAL_WRITE_ALLOWED';
-  exception when insufficient_privilege then
-    if sqlerrm <> 'FORBIDDEN' then raise; end if;
-  end;
+  if not public.has_permission('schedules.manage') then raise exception 'GENERAL_DENIED'; end if;
+  result := public.schedule_employee_shift(subject, date '2027-08-16', time '08:00', time '12:00');
+  perform public.cancel_employee_shift((result->>'id')::uuid, (result->>'updated_at')::timestamptz, 'Verificacion de permiso');
+  if (select status from public.employee_shifts where id = (result->>'id')::uuid) <> 'cancelled' then
+    raise exception 'GENERAL_CANCEL_FAILED';
+  end if;
   update public.employees set access_profile = 'asistente_administrativa' where id = general_employee;
   if public.has_permission('schedules.manage') then raise exception 'ASSISTANT_ALLOWED'; end if;
   perform set_config('request.jwt.claim.sub', actor::text, true);
