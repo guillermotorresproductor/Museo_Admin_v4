@@ -1,11 +1,9 @@
 import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const pglitePath = pathToFileURL("C:/Users/guill/AppData/Local/Temp/pglite-horarios/node_modules/@electric-sql/pglite/dist/index.js");
-const { PGlite } = await import(pglitePath.href);
+const { PGlite } = await import("@electric-sql/pglite");
 const db = new PGlite();
 const fixture = readFileSync(join(here, "horarios-week-draft.fixture.sql"), "utf8");
 const migration = readFileSync(join(here, "../migrations/202610270001_schedule_week_drafts.sql"), "utf8");
