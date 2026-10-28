@@ -1,7 +1,27 @@
 /* Horarios semanales. El borrador no toca employee_shifts; publicar usa una sola transacción. */
 (function () {
   "use strict";
-  const root = document.querySelector("[data-horarios-module]");
+  function hour(value) {
+    if (!value) return "";
+    const text = String(value);
+    if (text.includes("T") && (/Z$/.test(text) || /[+-][0-9]{2}:?[0-9]{2}$/.test(text))) {
+      const parsed = new Date(text);
+      if (!Number.isNaN(parsed.getTime())) return new Intl.DateTimeFormat("en-GB", { timeZone: "America/Puerto_Rico", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(parsed);
+    }
+    const match = text.match(/T(\d\d):(\d\d)/);
+    return match ? `${match[1]}:${match[2]}` : text.slice(0, 5);
+  }
+  function scheduleRangeLabel(start, end, suffix = "") {
+    const show = (value) => {
+      const raw = hour(value);
+      if (!raw) return "";
+      const formatted = typeof displayClock === "function" ? displayClock(raw) : "";
+      return formatted || raw;
+    };
+    return `${show(start)} – ${show(end)}${suffix}`;
+  }
+  if (typeof module === "object" && module.exports) module.exports = { hour, scheduleRangeLabel };
+  const root = typeof document === "undefined" ? null : document.querySelector("[data-horarios-module]");
   if (!root) return;
   const $ = (selector) => root.querySelector(selector);
   const status = $("[data-schedule-status]");
@@ -33,16 +53,6 @@
   const positionOf = (employee) => employee.posicion || employee.position || "";
   const departmentOf = (employee) => employee.departamento || employee.department || "";
   const msg = (text, bad = false) => { status.textContent = text; status.className = `form-message${bad ? " error" : ""}`; };
-  const hour = (value) => {
-    if (!value) return "";
-    const text = String(value);
-    if (text.includes("T") && (/Z$/.test(text) || /[+-][0-9]{2}:?[0-9]{2}$/.test(text))) {
-      const parsed = new Date(text);
-      if (!Number.isNaN(parsed.getTime())) return new Intl.DateTimeFormat("en-GB", { timeZone: "America/Puerto_Rico", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(parsed);
-    }
-    const match = text.match(/T(\d\d):(\d\d)/);
-    return match ? `${match[1]}:${match[2]}` : text.slice(0, 5);
-  };
   const clock = (value) => Number(String(value).slice(0, 2)) * 60 + Number(String(value).slice(3, 5));
   const span = (start, end) => { let minutes = clock(end) - clock(start); if (minutes < 0) minutes += 1440; return minutes; };
   const minutes = (shift) => {
@@ -53,7 +63,7 @@
     if (/T/.test(start) && /T/.test(end)) return Math.max(0, (new Date(end) - new Date(start)) / 60000 - Number(shift.expected_lunch_minutes || 0));
     return Math.max(0, span(String(start).slice(0, 5), String(end).slice(0, 5)) - Number(shift.expected_lunch_minutes || 0));
   };
-  const display = (shift) => `${hour(shift.local_start || shift.starts_local || shift.starts_at)}–${hour(shift.local_end || shift.ends_local || shift.ends_at)}${shift.crosses_midnight ? " (+1)" : ""}`;
+  const display = (shift) => `${scheduleRangeLabel(shift.local_start || shift.starts_local || shift.starts_at, shift.local_end || shift.ends_local || shift.ends_at)}${shift.crosses_midnight ? " (+1)" : ""}`;
   const scheduledOf = (day) => (day?.shifts || []).filter((shift) => shift.status === "scheduled");
   const completedOf = (day) => (day?.shifts || []).filter((shift) => shift.status === "completed");
   const baselineOf = (day) => {
@@ -111,7 +121,7 @@
         const draft = drafts.get(`${employee.id}|${day}`);
         const scheduled = scheduledOf(item);
         const completed = completedOf(item);
-        const line = employee._failed ? "ERROR" : draft ? (draft.dayOff ? "LIBRE (borrador)" : `${draft.start}–${draft.end} (borrador)`) : item?.day_off ? "LIBRE" : scheduled.length ? scheduled.map(display).join(" / ") : completed.length ? `${completed.map(display).join(" / ")} (cerrado)` : "—";
+        const line = employee._failed ? "ERROR" : draft ? (draft.dayOff ? "LIBRE (borrador)" : scheduleRangeLabel(draft.start, draft.end, " (borrador)")) : item?.day_off ? "LIBRE" : scheduled.length ? scheduled.map(display).join(" / ") : completed.length ? `${completed.map(display).join(" / ")} (cerrado)` : "—";
         return `<td><button class="schedule-cell${draft ? " is-draft" : ""}" type="button" data-id="${safe(employee.id)}" data-date="${day}" ${editable ? "" : "disabled"}>${safe(line)}</button></td>`;
       }).join("");
       const total = days.reduce((sum, day) => {

@@ -29,12 +29,12 @@
 <p class="schedule-note">Las horas son de programación, no de ponches ni de nómina. Una jornada ordinaria neta llega hasta 8 horas y la semana ordinaria hasta 40.</p>
 <form class="schedule-editor" data-editor hidden>
 <h3 data-editor-title>Asignar turno</h3><input type="hidden" name="employeeId"><input type="hidden" name="shiftDate"><input type="hidden" name="shiftId"><input type="hidden" name="expectedUpdatedAt"><input type="hidden" name="baseline">
-<label class="field">Entrada <input type="time" name="startsLocal" required></label>
-<label class="field">Salida <input type="time" name="endsLocal" required></label>
+<label class="field">Entrada <input type="time" name="startsLocal" data-clock-storage="24" required></label>
+<label class="field">Salida <input type="time" name="endsLocal" data-clock-storage="24" required></label>
 <label class="field">Almuerzo (minutos) <input type="number" name="lunchMinutes" min="0" max="480" value="60" required></label>
 <label class="field">Motivo del cambio <input type="text" name="reason" maxlength="240"></label>
 <div class="inventory-actions"><button class="button" type="submit">Añadir al borrador</button><button class="button secondary" data-day-off type="button">Marcar libre</button><button class="button secondary" data-close-editor type="button">Cerrar</button></div>
 </form>
 </section></main><footer class="site-footer" data-footer></footer></div></div>
-<script src="js/config.js"></script><script src="js/services/supabase.js?v=horarios-week-20261027"></script><script src="js/app.js?v=nomina-additional-20261026"></script><script src="js/horarios.js?v=horarios-week-20261027"></script>
+<script src="js/config.js"></script><script src="js/time-format.js?v=us-time-20261028"></script><script src="js/services/supabase.js?v=horarios-week-20261027"></script><script src="js/app.js?v=nomina-additional-20261026"></script><script src="js/horarios.js?v=horarios-clock-20261028"></script>
 </body></html>

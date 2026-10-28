@@ -128,7 +128,7 @@
   }
 
   function enhanceAmericanTimeField(input) {
-    if (!input || input.dataset.usTime === "1") return;
+    if (!input || input.dataset.usTime === "1" || input.dataset.clockStorage === "24") return;
     if (input.type !== "time" && input.type !== "datetime-local") return;
     input.dataset.usTime = "1";
     const doc = input.ownerDocument;
