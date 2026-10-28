@@ -142,7 +142,7 @@
     historyBody.innerHTML = requests.length ? requests.map((request) => `
       <tr>
         <td>${catalog.escape(request.numeroSolicitud)}</td><td>${catalog.escape(request.nombre)}</td><td>${catalog.escape(request.espacio)}</td>
-        <td>${catalog.escape(request.fecha)}<br><small>${catalog.escape(request.horaInicio)}–${catalog.escape(request.horaFinal)}</small></td>
+        <td>${catalog.escape(request.fecha)}<br><small>${catalog.escape(typeof displayClock === "function" ? displayClock(request.horaInicio) : request.horaInicio)}–${catalog.escape(typeof displayClock === "function" ? displayClock(request.horaFinal) : request.horaFinal)}</small></td>
         <td>${catalog.money(request.total)}</td>
         <td><label class="sr-only" for="status-${request.id}">Estado de ${catalog.escape(request.numeroSolicitud)}</label><select id="status-${request.id}" data-rental-request-status="${request.id}">${statuses.map((status) => `<option${request.estado === status ? " selected" : ""}>${status}</option>`).join("")}</select></td>
       </tr>

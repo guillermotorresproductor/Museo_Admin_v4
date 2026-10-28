@@ -4240,3 +4240,16 @@ body:has(.employee-portal.is-executive){overflow-x:hidden}
 .executive-finance-totals{display:grid;gap:8px}
 .executive-finance-totals div{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #e4e7ec}
 .executive-finance-totals strong{font-size:1.05rem;text-align:right}
+
+.us-time-host{position:relative;display:block}
+.us-time-face{display:flex;align-items:center;gap:6px;width:100%}
+.us-time-face-datetime{flex-wrap:wrap}
+.us-time-sep{font-weight:800;line-height:1}
+.field .us-time-face select,
+.portal-correction-form .us-time-face select,
+.us-time-face select,
+.us-time-face input[type="date"]{width:auto;flex:1 1 4.2rem;min-width:0;min-height:48px}
+.us-time-face select[data-us-time-part="period"]{flex-basis:5.4rem}
+.field input.us-time-value,
+.portal-correction-form input.us-time-value,
+input.us-time-value{position:absolute !important;width:1px !important;height:1px !important;min-height:0 !important;padding:0 !important;margin:-1px !important;overflow:hidden !important;clip:rect(0,0,0,0) !important;clip-path:inset(50%) !important;white-space:nowrap !important;border:0 !important}

@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 const require = createRequire("C:/Users/guill/AppData/Local/Temp/museo-jsdom/package.json");
 const { JSDOM } = require("jsdom");
 const app = fs.readFileSync("js/app.js", "utf8");
+const timeFormat = fs.readFileSync("js/time-format.js", "utf8");
 const html = fs.readFileSync("employee-portal.html", "utf8");
 const css = fs.readFileSync("css/main.css", "utf8");
 const model = fs.readFileSync("js/finance-model.js", "utf8");
@@ -104,7 +105,7 @@ test("the executive screen is isolated and does not punch or invent a finance to
     }
   });
   Object.defineProperty(context, "document", { value: window.document, writable: true });
-  vm.runInContext(`${model}\n${summary}\n${slice(app, "function safeHtml", "function bindMaterialsRequestModule")}\n${slice(app, "function executiveStaffRows", "function ensureEnvironmentOnLocalAuthCallback")}`, context);
+  vm.runInContext(`${timeFormat}\n${model}\n${summary}\n${slice(app, "function safeHtml", "function bindMaterialsRequestModule")}\n${slice(app, "function executiveStaffRows", "function ensureEnvironmentOnLocalAuthCallback")}`, context);
   context.employee = employee;
   context.profile = { museum_id: "museum-a" };
   await context.bindExecutiveEmployeePortal(context.profile, employee);
@@ -124,6 +125,7 @@ test("the executive screen is isolated and does not punch or invent a finance to
   assert.match(staff, /Sin turno/);
   assert.doesNotMatch(staff, /Ada Directora/);
   assert.match(window.document.querySelector("[data-executive-calendar]").textContent, /Concierto/);
+  assert.match(window.document.querySelector("[data-executive-calendar]").textContent, /6:00 PM/);
   assert.match(window.document.querySelector("[data-executive-calendar]").textContent, /Anfiteatro/);
   const directory = window.document.querySelector("[data-executive-directory]");
   assert.match(directory.innerHTML, /href="tel:7875550100"/);

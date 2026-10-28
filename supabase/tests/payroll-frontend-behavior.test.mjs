@@ -22,6 +22,7 @@ window.document.addEventListener = (type, fn, options) => {
   return originalAdd(type, fn, options);
 };
 window.eval([
+  fs.readFileSync("js/time-format.js", "utf8"),
   fs.readFileSync("js/config.js", "utf8").replace(/^"use strict";\s*/, ""),
   fs.readFileSync("js/services/supabase.js", "utf8"),
   fs.readFileSync("js/payroll-actual.js", "utf8"),
