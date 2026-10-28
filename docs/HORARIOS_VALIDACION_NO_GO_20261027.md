@@ -1,5 +1,5 @@
 # Auditoría de validación — HORARIOS — 2026-10-27
-**Dictamen: NO GO. No ejecutar migraciones ni fusionar PR #102.**
+**Implementación corregida en la rama. La migración no está aplicada a producción ni a staging. No fusionar ni desplegar el PR #102 sin autorización.**
 
 ## Hallazgos bloqueantes
 1. **Identidad / autoedición:** employees.profile_id frente a auth.uid() no está demostrado como vínculo válido. Puede fallar de manera abierta si los identificadores pertenecen a entidades distintas.

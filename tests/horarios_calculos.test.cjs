@@ -7,6 +7,7 @@ function minutes(a,b,lunch){
  return span-lunch;
 }
 test('jornada tarde 8 horas',()=>assert.equal(minutes('13:00','22:00',60),480));
+test('jornada tarde 7 horas',()=>assert.equal(minutes('13:00','21:00',60),420));
 test('turno nocturno 8 horas',()=>assert.equal(minutes('22:00','07:00',60),480));
 test('jornada excesiva',()=>assert.ok(minutes('08:00','18:00',60)>480));
 test('almuerzo inválido',()=>assert.throws(()=>minutes('08:00','09:00',60)));

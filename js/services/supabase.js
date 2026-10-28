@@ -485,6 +485,33 @@ async function setEmployeeDayOff(employeeId, shiftDate, reason, expectedShifts) 
   });
 }
 
+async function getScheduleWeekDraft(weekStart) {
+  return supabasePost("/rest/v1/rpc/get_schedule_week_draft", { p_week_start: weekStart });
+}
+
+async function saveScheduleWeekDraft(weekStart, items, draftId, expectedRevision) {
+  return supabasePost("/rest/v1/rpc/save_schedule_week_draft", {
+    p_week_start: weekStart,
+    p_items: items,
+    p_draft_id: draftId || null,
+    p_expected_revision: Number.isInteger(expectedRevision) ? expectedRevision : null
+  });
+}
+
+async function discardScheduleWeekDraft(draftId, expectedRevision) {
+  return supabasePost("/rest/v1/rpc/discard_schedule_week_draft", {
+    p_draft_id: draftId,
+    p_expected_revision: expectedRevision
+  });
+}
+
+async function publishScheduleWeek(draftId, expectedRevision) {
+  return supabasePost("/rest/v1/rpc/publish_schedule_week", {
+    p_draft_id: draftId,
+    p_expected_revision: expectedRevision
+  });
+}
+
 async function fetchSupabaseUpcomingShifts(limit = 30) {
   const now = encodeURIComponent(new Date().toISOString());
   return supabaseGet(`/rest/v1/employee_shifts?select=id,employee_id,starts_at,ends_at,shift_type,status,schedule_rule_id&starts_at=gte.${now}&status=eq.scheduled&order=starts_at.asc&limit=${Math.min(Math.max(Number(limit)||30,1),100)}`);
