@@ -416,13 +416,12 @@ function bindCollectionIntake() {
       timeZone: 'America/Puerto_Rico',
       day: 'numeric',
       month: 'short',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
+      year: 'numeric'
     }).formatToParts(date);
     const pick = type => (parts.find(part => part.type === type)?.value || '').replace(/[\u202f\u00a0]/g, ' ');
-    return `${pick('day')} ${pick('month').replace(/\./g, '')} ${pick('year')}, ${pick('hour')}:${pick('minute')} ${pick('dayPeriod').replace(/\s+/g, ' ').trim()}`;
+    const timeText = typeof formatAmericanTime === 'function' ? formatAmericanTime(date) : '';
+    const written = `${pick('day')} ${pick('month').replace(/\./g, '')} ${pick('year')}`;
+    return timeText ? `${written}, ${timeText}` : written;
   }
   function paintSignatureSurface(capture, recorded, ink) {
     if (!capture) return;

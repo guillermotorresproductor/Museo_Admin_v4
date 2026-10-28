@@ -2078,9 +2078,9 @@ function bindRentalSpacePage() {
     <section class="rental-detail-facts">
       <div><span>Área</span><strong>${safeHtml(space.area)}</strong></div>
       <div><span>Capacidad</span><strong>${safeHtml(space.capacityLabel)}</strong></div>
-      <div><span>Horario</span><strong>${safeHtml(space.schedule)}</strong></div>
-      <div><span>Montaje</span><strong>${safeHtml(space.setup)}</strong></div>
-      <div><span>Desmontaje</span><strong>${safeHtml(space.breakdown)}</strong></div>
+      <div><span>Horario</span><strong>${safeHtml(presentClock(space.schedule))}</strong></div>
+      <div><span>Montaje</span><strong>${safeHtml(presentClock(space.setup))}</strong></div>
+      <div><span>Desmontaje</span><strong>${safeHtml(presentClock(space.breakdown))}</strong></div>
     </section>
 
     <section class="rental-detail-columns">
@@ -2281,7 +2281,7 @@ function bindRentalForm() {
   const auditEntry = (estado, comentarios = "") => ({
     usuario: currentUser(),
     fecha: new Date().toLocaleDateString("es-PR"),
-    hora: new Date().toLocaleTimeString("es-PR"),
+    hora: presentClock(new Date()),
     estado,
     comentarios
   });
@@ -2354,9 +2354,9 @@ function bindRentalForm() {
           : money(space.deposit)}</span>
         <span><strong>Área:</strong> ${safeHtml(space.area || "Según configuración")}</span>
         <span><strong>Capacidad:</strong> ${safeHtml(space.capacityLabel || "Según montaje aprobado")}</span>
-        <span><strong>Horario:</strong> ${safeHtml(space.schedule)}</span>
-        <span><strong>Montaje:</strong> ${safeHtml(space.setup)}</span>
-        <span><strong>Desmontaje:</strong> ${safeHtml(space.breakdown)}</span>
+        <span><strong>Horario:</strong> ${safeHtml(presentClock(space.schedule))}</span>
+        <span><strong>Montaje:</strong> ${safeHtml(presentClock(space.setup))}</span>
+        <span><strong>Desmontaje:</strong> ${safeHtml(presentClock(space.breakdown))}</span>
         <span><strong>Estado:</strong> ${safeHtml(space.status)}</span>
       </div>
       <p><strong>Equipos incluidos:</strong> ${space.equipment.map(safeHtml).join(", ")}</p>
@@ -2514,7 +2514,7 @@ function bindRentalForm() {
         return;
       }
       if (start < "08:00" || end > "22:00") {
-        setMessage("El Salón Multiuso está disponible de 8:00 a. m. a 10:00 p. m.", "error");
+        setMessage("El Salón Multiuso está disponible de 8:00 AM a 10:00 PM.", "error");
         return;
       }
       if (calculation.hours <= 0) {
@@ -3475,7 +3475,7 @@ function bindCalendarModules() {
       return `Empleado: ${employeeName(record.empleado)}\nTarea: ${record.tarea}\nÁrea: ${record.area || "Sin área"}\nEstado: ${record.estado || "Pendiente"}\nFecha: ${record.fecha}`;
     }
     if (isUshers) {
-      return `Ujier: ${record.ujier}\nHorario: ${record.horario}\nÁrea: ${record.area}\nFecha: ${record.fecha}`;
+      return `Ujier: ${record.ujier}\nHorario: ${presentClock(record.horario)}\nÁrea: ${record.area}\nFecha: ${record.fecha}`;
     }
     return `Evento: ${record.titulo}\nClasificación: ${record.clasificacion || "Sin clasificación"}\nÁrea: ${record.area || "Sin área"}\nCreado por: ${record.empleado || "Sin empleado"}\nDescripción: ${record.descripcion || "Sin descripción"}\nFecha: ${record.fecha}`;
   };
@@ -3516,7 +3516,7 @@ function bindCalendarModules() {
         const body = isMaintenance
           ? `<strong>${escapeHtml(employeeName(record.empleado))}</strong><span>${escapeHtml(record.tarea)}</span><small>${escapeHtml(record.area || "Sin área")} · ${escapeHtml(record.estado || "Pendiente")}</small>`
           : isUshers
-            ? `<strong>${escapeHtml(record.ujier)}</strong><span>${escapeHtml(record.horario)}</span><small>${escapeHtml(record.area)}</small>`
+            ? `<strong>${escapeHtml(record.ujier)}</strong><span>${escapeHtml(presentClock(record.horario))}</span><small>${escapeHtml(record.area)}</small>`
             : `<strong>${escapeHtml(record.titulo)}</strong><span>${escapeHtml(record.clasificacion || "Sin clasificación")}</span><small>${escapeHtml(record.area || "Sin área")}</small>`;
         const theme = isGeneral ? activityClassificationThemes[record.clasificacion] || "theme-slate" : "";
         const actions = canEdit()
@@ -3915,7 +3915,7 @@ function bindDigitalRouteModule() {
     if (!records.length) { history.innerHTML='<tr><td colspan="5" class="empty-state">No hay inspecciones registradas.</td></tr>'; return; }
     history.innerHTML=records.slice().reverse().map((record) => {
       const instant=new Date(record.created_at);
-      return `<tr><td>${safeHtml(record.task_date || "")}</td><td>${safeHtml(instant.toLocaleTimeString("es-PR",{hour:"numeric",minute:"2-digit"}))}</td><td>${safeHtml(employeeName(record.employee_id))}</td><td>${safeHtml(record.area || "")}</td><td><span class="status-dot green"></span> ${safeHtml(record.status === "completado" ? "Completado" : record.status)}<div class="calendar-item-actions" ${hasModuleProfile() && !canEdit() ? "hidden" : ""}><button type="button" data-route-edit="${record.id}">Editar</button><button type="button" data-route-archive="${record.id}">Archivar</button></div></td></tr>`;
+      return `<tr><td>${safeHtml(record.task_date || "")}</td><td>${safeHtml(presentClock(instant))}</td><td>${safeHtml(employeeName(record.employee_id))}</td><td>${safeHtml(record.area || "")}</td><td><span class="status-dot green"></span> ${safeHtml(record.status === "completado" ? "Completado" : record.status)}<div class="calendar-item-actions" ${hasModuleProfile() && !canEdit() ? "hidden" : ""}><button type="button" data-route-edit="${record.id}">Editar</button><button type="button" data-route-archive="${record.id}">Archivar</button></div></td></tr>`;
     }).join("");
   };
   form.addEventListener("submit",async(event)=>{
@@ -3955,7 +3955,7 @@ function assignedShiftMessage(error, fallback) {
 
 function describeAssignedShift(shift) {
   if (!shift || shift.status === "day_off") return "Libre";
-  const hours = `${shift.local_start || ""}–${shift.local_end || ""}`;
+  const hours = `${presentClock(shift.local_start)}–${presentClock(shift.local_end)}`;
   const overnight = shift.crosses_midnight ? " (+1)" : "";
   if (shift.status === "cancelled") return `Cancelado · ${hours}`;
   return `${hours}${overnight}`;
@@ -4112,11 +4112,11 @@ function bindAttendanceScheduleAdmin(module, employeeMap) {
   let activeRules = [];
   const showMessage = (text, type = "") => { message.textContent = text; message.className = `form-message ${type}`.trim(); };
   const resetEdit = () => { form.reset(); form.elements.effectiveFrom.value=today; form.elements.startsLocal.value="08:00"; form.elements.endsLocal.value="17:00"; form.elements.lunchMinutes.value="60"; form.elements.supersedesRuleId.value=""; region.querySelector("[data-schedule-submit]").textContent="Crear regla recurrente"; region.querySelector("[data-schedule-cancel-edit]").hidden=true; };
-  const refreshRuleOptions = () => { const employeeId=exceptionForm.elements.employeeId.value; exceptionForm.elements.ruleId.innerHTML='<option value="">Seleccione una regla</option>'+activeRules.filter(r=>!employeeId||r.employee_id===employeeId).map(r=>`<option value="${safeHtml(r.id)}">${safeHtml((r.weekdays||[]).map(d=>dayNames[d]).join(", "))} · ${safeHtml(String(r.starts_local).slice(0,5))}-${safeHtml(String(r.ends_local).slice(0,5))}</option>`).join(""); };
+  const refreshRuleOptions = () => { const employeeId=exceptionForm.elements.employeeId.value; exceptionForm.elements.ruleId.innerHTML='<option value="">Seleccione una regla</option>'+activeRules.filter(r=>!employeeId||r.employee_id===employeeId).map(r=>`<option value="${safeHtml(r.id)}">${safeHtml((r.weekdays||[]).map(d=>dayNames[d]).join(", "))} · ${safeHtml(presentClock(String(r.starts_local).slice(0,5)))}-${safeHtml(presentClock(String(r.ends_local).slice(0,5)))}</option>`).join(""); };
   const load = async () => {
     try {
       const [rules, shifts] = await Promise.all([fetchSupabaseScheduleRules(), fetchSupabaseUpcomingShifts(30)]); activeRules=rules; refreshRuleOptions();
-      list.innerHTML = rules.length ? rules.map((rule) => { const employee=employeeMap.get(rule.employee_id); const days=(rule.weekdays||[]).map(d=>dayNames[d]).join(", "); const until=rule.effective_until?` hasta ${rule.effective_until}`:" sin fecha final"; return `<article class="schedule-rule-item" data-rule-id="${safeHtml(rule.id)}"><div><strong>${safeHtml(employee?employeeDisplayName(employee):"Empleado")}</strong><span>${safeHtml(days)} · ${safeHtml(String(rule.starts_local).slice(0,5))}-${safeHtml(String(rule.ends_local).slice(0,5))}</span><small>Desde ${safeHtml(rule.effective_from)}${safeHtml(until)} · ${safeHtml(rule.shift_type)} · v${Number(rule.version_no||1)}</small></div>${canManage?`<div class="schedule-rule-actions"><button class="button secondary" type="button" data-edit-rule="${safeHtml(rule.id)}">Editar</button><button class="button secondary" type="button" data-deactivate-rule="${safeHtml(rule.id)}">Desactivar</button></div>`:'<span class="attendance-status is-complete">Activa</span>'}</article>`; }).join(""):'<p>No hay reglas recurrentes configuradas.</p>';
+      list.innerHTML = rules.length ? rules.map((rule) => { const employee=employeeMap.get(rule.employee_id); const days=(rule.weekdays||[]).map(d=>dayNames[d]).join(", "); const until=rule.effective_until?` hasta ${rule.effective_until}`:" sin fecha final"; return `<article class="schedule-rule-item" data-rule-id="${safeHtml(rule.id)}"><div><strong>${safeHtml(employee?employeeDisplayName(employee):"Empleado")}</strong><span>${safeHtml(days)} · ${safeHtml(presentClock(String(rule.starts_local).slice(0,5)))}-${safeHtml(presentClock(String(rule.ends_local).slice(0,5)))}</span><small>Desde ${safeHtml(rule.effective_from)}${safeHtml(until)} · ${safeHtml(rule.shift_type)} · v${Number(rule.version_no||1)}</small></div>${canManage?`<div class="schedule-rule-actions"><button class="button secondary" type="button" data-edit-rule="${safeHtml(rule.id)}">Editar</button><button class="button secondary" type="button" data-deactivate-rule="${safeHtml(rule.id)}">Desactivar</button></div>`:'<span class="attendance-status is-complete">Activa</span>'}</article>`; }).join(""):'<p>No hay reglas recurrentes configuradas.</p>';
       upcomingList.innerHTML=shifts.length?shifts.map(shift=>{const employee=employeeMap.get(shift.employee_id);return `<article class="schedule-upcoming-item"><strong>${safeHtml(employee?employeeDisplayName(employee):"Empleado")}</strong><span>${formatPortalDate(shift.starts_at,{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})} - ${formatPortalDate(shift.ends_at,{hour:"numeric",minute:"2-digit"})}</span><small>${safeHtml(shift.shift_type)}</small></article>`;}).join(""):'<p>No hay turnos futuros.</p>';
     } catch(error){showMessage(providerNeutralMessage(error,"No se pudo cargar la programacion."),"error");}
   };
@@ -5068,7 +5068,7 @@ function bindFinanceModule() {
     "Otros Gastos"
   ];
   const money = (value) => Number(value || 0).toLocaleString("es-PR", { style: "currency", currency: "USD" });
-  const syncTime = () => new Date().toLocaleTimeString("es-PR", { hour: "numeric", minute: "2-digit" });
+  const syncTime = () => presentClock(new Date());
   const setSyncStatus = (state, title, detail) => {
     syncStatuses.forEach((status) => {
       const wideClass = status.classList.contains("finance-sync-status-wide") ? " finance-sync-status-wide" : "";
@@ -5088,7 +5088,7 @@ function bindFinanceModule() {
     const entries = await supabasePost("/rest/v1/rpc/finance_audit_history", {p_year:financeYear});
     auditEntries = entries.slice().reverse().map(entry => ({
       usuario:entry.user_name,fecha:new Date(entry.created_at).toLocaleDateString("es-PR"),
-      hora:new Date(entry.created_at).toLocaleTimeString("es-PR"),concepto:entry.concept,
+      hora:presentClock(entry.created_at),concepto:entry.concept,
       mes:entry.month,anterior:entry.old_amount,nuevo:entry.new_amount
     }));
   };
@@ -5191,7 +5191,7 @@ function bindFinanceModule() {
     entries.push({
       usuario: currentUser,
       fecha: new Date().toLocaleDateString("es-PR"),
-      hora: new Date().toLocaleTimeString("es-PR"),
+      hora: presentClock(new Date()),
       concepto: row.concept,
       mes: financeMonths[monthIndex],
       anterior: Number(previousValue || 0),
@@ -7424,9 +7424,28 @@ function bindMembershipsModule() {
   initialize();
 }
 
+function presentClock(value) {
+  if (value == null || value === "") return "";
+  return typeof displayClock === "function" ? displayClock(value) : String(value);
+}
+
 function formatPortalDate(value, options) {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("es-PR", { timeZone: "America/Puerto_Rico", ...options }).format(new Date(value));
+  const requested = options || {};
+  const timeZone = requested.timeZone || "America/Puerto_Rico";
+  const date = value instanceof Date ? value : new Date(value);
+  const timeKeys = ["hour", "minute", "second", "timeStyle", "hourCycle", "dayPeriod", "fractionalSecondDigits"];
+  const hasTime = timeKeys.some((key) => requested[key] != null);
+  if (!hasTime || typeof formatAmericanTime !== "function") {
+    return new Intl.DateTimeFormat("es-PR", { timeZone, ...requested }).format(date);
+  }
+  const timeText = formatAmericanTime(date, timeZone);
+  if (!timeText) return "—";
+  const dateKeys = ["weekday", "year", "month", "day", "era", "dateStyle"];
+  if (!dateKeys.some((key) => requested[key] != null)) return timeText;
+  const dateRequested = { ...requested, timeZone };
+  timeKeys.forEach((key) => { delete dateRequested[key]; });
+  return `${new Intl.DateTimeFormat("es-PR", dateRequested).format(date)}, ${timeText}`;
 }
 
 function renderPortalTimeEntries(entries) {
@@ -7876,7 +7895,7 @@ function bindMyAssignedShifts(employee) {
   const section = document.querySelector("[data-my-shifts]");
   if (!section) return;
   const habitual = section.querySelector("[data-portal-habitual]");
-  if (habitual) habitual.textContent = employee?.horario || "Sin horario habitual en el expediente";
+  if (habitual) habitual.textContent = employee?.horario ? presentClock(employee.horario) : "Sin horario habitual en el expediente";
   const assigned = section.querySelector("[data-my-shifts-assigned]");
   if (!employee || !hasPermission("schedules.read.self")) {
     if (assigned) assigned.hidden = true;
@@ -7898,7 +7917,7 @@ function bindMyAssignedShifts(employee) {
     const data = await listMyAssignedShifts(from, to);
     weekFrom = data.from;
     weekTo = data.to;
-    if (habitual && data.habitual) habitual.textContent = data.habitual;
+    if (habitual && data.habitual) habitual.textContent = presentClock(data.habitual);
     label.textContent = `${calendarDateLabel(weekFrom)} – ${calendarDateLabel(weekTo)}`;
     list.innerHTML = (data.days || []).map(renderDay).join("") || `<p class="portal-empty">Sin turno asignado</p>`;
   };
@@ -7962,9 +7981,7 @@ function executiveUpcomingEvents(events, today) {
 }
 
 function executiveEventTime(value) {
-  const match = /^(\d{2}):(\d{2})/.exec(String(value || ""));
-  if (!match) return "";
-  return new Intl.DateTimeFormat("es-PR", { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 1, Number(match[1]), Number(match[2]))));
+  return typeof displayClock === "function" ? displayClock(value) : "";
 }
 
 function executiveEventDate(value) {

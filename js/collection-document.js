@@ -27,7 +27,7 @@ function formatDocumentWhen(value) {
   if (!text) return '';
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(text);
   const timestamp = /^\d{4}-\d{2}-\d{2}T/.test(text);
-  if (!dateOnly && !timestamp) return text;
+  if (!dateOnly && !timestamp) return typeof presentAmericanClockText === 'function' ? presentAmericanClockText(text) : text;
   const date = dateOnly
     ? new Date(Date.UTC(...text.split('-').map(Number).map((part, index) => index === 1 ? part - 1 : part), 16, 0, 0))
     : new Date(text);
@@ -36,13 +36,13 @@ function formatDocumentWhen(value) {
     timeZone: 'America/Puerto_Rico',
     day: 'numeric',
     month: 'long',
-    year: 'numeric',
-    ...(dateOnly ? {} : { hour: 'numeric', minute: '2-digit', hour12: true })
+    year: 'numeric'
   }).formatToParts(date);
   const pick = type => (parts.find(part => part.type === type)?.value || '').replace(/[\u202f\u00a0]/g, ' ');
   const written = `${pick('day')} de ${pick('month')} de ${pick('year')}`;
   if (dateOnly) return written;
-  return `${written}, ${pick('hour')}:${pick('minute')} ${pick('dayPeriod').replace(/\s+/g, ' ').trim()}`;
+  const timeText = typeof formatAmericanTime === 'function' ? formatAmericanTime(date) : '';
+  return timeText ? `${written}, ${timeText}` : written;
 }
 
 function presentDocumentValue(value) {
@@ -182,7 +182,7 @@ function renderCollectionDocument(host, printed, events, signatures) {
       ['Prestamista', source.party_name],
       ['Fecha de ingreso', source.started_on],
       ['Fecha de devolución', returned.after_value?.returned_on],
-      ['Hora del evento', returned.after_value?.returned_at],
+      ['Hora del evento', formatDocumentWhen(returned.after_value?.returned_at)],
       ['Condición al ingreso', returned.after_value?.ingress_condition],
       ['Condición a la devolución', returned.after_value?.return_condition],
       ['Observaciones', returned.after_value?.return_notes],

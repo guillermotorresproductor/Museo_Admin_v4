@@ -33,7 +33,7 @@
       <section class="rental-essential-grid" aria-label="Información esencial">
         <article><span>Precio</span><strong>${catalog.escape(space.priceSummary)}</strong></article>
         <article><span>Capacidad</span><strong>${catalog.escape(space.capacitySummary)}</strong></article>
-        <article><span>Horario</span><strong>${catalog.escape(space.schedule)}</strong></article>
+        <article><span>Horario</span><strong>${catalog.escape(typeof displayClock === "function" ? displayClock(space.schedule) : space.schedule)}</strong></article>
         <article><span>Duración incluida</span><strong>${catalog.escape(space.duration)}</strong></article>
         ${space.area ? `<article><span>Extensión</span><strong>${catalog.escape(space.area)}</strong></article>` : ""}
       </section>
@@ -51,7 +51,7 @@
       <section class="rental-accordions" aria-label="Condiciones del espacio">
         ${section("Pago y fianza", [...catalog.generalTerms.payment, `Fianza: ${space.deposit}.`])}
         ${section("Seguro", catalog.generalTerms.insurance)}
-        ${section("Montaje y desmontaje", [space.setup, space.breakdown])}
+        ${section("Montaje y desmontaje", [space.setup, space.breakdown].map((item) => typeof displayClock === "function" ? displayClock(item) : item))}
         ${section("Restricciones", [...catalog.generalTerms.protection, ...space.restrictions])}
         ${section("Cancelaciones", [...catalog.generalTerms.cancellations, ...space.conditions])}
         ${section("Suplidores", catalog.generalTerms.suppliers)}

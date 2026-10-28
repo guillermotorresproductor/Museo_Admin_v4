@@ -30,6 +30,7 @@ function payrollSignatureBlock(label) {
 }
 function payrollClock(value) {
   if (!value) return "—";
+  if (typeof formatAmericanTime === "function") return formatAmericanTime(value) || "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleTimeString("es-PR", { hour: "numeric", minute: "2-digit", timeZone: "America/Puerto_Rico" });
