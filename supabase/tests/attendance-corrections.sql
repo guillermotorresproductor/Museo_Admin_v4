@@ -126,6 +126,12 @@ begin
   perform set_config('request.jwt.claim.sub', profile_user::text, true);
   if not public.has_permission('attendance.corrections.decide') then raise exception 'MANAGER_CANNOT_LIST'; end if;
   if jsonb_array_length(public.list_attendance_corrections()->'pending') < 1 then raise exception 'PENDING_MISSING'; end if;
+  begin
+    perform public.decide_attendance_correction(request_id, 'approved', 'El gerente no puede alterar el ponche');
+    raise exception 'GERENTE_APPROVED';
+  exception when sqlstate '42501' then null; end;
+  if (select status from public.attendance_correction_requests where id = request_id) <> 'pending' then raise exception 'GERENTE_APPROVAL_WROTE'; end if;
+  if (select occurred_at from public.attendance_events where id = original_id) <> end_at + interval '30 minutes' then raise exception 'GERENTE_CHANGED_PUNCH'; end if;
   update public.employees set access_profile = 'director_ejecutivo' where profile_id = profile_user;
   if not public.has_permission('attendance.corrections.decide') then raise exception 'DIRECTOR_DENIED'; end if;
   select count(*) into before_events from public.attendance_events e where e.shift_id = sid;
@@ -184,7 +190,7 @@ begin
     if public.has_permission('attendance.corrections.decide') then raise exception 'HR_CAN_DECIDE'; end if;
   end if;
 
-  update public.employees set access_profile = 'gerente_administrativo' where profile_id = profile_user;
+  update public.employees set access_profile = 'director_ejecutivo' where profile_id = profile_user;
   select e.id into decider_employee from public.employees e where e.profile_id = profile_user and e.museum_id = museum and e.status = 'activo';
   insert into public.employee_shifts(id, museum_id, employee_id, starts_at, ends_at, expected_lunch_minutes, status, created_by)
   values (self_shift, museum, decider_employee, start_at, end_at, 0, 'scheduled', admin);
