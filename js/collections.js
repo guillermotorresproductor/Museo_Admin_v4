@@ -19,6 +19,14 @@ function collectionDetailsPayload(category, keys, values, saved) {
   return details;
 }
 
+// Pure pagination: 8 existing-size labels per letter sheet (2 columns x 4 rows).
+function collectionLabelPages(rows, perPage = 8) {
+  if (!Number.isInteger(perPage) || perPage < 1) throw new RangeError('Invalid label page size');
+  const pages = [];
+  for (let start = 0; start < rows.length; start += perPage) pages.push(rows.slice(start, start + perPage));
+  return pages;
+}
+
 function collectionCategoryLabel(value) {
   return value === 'Otro' ? 'Otros' : value;
 }
@@ -460,6 +468,50 @@ async function bindCollectionsCatalog() {
       say('No se pudo preparar el listado: ' + error.message, true);
     } finally { button.disabled = false; }
   }
+  // Additive, read-only print path. No catalog, accession, or photo writes.
+  function printSelectedLabels() {
+    const chosen = items.filter(item => printSelectedIds.has(item.id));
+    if (!chosen.length) { say('Seleccione al menos una pieza para imprimir etiquetas.', true); return; }
+    const button = document.querySelector('#collection-print-labels');
+    if (button.disabled) return;
+    button.disabled = true;
+    const sheet = document.createElement('section');
+    sheet.className = 'collection-print-labels';
+    sheet.setAttribute('aria-hidden', 'true');
+    try {
+      const pages = collectionLabelPages(chosen);
+      const markup = item => {
+        const permanent = new URL('inventario-colecciones.html', location.href);
+        permanent.searchParams.set('pieza', item.id);
+        if (museoEnvironment.name === 'staging') permanent.searchParams.set('environment', 'staging');
+        const qr = qrcode(0, 'M');
+        qr.addData(permanent.href);
+        qr.make();
+        const qrUrl = qr.createDataURL(4, 16);
+        return `<article class="collection-print-label-card"><h1>Museo de la Música de Puerto Rico</h1><p><strong>N.º de inventario:</strong> ${esc(item.accession_number)}</p><p><strong>Pieza:</strong> ${esc(item.title)}</p><p><strong>Clasificación:</strong> ${esc(collectionCategoryLabel(item.category))}</p><img src="${qrUrl}" alt=""><p>Escanear para expediente interno</p></article>`;
+      };
+      sheet.innerHTML = pages.map(page => `<div class="collection-print-label-page">${page.map(markup).join('')}</div>`).join('');
+      document.body.append(sheet);
+      document.body.classList.add('collection-labels-printing');
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        document.body.classList.remove('collection-labels-printing');
+        sheet.remove();
+      };
+      window.addEventListener('afterprint', cleanup, {once: true});
+      window.print();
+      window.setTimeout(cleanup, 3000);
+      say(`Se prepararon ${chosen.length} etiquetas en ${pages.length} hoja(s) tamaño carta.`);
+    } catch (error) {
+      sheet.remove();
+      document.body.classList.remove('collection-labels-printing');
+      say('No se pudieron preparar las etiquetas: ' + error.message, true);
+    } finally {
+      button.disabled = false;
+    }
+  }
   function printLabel() {
     if (!viewedItem || !viewedQrDataUrl) return;
     const label = document.createElement('section');
@@ -557,6 +609,7 @@ async function bindCollectionsCatalog() {
   document.querySelector('#collection-print-label').onclick = printLabel;
   document.querySelector('#collection-print-list').onclick = printCollectionList;
   document.querySelector('#collection-print-selection').onclick = printCollectionSelection;
+  document.querySelector('#collection-print-labels').onclick = printSelectedLabels;
   document.querySelector('#collection-select-all').onchange = event => {
     const term = search.value.trim().toLocaleLowerCase('es');
     const mode = modalityFilter?.value || '';
