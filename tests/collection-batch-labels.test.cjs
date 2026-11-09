@@ -35,3 +35,15 @@ test('print actions stay separate and no data mutation occurs in batch handler',
   assert.match(css, /grid-template-columns:3\.75in 3\.75in/);
   assert.match(css, /grid-template-rows:repeat\(4,2\.35in\)/);
 });
+
+
+test('long titles keep full text and get a compact print layout', () => {
+  const start = source.indexOf('function printSelectedLabels()');
+  const end = source.indexOf('function printLabel()', start);
+  const handler = source.slice(start, end);
+  assert.match(handler, /esc\(item\.title\)/);
+  assert.match(handler, /collection-print-label-long/);
+  assert.match(handler, /<img src=\\\"\$\{qrUrl\}/);
+  assert.match(css, /\.collection-print-label-long \{/);
+  assert.doesNotMatch(handler, /item\.title\.slice\(|item\.title\.substring\(/);
+});
