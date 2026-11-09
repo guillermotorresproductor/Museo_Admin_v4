@@ -123,7 +123,8 @@
   }
   .collection-print-label-card h1 { font-size:10pt; margin:0 0 .06in; }
   .collection-print-label-card p { margin:.025in 0; overflow-wrap:anywhere; line-height:1.12; }
-  .collection-print-label-card img { float:right; width:.78in; height:.78in; margin:0 0 .04in .08in; }
+  .collection-print-label-qr { float:right; width:.95in; height:.95in; margin:0 0 .04in .08in; background:#fff; }
+  .collection-print-label-qr svg { display:block; width:100%; height:100%; }
   .collection-print-label-long { font-size:8pt; }
   .collection-print-label-long h1 { font-size:9pt; margin-bottom:.035in; }
   .collection-print-label-long p { line-height:1.08; }
