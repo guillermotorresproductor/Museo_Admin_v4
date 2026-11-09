@@ -488,7 +488,7 @@ async function bindCollectionsCatalog() {
         qr.addData(permanent.href);
         qr.make();
         const qrUrl = qr.createDataURL(4, 16);
-        return `<article class="collection-print-label-card"><h1>Museo de la Música de Puerto Rico</h1><p><strong>N.º de inventario:</strong> ${esc(item.accession_number)}</p><p><strong>Pieza:</strong> ${esc(item.title)}</p><p><strong>Clasificación:</strong> ${esc(collectionCategoryLabel(item.category))}</p><img src="${qrUrl}" alt=""><p>Escanear para expediente interno</p></article>`;
+        return `<article class="collection-print-label-card${String(item.title || "").length > 70 ? " collection-print-label-long" : ""}"><h1>Museo de la Música de Puerto Rico</h1><img src="${qrUrl}" alt=""><p><strong>N.º de inventario:</strong> ${esc(item.accession_number)}</p><p><strong>Pieza:</strong> ${esc(item.title)}</p><p><strong>Clasificación:</strong> ${esc(collectionCategoryLabel(item.category))}</p><p>Escanear para expediente interno</p></article>`;
       };
       sheet.innerHTML = pages.map(page => `<div class="collection-print-label-page">${page.map(markup).join('')}</div>`).join('');
       document.body.append(sheet);
