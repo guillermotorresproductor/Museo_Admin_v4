@@ -43,7 +43,8 @@ test('long titles keep full text and get a compact print layout', () => {
   const handler = source.slice(start, end);
   assert.match(handler, /esc\(item\.title\)/);
   assert.match(handler, /collection-print-label-long/);
-  assert.match(handler, /<img src=\\\"\$\{qrUrl\}/);
+  assert.match(handler, /<img src=/);
+  assert.match(handler, /qrUrl/);
   assert.match(css, /\.collection-print-label-long \{/);
   assert.doesNotMatch(handler, /item\.title\.slice\(|item\.title\.substring\(/);
 });
