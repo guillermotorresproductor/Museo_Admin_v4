@@ -99,3 +99,32 @@
   .collection-selection-photo img { max-width:100%; max-height:100%; object-fit:contain; }
   .collection-selection-facts p { margin:0 0 .07in; white-space:pre-wrap; overflow-wrap:anywhere; }
 }
+
+/* Batch labels are completely separate from the existing single-label and selection print modes. */
+.collection-print-labels { display:none; }
+@media print {
+  @page collection-batch-labels { size:letter portrait; margin:.2in; }
+  body.collection-labels-printing { background:#fff !important; }
+  body.collection-labels-printing > :not(.collection-print-labels) { display:none !important; }
+  body.collection-labels-printing .collection-print-labels {
+    display:block !important; color:#000; background:#fff; font:10pt Arial,sans-serif;
+    page:collection-batch-labels;
+  }
+  .collection-print-label-page {
+    display:grid; grid-template-columns:3.75in 3.75in; grid-template-rows:repeat(4,2.35in);
+    column-gap:.16in; row-gap:.15in; width:7.66in; height:9.85in;
+    break-after:page; page-break-after:always;
+  }
+  .collection-print-label-page:last-child { break-after:auto; page-break-after:auto; }
+  .collection-print-label-card {
+    box-sizing:border-box; width:3.75in; height:2.35in; padding:.12in .16in;
+    border:1px dashed #777; overflow:hidden; break-inside:avoid; page-break-inside:avoid;
+    color:#000; background:#fff;
+  }
+  .collection-print-label-card h1 { font-size:10pt; margin:0 0 .06in; }
+  .collection-print-label-card p { margin:.025in 0; overflow-wrap:anywhere; line-height:1.12; }
+  .collection-print-label-card img { float:right; width:.78in; height:.78in; margin:0 0 .04in .08in; }
+  .collection-print-label-long { font-size:8pt; }
+  .collection-print-label-long h1 { font-size:9pt; margin-bottom:.035in; }
+  .collection-print-label-long p { line-height:1.08; }
+}
