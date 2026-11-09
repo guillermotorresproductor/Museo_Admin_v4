@@ -31,6 +31,8 @@ test('print actions stay separate and no data mutation occurs in batch handler',
   const handler = source.slice(start, end);
   assert.match(handler, /collectionLabelPages\(chosen\)/);
   assert.match(handler, /qrcode\(0, 'M'\)/);
+  assert.match(handler, /qr\.createSvgTag\(4, 16\)/);
+  assert.doesNotMatch(handler, /qr\.createDataURL\(/);
   assert.doesNotMatch(handler, /(?:collectionSave|collectionDelete|collectionUpdate|supabasePost|supabasePatch|supabaseDelete)\s*\(/);
   assert.match(css, /grid-template-columns:3\.75in 3\.75in/);
   assert.match(css, /grid-template-rows:repeat\(4,2\.35in\)/);
@@ -43,8 +45,18 @@ test('long titles keep full text and get a compact print layout', () => {
   const handler = source.slice(start, end);
   assert.match(handler, /esc\(item\.title\)/);
   assert.match(handler, /collection-print-label-long/);
-  assert.match(handler, /<img src=/);
-  assert.match(handler, /qrUrl/);
+  assert.match(handler, /collection-print-label-qr/);
+  assert.match(handler, /qrSvg/);
   assert.match(css, /\.collection-print-label-long \{/);
   assert.doesNotMatch(handler, /item\.title\.slice\(|item\.title\.substring\(/);
+});
+
+test('batch labels use inline SVG QR and refreshed asset versions', () => {
+  const start = source.indexOf('function printSelectedLabels()');
+  const end = source.indexOf('function printLabel()', start);
+  const handler = source.slice(start, end);
+  assert.match(handler, /qr\.createSvgTag\(4, 16\)/);
+  assert.match(handler, /\$\{qrSvg\}/);
+  assert.match(css, /\.collection-print-label-qr svg/);
+  assert.match(html, /collections-20261109-batch-label-qr-svg/);
 });
