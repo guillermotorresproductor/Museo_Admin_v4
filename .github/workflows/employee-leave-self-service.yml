@@ -8,6 +8,7 @@ on:
       - 'employee-portal.html'
       - 'supabase/migrations/20261110150000_employee_leave_self_service_approvers.sql'
       - 'tests/employee-leave-self-service.test.cjs'
+      - 'tests/employee-leave-dom.test.cjs'
       - '.github/workflows/employee-leave-self-service.yml'
   workflow_dispatch:
 jobs:
@@ -27,3 +28,7 @@ jobs:
           node --check js/employee-leave-requests.js
       - name: Self-service and approval regression checks
         run: node --test tests/employee-leave-self-service.test.cjs
+      - name: Install isolated DOM test dependency
+        run: npm install --no-save --no-package-lock --ignore-scripts jsdom@26.1.0
+      - name: Browser DOM tests without database writes
+        run: node --test tests/employee-leave-dom.test.cjs
