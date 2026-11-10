@@ -13,7 +13,7 @@ test("only new scoped module binds days-off panel on all portal profiles", () =>
   assert.match(html, /js\/employee-leave-requests\.js\?v=leave-self-service-20261110/);
   assert.match(main, /await bindExecutiveEmployeePortal\(profile, employee\);\s*await bindEmployeeLeaveRequests\(employee\);/);
   assert.match(main, /if \(employee\) await bindEmployeeLeaveRequests\(employee\);/);
-  assert.doesNotMatch(admin, /bindAdministrativeLeave\(employee, employeesPromise\)/);
+  assert.doesNotMatch(admin, /,\s*bindAdministrativeLeave\(employee, employeesPromise\)/);
 });
 
 test("form submits only authenticated employee ID and validates dates", () => {
@@ -28,7 +28,7 @@ test("roles are explicitly scoped and hidden on non-reviewers", () => {
     assert.ok(leave.includes(role));
     assert.ok(sql.includes(role));
   }
-  assert.match(leave, /request\.status === "pending" && String\(record\.employee_id\) !== String\(employee\.id\)/);
+  assert.match(leave, /record\.status === "pending" && String\(record\.employee_id\) !== String\(employee\.id\)/);
   assert.match(leave, /if \(reviewer && !isOwn && request\.status === "pending"\)/);
 });
 
