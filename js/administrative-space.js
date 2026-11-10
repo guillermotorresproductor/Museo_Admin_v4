@@ -30,8 +30,7 @@ async function bindAdministrativeSpace(profile, employee) {
   await Promise.allSettled([
     renderExecutiveAttendance(employeesPromise),
     renderExecutiveDirectory(employeesPromise),
-    renderExecutiveCalendar(),
-    bindAdministrativeLeave(employee, employeesPromise)
+    renderExecutiveCalendar()
   ]);
 }
 

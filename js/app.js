@@ -8262,6 +8262,7 @@ async function bindEmployeePortal() {
   if (employee?.accessProfile === "director_ejecutivo") {
     bindExecutiveFinanceControls(profile);
     await bindExecutiveEmployeePortal(profile, employee);
+    await bindEmployeeLeaveRequests(employee);
     return;
   }
   document.querySelector("[data-portal-name]").textContent = employee ? employeeDisplayName(employee) : (profile?.full_name || session.user?.email || "Usuario");
@@ -8383,6 +8384,7 @@ async function bindEmployeePortal() {
   document.querySelector("[data-portal-logout]")?.addEventListener("click", () => clearLoginState(true, "logout"));
   renderPortalTools();
   if (employee?.accessProfile === "gerente_administrativo") await bindAdministrativeSpace(profile, employee);
+  if (employee) await bindEmployeeLeaveRequests(employee);
   await Promise.all([refresh(), hasPermission("notifications.read.self") ? fetchOwnSupabaseNotifications(5).then(renderPortalNotifications) : Promise.resolve(), employee && hasPermission("attendance.corrections.request") ? bindPortalAttendanceCorrections() : Promise.resolve()]).catch((error) => { message.textContent = error.message || "No se pudo cargar la información personal."; message.className = "portal-message error"; });
 }
 function ensureEnvironmentOnLocalAuthCallback() {

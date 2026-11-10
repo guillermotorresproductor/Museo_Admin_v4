@@ -41,6 +41,7 @@ async function fixture(initialEvent, confirmationChoice = true) {
     bindOvertimeReviews: () => {},
     renderPortalTools: () => {},
     bindPortalAttendanceCorrections: async () => {},
+    bindEmployeeLeaveRequests: async () => {},
     fetchOwnSupabaseTimeEntries: async () => [],
     fetchMyCurrentPunchState: async () => ({ events, historical_open: [] }),
     renderPortalTimeEntries: () => {},
@@ -111,6 +112,6 @@ test("browser DOM: no warning on first entry and script cache version updated", 
   f.button.click();
   await f.flush();
   assert.deepEqual(f.counts(), { confirmationCount: 0, locationCount: 1, submissionCount: 1 });
-  assert.match(html, /js\/app\.js\?v=portal-punch-confirm-20261110/);
+  assert.match(html, /js\/app\.js\?v=(?:portal-punch-confirm|leave-self-service)-20261110/);
   f.dom.window.close();
 });
