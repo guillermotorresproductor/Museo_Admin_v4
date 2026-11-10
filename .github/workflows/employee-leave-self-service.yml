@@ -7,6 +7,8 @@ on:
       - 'js/app.js'
       - 'employee-portal.html'
       - 'supabase/migrations/20261110150000_employee_leave_self_service_approvers.sql'
+      - 'supabase/migrations/20261110151000_leave_request_direct_write_lockdown.sql'
+      - 'supabase/migrations/20261110152000_employee_leave_request_minimum_table_grants.sql'
       - 'tests/employee-leave-self-service.test.cjs'
       - 'tests/employee-leave-dom.test.cjs'
       - '.github/workflows/employee-leave-self-service.yml'
