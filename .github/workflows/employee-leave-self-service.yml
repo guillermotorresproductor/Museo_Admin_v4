@@ -1,0 +1,29 @@
+name: Employee leave self-service
+on:
+  pull_request:
+    paths:
+      - 'js/employee-leave-requests.js'
+      - 'js/administrative-space.js'
+      - 'js/app.js'
+      - 'employee-portal.html'
+      - 'supabase/migrations/20261110150000_employee_leave_self_service_approvers.sql'
+      - 'tests/employee-leave-self-service.test.cjs'
+      - '.github/workflows/employee-leave-self-service.yml'
+  workflow_dispatch:
+jobs:
+  leave-scope:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        run: |
+          node --check js/app.js
+          node --check js/administrative-space.js
+          node --check js/employee-leave-requests.js
+      - name: Self-service and approval regression checks
+        run: node --test tests/employee-leave-self-service.test.cjs
