@@ -47,6 +47,8 @@ test("portal locks submissions and uses a stable action before network calls", (
 });
 
 
+const liveRecent = (event_type, ageMinutes) => ({ event_type, occurred_at: new Date(Date.now() - ageMinutes * 60000).toISOString() });
+
 function setupPunchClick({ action, previous, confirm = () => true, presenceFactory = async () => ({ method: "geolocation" }) }) {
   const beginning = app.indexOf('  button.addEventListener("click", async () => {', app.indexOf("async function bindEmployeePortal()"));
   const ending = app.indexOf('  document.querySelector("[data-portal-logout]")', beginning);
@@ -72,7 +74,7 @@ function setupPunchClick({ action, previous, confirm = () => true, presenceFacto
 test("cancelled early lunch-out performs no geolocation or RPC", async () => {
   let presenceCalls = 0;
   const fixture = setupPunchClick({
-    action: "lunch_out", previous: recent("clock_in", 2),
+    action: "lunch_out", previous: liveRecent("clock_in", 2),
     confirm: () => false,
     presenceFactory: async () => { presenceCalls++; return {}; }
   });
@@ -85,7 +87,7 @@ test("cancelled early lunch-out performs no geolocation or RPC", async () => {
 });
 
 test("confirmed early clock-out invokes the existing RPC exactly once", async () => {
-  const fixture = setupPunchClick({ action: "clock_out", previous: recent("lunch_in", 3) });
+  const fixture = setupPunchClick({ action: "clock_out", previous: liveRecent("lunch_in", 3) });
   await fixture.button.click();
   assert.equal(fixture.counters().confirmCount, 1);
   assert.deepEqual(fixture.requests.map(x => x.requested), ["clock_out"]);
@@ -97,7 +99,7 @@ test("rapid double click while the first request is pending never sends a second
   let release;
   const pending = new Promise(resolve => { release = resolve; });
   const fixture = setupPunchClick({
-    action: "lunch_out", previous: recent("clock_in", 2),
+    action: "lunch_out", previous: liveRecent("clock_in", 2),
     presenceFactory: () => pending
   });
   const first = fixture.button.click();
