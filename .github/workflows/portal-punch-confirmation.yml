@@ -27,3 +27,17 @@ jobs:
         run: npm install --no-save --no-package-lock --ignore-scripts jsdom@26.1.0
       - name: Employee portal DOM interaction tests
         run: node --test tests/portal-punch-dom.test.cjs
+      - name: Prepare isolated staging preview bundle
+        shell: bash
+        run: |
+          mkdir -p preview
+          cp -R css js images preview/
+          cp employee-portal.html preview/
+          printf '%s\n' '<!doctype html><html lang="es"><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=employee-portal.html?environment=staging"><title>Vista de prueba del ponchador</title><a href="employee-portal.html?environment=staging">Abrir Mi Espacio en staging</a></html>' > preview/index.html
+          printf '%s\n' 'PREVIEW DEL PR #109 — SOLO STAGING' 'Para revisar localmente, sirva esta carpeta mediante HTTP y abra /index.html.' 'No use una cuenta de produccion. No sustituye la validacion manual.' > preview/INSTRUCCIONES.txt
+      - name: Upload staging-only preview bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: instituva-pr109-staging-preview
+          path: preview/
+          retention-days: 7
