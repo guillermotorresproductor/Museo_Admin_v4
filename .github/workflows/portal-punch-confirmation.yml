@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'js/app.js'
+      - 'employee-portal.html'
+      - 'tests/portal-punch-dom.test.cjs'
       - 'tests/portal-early-punch-confirm.test.cjs'
       - '.github/workflows/portal-punch-confirmation.yml'
   workflow_dispatch:
@@ -21,3 +23,7 @@ jobs:
         run: node --check js/app.js
       - name: Early-punch guard tests
         run: node --test tests/portal-early-punch-confirm.test.cjs
+      - name: Install isolated DOM test dependency
+        run: npm install --no-save --no-package-lock --ignore-scripts jsdom@26.1.0
+      - name: Employee portal DOM interaction tests
+        run: node --test tests/portal-punch-dom.test.cjs
