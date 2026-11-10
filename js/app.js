@@ -8234,6 +8234,16 @@ function bindExecutiveFinanceControls(profile) {
   });
 }
 
+function needsEarlyPunchConfirmation(action, latestEvent, now = Date.now()) {
+  const previousType = action === "lunch_out" ? "clock_in" : action === "clock_out" ? "lunch_in" : null;
+  if (!previousType || latestEvent?.event_type !== previousType) return false;
+  const previousAt = Date.parse(latestEvent.occurred_at);
+  // A missing or invalid timestamp is not evidence that the full hour elapsed.
+  if (!Number.isFinite(previousAt)) return true;
+  const elapsed = now - previousAt;
+  return elapsed < 60 * 60 * 1000;
+}
+
 async function bindEmployeePortal() {
   if (!document.querySelector("[data-employee-portal]")) return;
   const session = getSupabaseSession();
@@ -8278,6 +8288,8 @@ async function bindEmployeePortal() {
   const button = document.querySelector("[data-portal-clock-button]");
   const status = document.querySelector("[data-portal-clock-status]");
   const message = document.querySelector("[data-portal-message]");
+  let latestPunchEvent = null;
+  let punchInFlight = false;
   const actionLabels = {
     clock_in: "Registrar entrada",
     lunch_out: "Salida a almuerzo",
@@ -8319,6 +8331,7 @@ async function bindEmployeePortal() {
     const action = currentShiftPunchAction(events);
     const latest = [...events].sort((a, b) => new Date(a.occurred_at) - new Date(b.occurred_at));
     const lastEvent = latest[latest.length - 1];
+    latestPunchEvent = lastEvent || null;
     const note = document.querySelector("[data-portal-shift-note]");
     button.hidden = !personal.clock;
     button.disabled = !action;
@@ -8338,19 +8351,34 @@ async function bindEmployeePortal() {
     }
   };
   button.addEventListener("click", async () => {
-    if (!personal.clock || !button.dataset.action) return;
+    if (!personal.clock || !button.dataset.action || punchInFlight) return;
+    const requestedAction = button.dataset.action;
+    punchInFlight = true;
     button.disabled = true;
-    message.textContent = "Validando presencia fisica...";
     try {
+      if (needsEarlyPunchConfirmation(requestedAction, latestPunchEvent)) {
+        const question = requestedAction === "lunch_out"
+          ? "¿Estás seguro de que deseas salir a almuerzo?"
+          : "¿Estás seguro de que deseas finalizar tu jornada laboral?";
+        if (!window.confirm(question)) {
+          message.textContent = "Ponche cancelado. No se registró ningún cambio.";
+          message.className = "portal-message";
+          return;
+        }
+      }
+      message.textContent = "Validando presencia fisica...";
       const presence = await requestPresence();
-      await clockSupabaseEmployeeTime(button.dataset.action, presence);
+      await clockSupabaseEmployeeTime(requestedAction, presence);
       await refresh();
       message.textContent = "Ponche registrado correctamente.";
       message.className = "portal-message success";
     } catch (error) {
       message.textContent = error.message || "No se pudo registrar el ponche.";
       message.className = "portal-message error";
-    } finally { button.disabled = !button.dataset.action; }
+    } finally {
+      punchInFlight = false;
+      button.disabled = !button.dataset.action;
+    }
   });
   document.querySelector("[data-portal-logout]")?.addEventListener("click", () => clearLoginState(true, "logout"));
   renderPortalTools();
