@@ -1,0 +1,23 @@
+name: Employee portal punch confirmation
+on:
+  pull_request:
+    paths:
+      - 'js/app.js'
+      - 'tests/portal-early-punch-confirm.test.cjs'
+      - '.github/workflows/portal-punch-confirmation.yml'
+  workflow_dispatch:
+
+jobs:
+  targeted-attendance-guard:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check on employee portal JavaScript
+        run: node --check js/app.js
+      - name: Early-punch guard tests
+        run: node --test tests/portal-early-punch-confirm.test.cjs
