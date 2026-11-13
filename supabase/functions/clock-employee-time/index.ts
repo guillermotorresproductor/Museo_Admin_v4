@@ -6,7 +6,7 @@ const actions = ["clock_in", "lunch_out", "lunch_in", "clock_out"];
 // A browser-supplied SSID, IP, or network_hash is never trusted.
 // Default configuration is geolocation only. No Wi-Fi punches until explicit activation.
 function trustworthyPublicIpv4(input: string | null): string | null {
-  if (!input || !/^(?:0|[1-9]\\d{0,2})(?:\\.(?:0|[1-9]\\d{0,2})){3}$/.test(input)) return null;
+  if (!input || !/^(?:0|[1-9]\d{0,2})(?:\.(?:0|[1-9]\d{0,2})){3}$/.test(input)) return null;
   const octets = input.split(".").map(Number);
   if (octets.some((v) => v > 255)) return null;
   const [a, b, c] = octets;
@@ -23,7 +23,7 @@ function trustworthyPublicIpv4(input: string | null): string | null {
 }
 
 async function museumWifiHash(museumId: string, ip: string): Promise<string> {
-  const value = new TextEncoder().encode("instituva-wifi-egress-v1\\n" + museumId + "\\n" + ip);
+  const value = new TextEncoder().encode("instituva-wifi-egress-v1|" + museumId + "|" + ip);
   const digest = await crypto.subtle.digest("SHA-256", value);
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
@@ -38,6 +38,7 @@ Deno.serve(async (req) => {
     const { admin, user, profile } = await requirePermission(req, "time.clock");
     const body = await req.json();
     const action = String(body.action || "");
+    if (!actions.includes(action)) return json({ error: "Accion de ponche invalida." }, 400);
     const incomingPresence = body.presence && typeof body.presence === "object" && !Array.isArray(body.presence) ? body.presence : {};
     let verifiedPresence: Record<string, unknown>;
     if (incomingPresence.method === "wifi") {
@@ -70,8 +71,6 @@ Deno.serve(async (req) => {
     } else {
       return json({ error: "Método de presencia inválido.", code: "INVALID_PRESENCE_METHOD" }, 400);
     }
-
-    if (!actions.includes(action)) return json({ error: "Accion de ponche invalida." }, 400);
 
     const { data, error } = await admin.rpc("record_employee_attendance", {
       actor_user_id: user.id,
