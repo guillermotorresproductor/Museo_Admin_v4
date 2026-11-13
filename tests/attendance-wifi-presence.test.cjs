@@ -71,7 +71,7 @@ async function simulateEdge({ ip, config, submitted, permission = true }) {
     }
   };
   const raw = edge
-    .replace(/^import .*?;\\s*/m, "")
+    .replace(/^import .*?;\s*/m, "")
     .replace("input: string | null): string | null", "input)")
     .replace("museumId: string, ip: string): Promise<string>", "museumId, ip)")
     .replace("let verifiedPresence: Record<string, unknown>;", "let verifiedPresence;")
