@@ -22,10 +22,12 @@ Deno.serve(async (req) => {
 
     const messages: Record<string, [string, number]> = {
         ACTIVE_EMPLOYEE_REQUIRED: ["No existe un expediente activo vinculado.", 403],
+        ATTENDANCE_NOT_REQUIRED: ["Este expediente no está sujeto a registro de asistencia.", 403],
         PRESENCE_NOT_CONFIGURED: ["La validacion de presencia aun no esta configurada. Contacte a Recursos Humanos.", 409],
         NO_ASSIGNED_SHIFT: ["No hay un turno asignado para este momento.", 409],
         TOO_EARLY: ["El turno aun no permite registrar asistencia.", 409],
         PRESENCE_VALIDATION_FAILED: ["No se pudo confirmar su presencia fisica en el Museo.", 403],
+        PREVIOUS_SHIFT_OPEN: ["Existe una jornada anterior sin cerrar. Contacte a Administración para conciliarla antes del próximo ponche; no se alteró su registro.", 409],
         INVALID_EVENT_SEQUENCE: ["Este ponche no corresponde al siguiente evento de su jornada.", 409]
     };
     if (error) {
