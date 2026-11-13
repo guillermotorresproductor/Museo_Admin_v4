@@ -2,6 +2,34 @@ import { corsHeaders, errorResponse, json, requirePermission } from "../_shared/
 
 const actions = ["clock_in", "lunch_out", "lunch_in", "clock_out"];
 
+// IT-2026-005: Only a gateway-attested museum egress IP may claim Wi-Fi.
+// A browser-supplied SSID, IP, or network_hash is never trusted.
+// Default configuration is geolocation only. No Wi-Fi punches until explicit activation.
+function trustworthyPublicIpv4(input: string | null): string | null {
+  if (!input || !/^(?:0|[1-9]\\d{0,2})(?:\\.(?:0|[1-9]\\d{0,2})){3}$/.test(input)) return null;
+  const octets = input.split(".").map(Number);
+  if (octets.some((v) => v > 255)) return null;
+  const [a, b, c] = octets;
+  if (a === 0 || a === 10 || a === 127 || a >= 224 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && (b === 168 || (b === 0 && c === 0))) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      (a === 192 && b === 0 && c === 2) ||
+      (a === 198 && b === 51 && c === 100) ||
+      (a === 203 && b === 0 && c === 113)) return null;
+  return octets.join(".");
+}
+
+async function museumWifiHash(museumId: string, ip: string): Promise<string> {
+  const value = new TextEncoder().encode("instituva-wifi-egress-v1\\n" + museumId + "\\n" + ip);
+  const digest = await crypto.subtle.digest("SHA-256", value);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Metodo no permitido." }, 405);
@@ -10,14 +38,46 @@ Deno.serve(async (req) => {
     const { admin, user, profile } = await requirePermission(req, "time.clock");
     const body = await req.json();
     const action = String(body.action || "");
-    const presence = body.presence && typeof body.presence === "object" ? body.presence : {};
+    const incomingPresence = body.presence && typeof body.presence === "object" && !Array.isArray(body.presence) ? body.presence : {};
+    let verifiedPresence: Record<string, unknown>;
+    if (incomingPresence.method === "wifi") {
+      // Supabase hosted Cloudflare ingress must overwrite CF-Connecting-IP.
+      // Never use x-forwarded-for or client-submitted IP/hash as proof.
+      const clientIp = trustworthyPublicIpv4(req.headers.get("cf-connecting-ip"));
+      const { data: settings, error: settingsError } = await admin
+        .from("attendance_settings")
+        .select("presence_required,presence_validation_mode,allowed_wifi_hashes")
+        .eq("museum_id", profile.museum_id).maybeSingle();
+      if (settingsError) throw settingsError;
+      if (!clientIp || !settings?.presence_required ||
+          !["any", "wifi"].includes(settings.presence_validation_mode) ||
+          !Array.isArray(settings.allowed_wifi_hashes) ||
+          settings.allowed_wifi_hashes.length === 0) {
+        return json({ error: "Wi-Fi institucional no disponible; utilice GPS.", code: "WIFI_NOT_AVAILABLE" }, 409);
+      }
+      const hash = await museumWifiHash(profile.museum_id, clientIp);
+      if (!settings.allowed_wifi_hashes.includes(hash)) {
+        return json({ error: "No se confirmó conexión a la red institucional; utilice GPS.", code: "WIFI_NOT_AVAILABLE" }, 409);
+      }
+      verifiedPresence = { method: "wifi", network_hash: hash };
+    } else if (incomingPresence.method === "geolocation") {
+      verifiedPresence = {
+        method: "geolocation",
+        latitude: incomingPresence.latitude,
+        longitude: incomingPresence.longitude,
+        accuracy_meters: incomingPresence.accuracy_meters
+      };
+    } else {
+      return json({ error: "Método de presencia inválido.", code: "INVALID_PRESENCE_METHOD" }, 400);
+    }
+
     if (!actions.includes(action)) return json({ error: "Accion de ponche invalida." }, 400);
 
     const { data, error } = await admin.rpc("record_employee_attendance", {
       actor_user_id: user.id,
       actor_museum_id: profile.museum_id,
       requested_event: action,
-      presence
+      presence: verifiedPresence
     });
 
     const messages: Record<string, [string, number]> = {
