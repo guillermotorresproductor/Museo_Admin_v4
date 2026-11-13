@@ -5,6 +5,7 @@ const museoEnvironments = Object.freeze({
     name: "production",
     supabaseUrl: "https://kfokfjngozgcwjpzxcsu.supabase.co",
     supabasePublishableKey: "sb_publishable_wBGL3o2YcfbR_dvhT3mTnw_OXuHB0y3",
+    attendanceWifi: Object.freeze({ enabled: false }),
     institutionalData: Object.freeze({
       enabled: false,
       organizationId: "4d505200-0000-4000-8000-000000000001"
@@ -14,6 +15,7 @@ const museoEnvironments = Object.freeze({
     name: "staging",
     supabaseUrl: "https://lonpdmxdvbxuagqxztig.supabase.co",
     supabasePublishableKey: "sb_publishable_M6ByE4TQKwaQIuLfyHdHhQ_HOxWqebX",
+    attendanceWifi: Object.freeze({ enabled: false }),
     institutionalData: Object.freeze({
       enabled: true,
       organizationId: "4d505200-0000-4000-8000-000000000001"

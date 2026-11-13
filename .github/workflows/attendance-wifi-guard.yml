@@ -1,0 +1,27 @@
+name: Museum Wi-Fi attendance guard
+on:
+  pull_request:
+    paths:
+      - 'js/app.js'
+      - 'js/config.js'
+      - 'supabase/functions/clock-employee-time/index.ts'
+      - 'tests/attendance-wifi-presence.test.cjs'
+      - '.github/workflows/attendance-wifi-guard.yml'
+  workflow_dispatch:
+
+jobs:
+  wifi-attendance-security:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check employee portal syntax
+        run: node --check js/app.js
+      - name: Check configuration syntax
+        run: node --check js/config.js
+      - name: Execute Wi-Fi presence security tests
+        run: node --test tests/attendance-wifi-presence.test.cjs
