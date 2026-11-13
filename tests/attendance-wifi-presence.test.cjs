@@ -55,3 +55,89 @@ test("GPS remains the only enabled path until explicit museum network enrollment
   assert.match(app, /if \(!usedMuseumWifi\) \{[\s\S]*requestPresence\(\)/);
   assert.match(app, /punchInFlight = true/);
 });
+
+
+async function simulateEdge({ ip, config, submitted, permission = true }) {
+  let handler;
+  const calls = [];
+  const admin = {
+    from: (table) => {
+      assert.equal(table, "attendance_settings");
+      return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: config, error: null }) }) }) };
+    },
+    rpc: async (name, args) => {
+      calls.push({ name, args });
+      return { data: { ok: true, event: { event_type: args.requested_event } }, error: null };
+    }
+  };
+  const raw = edge
+    .replace(/^import .*?;\\s*/m, "")
+    .replace("input: string | null): string | null", "input)")
+    .replace("museumId: string, ip: string): Promise<string>", "museumId, ip)")
+    .replace("let verifiedPresence: Record<string, unknown>;", "let verifiedPresence;")
+    .replace("const messages: Record<string, [string, number]> =", "const messages =");
+  const ctx = vm.createContext({
+    Deno: { serve: (fn) => { handler = fn; } },
+    corsHeaders: {},
+    Response: class { constructor(body, options) { this.body = body; this.status = options.status || 200; } },
+    json: (body, status = 200) => ({ body, status }),
+    errorResponse: (error) => ({ body: { error: String(error) }, status: 500 }),
+    requirePermission: async (_req, requested) => {
+      assert.equal(requested, "time.clock");
+      if (!permission) throw new Error("FORBIDDEN");
+      return { admin, user: { id: "user-1" }, profile: { museum_id: "museum-a" } };
+    },
+    crypto: webcrypto, TextEncoder, Uint8Array, Number, Array, String
+  });
+  vm.runInContext(raw, ctx);
+  assert.equal(typeof handler, "function");
+  const response = await handler({
+    method: "POST",
+    headers: { get: (name) => name === "cf-connecting-ip" ? ip : null },
+    json: async () => ({ action: "clock_in", presence: submitted })
+  });
+  return { response, calls };
+}
+
+test("Wi-Fi is fail-closed when mode is geolocation even from an allowlisted IP", async () => {
+  const digest = await ctx.museumWifiHash("museum-a", "70.45.85.15");
+  const { response, calls } = await simulateEdge({
+    ip: "70.45.85.15",
+    config: { presence_required: true, presence_validation_mode: "geolocation", allowed_wifi_hashes: [digest] },
+    submitted: { method: "wifi", network_hash: digest }
+  });
+  assert.equal(response.status, 409);
+  assert.equal(response.body.code, "WIFI_NOT_AVAILABLE");
+  assert.equal(calls.length, 0);
+});
+
+test("Wi-Fi authorizes only a verified gateway IP, ignores client hash spoofing", async () => {
+  const digest = await ctx.museumWifiHash("museum-a", "70.45.85.15");
+  const config = { presence_required: true, presence_validation_mode: "any", allowed_wifi_hashes: [digest] };
+  const legitimate = await simulateEdge({
+    ip: "70.45.85.15", config,
+    submitted: { method: "wifi", network_hash: "forged", ip: "1.2.3.4", ssid: "museum" }
+  });
+  assert.equal(legitimate.response.status, 200);
+  assert.equal(legitimate.calls.length, 1);
+  assert.equal(legitimate.calls[0].args.presence.method, "wifi");
+  assert.equal(legitimate.calls[0].args.presence.network_hash, digest);
+  assert.equal(legitimate.calls[0].args.presence.ip, undefined);
+  const outsider = await simulateEdge({
+    ip: "70.45.85.16", config, submitted: { method: "wifi", network_hash: digest }
+  });
+  assert.equal(outsider.response.body.code, "WIFI_NOT_AVAILABLE");
+  assert.equal(outsider.calls.length, 0);
+});
+
+test("GPS path remains a single call to the existing attendance RPC", async () => {
+  const { response, calls } = await simulateEdge({
+    ip: "70.45.85.16",
+    config: { presence_required: true, presence_validation_mode: "geolocation", allowed_wifi_hashes: [] },
+    submitted: { method: "geolocation", latitude: 18.34, longitude: -66.11, accuracy_meters: 15, network_hash: "forged" }
+  });
+  assert.equal(response.status, 200);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].args.presence.method, "geolocation");
+  assert.equal(calls[0].args.presence.network_hash, undefined);
+});
