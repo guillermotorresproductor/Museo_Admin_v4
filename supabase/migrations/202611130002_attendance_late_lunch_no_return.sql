@@ -80,7 +80,7 @@ BEGIN
       (shift_id,museum_id,employee_id,clock_in_at,lunch_out_at,administrative_closed_at,payable_minutes,closure_reason)
     VALUES (r.id,r.museum_id,r.employee_id,v_clockin,v_lunch,
             greatest(v_clockin+interval '9 hours',v_lunch+interval '1 hour'),
-            greatest(0,floor(extract(epoch from (v_lunch-v_clockin))/60))::integer,
+            least(480,greatest(0,floor(extract(epoch from (v_lunch-v_clockin))/60))::integer),
             case when v_lunch>v_clockin+interval '8 hours'
                  then 'LATE_LUNCH_NO_RETURN_REVIEW' else 'NO_LUNCH_RETURN' end)
     ON CONFLICT (shift_id) DO NOTHING;
