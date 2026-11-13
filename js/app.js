@@ -8367,10 +8367,28 @@ async function bindEmployeePortal() {
         }
       }
       message.textContent = "Validando presencia fisica...";
-      const presence = await requestPresence();
-      await clockSupabaseEmployeeTime(requestedAction, presence);
+      let usedMuseumWifi = false;
+      // Feature remains OFF until the museum's real gateway egress IP is
+      // independently confirmed and its server-side hash is allowlisted.
+      if (museoEnvironment.attendanceWifi?.enabled === true) {
+        try {
+          await clockSupabaseEmployeeTime(requestedAction, { method: "wifi" });
+          usedMuseumWifi = true;
+        } catch (wifiError) {
+          // Only unavailable Wi-Fi is eligible for GPS fallback.
+          // Never retry a rejected/accepted attendance event or a network timeout,
+          // which could create a duplicate if the first request succeeded.
+          if (wifiError?.code !== "WIFI_NOT_AVAILABLE") throw wifiError;
+        }
+      }
+      if (!usedMuseumWifi) {
+        const presence = await requestPresence();
+        await clockSupabaseEmployeeTime(requestedAction, presence);
+      }
       await refresh();
-      message.textContent = "Ponche registrado correctamente.";
+      message.textContent = usedMuseumWifi
+        ? "Ponche registrado correctamente por la red institucional."
+        : "Ponche registrado correctamente.";
       message.className = "portal-message success";
     } catch (error) {
       message.textContent = error.message || "No se pudo registrar el ponche.";
