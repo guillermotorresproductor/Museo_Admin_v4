@@ -26,6 +26,7 @@ Deno.serve(async (req) => {
         NO_ASSIGNED_SHIFT: ["No hay un turno asignado para este momento.", 409],
         TOO_EARLY: ["El turno aun no permite registrar asistencia.", 409],
         PRESENCE_VALIDATION_FAILED: ["No se pudo confirmar su presencia fisica en el Museo.", 403],
+        PREVIOUS_SHIFT_OPEN: ["Existe una jornada anterior sin cierre. Solicite una revisión administrativa; no se registró un nuevo ponche.", 409],
         INVALID_EVENT_SEQUENCE: ["Este ponche no corresponde al siguiente evento de su jornada.", 409]
     };
     if (error) {
