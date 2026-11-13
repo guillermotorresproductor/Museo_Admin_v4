@@ -8370,7 +8370,7 @@ async function bindEmployeePortal() {
       let usedMuseumWifi = false;
       // Feature remains OFF until the museum's real gateway egress IP is
       // independently confirmed and its server-side hash is allowlisted.
-      if (museoEnvironment.attendanceWifi?.enabled === true) {
+      if (typeof museoEnvironment !== "undefined" && museoEnvironment.attendanceWifi?.enabled === true) {
         try {
           await clockSupabaseEmployeeTime(requestedAction, { method: "wifi" });
           usedMuseumWifi = true;
