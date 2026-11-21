@@ -29,7 +29,7 @@ BEGIN
     RAISE EXCEPTION 'Missing financial authorization' USING errcode='42501';
   END IF;
   v_museum := public.finance_movement_require_museum();
-  v_note := pg_catalog.btrim(pg_catalog.coalesce(p_explanation, ''));
+  v_note := pg_catalog.btrim(coalesce(p_explanation, ''));
   IF p_check_id IS NULL OR p_document_ids IS NULL
     OR pg_catalog.cardinality(p_document_ids) < 1
     OR pg_catalog.cardinality(p_document_ids) > 20
@@ -122,7 +122,7 @@ DECLARE
   museum uuid;
   cheque public.finance_checks;
   affected integer;
-  reason text:=pg_catalog.btrim(pg_catalog.coalesce(p_reason,''));
+  reason text:=pg_catalog.btrim(coalesce(p_reason,''));
   audit_id uuid;
 BEGIN
   IF NOT public.finance_document_can_decide() THEN
@@ -164,7 +164,7 @@ AS $function$
 DECLARE
   museum uuid := public.finance_check_require_read();
 BEGIN
-  RETURN pg_catalog.coalesce((
+  RETURN coalesce((
     SELECT pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
       'movement_id',c.movement_id,'allocated_amount',approved.amount,'check_id',c.id
     ))
