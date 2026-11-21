@@ -25,8 +25,8 @@ BEGIN
  VALUES (museum,line,'2026-11-04',1000,'Test direct cheque',actor,check_id) RETURNING id INTO cheque_movement;
 
  INSERT INTO public.finance_documents(id,museum_id,status,original_path,original_mime,original_byte_size,original_sha256,original_filename,uploaded_by)
- VALUES (doc_a,museum,'pending_review',museum::text||'/'||doc_a::text||'/original','application/pdf',100,'test-sha-a','invoice-a.pdf',actor),
-        (doc_b,museum,'pending_review',museum::text||'/'||doc_b::text||'/original','application/pdf',100,'test-sha-b','invoice-b.pdf',actor);
+ VALUES (doc_a,museum,'pending_review',museum::text||'/'||doc_a::text||'/original','application/pdf',100,repeat('a',64),'invoice-a.pdf',actor),
+        (doc_b,museum,'pending_review',museum::text||'/'||doc_b::text||'/original','application/pdf',100,repeat('b',64),'invoice-b.pdf',actor);
  UPDATE public.finance_documents
  SET status='confirmed',vendor_name='Test Payee',total=600,invoice_date='2026-11-04',
      description='Test invoice A',budget_line_id=line,movement_id=movement_a,
