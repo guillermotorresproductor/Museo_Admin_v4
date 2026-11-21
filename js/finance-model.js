@@ -210,3 +210,21 @@ function financeApplyReconciledCheckMovements(movements, matches) {
     };
   });
 }
+
+/**
+ * Arrange the three real-expense categories as continuous sections.
+ * Uses the canonical category, then the line's established sort position.
+ * Pure presentation logic; no budget or movement changes.
+ */
+function financeRealExpenseCategoryCompare(left, right) {
+  const order = ["Gastos Operacionales", "Servicios Contratados", "Otros Gastos"];
+  const leftCategory = order.indexOf(left.category);
+  const rightCategory = order.indexOf(right.category);
+  const leftRank = leftCategory >= 0 ? leftCategory : order.length;
+  const rightRank = rightCategory >= 0 ? rightCategory : order.length;
+  if (leftRank !== rightRank) return leftRank - rightRank;
+  const leftSort = Number.isFinite(left.sortOrder) ? left.sortOrder : 100000;
+  const rightSort = Number.isFinite(right.sortOrder) ? right.sortOrder : 100000;
+  if (leftSort !== rightSort) return leftSort - rightSort;
+  return String(left.concept || "").localeCompare(String(right.concept || ""), "es");
+}
