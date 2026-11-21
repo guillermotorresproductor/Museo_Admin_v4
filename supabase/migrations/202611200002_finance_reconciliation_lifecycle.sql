@@ -6,6 +6,11 @@ ALTER TABLE public.finance_check_invoice_matches
   ADD COLUMN IF NOT EXISTS release_reason text;
 ALTER TABLE public.finance_check_invoice_matches
   DROP CONSTRAINT IF EXISTS finance_invoice_match_unique_invoice;
+ALTER TABLE public.finance_check_invoice_matches
+  DROP CONSTRAINT IF EXISTS finance_invoice_match_unique_pair;
+CREATE UNIQUE INDEX IF NOT EXISTS finance_invoice_match_one_active_pair
+  ON public.finance_check_invoice_matches(check_id,document_id)
+  WHERE released_at IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS finance_invoice_match_one_active_invoice
   ON public.finance_check_invoice_matches(document_id)
   WHERE released_at IS NULL;
