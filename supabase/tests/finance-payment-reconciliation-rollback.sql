@@ -7,7 +7,7 @@ DECLARE
  museum uuid := '00000000-0000-0000-0000-000000000001';
  actor uuid := '35008ddc-8048-4551-8448-73d5b84a14c2';
  line uuid := 'af8bc697-d089-44a8-900c-f328068bb185';
- check_id uuid := gen_random_uuid();
+ fixture_check_id uuid := gen_random_uuid();
  doc_a uuid := gen_random_uuid();
  doc_b uuid := gen_random_uuid();
  cheque_movement uuid;
@@ -22,7 +22,7 @@ BEGIN
  INSERT INTO public.finance_movements(museum_id,budget_line_id,occurred_on,amount,description,created_by,idempotency_key)
  VALUES (museum,line,'2026-11-04',400,'Test invoice B',actor,doc_b) RETURNING id INTO movement_b;
  INSERT INTO public.finance_movements(museum_id,budget_line_id,occurred_on,amount,description,created_by,idempotency_key)
- VALUES (museum,line,'2026-11-04',1000,'Test direct cheque',actor,check_id) RETURNING id INTO cheque_movement;
+ VALUES (museum,line,'2026-11-04',1000,'Test direct cheque',actor,fixture_check_id) RETURNING id INTO cheque_movement;
 
  INSERT INTO public.finance_documents(id,museum_id,status,original_path,original_mime,original_byte_size,original_sha256,original_filename,uploaded_by)
  VALUES (doc_a,museum,'pending_review',museum::text||'/'||doc_a::text||'/original','application/pdf',100,repeat('a',64),'invoice-a.pdf',actor),
@@ -39,12 +39,12 @@ BEGIN
  WHERE id=doc_b;
  INSERT INTO public.finance_checks(id,museum_id,payment_type,expense_source,status,
  check_number,check_date,payee_name,amount,memo,budget_line_id,created_by)
- VALUES(check_id,museum,'expense','direct','draft','TEST-R-2026','2026-11-04',
+ VALUES(fixture_check_id,museum,'expense','direct','draft','TEST-R-2026','2026-11-04',
  'Test Payee',1000,'Synthetic test cheque',line,actor);
  UPDATE public.finance_checks SET status='issued',issued_at=now(),issued_by=actor,
- movement_id=cheque_movement WHERE id=check_id;
+ movement_id=cheque_movement WHERE id=fixture_check_id;
 
- result:=public.reconcile_issued_finance_check(check_id,ARRAY[doc_a,doc_b],
+ result:=public.reconcile_issued_finance_check(fixture_check_id,ARRAY[doc_a,doc_b],
  'Synthetic same obligation, two invoices under one issued cheque');
  IF result->>'ok' <> 'true' OR (result->>'allocated_amount')::numeric<>1000 THEN
    RAISE EXCEPTION 'Reconciliation failed: %',result;
@@ -57,25 +57,25 @@ BEGIN
  END IF;
 
  BEGIN
-  PERFORM public.reconcile_issued_finance_check(check_id,ARRAY[doc_a,doc_b],
+  PERFORM public.reconcile_issued_finance_check(fixture_check_id,ARRAY[doc_a,doc_b],
    'Duplicate attempt should be rejected by server');
   RAISE EXCEPTION 'Duplicate reconciliation was unexpectedly accepted';
  EXCEPTION WHEN SQLSTATE 'P0001' THEN
    IF SQLERRM NOT LIKE '%RECONCILIATION_ALREADY_EXISTS%' THEN RAISE; END IF;
  END;
 
- result:=public.release_finance_check_reconciliation(check_id,
+ result:=public.release_finance_check_reconciliation(fixture_check_id,
    'Correction in staging test, reversing the match');
  IF (result->>'released')::int<>2 THEN RAISE EXCEPTION 'Release failed'; END IF;
  projection:=public.list_finance_reconciled_check_movements();
  IF projection<>'[]'::jsonb THEN RAISE EXCEPTION 'Released record still affects totals: %',projection; END IF;
 
  -- Released matches can be re-created; the old history remains intact.
- result:=public.reconcile_issued_finance_check(check_id,ARRAY[doc_a,doc_b],
+ result:=public.reconcile_issued_finance_check(fixture_check_id,ARRAY[doc_a,doc_b],
    'Reinstated synthetic reconciliation after documented release');
  IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Reconciliation restart failed'; END IF;
  IF (SELECT count(*) FROM public.finance_check_invoice_matches match
-     WHERE match.check_id=check_id AND match.released_at IS NULL)<>2 THEN
+     WHERE match.check_id=fixture_check_id AND match.released_at IS NULL)<>2 THEN
     RAISE EXCEPTION 'Expected exactly two active allocations';
  END IF;
 
