@@ -495,6 +495,34 @@ function renderFinanceCheckDetail(panel, token, canWrite, check, mode) {
   const editable = canWrite && check.status === "draft";
   const voidable = canWrite && check.status !== "voided";
   const line = check.budget_category ? `${check.budget_category} → ${check.budget_name}` : "—";
+  const canReconcile = canWrite && check.status === "issued" &&
+    check.payment_type === "expense" && check.expense_source === "direct";
+  const reconcilableInvoices = canReconcile
+    ? financeCheckCatalog.invoices.filter((invoice) => invoice.budget_line_id === check.budget_line_id)
+    : [];
+  const reconcileBlock = canReconcile ? `
+    <section class="card panel" style="margin:16px 0;" aria-label="Conciliar cheque con facturas">
+      <h4>Conciliar pago con facturas confirmadas</h4>
+      <p>Si este cheque paga una o varias facturas ya confirmadas, selecciónelas. La suma debe ser exactamente
+        ${financeCheckEscape(financeCheckMoney(check.amount))}. No se borrará ni anulará el cheque.</p>
+      <form data-check-reconcile-form>
+        <div class="field" style="max-height:250px;overflow:auto;">
+          ${reconcilableInvoices.map((invoice) => `
+            <label style="display:block;margin:8px 0;">
+              <input type="checkbox" name="invoice_id" value="${financeCheckEscape(invoice.id)}">
+              ${financeCheckEscape(invoice.vendor_name)} ·
+              ${financeCheckEscape(invoice.invoice_number || "Sin número")} ·
+              ${financeCheckEscape(financeCheckMoney(invoice.total))}
+            </label>`).join("") || "<p>No hay facturas confirmadas disponibles en este renglón.</p>"}
+        </div>
+        <p data-check-reconcile-total>Seleccionado: $0.00</p>
+        <div class="field"><label for="check-reconciliation-explanation">Justificación de la conciliación</label>
+          <textarea id="check-reconciliation-explanation" name="explanation" required minlength="15" maxlength="500"
+            placeholder="Indique por qué este cheque cubre esas facturas."></textarea></div>
+        <button type="submit" class="button secondary" ${reconcilableInvoices.length ? "" : "disabled"}>Conciliar sin duplicar gasto</button>
+        <p class="form-message" data-check-reconcile-message role="status"></p>
+      </form>
+    </section>` : "";
   panel.innerHTML = `
     <p class="page-kicker">Cheques</p>
     <h3>Cheque ${financeCheckEscape(check.check_number)}</h3>
@@ -518,7 +546,52 @@ function renderFinanceCheckDetail(panel, token, canWrite, check, mode) {
       ${editable ? `<button class="button" type="button" data-check-issue>Emitir</button>` : ""}
       <button class="button secondary" type="button" data-check-back>Volver</button>
     </p>
+    ${reconcileBlock}
     ${voidable ? `<form data-check-void-form><div class="field"><label for="check-void-reason">Motivo de anulación</label><textarea id="check-void-reason" name="void_reason" required maxlength="500"></textarea></div><p><button class="button secondary" type="submit">Anular</button></p></form>` : ""}`;
+  const reconcileForm = panel.querySelector("[data-check-reconcile-form]");
+  if (reconcileForm) {
+    const updateSelected = () => {
+      const ids = Array.from(reconcileForm.querySelectorAll('input[name="invoice_id"]:checked')).map((x) => x.value);
+      const totalCents = reconcilableInvoices
+        .filter((invoice) => ids.includes(invoice.id))
+        .reduce((cents, invoice) => cents + Math.round(Number(invoice.total) * 100), 0);
+      const node = reconcileForm.querySelector("[data-check-reconcile-total]");
+      if (node) node.textContent = "Seleccionado: " + financeCheckMoney(totalCents / 100);
+      return { ids, totalCents };
+    };
+    reconcileForm.addEventListener("change", updateSelected);
+    reconcileForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const message = reconcileForm.querySelector("[data-check-reconcile-message]");
+      const { ids, totalCents } = updateSelected();
+      if (!ids.length || totalCents !== Math.round(Number(check.amount) * 100)) {
+        message.textContent = "La suma de facturas debe coincidir exactamente con el importe del cheque.";
+        return;
+      }
+      const explanation = String(reconcileForm.elements.explanation.value || "").trim();
+      if (explanation.length < 15) {
+        message.textContent = "Explique la relación entre el cheque y las facturas.";
+        return;
+      }
+      if (!window.confirm("¿Confirmar que este cheque paga las facturas seleccionadas? Se registrará una conciliación auditada; no se borrarán documentos.")) return;
+      const button = reconcileForm.querySelector('button[type="submit"]');
+      button.disabled = true;
+      try {
+        await supabasePost("/rest/v1/rpc/reconcile_issued_finance_check", {
+          p_check_id: check.id,
+          p_document_ids: ids,
+          p_explanation: explanation
+        });
+        await loadFinanceCheckCatalog();
+        if (token !== financeCheckToken) return;
+        renderFinanceCheckList(panel, token, canWrite, "Conciliación registrada; la factura y el cheque se conservan.");
+      } catch (error) {
+        if (message) message.textContent = error.message || "No se pudo conciliar el cheque.";
+        button.disabled = false;
+      }
+    });
+  }
+
   if (mode === "focus-void") panel.querySelector("[name=void_reason]")?.focus();
   panel.querySelector("[data-check-back]")?.addEventListener("click", () => renderFinanceCheckList(panel, token, canWrite, ""));
   panel.querySelector("[data-check-print]")?.addEventListener("click", () => financeCheckOpenPrint(check));
