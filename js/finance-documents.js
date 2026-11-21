@@ -419,6 +419,68 @@ async function loadFinanceDocuments(token, notice = "", noticeState = "") {
   }
 }
 
+// Read-only invoice report: never mutates or persists invoice records.
+function invoiceReportRows(fromDate, toDate) {
+  return [...invoiceDocuments, ...invoiceProcessed]
+    .filter((doc) => doc.status !== "rejected" && /^\d{4}-\d{2}-\d{2}$/.test(String(doc.invoice_date || "").slice(0, 10)))
+    .filter((doc) => {
+      const date = String(doc.invoice_date).slice(0, 10);
+      return date >= fromDate && date <= toDate;
+    })
+    .sort((a, b) => String(a.invoice_date).localeCompare(String(b.invoice_date)) || String(a.vendor_name || "").localeCompare(String(b.vendor_name || "")));
+}
+
+function invoicePrintReport(fromDate, toDate) {
+  const rows = invoiceReportRows(fromDate, toDate);
+  if (!rows.length) return false;
+  const total = rows.reduce((sum, doc) => sum + (Number.isFinite(Number(doc.total)) ? Number(doc.total) : 0), 0);
+  const table = rows.map((doc) => {
+    const purpose = doc.description || "Sin propósito registrado";
+    const status = doc.status === "confirmed" ? "Confirmada" : "Pendiente";
+    return "<tr><td>" + invoiceEscape(invoiceDateLabel(doc.invoice_date)) + "</td><td>" +
+      invoiceEscape(doc.vendor_name || "—") + "</td><td>" + invoiceEscape(purpose) +
+      "</td><td>" + status + "</td><td class=\"amount\">" + invoiceEscape(invoiceMoney(doc.total)) + "</td></tr>";
+  }).join("");
+  const title = "Listado de facturas | Museo de la Música de Puerto Rico";
+  const report = "<!doctype html><html lang=\"es\"><head><meta charset=\"utf-8\"><title>" + title + "</title>" +
+    "<style>@page{size:letter;margin:0.6in}body{font:12px Arial,sans-serif;color:#172034;margin:0}h1{font-size:18px;margin:0 0 7px}" +
+    "p{margin:0 0 12px}table{width:100%;border-collapse:collapse}thead{display:table-header-group}th,td{padding:7px 6px;border-bottom:1px solid #d5dbe2;vertical-align:top;text-align:left}" +
+    "th{background:#eef1f5;font-size:11px}.amount{text-align:right;white-space:nowrap}tr{break-inside:avoid}tfoot td{font-weight:bold;border-top:2px solid #263244}" +
+    ".note{font-size:10px;color:#555;margin-top:12px}</style></head><body><h1>Museo de la Música de Puerto Rico</h1><p><strong>Listado de facturas</strong> — " +
+    invoiceEscape(invoiceDateLabel(fromDate)) + " al " + invoiceEscape(invoiceDateLabel(toDate)) + "</p><table><thead><tr>" +
+    "<th>Fecha</th><th>Suplidor</th><th>Propósito</th><th>Estado</th><th class=\"amount\">Cantidad</th></tr></thead>" +
+    "<tbody>" + table + "</tbody><tfoot><tr><td colspan=\"4\">Total (" + rows.length + " facturas)</td>" +
+    "<td class=\"amount\">" + invoiceEscape(invoiceMoney(total)) + "</td></tr></tfoot></table>" +
+    "<p class=\"note\">Incluye facturas pendientes y confirmadas; excluye rechazadas. Este listado no certifica que estén pagadas.</p></body></html>";
+  const printWindow = window.open("", "_blank", "width=980,height=760");
+  if (!printWindow) throw new Error("Permita las ventanas emergentes para imprimir el listado.");
+  printWindow.document.open();
+  printWindow.document.write(report);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  return true;
+}
+
+function bindInvoicePrintReport(panel) {
+  const button = panel.querySelector("[data-invoice-report-print]");
+  if (!button) return;
+  button.addEventListener("click", () => {
+    const from = panel.querySelector("[data-invoice-report-from]")?.value || "";
+    const to = panel.querySelector("[data-invoice-report-to]")?.value || "";
+    const message = panel.querySelector("[data-invoice-report-message]");
+    if (!from || !to || from > to) {
+      message.textContent = "Seleccione un período válido: Desde y Hasta."; return;
+    }
+    try {
+      if (!invoicePrintReport(from, to)) {
+        message.textContent = "No hay facturas pendientes o confirmadas con fecha de factura en ese período."; return;
+      }
+      message.textContent = "";
+    } catch (error) { message.textContent = error.message || "No se pudo imprimir el listado."; }
+  });
+}
+
 function renderInvoiceList(panel, notice = "", noticeState = "") {
   const rows = invoiceDocuments.map((document) => `
     <tr>
@@ -495,6 +557,16 @@ function renderInvoiceList(panel, notice = "", noticeState = "") {
         <h3>Facturas procesadas</h3>
         <p>Las facturas confirmadas y rechazadas quedan aquí para consulta.</p>
       </div>
+      <section class="invoice-report" aria-label="Imprimir listado de facturas" style="margin:20px 0;padding:16px;border:1px solid #d5dbe2;border-radius:8px;">
+        <h3>Imprimir listado de facturas por fecha</h3>
+        <p>Seleccione las fechas de las facturas que desea incluir.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;">
+          <label>Desde <input type="date" data-invoice-report-from required></label>
+          <label>Hasta <input type="date" data-invoice-report-to required></label>
+          <button type="button" class="button secondary" data-invoice-report-print>Imprimir listado</button>
+        </div>
+        <p class="form-message" data-invoice-report-message role="status"></p>
+      </section>
       ${invoiceProcessed.length ? `
         <div class="table-wrap">
           <table class="data-table">
@@ -536,6 +608,7 @@ function renderInvoiceList(panel, notice = "", noticeState = "") {
     button.addEventListener("click", () => openProcessedFinanceDocument(button.dataset.invoiceView));
   });
   bindInvoiceUpload(panel);
+  bindInvoicePrintReport(panel);
 }
 
 function bindInvoiceUpload(panel) {
