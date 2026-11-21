@@ -5155,6 +5155,7 @@ function bindFinanceModule() {
           throw new Error("Hay un movimiento financiero sin renglón canónico.");
         }
         return {
+          id: movement.id,
           budget_line_id: movement.budget_line_id,
           occurred_on: movement.occurred_on,
           amount: movement.amount,
@@ -5168,7 +5169,12 @@ function bindFinanceModule() {
       }));
       if (page.length < 1000) break;
     }
-    realMovements = financeRealFromMovements(movementRows, financeYear, fiscalYearStartMonth);
+    const reconciledCheckMovements = await fetchFinanceReconciledCheckMovements();
+    if (!Array.isArray(reconciledCheckMovements)) {
+      throw new Error("No se pudo validar la conciliación de cheques y facturas.");
+    }
+    const accountingMovements = financeApplyReconciledCheckMovements(movementRows, reconciledCheckMovements);
+    realMovements = financeRealFromMovements(accountingMovements, financeYear, fiscalYearStartMonth);
     unbudgetedExpenseRows = financeUnbudgetedExpenseRows(rows, movementRows, financeYear, fiscalYearStartMonth);
     payrollRealMonths = await Promise.all(Array.from({ length: 12 }, async (_, index) => {
       const periodStart = financePeriodDate(financeYear, index, fiscalYearStartMonth);
