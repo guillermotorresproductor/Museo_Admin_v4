@@ -5244,9 +5244,10 @@ function bindFinanceModule() {
 
   const renderFinanceTable = (title, filter, options = {}) => {
     const showReal = options.showReal === true;
-    const visibleRows = (showReal ? [...rows, ...unbudgetedExpenseRows] : rows)
+    const visibleRows = (showReal ? [...rows, ...unbudgetedExpenseRows]
       .filter(filter)
-      .sort((left, right) => (left.sortOrder ?? 100000) - (right.sortOrder ?? 100000));
+      .sort((left, right) => (left.sortOrder ?? 100000) - (right.sortOrder ?? 100000))
+      : rows.filter(filter));
     let lastCategory = "";
     return `
       <p class="page-kicker">${title}</p>
