@@ -38,11 +38,11 @@ BEGIN
      payment_method='check',confirmed_by=actor,confirmed_at=now()
  WHERE id=doc_b;
  INSERT INTO public.finance_checks(id,museum_id,payment_type,expense_source,status,
- check_number,check_date,payee_name,amount,memo,budget_line_id,movement_id,created_by)
+ check_number,check_date,payee_name,amount,memo,budget_line_id,created_by)
  VALUES(check_id,museum,'expense','direct','draft','TEST-R-2026','2026-11-04',
- 'Test Payee',1000,'Synthetic test cheque',line,cheque_movement,actor);
- UPDATE public.finance_checks SET status='issued',issued_at=now(),issued_by=actor
- WHERE id=check_id;
+ 'Test Payee',1000,'Synthetic test cheque',line,actor);
+ UPDATE public.finance_checks SET status='issued',issued_at=now(),issued_by=actor,
+ movement_id=cheque_movement WHERE id=check_id;
 
  result:=public.reconcile_issued_finance_check(check_id,ARRAY[doc_a,doc_b],
  'Synthetic same obligation, two invoices under one issued cheque');
