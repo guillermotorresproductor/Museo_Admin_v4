@@ -1,0 +1,21 @@
+name: Invoice list date-range print
+on:
+  pull_request:
+    paths:
+      - 'js/finance-documents.js'
+      - 'tests/finance-invoice-date-print.test.cjs'
+      - '.github/workflows/finance-invoice-date-print.yml'
+jobs:
+  invoice-print:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        run: node --check js/finance-documents.js
+      - name: Read-only invoice report regression
+        run: node --test tests/finance-invoice-date-print.test.cjs
