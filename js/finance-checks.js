@@ -61,7 +61,7 @@ const financeCheckErrors = {
 };
 
 let financeCheckToken = 0;
-let financeCheckCatalog = { checks: [], employees: [], invoices: [], lines: [] };
+let financeCheckCatalog = { checks: [], employees: [], invoices: [], lines: [], reconciled: [] };
 
 function cancelFinanceChecks() {
   financeCheckToken += 1;
@@ -254,17 +254,19 @@ function financeCheckOpenPrint(check) {
 }
 
 async function loadFinanceCheckCatalog() {
-  const [checks, employees, invoices, lines] = await Promise.all([
+  const [checks, employees, invoices, lines, reconciled] = await Promise.all([
     supabasePost("/rest/v1/rpc/list_finance_checks", {}),
     supabasePost("/rest/v1/rpc/list_finance_check_employees", {}),
     supabasePost("/rest/v1/rpc/list_finance_check_invoices", {}),
-    fetchInvoiceBudgetLines()
+    fetchInvoiceBudgetLines(),
+    supabasePost("/rest/v1/rpc/list_finance_reconciled_check_movements", {})
   ]);
   financeCheckCatalog = {
     checks: Array.isArray(checks) ? checks : [],
     employees: Array.isArray(employees) ? employees : [],
     invoices: Array.isArray(invoices) ? invoices : [],
-    lines: Array.isArray(lines) ? lines : []
+    lines: Array.isArray(lines) ? lines : [],
+    reconciled: Array.isArray(reconciled) ? reconciled : []
   };
 }
 
@@ -495,8 +497,9 @@ function renderFinanceCheckDetail(panel, token, canWrite, check, mode) {
   const editable = canWrite && check.status === "draft";
   const voidable = canWrite && check.status !== "voided";
   const line = check.budget_category ? `${check.budget_category} → ${check.budget_name}` : "—";
+  const isReconciled = financeCheckCatalog.reconciled.some((item) => item.check_id === check.id);
   const canReconcile = canWrite && check.status === "issued" &&
-    check.payment_type === "expense" && check.expense_source === "direct";
+    check.payment_type === "expense" && check.expense_source === "direct" && !isReconciled;
   const reconcilableInvoices = canReconcile
     ? financeCheckCatalog.invoices.filter((invoice) => invoice.budget_line_id === check.budget_line_id)
     : [];
@@ -547,6 +550,15 @@ function renderFinanceCheckDetail(panel, token, canWrite, check, mode) {
       <button class="button secondary" type="button" data-check-back>Volver</button>
     </p>
     ${reconcileBlock}
+    ${isReconciled ? `<section class="card panel" style="margin:16px 0;">
+      <p><strong>Conciliado:</strong> este cheque está vinculado a facturas confirmadas. El gasto se contabiliza una sola vez.</p>
+      ${canWrite ? `<form data-check-release-form>
+        <div class="field"><label for="check-release-reason">Motivo de reversión de conciliación</label>
+          <textarea id="check-release-reason" name="release_reason" required minlength="15" maxlength="500"></textarea></div>
+        <button type="submit" class="button secondary">Revertir conciliación (con auditoría)</button>
+        <p class="form-message" data-check-release-message role="status"></p>
+      </form>` : ""}
+    </section>` : ""}
     ${voidable ? `<form data-check-void-form><div class="field"><label for="check-void-reason">Motivo de anulación</label><textarea id="check-void-reason" name="void_reason" required maxlength="500"></textarea></div><p><button class="button secondary" type="submit">Anular</button></p></form>` : ""}`;
   const reconcileForm = panel.querySelector("[data-check-reconcile-form]");
   if (reconcileForm) {
@@ -591,6 +603,31 @@ function renderFinanceCheckDetail(panel, token, canWrite, check, mode) {
       }
     });
   }
+
+  panel.querySelector("[data-check-release-form]")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const reason = String(form.elements.release_reason.value || "").trim();
+    const message = form.querySelector("[data-check-release-message]");
+    if (reason.length < 15) {
+      if (message) message.textContent = "Explique el motivo de la reversión.";
+      return;
+    }
+    if (!window.confirm("¿Revertir esta conciliación? Los documentos y movimientos originales se conservarán.")) return;
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      await supabasePost("/rest/v1/rpc/release_finance_check_reconciliation", {
+        p_check_id: check.id, p_reason: reason
+      });
+      await loadFinanceCheckCatalog();
+      if (token !== financeCheckToken) return;
+      renderFinanceCheckList(panel, token, canWrite, "Conciliación revertida y auditada. No se modificaron cheques ni facturas.");
+    } catch (error) {
+      if (message) message.textContent = error.message || "No se pudo revertir la conciliación.";
+      button.disabled = false;
+    }
+  });
 
   if (mode === "focus-void") panel.querySelector("[name=void_reason]")?.focus();
   panel.querySelector("[data-check-back]")?.addEventListener("click", () => renderFinanceCheckList(panel, token, canWrite, ""));
