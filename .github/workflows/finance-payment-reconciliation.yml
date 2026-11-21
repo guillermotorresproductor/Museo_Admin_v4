@@ -1,0 +1,29 @@
+name: Finance check-to-invoice reconciliation
+on:
+  pull_request:
+    paths:
+      - 'js/app.js'
+      - 'js/services/supabase.js'
+      - 'js/finance-model.js'
+      - 'js/finance-checks.js'
+      - 'supabase/migrations/202611200001_finance_check_invoice_matches.sql'
+      - 'supabase/migrations/202611200002_finance_reconciliation_lifecycle.sql'
+      - 'supabase/tests/finance-payment-reconciliation-rollback.sql'
+      - 'tests/finance-payment-reconciliation.test.cjs'
+      - '.github/workflows/finance-payment-reconciliation.yml'
+jobs:
+  reconciliation-security:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check js/app.js
+      - run: node --check js/finance-checks.js
+      - run: node --check js/finance-model.js
+      - run: node --check js/services/supabase.js
+      - run: node --test tests/finance-payment-reconciliation.test.cjs
+      - run: node --test tests/finance-unbudgeted-real-lines.test.cjs
