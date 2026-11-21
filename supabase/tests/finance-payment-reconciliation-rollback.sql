@@ -70,6 +70,32 @@ BEGIN
  projection:=public.list_finance_reconciled_check_movements();
  IF projection<>'[]'::jsonb THEN RAISE EXCEPTION 'Released record still affects totals: %',projection; END IF;
 
- RAISE NOTICE 'PASS: exact two-invoice match, audit, projection, duplicate guard and release';
+ -- Released matches can be re-created; the old history remains intact.
+ result:=public.reconcile_issued_finance_check(check_id,ARRAY[doc_a,doc_b],
+   'Reinstated synthetic reconciliation after documented release');
+ IF result->>'ok' <> 'true' THEN RAISE EXCEPTION 'Reconciliation restart failed'; END IF;
+ IF (SELECT count(*) FROM public.finance_check_invoice_matches match
+     WHERE match.check_id=check_id AND match.released_at IS NULL)<>2 THEN
+    RAISE EXCEPTION 'Expected exactly two active allocations';
+ END IF;
+
+ -- The issued-invoice flow must not reuse an invoice already matched to a direct cheque.
+ DECLARE check_invoice_id uuid := gen_random_uuid();
+ BEGIN
+   INSERT INTO public.finance_checks(id,museum_id,payment_type,expense_source,status,
+     check_number,check_date,payee_name,amount,memo,budget_line_id,finance_document_id,
+     movement_id,created_by)
+   VALUES(check_invoice_id,museum,'expense','invoice','draft','TEST-R-INVOICE','2026-11-04',
+     'Test Payee',600,'Attempt reused invoice',line,doc_a,movement_a,actor);
+   BEGIN
+      UPDATE public.finance_checks SET status='issued',issued_at=now(),issued_by=actor
+      WHERE id=check_invoice_id;
+      RAISE EXCEPTION 'Matched invoice was issued twice';
+   EXCEPTION WHEN SQLSTATE 'P0001' THEN
+      IF SQLERRM NOT LIKE '%INVOICE_ALREADY_PAID%' THEN RAISE; END IF;
+   END;
+ END;
+
+ RAISE NOTICE 'PASS: exact match, audit, duplicate guard, release, re-link, anti-double-issue';
 END $test$;
 ROLLBACK;
