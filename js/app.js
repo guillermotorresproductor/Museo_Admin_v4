@@ -5257,7 +5257,7 @@ function bindFinanceModule() {
     const showReal = options.showReal === true;
     const visibleRows = (showReal ? [...rows, ...unbudgetedExpenseRows]
       .filter(filter)
-      .sort((left, right) => (left.sortOrder ?? 100000) - (right.sortOrder ?? 100000))
+      .sort(financeRealExpenseCategoryCompare)
       : rows.filter(filter));
     let lastCategory = "";
     return `
