@@ -181,3 +181,32 @@ function financeUnbudgetedExpenseRows(budgetRows, movements, fiscalYear, startMo
   }
   return [...missing.values()];
 }
+
+/**
+ * The ledger retains the confirmed invoice and its issued direct check.
+ * An authorized, auditable reconciliation reduces only the reporting amount
+ * of the check's duplicate posting; no stored movement is updated or voided.
+ */
+function financeApplyReconciledCheckMovements(movements, matches) {
+  const byId = new Map((movements || []).map(movement => [String(movement.id || ""), movement]));
+  const adjustments = new Map();
+  for (const item of matches || []) {
+    const id = String(item.movement_id || "");
+    const cents = Math.round(Number(item.allocated_amount) * 100);
+    const source = byId.get(id);
+    if (!id || !source || adjustments.has(id) || !Number.isFinite(cents) || cents <= 0 ||
+        source.record_type !== "expense" || source.voided_at ||
+        cents > Math.round(Number(source.amount) * 100)) {
+      throw Error("Conciliación financiera inconsistente; no se calculó un total parcial.");
+    }
+    adjustments.set(id, cents);
+  }
+  return (movements || []).map(movement => {
+    const adjustment = adjustments.get(String(movement.id || "")) || 0;
+    if (!adjustment) return movement;
+    return {
+      ...movement,
+      amount: (Math.round(Number(movement.amount) * 100) - adjustment) / 100
+    };
+  });
+}
