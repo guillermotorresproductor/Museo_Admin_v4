@@ -150,3 +150,34 @@ function financePeriodDate(startYear, monthIndex, startMonth) {
   const year = calendarMonth >= start ? startYear : startYear + 1;
   return new Date(Date.UTC(year, calendarIndex, 1)).toISOString().slice(0, 10);
 }
+
+/**
+ * Display-only rows for expense concepts with posted movements but no saved
+ * budget cells. Never creates finance_records or changes ledger amounts.
+ */
+function financeUnbudgetedExpenseRows(budgetRows, movements, fiscalYear, startMonth) {
+  const budgetedIds = new Set((budgetRows || []).map(row => String(row.budgetLineId || "")).filter(Boolean));
+  const missing = new Map();
+  for (const movement of movements || []) {
+    if (movement.voided_at || movement.record_type !== "expense" ||
+        movement.counts_in_operating_balance === false ||
+        !["Gastos Operacionales", "Servicios Contratados", "Otros Gastos"].includes(movement.category)) continue;
+    if (financeMovementMonthIndex(movement.occurred_on, fiscalYear, startMonth) < 0) continue;
+    const id = String(movement.budget_line_id || "");
+    if (!id || budgetedIds.has(id) || missing.has(id)) continue;
+    if (!movement.concept || !Number.isInteger(movement.sort_order)) {
+      throw Error("Movimiento de gasto sin metadatos del renglón contable.");
+    }
+    missing.set(id, {
+      id: "unbudgeted-real-" + id,
+      budgetLineId: id,
+      type: "expense",
+      category: movement.category,
+      concept: movement.concept,
+      sortOrder: movement.sort_order,
+      values: Array(12).fill(null),
+      recordIds: Array(12).fill(null)
+    });
+  }
+  return [...missing.values()];
+}

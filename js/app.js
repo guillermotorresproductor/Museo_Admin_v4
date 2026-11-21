@@ -5055,6 +5055,7 @@ function bindFinanceModule() {
     monthExpense() { return 0; }
   };
   let payrollRealMonths = Array(12).fill(0);
+  let unbudgetedExpenseRows = [];
   let auditEntries = [];
   const quickBooksCategories = [
     "Boletería",
@@ -5159,12 +5160,16 @@ function bindFinanceModule() {
           amount: movement.amount,
           voided_at: movement.voided_at,
           record_type: line.record_type,
+          category: line.category,
+          concept: line.name,
+          sort_order: line.sort_order,
           counts_in_operating_balance: line.counts_in_operating_balance
         };
       }));
       if (page.length < 1000) break;
     }
     realMovements = financeRealFromMovements(movementRows, financeYear, fiscalYearStartMonth);
+    unbudgetedExpenseRows = financeUnbudgetedExpenseRows(rows, movementRows, financeYear, fiscalYearStartMonth);
     payrollRealMonths = await Promise.all(Array.from({ length: 12 }, async (_, index) => {
       const periodStart = financePeriodDate(financeYear, index, fiscalYearStartMonth);
       const [year, month] = periodStart.split("-").map(Number);
@@ -5238,8 +5243,11 @@ function bindFinanceModule() {
   const renderNetSummary = () => renderFinanceNetRegion(totals(), realSummary());
 
   const renderFinanceTable = (title, filter, options = {}) => {
-    const visibleRows = rows.filter(filter);
     const showReal = options.showReal === true;
+    const visibleRows = (showReal ? [...rows, ...unbudgetedExpenseRows]
+      .filter(filter)
+      .sort((left, right) => (left.sortOrder ?? 100000) - (right.sortOrder ?? 100000))
+      : rows.filter(filter));
     let lastCategory = "";
     return `
       <p class="page-kicker">${title}</p>

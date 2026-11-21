@@ -1,0 +1,23 @@
+name: Finance expense display completeness
+on:
+  pull_request:
+    paths:
+      - 'js/app.js'
+      - 'js/finance-model.js'
+      - 'js/services/supabase.js'
+      - 'tests/finance-unbudgeted-real-lines.test.cjs'
+      - '.github/workflows/finance-unbudgeted-real-lines.yml'
+jobs:
+  real-expense-display:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check js/app.js
+      - run: node --check js/finance-model.js
+      - run: node --check js/services/supabase.js
+      - run: node --test tests/finance-unbudgeted-real-lines.test.cjs
