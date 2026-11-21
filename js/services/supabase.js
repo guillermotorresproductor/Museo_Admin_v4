@@ -897,6 +897,11 @@ async function fetchProcessedFinanceDocuments() {
   return supabaseGet("/rest/v1/finance_documents?select=id,status,original_filename,original_mime,original_path,vendor_name,invoice_number,invoice_date,total,payment_method,description,confirmed_at,rejected_at&status=in.(confirmed,rejected)");
 }
 
+async function fetchFinanceReconciledCheckMovements() {
+  // Read-only, actor- and museum-scoped reconciliation projection.
+  return supabasePost("/rest/v1/rpc/list_finance_reconciled_check_movements", {});
+}
+
 async function fetchActiveFinanceMovements(museumId, offset = 0) {
   return supabaseGet(`/rest/v1/finance_movements?select=id,budget_line_id,occurred_on,amount,voided_at,finance_budget_lines(record_type,category,name,sort_order,counts_in_operating_balance)&museum_id=eq.${encodeURIComponent(museumId)}&voided_at=is.null&order=id.asc&limit=1000&offset=${offset}`);
 }
