@@ -898,7 +898,7 @@ async function fetchProcessedFinanceDocuments() {
 }
 
 async function fetchActiveFinanceMovements(museumId, offset = 0) {
-  return supabaseGet(`/rest/v1/finance_movements?select=id,budget_line_id,occurred_on,amount,voided_at,finance_budget_lines(record_type,category,counts_in_operating_balance)&museum_id=eq.${encodeURIComponent(museumId)}&voided_at=is.null&order=id.asc&limit=1000&offset=${offset}`);
+  return supabaseGet(`/rest/v1/finance_movements?select=id,budget_line_id,occurred_on,amount,voided_at,finance_budget_lines(record_type,category,name,sort_order,counts_in_operating_balance)&museum_id=eq.${encodeURIComponent(museumId)}&voided_at=is.null&order=id.asc&limit=1000&offset=${offset}`);
 }
 
 async function fetchInvoiceBudgetLines() {
