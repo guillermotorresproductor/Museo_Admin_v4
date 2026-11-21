@@ -8,7 +8,7 @@ assert.ok(from>=0 && until>from);
 const finance=source.slice(from,until);
 test("Finance unlock does not await 12 payroll RPCs",()=>{
  const start=finance.indexOf("const syncFinanceFromSupabase = async");
- const end=finance.indexOf("const loadFinancePanel = async");
+ const end=finance.indexOf("const loadPayrollForExpenses = async");
  assert.ok(start>=0 && end>start);
  const sync=finance.slice(start,end);
  assert.doesNotMatch(sync,/payroll_actual/);
