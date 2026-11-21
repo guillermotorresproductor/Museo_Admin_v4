@@ -5054,7 +5054,10 @@ function bindFinanceModule() {
     monthIncome() { return 0; },
     monthExpense() { return 0; }
   };
-  let payrollRealMonths = Array(12).fill(0);
+  let payrollRealMonths = Array(12).fill(null);
+  let payrollRequested = false;
+  let payrollLoading = false;
+  let payrollLoadError = "";
   let unbudgetedExpenseRows = [];
   let auditEntries = [];
   const quickBooksCategories = [
@@ -5176,12 +5179,12 @@ function bindFinanceModule() {
     const accountingMovements = financeApplyReconciledCheckMovements(movementRows, reconciledCheckMovements);
     realMovements = financeRealFromMovements(accountingMovements, financeYear, fiscalYearStartMonth);
     unbudgetedExpenseRows = financeUnbudgetedExpenseRows(rows, movementRows, financeYear, fiscalYearStartMonth);
-    payrollRealMonths = await Promise.all(Array.from({ length: 12 }, async (_, index) => {
-      const periodStart = financePeriodDate(financeYear, index, fiscalYearStartMonth);
-      const [year, month] = periodStart.split("-").map(Number);
-      const range = payrollMonthRange(year, month, "month");
-      return payrollActualTotal(await supabasePost("/rest/v1/rpc/payroll_actual", { p_from: range.from, p_to: range.to }));
-    }));
+    // Payroll is an independent, expensive module. Never block access to
+    // Finance/Invoices/Checks because a payroll report exceeds statement_timeout.
+    payrollRealMonths = Array(12).fill(null);
+    payrollRequested = false;
+    payrollLoading = false;
+    payrollLoadError = "";
     await loadAudit();
     const notice = document.querySelector("[data-finance-message]");
     if(notice)notice.textContent = records.length ? "Los importes provienen de registros guardados. La nómina real no modifica el presupuesto ni ejecuta pagos." : "No hay registros financieros para este período. No se han creado datos ni aplicado valores predeterminados.";
@@ -5225,6 +5228,7 @@ function bindFinanceModule() {
     if (!financeYear || !fiscalYearStartMonth) return null;
     const index = financeMovementMonthIndex(puertoRicoToday(), financeYear, fiscalYearStartMonth);
     if (index < 0) return null;
+    if (payrollRealMonths[index] === null) return null;
     const summary = financeMonthReal(realMovements, payrollRealMonths[index], index);
     const period = financePeriodDate(financeYear, index, fiscalYearStartMonth);
     return { ...summary, label: `${financeMonths[index]} ${period.slice(0, 4)}` };
@@ -5246,7 +5250,8 @@ function bindFinanceModule() {
     if (summary) summary.innerHTML = "";
   };
 
-  const renderNetSummary = () => renderFinanceNetRegion(totals(), realSummary());
+  const renderNetSummary = () => renderFinanceNetRegion(totals(), realSummary()) +
+    (realSummary() ? "" : '<p class="form-message">Los totales reales que incluyen nómina se muestran cuando el cálculo de nómina esté disponible. Presupuesto e ingresos siguen disponibles.</p>');
 
   const renderFinanceTable = (title, filter, options = {}) => {
     const showReal = options.showReal === true;
@@ -5282,8 +5287,8 @@ function bindFinanceModule() {
             }).join("")}
             ${showReal ? `<tr class="finance-real-separator"><td colspan="13"></td></tr>
             <tr><td><strong>GASTOS REAL</strong></td>${financeMonths.map((_, index) => `<td>${money(realMovements.monthExpense(index))}</td>`).join("")}</tr>
-            <tr><td><strong>NÓMINA REAL</strong></td>${payrollRealMonths.map((amount) => `<td>${money(amount)}</td>`).join("")}</tr>
-            <tr><td><strong>TOTAL GASTOS REAL</strong></td>${payrollRealMonths.map((amount, index) => `<td>${money(financeMonthReal(realMovements, amount, index).expense)}</td>`).join("")}</tr>` : ""}
+            <tr><td><strong>NÓMINA REAL</strong></td>${payrollRealMonths.map((amount) => `<td>${amount === null ? "—" : money(amount)}</td>`).join("")}</tr>
+            <tr><td><strong>TOTAL GASTOS REAL</strong></td>${payrollRealMonths.map((amount, index) => `<td>${amount === null ? "—" : money(financeMonthReal(realMovements, amount, index).expense)}</td>`).join("")}</tr>` : ""}
           </tbody>
         </table>
       </div>
@@ -5328,6 +5333,34 @@ function bindFinanceModule() {
     </div>
   `;
 
+  const loadPayrollForExpenses = async () => {
+    if (payrollRequested || payrollLoading) return;
+    payrollRequested = true;
+    payrollLoading = true;
+    payrollLoadError = "";
+    try {
+      // One request at a time prevents the former 12-way concurrent
+      // payroll_actual calls from overwhelming the database.
+      for (let index = 0; index < 12; index += 1) {
+        const periodStart = financePeriodDate(financeYear, index, fiscalYearStartMonth);
+        const [year, month] = periodStart.split("-").map(Number);
+        const range = payrollMonthRange(year, month, "month");
+        try {
+          const response = await supabasePost("/rest/v1/rpc/payroll_actual",
+            { p_from: range.from, p_to: range.to });
+          payrollRealMonths[index] = payrollActualTotal(response);
+        } catch (error) {
+          payrollLoadError = "El cálculo de nómina superó el tiempo disponible. Los importes pendientes se muestran como no disponibles; no se han modificado datos.";
+          break; // fail without starting 11 more expensive payroll queries
+        }
+        if (activeTab === "gastos") renderPanel();
+      }
+    } finally {
+      payrollLoading = false;
+      if (activeTab === "gastos") renderPanel();
+    }
+  };
+
   const renderPanel = () => {
     renderSummary();
     if (activeTab !== "facturas" && typeof cancelFinanceDocuments === "function") cancelFinanceDocuments();
@@ -5345,7 +5378,10 @@ function bindFinanceModule() {
     if (activeTab === "global") panel.innerHTML = renderFinanceGlobal(globalSummary());
     if (activeTab === "ingresos") panel.innerHTML = renderFinanceTable("Ingresos", (row) => row.type === "income");
     if (activeTab === "gastos") {
-      panel.innerHTML = renderExpenseSummaryTable();
+      panel.innerHTML = renderExpenseSummaryTable() +
+        (payrollLoadError ? `<p class="form-message error">${safeHtml(payrollLoadError)}</p>`
+          : payrollLoading ? '<p class="form-message">Calculando nómina por mes, sin bloquear Finanzas…</p>' : "");
+      if (!payrollRequested) void loadPayrollForExpenses();
       panel.querySelector("[data-finance-expense-detail]")?.addEventListener("click", () =>
         renderFinanceDetail(panel, currentProfile.museum_id, financeYear, fiscalYearStartMonth, financeMonths, renderPanel)
       );

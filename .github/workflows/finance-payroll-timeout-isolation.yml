@@ -1,0 +1,20 @@
+name: Finance unlock payroll timeout isolation
+on:
+  pull_request:
+    paths:
+      - 'js/app.js'
+      - 'tests/finance-payroll-timeout-isolation.test.cjs'
+      - '.github/workflows/finance-payroll-timeout-isolation.yml'
+jobs:
+  payroll-timeout-isolation:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check js/app.js
+      - run: node --test tests/finance-payroll-timeout-isolation.test.cjs
+      - run: node --test tests/finance-payment-reconciliation.test.cjs
