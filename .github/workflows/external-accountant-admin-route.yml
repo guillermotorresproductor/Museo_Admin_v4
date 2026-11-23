@@ -1,0 +1,20 @@
+name: External accountant admin route guard
+on:
+  pull_request:
+    paths:
+      - 'js/app.js'
+      - 'tests/external-accountant-admin-route.test.cjs'
+      - '.github/workflows/external-accountant-admin-route.yml'
+jobs:
+  route-guard:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check js/app.js
+      - run: node --test tests/external-accountant-admin-route.test.cjs
+      - run: node --test tests/external-accountant-readonly.test.cjs
