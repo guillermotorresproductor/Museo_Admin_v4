@@ -36,15 +36,27 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
     const action = String(body.action || "list");
-    if (!["list","invite","revoke"].includes(action)) throw Error("INVALID_ACTION");
+    if (!["list","invite","revoke","verify"].includes(action)) throw Error("INVALID_ACTION");
     const { admin, user, profile } = await requirePermission(req,
-      action === "revoke" ? "users.deactivate" : "users.invite");
+      action === "verify" ? "finance.read" : action === "revoke" ? "users.deactivate" : "users.invite");
     if (action !== "list") await requirePermission(req, "roles.assign");
     if (!["active","activo"].includes(profile.status) || !profile.museum_id) throw Error("FORBIDDEN");
     const museum = profile.museum_id;
     const isStaging = (Deno.env.get("SUPABASE_URL") || "").includes("lonpdmxdvbxuagqxztig");
     const activeProfileStatus = isStaging ? "active" : "activo";
     const inactiveProfileStatus = isStaging ? "inactive" : "inactivo";
+    if (action === "verify") {
+      const member = await admin.from("external_accountant_access")
+        .select("id,email,status").eq("user_id",user.id).eq("museum_id",museum)
+        .eq("status","active").maybeSingle();
+      if (member.error) throw member.error;
+      if (!member.data || String(member.data.email).toLowerCase() !== String(user.email).toLowerCase()) {
+        throw Error("FORBIDDEN");
+      }
+      const linked = await admin.from("employees").select("id").eq("profile_id",user.id).limit(1);
+      if (linked.error || linked.data?.length) throw Error("FORBIDDEN");
+      return json({ verified:true,accountant:true });
+    }
     if (action === "list") {
       const result = await admin.from("external_accountant_access")
         .select("id,email,full_name,status,invited_at,revoked_at")
