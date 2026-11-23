@@ -2839,6 +2839,8 @@ function bindInventoryModule() {
   const locationFilter = document.querySelector("[data-inventory-filter-location]");
   const statusFilter = document.querySelector("[data-inventory-filter-status]");
   const showArchived = document.querySelector("[data-inventory-show-archived]");
+  const printListButton = document.querySelector("[data-inventory-print-list]");
+  const printScope = document.querySelector("[data-inventory-print-scope]");
   const total = document.querySelector("[data-inventory-total]");
   const pieces = document.querySelector("[data-inventory-pieces]");
   const submitButton = document.querySelector("[data-inventory-submit]");
@@ -2933,6 +2935,69 @@ function bindInventoryModule() {
         return sortDirection === "asc" ? result : -result;
       });
   };
+
+  // Read-only printing from the records already authorized for this inventory view.
+  // "Todos" means all records loaded for the current archived toggle, not a new
+  // unrestricted query or a bypass of inventory.read permissions.
+  const printInventoryList = () => {
+    const printedRows = printScope?.value === "all" ? [...records] : getFilteredRecords();
+    if (!printedRows.length) {
+      setListMessage("No hay artículos en la selección para imprimir.", "error");
+      return;
+    }
+    const itemCount = printedRows.length;
+    const pieceCount = printedRows.reduce((sum, record) =>
+      sum + (Number.isFinite(Number(record.quantity)) ? Number(record.quantity) : 0), 0);
+    const tableRows = printedRows.map((record) => `
+      <tr>
+        <td>${escapeHtml(record.asset_tag || "—")}</td>
+        <td>${escapeHtml(record.name || "—")}</td>
+        <td>${escapeHtml([record.brand, record.model].filter(Boolean).join(" / ") || record.category || "—")}</td>
+        <td>${escapeHtml(record.serial_number || "—")}</td>
+        <td class="number">${escapeHtml(Number(record.quantity || 0))}</td>
+        <td>${escapeHtml(record.location || "—")}</td>
+        <td>${escapeHtml(record.responsible || "—")}</td>
+        <td>${escapeHtml(label(record.condition))}</td>
+        <td>${record.archived_at ? "Archivado" : escapeHtml(label(record.status))}</td>
+      </tr>`).join("");
+    const scopeLabel = printScope?.value === "all" ? "Todos los artículos cargados" : "Listado filtrado";
+    const filters = printScope?.value === "all" ? "Sin filtros adicionales" : [
+      search?.value ? "Búsqueda: " + search.value : null,
+      locationFilter?.value ? "Ubicación: " + locationFilter.value : null,
+      statusFilter?.value ? "Estado: " + statusFilter.value : null
+    ].filter(Boolean).join(" · ") || "Sin filtros adicionales";
+    const documentHtml = `<!doctype html><html lang="es"><head><meta charset="utf-8">
+      <title>Listado de inventario - Museo de la Música de Puerto Rico</title>
+      <style>@page{size:letter landscape;margin:0.5in}
+        body{font:10px Arial,sans-serif;color:#152237;margin:0}
+        h1{font-size:17px;margin:0 0 6px}p{margin:0 0 9px;line-height:1.4}
+        table{width:100%;border-collapse:collapse}
+        thead{display:table-header-group}th{background:#ecf0f4;text-align:left}
+        th,td{padding:5px 4px;border-bottom:1px solid #d5dce3;vertical-align:top;overflow-wrap:anywhere}
+        tr{break-inside:avoid}.number{text-align:right;white-space:nowrap}
+        .foot{font-size:9px;color:#555;margin-top:10px}</style></head><body>
+      <h1>Museo de la Música de Puerto Rico — Inventario de equipos</h1>
+      <p>${escapeHtml(scopeLabel)} · ${escapeHtml(filters)}<br>
+        ${itemCount} registros · ${pieceCount} piezas
+        ${showArchived?.checked ? " · Incluye artículos archivados" : " · Solo artículos activos/no archivados"}</p>
+      <table><thead><tr><th>Sello</th><th>Equipo</th><th>Marca / Modelo</th>
+        <th>Serie</th><th class="number">Cant.</th><th>Ubicación</th>
+        <th>Responsable</th><th>Condición</th><th>Estado</th></tr></thead>
+        <tbody>${tableRows}</tbody></table>
+      <p class="foot">Listado de consulta. No modifica artículos, cantidades, fotografías ni ubicaciones.</p>
+      </body></html>`;
+    const popup = window.open("", "_blank", "width=1180,height=820");
+    if (!popup) {
+      setListMessage("Permita las ventanas emergentes para imprimir el listado.", "error");
+      return;
+    }
+    popup.document.open();
+    popup.document.write(documentHtml);
+    popup.document.close();
+    popup.focus();
+    popup.print();
+  };
+  printListButton?.addEventListener("click", printInventoryList);
 
   const renderRecords = () => {
     if (total) total.textContent = records.filter((record) => !record.archived_at).length;
