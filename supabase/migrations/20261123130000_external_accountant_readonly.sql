@@ -60,7 +60,7 @@ begin
    || E'     and exists (select 1 from public.external_accountant_access ea\n'
    || E'       join public.profiles pr on pr.id = ea.user_id and pr.museum_id = ea.museum_id\n'
    || E'       where ea.user_id = auth.uid() and ea.status = ''active''\n'
-   || E'         and pr.status = ''activo'' and pr.role = ''empleado''\n'
+   || E'         and pr.status in (''active'',''activo'') and pr.role = ''empleado''\n'
    || E'         and ea.museum_id = public.current_user_museum_id());\n'
    || E' end if;\n'
  );
