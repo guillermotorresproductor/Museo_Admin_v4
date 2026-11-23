@@ -103,6 +103,9 @@ test("existing employee role validation stays unchanged",async()=>{
 test("new admin route is protected, without employee HR account",()=>{
  assert.match(app,/"usuarios-externos\.html": \(\) => hasPermission\("users\.invite"\) && hasPermission\("roles\.assign"\)/);
  assert.match(app,/typeof bindExternalAccountants === "function"/);
+ assert.match(app,/"finanzas\.html": \(\) => hasPermission\("finance\.read"\)/);
+ const dashboard=fs.readFileSync("dashboard.html","utf8");
+ assert.match(dashboard,/js\/app\.js\?v=external-accountant-finance-nav-20261123/);
  assert.match(html,/data-external-accountants/);
  assert.match(html,/data-accountant-invite/);
  assert.match(html,/data-accountant-list/);
