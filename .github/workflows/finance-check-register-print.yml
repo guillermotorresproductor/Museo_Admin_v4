@@ -1,0 +1,20 @@
+name: Finance check register print
+on:
+  pull_request:
+    paths:
+      - 'js/finance-checks.js'
+      - 'tests/finance-check-register-print.test.cjs'
+      - '.github/workflows/finance-check-register-print.yml'
+jobs:
+  check-register-print:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check js/finance-checks.js
+      - run: node --test tests/finance-check-register-print.test.cjs
+      - run: node --test tests/finance-payment-reconciliation.test.cjs
