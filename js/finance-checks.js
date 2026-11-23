@@ -297,8 +297,8 @@ function financeCheckReportRows(checks, criteria = {}) {
   const to = String(criteria.to || "");
   const type = String(criteria.type || "all");
   const number = String(criteria.number || "").trim().toLowerCase();
-  if ((from && !/^\\d{4}-\\d{2}-\\d{2}$/.test(from)) ||
-      (to && !/^\\d{4}-\\d{2}-\\d{2}$/.test(to)) ||
+  if ((from && !/^\d{4}-\d{2}-\d{2}$/.test(from)) ||
+      (to && !/^\d{4}-\d{2}-\d{2}$/.test(to)) ||
       (from && to && from > to)) {
     throw new Error("Seleccione un período válido: Desde no puede ser posterior a Hasta.");
   }
