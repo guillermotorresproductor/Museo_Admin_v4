@@ -20,7 +20,15 @@
               <h3>Artículos Registrados</h3>
               <p><strong data-inventory-total>0</strong> registros · <strong data-inventory-pieces>0</strong> piezas</p>
             </div>
-            <button class="button submit-button inventory-add-button" type="button" data-inventory-add hidden>+ Añadir artículo</button>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <label for="inventory-print-scope" class="sr-only">Alcance del listado de inventario</label>
+              <select id="inventory-print-scope" data-inventory-print-scope aria-label="Alcance del listado">
+                <option value="filtered">Listado filtrado</option>
+                <option value="all">Todos los artículos cargados</option>
+              </select>
+              <button class="button secondary" type="button" data-inventory-print-list>Imprimir listado</button>
+              <button class="button submit-button inventory-add-button" type="button" data-inventory-add hidden>+ Añadir artículo</button>
+            </div>
           </div>
 
           <div class="inventory-controls">
