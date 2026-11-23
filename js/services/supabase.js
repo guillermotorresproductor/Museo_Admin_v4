@@ -793,6 +793,20 @@ async function validateSupabasePasswordSetupSession(session, type) {
       String(profile.email).toLowerCase() !== String(user.email).toLowerCase()) throw passwordSetupError("invalid_profile");
   if (type === "invite" || user.invited_at) {
     const employees = await passwordSetupRequest(`/rest/v1/employees?select=id,museum_id,email,profile_id&profile_id=eq.${encodeURIComponent(user.id)}&limit=2`, session);
+    // External accountants are intentionally NOT employees. Only when no employee
+    // exists, verify the scoped accountant membership with the server; never
+    // bypass the existing employee invitation and role validation.
+    if (employees.length === 0) {
+      const external = await passwordSetupRequest("/functions/v1/external-accountant-access", session, {
+        method: "POST", body: JSON.stringify({ action: "verify" })
+      });
+      if (external?.accountant !== true || external.verified !== true) throw passwordSetupError("invalid_employee");
+      return {
+        access_token: session.access_token, refresh_token: session.refresh_token,
+        user: { id: user.id }, setup_type: type || (user.invited_at ? "invite" : "recovery"),
+        invitation_id: null, external_accountant: true
+      };
+    }
     if (employees.length !== 1 || employees[0].profile_id !== user.id || employees[0].museum_id !== profile.museum_id ||
         String(employees[0].email).toLowerCase() !== String(user.email).toLowerCase()) throw passwordSetupError("invalid_employee");
     let usesLegacyRbac = false;
@@ -823,7 +837,7 @@ async function updateSupabaseSetupPassword(session, password) {
   try {
     const user = await passwordSetupRequest("/auth/v1/user", validated, { method: "PUT", body: JSON.stringify({ password }) });
     if (user.id !== validated.user.id) throw passwordSetupError("wrong_account");
-    if(validated.invitation_id || validated.setup_type==='recovery') {
+    if(!validated.external_accountant && (validated.invitation_id || validated.setup_type==='recovery')) {
       const completed = await passwordSetupRequest('/functions/v1/accept-employee-invitation',validated,{
         method:'POST',body:JSON.stringify({action:'complete',invitation_id:validated.invitation_id})
       });

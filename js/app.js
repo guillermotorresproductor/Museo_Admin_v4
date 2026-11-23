@@ -323,6 +323,7 @@ const postLoginDestination = () => "dashboard.html";
 const canAccessPersonalSpace = () => ["profile.read.self", "employees.read.self", "schedules.read.self", "time.clock", "time.read.self"].some(hasPermission);
 
 const EXECUTIVE_MODULE_ACCESS = {
+  "usuarios-externos.html": () => hasPermission("users.invite") && hasPermission("roles.assign"),
   "administracion.html": () => canAccessAdministrationHub(),
   "horarios.html": () => hasPermission("schedules.manage"),
   "renta-espacios.html": () => hasPermission("rentals.manage"),
@@ -8588,6 +8589,7 @@ async function initApp() {
   bindHumanResourcesModule();
   bindNotificationsModule();
   bindFinanceModule();
+  if (typeof bindExternalAccountants === "function") bindExternalAccountants();
   bindExecutiveDirectionModule();
   bindReportsModule();
   await bindEmployeeProfile();

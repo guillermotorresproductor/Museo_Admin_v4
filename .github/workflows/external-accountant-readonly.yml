@@ -1,0 +1,37 @@
+name: External accountant read-only access
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20261123130000_external_accountant_readonly.sql'
+      - 'supabase/migrations/20261123131000_external_accountant_status_compat.sql'
+      - 'supabase/migrations/20261123132000_external_accountant_nonnull_profile_guard.sql'
+      - 'supabase/migrations/20261123133000_external_accountant_invoice_file_read.sql'
+      - 'supabase/functions/external-accountant-access/index.ts'
+      - 'js/services/supabase.js'
+      - 'js/external-accountants.js'
+      - 'js/app.js'
+      - 'login.html'
+      - 'administracion.html'
+      - 'usuarios-externos.html'
+      - 'tests/external-accountant-readonly.test.cjs'
+      - '.github/workflows/external-accountant-readonly.yml'
+jobs:
+  access-security:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check js/app.js
+      - run: node --check js/services/supabase.js
+      - run: node --check js/external-accountants.js
+      - run: node --test tests/external-accountant-readonly.test.cjs
+      - run: node --test tests/finance-payment-reconciliation.test.cjs
+      - run: node --test tests/finance-check-register-print.test.cjs
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check supabase/functions/external-accountant-access/index.ts
