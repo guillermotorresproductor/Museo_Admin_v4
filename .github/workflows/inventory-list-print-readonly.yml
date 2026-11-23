@@ -1,0 +1,21 @@
+name: Inventory list print read-only
+on:
+  pull_request:
+    paths:
+      - 'inventario.html'
+      - 'js/app.js'
+      - 'tests/inventory-list-print-readonly.test.cjs'
+      - '.github/workflows/inventory-list-print-readonly.yml'
+jobs:
+  inventory-print:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check js/app.js
+      - run: node --test tests/inventory-list-print-readonly.test.cjs
+      - run: node --test tests/finance-payment-reconciliation.test.cjs
