@@ -339,6 +339,7 @@ const SENSITIVE_MODULE_ACCESS = {
 };
 
 const moduleAccessChecks = {
+  "finanzas.html": () => hasPermission("finance.read"),
   "employee-portal.html": () => canAccessPersonalSpace(),
   "departamento-museologico.html": () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.read") || hasPermission("collections.write"),
   "colecciones-museograficas.html": () => hasAdministrativeWorkspaceAccess() || hasPermission("collections.read") || hasPermission("collections.write"),
