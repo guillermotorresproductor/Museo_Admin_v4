@@ -287,6 +287,119 @@ function renderFinanceChecks() {
   });
 }
 
+
+/**
+ * Read-only check-register export. Uses the same authorized, museum-scoped
+ * list_finance_checks result as the existing screen. No database writes.
+ */
+function financeCheckReportRows(checks, criteria = {}) {
+  const from = String(criteria.from || "");
+  const to = String(criteria.to || "");
+  const type = String(criteria.type || "all");
+  const number = String(criteria.number || "").trim().toLowerCase();
+  if ((from && !/^\d{4}-\d{2}-\d{2}$/.test(from)) ||
+      (to && !/^\d{4}-\d{2}-\d{2}$/.test(to)) ||
+      (from && to && from > to)) {
+    throw new Error("Seleccione un período válido: Desde no puede ser posterior a Hasta.");
+  }
+  if (!["all", "payroll", "expense", "direct", "invoice"].includes(type)) {
+    throw new Error("Tipo de cheque no válido.");
+  }
+  return (checks || [])
+    .filter((check) => check.status === "issued")
+    .filter((check) => {
+      const day = String(check.check_date || "").slice(0, 10);
+      return (!from || day >= from) && (!to || day <= to);
+    })
+    .filter((check) => type === "all" ||
+      (type === "payroll" && check.payment_type === "payroll") ||
+      (type === "expense" && check.payment_type === "expense") ||
+      (type === "direct" && check.payment_type === "expense" && check.expense_source === "direct") ||
+      (type === "invoice" && check.payment_type === "expense" && check.expense_source === "invoice"))
+    .filter((check) => !number || String(check.check_number || "").toLowerCase().includes(number))
+    .sort((a, b) => String(a.check_date || "").localeCompare(String(b.check_date || "")) ||
+      String(a.check_number || "").localeCompare(String(b.check_number || "")));
+}
+
+function financeCheckPrintRegister(criteria) {
+  const rows = financeCheckReportRows(financeCheckCatalog.checks, criteria);
+  if (!rows.length) return false;
+  const cents = rows.reduce((sum, check) =>
+    sum + Math.round(Number(check.amount) * 100), 0);
+  const typeLabels = { all: "Todos", payroll: "Nómina", expense: "Gastos",
+    direct: "Gastos directos", invoice: "Pagos de facturas" };
+  const period = (criteria.from ? financeCheckDateLabel(criteria.from) : "Inicio") +
+    " al " + (criteria.to ? financeCheckDateLabel(criteria.to) : "Actualidad");
+  const table = rows.map((check) => `<tr>
+    <td>${financeCheckEscape(check.check_number)}</td>
+    <td>${financeCheckEscape(financeCheckDateLabel(check.check_date))}</td>
+    <td>${financeCheckEscape(check.payee_name)}</td>
+    <td>${financeCheckEscape(financeCheckTypeLabel(check))}</td>
+    <td>${financeCheckEscape(check.memo || "—")}</td>
+    <td class="amount">${financeCheckEscape(financeCheckMoney(check.amount))}</td>
+  </tr>`).join("");
+  const title = "Listado de cheques emitidos — Museo de la Música de Puerto Rico";
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8">
+    <title>${financeCheckEscape(title)}</title>
+    <style>
+      @page { size: letter landscape; margin: 0.55in; }
+      body { font: 11px Arial, sans-serif; color: #142236; margin: 0; }
+      h1 { font-size: 18px; margin: 0 0 8px; }
+      .meta { margin: 0 0 14px; line-height: 1.6; }
+      table { width: 100%; border-collapse: collapse; }
+      thead { display: table-header-group; }
+      th { background: #e9edf2; }
+      th, td { padding: 6px; text-align: left; border-bottom: 1px solid #d5dce4; vertical-align: top; }
+      tr { break-inside: avoid; }
+      .amount { text-align: right; white-space: nowrap; }
+      tfoot td { font-weight: bold; border-top: 2px solid #142236; }
+      .note { color: #555; font-size: 10px; margin-top: 12px; }
+    </style></head><body>
+    <h1>Museo de la Música de Puerto Rico</h1>
+    <p class="meta"><strong>Listado de cheques emitidos</strong><br>
+      Período: ${financeCheckEscape(period)} ·
+      Tipo: ${financeCheckEscape(typeLabels[criteria.type] || "Todos")} ·
+      ${criteria.number ? "Cheque: " + financeCheckEscape(criteria.number) + " · " : ""}
+      Registros: ${rows.length}</p>
+    <table><thead><tr><th>Cheque</th><th>Fecha</th><th>Beneficiario</th>
+      <th>Tipo</th><th>Concepto</th><th class="amount">Cantidad</th></tr></thead>
+      <tbody>${table}</tbody><tfoot><tr><td colspan="5">Total de cheques emitidos (${rows.length})</td>
+      <td class="amount">${financeCheckEscape(financeCheckMoney(cents / 100))}</td></tr></tfoot></table>
+    <p class="note">Este es un listado de cheques emitidos, no una confirmación de cobro bancario.
+    Cheques en borrador o anulados no están incluidos. La impresión no modifica registros.</p>
+    </body></html>`;
+  const popup = window.open("", "_blank", "width=1100,height=820");
+  if (!popup) throw new Error("Permita las ventanas emergentes para imprimir el listado.");
+  popup.document.open();
+  popup.document.write(html);
+  popup.document.close();
+  popup.focus();
+  popup.print();
+  return true;
+}
+
+function bindFinanceCheckPrintRegister(panel, token) {
+  const form = panel.querySelector("[data-check-register-form]");
+  if (!form) return;
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (token !== financeCheckToken) return;
+    const feedback = form.querySelector("[data-check-register-message]");
+    const criteria = {
+      from: form.elements.from.value,
+      to: form.elements.to.value,
+      type: form.elements.type.value,
+      number: form.elements.number.value
+    };
+    try {
+      const printed = financeCheckPrintRegister(criteria);
+      feedback.textContent = printed ? "" : "No hay cheques emitidos para esa selección.";
+    } catch (error) {
+      feedback.textContent = error.message || "No fue posible imprimir el listado.";
+    }
+  });
+}
+
 function renderFinanceCheckList(panel, token, canWrite, notice) {
   const rows = financeCheckCatalog.checks.map((check) => `
     <tr>
@@ -309,12 +422,33 @@ function renderFinanceCheckList(panel, token, canWrite, notice) {
     <p>El cheque de gasto directo crea el movimiento al emitirse. El cheque de una factura usa el movimiento que la factura ya tiene. El cheque de nómina no crea un gasto.</p>
     ${notice ? `<p class="form-message">${financeCheckEscape(notice)}</p>` : ""}
     ${canWrite ? `<p><button class="button" type="button" data-check-new>Nuevo cheque</button></p>` : ""}
+    <form data-check-register-form style="padding:14px 16px;border:1px solid #d5dce4;border-radius:8px;margin:16px 0;">
+      <h4 style="margin:0 0 10px;">Imprimir listado de cheques emitidos</h4>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+        <label>Desde <input type="date" name="from"></label>
+        <label>Hasta <input type="date" name="to"></label>
+        <label>Tipo
+          <select name="type">
+            <option value="all">Todos</option>
+            <option value="payroll">Nómina</option>
+            <option value="expense">Gastos (todos)</option>
+            <option value="direct">Gastos directos</option>
+            <option value="invoice">Pago de facturas</option>
+          </select>
+        </label>
+        <label>Cheque específico <input type="text" name="number" placeholder="Número (opcional)" maxlength="20"></label>
+        <button class="button secondary" type="submit">Imprimir listado</button>
+      </div>
+      <p style="font-size:12px;margin:8px 0 0;">Fechas en blanco: todos los períodos. Solo cheques emitidos; no incluye borradores ni anulados.</p>
+      <p class="form-message" data-check-register-message role="status"></p>
+    </form>
     <div class="table-wrap">
       <table class="data-table">
         <thead><tr><th>Número</th><th>Fecha</th><th>Beneficiario</th><th>Tipo</th><th>Concepto</th><th>Cantidad</th><th>Estado</th><th>Acciones</th></tr></thead>
         <tbody>${rows || `<tr><td colspan="8">No hay cheques registrados.</td></tr>`}</tbody>
       </table>
     </div>`;
+  bindFinanceCheckPrintRegister(panel, token);
   panel.querySelector("[data-check-new]")?.addEventListener("click", () => {
     if (token !== financeCheckToken) return;
     renderFinanceCheckType(panel, token, canWrite);
