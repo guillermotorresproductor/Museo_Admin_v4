@@ -118,10 +118,44 @@ Deno.serve(async (req: Request) => {
       status:"revoked",invited_by:user.id
     }).select("id").single();
     if (membership.error) throw membership.error;
-    const created = await admin.from("profiles").insert({
-      id:uid,museum_id:museum,email,full_name:fullName,role:"empleado",status:activeProfileStatus
-    });
-    if (created.error) throw created.error;
+    // Production has no Auth profile trigger. Staging has a legacy trigger
+    // which creates a provisional employee-role profile in the test museum.
+    // Adopt ONLY the profile created by THIS invitation, never an earlier account.
+    const existingProfile = await admin.from("profiles")
+      .select("id,museum_id,email,role,status").eq("id",uid).maybeSingle();
+    if (existingProfile.error) throw existingProfile.error;
+    if (existingProfile.data) {
+      const legacyDefaultMuseum = "00000000-0000-0000-0000-000000000001";
+      const provisional = existingProfile.data;
+      if (!isStaging || provisional.museum_id !== legacyDefaultMuseum ||
+          provisional.role !== "empleado" || provisional.status !== "active" ||
+          String(provisional.email).toLowerCase() !== email) throw Error("PROFILE_CONFLICT");
+      const moved = await admin.from("profiles").update({
+        museum_id:museum,full_name:fullName
+      }).eq("id",uid).eq("museum_id",legacyDefaultMuseum)
+        .eq("role","empleado").select("id").maybeSingle();
+      if (moved.error || !moved.data) throw moved.error || Error("PROFILE_CONFLICT");
+      const employeeRole = await admin.from("roles").select("id")
+        .eq("code","empleado").single();
+      if (employeeRole.error || !employeeRole.data) throw employeeRole.error || Error("PROFILE_CONFLICT");
+      const oldRoles = await admin.from("user_roles").select("role_id")
+        .eq("user_id",uid).eq("museum_id",legacyDefaultMuseum);
+      if (oldRoles.error || oldRoles.data.length !== 1 ||
+          oldRoles.data[0].role_id !== employeeRole.data.id) throw Error("PROFILE_CONFLICT");
+      const removed = await admin.from("user_roles").delete()
+        .eq("user_id",uid).eq("museum_id",legacyDefaultMuseum)
+        .eq("role_id",employeeRole.data.id);
+      if (removed.error) throw removed.error;
+      const assigned = await admin.from("user_roles").insert({
+        museum_id:museum,user_id:uid,role_id:employeeRole.data.id,assigned_by:user.id
+      });
+      if (assigned.error) throw assigned.error;
+    } else {
+      const created = await admin.from("profiles").insert({
+        id:uid,museum_id:museum,email,full_name:fullName,role:"empleado",status:activeProfileStatus
+      });
+      if (created.error) throw created.error;
+    }
     const permissions = await admin.from("permissions").select("id,code")
       .in("code",["finance.read","finance.export","finance.write"]);
     if (permissions.error || permissions.data?.length !== 3) throw permissions.error || Error("ACCOUNT_INCOMPLETE");
