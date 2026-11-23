@@ -40,8 +40,11 @@ Deno.serve(async (req: Request) => {
     const { admin, user, profile } = await requirePermission(req,
       action === "revoke" ? "users.deactivate" : "users.invite");
     if (action !== "list") await requirePermission(req, "roles.assign");
-    if (profile.status !== "activo" || !profile.museum_id) throw Error("FORBIDDEN");
+    if (!["active","activo"].includes(profile.status) || !profile.museum_id) throw Error("FORBIDDEN");
     const museum = profile.museum_id;
+    const isStaging = (Deno.env.get("SUPABASE_URL") || "").includes("lonpdmxdvbxuagqxztig");
+    const activeProfileStatus = isStaging ? "active" : "activo";
+    const inactiveProfileStatus = isStaging ? "inactive" : "inactivo";
     if (action === "list") {
       const result = await admin.from("external_accountant_access")
         .select("id,email,full_name,status,invited_at,revoked_at")
@@ -61,7 +64,7 @@ Deno.serve(async (req: Request) => {
         status:"revoked",revoked_at:new Date().toISOString(),revoked_by:user.id
       }).eq("id",id).eq("museum_id",museum).eq("status","active").select("id").maybeSingle();
       if (revoked.error || !revoked.data) throw revoked.error || Error("ACCOUNT_CONFLICT");
-      const disabled = await admin.from("profiles").update({status:"inactivo"})
+      const disabled = await admin.from("profiles").update({status:inactiveProfileStatus})
         .eq("id",current.data.user_id).eq("museum_id",museum).eq("role","empleado");
       if (disabled.error) throw disabled.error; // Revocation remains effective even if profile update fails.
       return json({ revoked:true });
@@ -104,7 +107,7 @@ Deno.serve(async (req: Request) => {
     }).select("id").single();
     if (membership.error) throw membership.error;
     const created = await admin.from("profiles").insert({
-      id:uid,museum_id:museum,email,full_name:fullName,role:"empleado",status:"activo"
+      id:uid,museum_id:museum,email,full_name:fullName,role:"empleado",status:activeProfileStatus
     });
     if (created.error) throw created.error;
     const permissions = await admin.from("permissions").select("id,code")
