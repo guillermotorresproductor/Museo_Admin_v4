@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>INSTITUVA | Contables externos</title>
+  <link rel="stylesheet" href="css/main.css?v=external-accountant-20261123">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" data-sidebar></aside>
+    <div class="sidebar-backdrop" data-sidebar-backdrop></div>
+    <div class="main-area">
+      <header class="site-header" data-header></header>
+      <main class="page-content">
+        <section class="card panel section-stack" data-external-accountants>
+          <p class="page-kicker">Administración de accesos</p>
+          <h2>Contables externos</h2>
+          <p>Invite a un contable externo a consultar y exportar únicamente las finanzas de este museo. No se crea un expediente de empleado, no se permite editar datos y no se otorga acceso a otros museos.</p>
+          <form class="form-grid" data-accountant-invite>
+            <div class="field">
+              <label for="accountant-full-name">Nombre completo</label>
+              <input id="accountant-full-name" name="full_name" type="text" minlength="3" maxlength="120" autocomplete="name" required>
+            </div>
+            <div class="field">
+              <label for="accountant-email">Correo del contable</label>
+              <input id="accountant-email" name="email" type="email" maxlength="254" autocomplete="off" required>
+            </div>
+            <button class="button submit-button" type="submit">Invitar contable (solo lectura)</button>
+          </form>
+          <p class="form-message" data-accountant-message role="status"></p>
+          <h3>Accesos de contables externos</h3>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Nombre</th><th>Correo</th><th>Estado</th><th>Invitación</th><th>Acción</th></tr></thead>
+              <tbody data-accountant-list><tr><td colspan="5">Consultando...</td></tr></tbody>
+            </table>
+          </div>
+          <p class="field-hint">El contable entra por el portal institucional usando su propio correo y contraseña. Los permisos están sujetos a verificación en el servidor y pueden revocarse.</p>
+        </section>
+      </main>
+      <footer class="site-footer" data-footer></footer>
+    </div>
+  </div>
+  <script src="js/config.js?v=private-login-20260903"></script>
+  <script src="js/time-format.js?v=us-time-20261028"></script>
+  <script src="js/services/supabase.js?v=module-profiles-20260918"></script>
+  <script src="js/external-accountants.js?v=external-accountant-20261123"></script>
+  <script src="js/app.js?v=external-accountant-20261123"></script>
+</body>
+</html>
