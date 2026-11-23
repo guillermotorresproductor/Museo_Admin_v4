@@ -5,6 +5,7 @@ on:
       - 'supabase/migrations/20261123130000_external_accountant_readonly.sql'
       - 'supabase/migrations/20261123131000_external_accountant_status_compat.sql'
       - 'supabase/migrations/20261123132000_external_accountant_nonnull_profile_guard.sql'
+      - 'supabase/migrations/20261123133000_external_accountant_invoice_file_read.sql'
       - 'supabase/functions/external-accountant-access/index.ts'
       - 'js/services/supabase.js'
       - 'js/external-accountants.js'
