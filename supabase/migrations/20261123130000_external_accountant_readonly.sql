@@ -48,21 +48,21 @@ begin
  if position('external_accountant_access ea' in original_definition) > 0 then
    raise exception 'External accountant guard already installed: abort duplicate migration';
  end if;
- if position(E'\\nbegin' in original_definition) = 0 then
+ if position(E'\nbegin' in original_definition) = 0 then
    raise exception 'Unexpected has_permission structure: abort';
  end if;
  amended_definition := replace(
    original_definition,
-   E'\\nbegin',
-   E'\\nbegin\\n'
-   || E' if exists (select 1 from public.external_accountant_access ea where ea.user_id = auth.uid()) then\\n'
-   || E'   return requested_permission in (''finance.read'',''finance.export'',''profile.read.self'')\\n'
-   || E'     and exists (select 1 from public.external_accountant_access ea\\n'
-   || E'       join public.profiles pr on pr.id = ea.user_id and pr.museum_id = ea.museum_id\\n'
-   || E'       where ea.user_id = auth.uid() and ea.status = ''active''\\n'
-   || E'         and pr.status = ''activo'' and pr.role = ''empleado''\\n'
-   || E'         and ea.museum_id = public.current_user_museum_id());\\n'
-   || E' end if;\\n'
+   E'\nbegin',
+   E'\nbegin\n'
+   || E' if exists (select 1 from public.external_accountant_access ea where ea.user_id = auth.uid()) then\n'
+   || E'   return requested_permission in (''finance.read'',''finance.export'',''profile.read.self'')\n'
+   || E'     and exists (select 1 from public.external_accountant_access ea\n'
+   || E'       join public.profiles pr on pr.id = ea.user_id and pr.museum_id = ea.museum_id\n'
+   || E'       where ea.user_id = auth.uid() and ea.status = ''active''\n'
+   || E'         and pr.status = ''activo'' and pr.role = ''empleado''\n'
+   || E'         and ea.museum_id = public.current_user_museum_id());\n'
+   || E' end if;\n'
  );
  if amended_definition = original_definition then
    raise exception 'Could not insert external accountant authorization guard';
