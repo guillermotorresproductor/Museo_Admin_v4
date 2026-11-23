@@ -6,6 +6,7 @@ const vm = require("node:vm");
 const sql = fs.readFileSync("supabase/migrations/20261123130000_external_accountant_readonly.sql","utf8");
 const edge = fs.readFileSync("supabase/functions/external-accountant-access/index.ts","utf8");
 const nonnull = fs.readFileSync("supabase/migrations/20261123132000_external_accountant_nonnull_profile_guard.sql","utf8");
+const invoices = fs.readFileSync("supabase/migrations/20261123133000_external_accountant_invoice_file_read.sql","utf8");
 const app = fs.readFileSync("js/app.js","utf8");
 const service = fs.readFileSync("js/services/supabase.js","utf8");
 const html = fs.readFileSync("usuarios-externos.html","utf8");
@@ -23,6 +24,16 @@ test("external identity blocks legacy NULL-profile RLS bypass",()=>{
  assert.match(nonnull,/external_accountant_access ea/);
  assert.match(nonnull,/then '__external_accountant__'/);
  assert.match(nonnull,/else \([\s\S]*?from public\.employees e/);
+});
+test("invoice files require same museum, matching document path and read-only entitlement",()=>{
+ assert.match(invoices,/on storage\.objects for select to authenticated/);
+ assert.match(invoices,/public\.current_employee_module_profile\(\) = '__external_accountant__'/);
+ assert.match(invoices,/public\.has_permission\('finance\.read'\)/);
+ assert.match(invoices,/d\.museum_id = public\.current_user_museum_id\(\)/);
+ assert.match(invoices,/d\.id::text = \(storage\.foldername\(name\)\)\[2\]/);
+ assert.match(invoices,/d\.original_path = name/);
+ assert.match(invoices,/d\.derived_path = name/);
+ assert.doesNotMatch(invoices,/for insert|for update|for delete/i);
 });
 test("deny all accidental module and write access, revocation always wins",()=>{
  assert.match(sql,/not exists\([\s\S]*?public\.external_accountant_access ea/);
