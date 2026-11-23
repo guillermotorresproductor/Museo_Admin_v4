@@ -5,6 +5,7 @@ const vm = require("node:vm");
 
 const sql = fs.readFileSync("supabase/migrations/20261123130000_external_accountant_readonly.sql","utf8");
 const edge = fs.readFileSync("supabase/functions/external-accountant-access/index.ts","utf8");
+const nonnull = fs.readFileSync("supabase/migrations/20261123132000_external_accountant_nonnull_profile_guard.sql","utf8");
 const app = fs.readFileSync("js/app.js","utf8");
 const service = fs.readFileSync("js/services/supabase.js","utf8");
 const html = fs.readFileSync("usuarios-externos.html","utf8");
@@ -17,6 +18,12 @@ test("external accountant membership is tenant-scoped and unreachable from clien
  assert.doesNotMatch(sql,/create policy.*external_accountant_access/i);
 });
 
+test("external identity blocks legacy NULL-profile RLS bypass",()=>{
+ assert.match(nonnull,/current_employee_module_profile\(\)/);
+ assert.match(nonnull,/external_accountant_access ea/);
+ assert.match(nonnull,/then '__external_accountant__'/);
+ assert.match(nonnull,/else \([\s\S]*?from public\.employees e/);
+});
 test("deny all accidental module and write access, revocation always wins",()=>{
  assert.match(sql,/not exists\([\s\S]*?public\.external_accountant_access ea/);
  assert.match(sql,/requested_permission in \(''finance\.read'',''finance\.export'',''profile\.read\.self''\)/);
