@@ -422,6 +422,15 @@ function enforceAuthenticatedPageAccess() {
     return true;
   }
   if (!currentPermissionsLoaded) return true;
+  // Independent invitation screen: existing director/admin museum profiles
+  // pass only with BOTH existing administrative permissions. This check
+  // runs before the employee-module routing branch, which otherwise
+  // rejects pages absent from its fixed module map.
+  if (page === "usuarios-externos.html") {
+    if (hasPermission("users.invite") && hasPermission("roles.assign")) return false;
+    showProtectedAccessDenied("Su perfil no autoriza administrar contables externos.");
+    return true;
+  }
   if (hasModuleProfile()) {
     if (page === "dashboard.html" || page === "index.html") return false;
     if (profilePageAllowed(page)) return false;
