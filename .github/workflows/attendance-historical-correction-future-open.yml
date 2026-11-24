@@ -1,0 +1,19 @@
+name: Attendance historical correction open entry guard
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20261124163000_attendance_historical_correction_future_open_guard.sql'
+      - 'tests/attendance-historical-correction-future-open.test.cjs'
+      - '.github/workflows/attendance-historical-correction-future-open.yml'
+jobs:
+  historical-correction:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/attendance-historical-correction-future-open.test.cjs
+      - run: node --test tests/attendance-lunch-closure-clockout.test.cjs
