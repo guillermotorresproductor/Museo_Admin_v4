@@ -16,9 +16,9 @@ test("AI assistant is museum-owned, gated, and never receives arbitrary SQL or t
  assert.match(endpoint,/\.includes\(museum\)/);
  assert.match(endpoint,/caller\.auth\.getUser/);
  assert.match(endpoint,/caller\.rpc\("has_permission"/);
- assert.match(endpoint,/attendance\.history\.read/);
+ assert.match(endpoint,/attendance\.history\.read|import \{ requiredPermissionsForMode/);
  assert.match(endpoint,/finance\.read/);
- assert.match(endpoint,/\.eq\("museum_id",profile\.museum_id\)/);
+ assert.match(endpoint,/\.eq\("museum_id",museumId\)/);
  assert.match(endpoint,/mode==="attendance"/);
  assert.match(endpoint,/mode==="product"/);
  assert.match(endpoint,/findProductKnowledge\(question\)/);
@@ -29,7 +29,7 @@ test("AI assistant is museum-owned, gated, and never receives arbitrary SQL or t
  assert.match(endpoint,/Nunca afirmes presencia laboral por un horario programado/);
 });
 test("sensitive employee columns are not queried or passed to model",()=>{
- assert.match(endpoint,/\.select\("id,first_name,last_name"\)/);
+ assert.match(endpoint,/\.select\("id,first_name,last_name,museum_id"\)/);
  assert.match(endpoint,/\.select\("id,shift_date,starts_at,ends_at,expected_lunch_minutes,status"\)/);
  assert.match(endpoint,/\.select\("id,shift_id,event_type,occurred_at,classification,supersedes_event_id"\)/);
  assert.match(endpoint,/\.select\("clock_in,clock_out,excluded_at"\)/);
@@ -97,7 +97,7 @@ test("product knowledge distinguishes pinned main evidence from unverified legac
 test("financial AI uses RLS-scoped budget-only reading and never writes finance data",()=>{
  assert.match(endpoint,/mode==="finance"/);
  assert.match(endpoint,/caller\.from\("finance_records"\)/);
- assert.match(endpoint,/\.eq\("museum_id",profile\.museum_id\)\.eq\("year",year\)/);
+ assert.match(endpoint,/\.eq\("museum_id",museumId\)\.eq\("year",year\)/);
  assert.match(endpoint,/finance_budget_lines\(record_type,category,name,counts_in_operating_balance\)/);
  assert.match(endpoint,/finance_budget_snapshot/);
  assert.match(endpoint,/no prueban pagos, cobros, facturas saldadas ni conciliación/);
@@ -120,7 +120,7 @@ test("AI quota v2 enforces mode-specific privileges without modifying permission
  assert.doesNotMatch(sqlV2,/alter table public\.(?:finance_|employees|profiles)|update public\.finance_|delete from public\.finance_/i);
  assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_slot_v2"/);
  assert.match(endpoint,/p_mode:mode/);
- assert.match(endpoint,/mode==="finance" \? \["finance\.read"\] : PERMISSIONS/);
+ assert.match(endpoint,/requiredPermissionsForMode\(mode\)/);
  assert.match(ui,/canReadFinance=hasPermission\("finance\.read"\)/);
  assert.match(ui,/finance && !canReadFinance/);
 });
@@ -137,4 +137,13 @@ test("institutional incident guidance is source-labeled and does not reach priva
  assert.match(runbooks,/safeActions/);
  assert.match(runbooks,/uncertainty/);
  assert.doesNotMatch(runbooks,/\b(?:insert|update|delete)\s+(?:into|from|public\.)/i);
+});
+
+test("AI rejects cross-tenant records despite scoped database queries",()=>{
+ assert.match(endpoint,/assertActiveMuseumProfile\(profile,user\.id\)/);
+ assert.match(endpoint,/assertTenantRows\(\(data\|\|\[\]\) as unknown as typeof rows,museumId\)/);
+ assert.match(endpoint,/assertTenantRows\(employees\|\|\[\],museumId\)/);
+ assert.match(endpoint,/\.select\("id,first_name,last_name,museum_id"\)/);
+ assert.match(endpoint,/\.select\("museum_id,month,amount,finance_budget_lines/);
+ assert.doesNotMatch(endpoint,/admin\.from\("finance_records"\)/);
 });
