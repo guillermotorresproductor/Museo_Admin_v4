@@ -38,7 +38,10 @@ export function assertStagingLegacyApiKeys({serviceKey,anonKey,confirmRef,url,no
 export function assertStagingUserJwt({userToken,confirmRef,nowEpochSeconds=Math.floor(Date.now()/1000)}){
   if(confirmRef!==STAGING_REF)throw Error("STAGING_EXPLICIT_OPT_IN_REQUIRED");
   const claims=claimsFromLegacyKey(userToken);
-  if(claims.ref!==STAGING_REF||claims.role!=="authenticated"||
+  if(claims.iss!==STAGING_URL+"/auth/v1"||
+     (claims.ref!==undefined&&claims.ref!==STAGING_REF)||
+     claims.role!=="authenticated"||typeof claims.sub!=="string"||
+     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(claims.sub)||
      !Number.isSafeInteger(claims.exp)||claims.exp<=nowEpochSeconds+60)
     throw Error("STAGING_USER_JWT_SCOPE_INVALID");
   return true;
