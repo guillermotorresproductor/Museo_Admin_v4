@@ -42,3 +42,9 @@ Deno.test("attendance data from another museum or employee is rejected",()=>{
  check(rejects(()=>assertEmployeeTenantRows([{...correct,museum_id:undefined}],museumA,authorizedEmployee)),"missing museum accepted");
  check(rejects(()=>assertEmployeeTenantRows([{...correct,employee_id:undefined}],museumA,authorizedEmployee)),"missing employee accepted");
 });
+
+Deno.test("collections is read-only and requires an explicit collection permission",()=>{
+ const permissions=requiredPermissionsForMode("collections");
+ check(permissions.length===1&&permissions[0]==="collections.read","collections permission");
+ check(!permissions.includes("finance.read")&&!permissions.includes("collections.write"),"unexpected access");
+});
