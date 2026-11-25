@@ -30,9 +30,9 @@ test("AI assistant is museum-owned, gated, and never receives arbitrary SQL or t
 });
 test("sensitive employee columns are not queried or passed to model",()=>{
  assert.match(endpoint,/\.select\("id,first_name,last_name,museum_id"\)/);
- assert.match(endpoint,/\.select\("id,shift_date,starts_at,ends_at,expected_lunch_minutes,status"\)/);
- assert.match(endpoint,/\.select\("id,shift_id,event_type,occurred_at,classification,supersedes_event_id"\)/);
- assert.match(endpoint,/\.select\("clock_in,clock_out,excluded_at"\)/);
+ assert.match(endpoint,/\.select\("id,museum_id,employee_id,shift_date,starts_at,ends_at,expected_lunch_minutes,status"\)/);
+ assert.match(endpoint,/\.select\("id,museum_id,employee_id,shift_id,event_type,occurred_at,classification,supersedes_event_id"\)/);
+ assert.match(endpoint,/\.select\("museum_id,employee_id,clock_in,clock_out,excluded_at"\)/);
  assert.doesNotMatch(endpoint,/\.select\("\*"\)|\.select\(".*(?:salary|medical_condition|phone|address|email|photo_url)/);
  assert.match(endpoint,/filter\(t=>!t\.excluded_at\)/);
 });
@@ -152,4 +152,13 @@ test("finance budget validates Spanish fiscal month labels from staging contract
  assert.match(endpoint,/month:string;amount:number/);
  assert.match(endpoint,/"Septiembre","Octubre","Noviembre","Diciembre","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto"/);
  assert.doesNotMatch(endpoint,/Number\.isInteger\(record\.month\)/);
+});
+
+test("attendance bypass reads enforce tenant plus employee boundaries before model",()=>{
+ for(const dataset of ["safeShifts","safeEvents","safeAlerts","safeTimeEntries"]){
+   assert.match(endpoint,new RegExp("const "+dataset+"=assertEmployeeTenantRows\\\\("));
+ }
+ assert.match(endpoint,/if\(safeShifts\.length>=5 \|\| safeEvents\.length>=60/);
+ assert.match(endpoint,/safeEvents\.filter\(e=>!replaced\.has\(e\.id\)\)/);
+ assert.doesNotMatch(endpoint,/\(events\.data\|\|\[\]\)\.filter\(/);
 });
