@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/security.ts";
 import { findProductKnowledge } from "./product-knowledge.ts";
 import { findIncidentRunbooks } from "./incident-runbooks.ts";
-import { requiredPermissionsForMode, assertActiveMuseumProfile, assertTenantRows } from "./tenant-guard.ts";
+import { requiredPermissionsForMode, assertActiveMuseumProfile, assertTenantRows, assertEmployeeTenantRows } from "./tenant-guard.ts";
 const send = (body:unknown,status=200) => new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json","Cache-Control":"no-store"}});
 
 // INSTITUVA AI v1: closed query vocabulary, read-only, opt-in per tenant.
@@ -153,29 +153,38 @@ Deno.serve(async (req: Request) => {
     const employee=matches[0];
 
     const [shifts,events,alerts,timeEntries]=await Promise.all([
-      admin.from("employee_shifts").select("id,shift_date,starts_at,ends_at,expected_lunch_minutes,status")
+      admin.from("employee_shifts").select("id,museum_id,employee_id,shift_date,starts_at,ends_at,expected_lunch_minutes,status")
         .eq("museum_id",museumId).eq("employee_id",employee.id).eq("shift_date",day).limit(5),
-      admin.from("attendance_events").select("id,shift_id,event_type,occurred_at,classification,supersedes_event_id")
+      admin.from("attendance_events").select("id,museum_id,employee_id,shift_id,event_type,occurred_at,classification,supersedes_event_id")
         .eq("museum_id",museumId).eq("employee_id",employee.id)
         .gte("occurred_at",day+"T04:00:00Z").lt("occurred_at",plusDay(day)+"T04:00:00Z").limit(60),
-      admin.from("attendance_operational_alerts").select("alert_type,status,alert_date,detected_at")
+      admin.from("attendance_operational_alerts").select("museum_id,employee_id,alert_type,status,alert_date,detected_at")
         .eq("museum_id",museumId).eq("employee_id",employee.id).eq("alert_date",day).limit(30),
-      admin.from("employee_time_entries").select("clock_in,clock_out,excluded_at")
+      admin.from("employee_time_entries").select("museum_id,employee_id,clock_in,clock_out,excluded_at")
         .eq("museum_id",museumId).eq("employee_id",employee.id)
         .gte("clock_in",day+"T04:00:00Z").lt("clock_in",plusDay(day)+"T04:00:00Z").limit(30)
     ]);
     if ([shifts,events,alerts,timeEntries].some(r=>r.error)) throw Error("UPSTREAM_FAILURE");
-    const replaced=new Set((events.data||[]).map(e=>e.supersedes_event_id).filter(Boolean));
+    // Service-role reads bypass RLS. Check every returned row before any
+    // attendance evidence is built or forwarded to the language model.
+    const safeShifts=assertEmployeeTenantRows(shifts.data||[],museumId,employee.id);
+    const safeEvents=assertEmployeeTenantRows(events.data||[],museumId,employee.id);
+    const safeAlerts=assertEmployeeTenantRows(alerts.data||[],museumId,employee.id);
+    const safeTimeEntries=assertEmployeeTenantRows(timeEntries.data||[],museumId,employee.id);
+    // Never produce a misleading diagnosis from silently truncated evidence.
+    if(safeShifts.length>=5 || safeEvents.length>=60 ||
+       safeAlerts.length>=30 || safeTimeEntries.length>=30) throw Error("UPSTREAM_FAILURE");
+    const replaced=new Set(safeEvents.map(e=>e.supersedes_event_id).filter(Boolean));
     const snapshot={
       employee:clean(employee.first_name+" "+employee.last_name,120),
       date:day,
       timezone:"America/Puerto_Rico",
-      scheduled:(shifts.data||[]).map(s=>({start:asLocal(s.starts_at),end:asLocal(s.ends_at),lunch_minutes:s.expected_lunch_minutes,status:s.status})),
-      punches:(events.data||[]).filter(e=>!replaced.has(e.id)).map(e=>({
+      scheduled:safeShifts.map(s=>({start:asLocal(s.starts_at),end:asLocal(s.ends_at),lunch_minutes:s.expected_lunch_minutes,status:s.status})),
+      punches:safeEvents.filter(e=>!replaced.has(e.id)).map(e=>({
         type:e.event_type,at:asLocal(e.occurred_at),classification:e.classification
       })),
-      alerts:(alerts.data||[]).map(a=>({type:a.alert_type,status:a.status,detected_at:asLocal(a.detected_at)})),
-      time_entries:(timeEntries.data||[]).filter(t=>!t.excluded_at).map(t=>({in:asLocal(t.clock_in),out:asLocal(t.clock_out),open:t.clock_out===null}))
+      alerts:safeAlerts.map(a=>({type:a.alert_type,status:a.status,detected_at:asLocal(a.detected_at)})),
+      time_entries:safeTimeEntries.filter(t=>!t.excluded_at).map(t=>({in:asLocal(t.clock_in),out:asLocal(t.clock_out),open:t.clock_out===null}))
     };
     evidence={employee:snapshot.employee,date:day,punch_count:(snapshot.punches as unknown[]).length,
       alert_count:(snapshot.alerts as unknown[]).length,
