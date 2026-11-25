@@ -72,6 +72,20 @@ Deno.serve(async (req: Request) => {
     const museumId=assertActiveMuseumProfile(profile,user.id);
     if (!allowedMuseum(museumId)) throw Error("NOT_ENABLED");
 
+    // Finance, Collections and Inventory have a second RESTRICTIVE RLS
+    // module-profile boundary. Missing visibility is NOT a zero-data
+    // diagnosis. Check the existing PostgreSQL authorization function using
+    // the caller's JWT, without changing module permissions or RLS policies.
+    const rlsModule=mode==="finance"?"administration":
+      mode==="collections"?"collections":
+      mode==="inventory"?"inventory":null;
+    if (rlsModule!==null) {
+      const {data:moduleAllowed,error:moduleError}=await caller.rpc(
+        "module_profile_allows",{module_code:rlsModule}
+      );
+      if(moduleError || moduleAllowed!==true)throw Error("FORBIDDEN");
+    }
+
     // Fixed read-only evidence paths. General product questions never read employee tables.
     let snapshot: Record<string,unknown> = {};
     let evidence: Record<string,unknown> = {};
