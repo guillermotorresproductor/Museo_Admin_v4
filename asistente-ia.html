@@ -16,7 +16,7 @@
         <section class="card panel section-stack" data-instituva-ai>
           <p class="page-kicker">INSTITUVA / Soporte inteligente</p>
           <h2>Asistente INSTITUVA</h2>
-          <p>Orienta a la dirección y administración a investigar incidencias de INSTITUVA, contrastar evidencias y aplicar procedimientos seguros. Las consultas privadas de Asistencia, presupuesto, Colecciones e Inventario requieren permisos específicos. <strong>Nunca modifica registros, permisos ni pagos.</strong></p>
+          <p>Orienta a la dirección y administración a investigar incidencias de INSTITUVA, contrastar evidencias y aplicar procedimientos seguros. Las consultas privadas de Asistencia, presupuesto, Colecciones, Inventario y Horarios requieren permisos específicos. <strong>Nunca modifica registros, permisos ni pagos.</strong></p>
           <form class="form-grid" data-ai-form>
             <div class="field">
               <label for="ai-mode">Tipo de consulta</label>
@@ -26,6 +26,7 @@
                 <option value="finance">Consulta de presupuesto financiero (acceso restringido)</option>
                 <option value="collections">Diagnóstico agregado de Colecciones (solo lectura)</option>
                 <option value="inventory">Diagnóstico agregado de Inventario (solo lectura)</option>
+                <option value="schedules">Diagnóstico de Horarios (7 días, solo lectura)</option>
               </select>
             </div>
             <div data-ai-private hidden>
@@ -37,6 +38,10 @@
               <label for="ai-date">Fecha de la incidencia</label>
               <input id="ai-date" name="day" type="date">
             </div>
+            </div>
+            <div class="field" data-ai-schedules hidden>
+              <label for="ai-start-day">Fecha inicial de los horarios (7 días)</label>
+              <input id="ai-start-day" name="start_day" type="date">
             </div>
             <div class="field" data-ai-finance hidden>
               <label for="ai-year">Año de los registros presupuestarios</label>
@@ -64,7 +69,7 @@
   <script src="js/config.js"></script>
   <script src="js/time-format.js?v=us-time-20261028"></script>
   <script src="js/services/supabase.js?v=external-accountant-20261123"></script>
-  <script src="js/instituva-ai.js?v=20261125-ai-inventory"></script>
+  <script src="js/instituva-ai.js?v=20261125-ai-schedules"></script>
   <script src="js/app.js?v=20261125-ai"></script>
 </body>
 </html>
