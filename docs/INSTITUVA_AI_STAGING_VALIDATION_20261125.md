@@ -183,3 +183,11 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - Se desplegó exclusivamente la función del asistente en **staging v18**, `verify_jwt=true`. El código recuperado confirma los dos nuevos filtros antes de los límites.
 - Postverificación de solo lectura: `ai_assistant_usage=0`, ningún museo ficticio residual. No se aplicaron migraciones ni cambios a las tablas operacionales. Producción y PR principal sin fusionar.
 - **La prueba HTTP real con JWT firmado y una respuesta del proveedor permanece pendiente**. No se debe confundir esta regresión con validación E2E.
+
+## 25 de noviembre — Autorización positiva y negativa en PostgreSQL (script persistente)
+- Se añadió `supabase/tests/instituva-ai-authorization-staging.sql`, exclusivamente para **staging** y una identidad ficticia existente e inactiva. La prueba contiene un preflight que falla si la identidad exacta de staging no existe o no está inactiva; no debe ejecutarse en producción.
+- El script inicia una transacción, activa **temporalmente** la identidad ficticia, establece el rol `authenticated` y una identidad `request.jwt.claim.sub` simulada. Confirma `current_user_museum_id()`, `collections.read`, `collection_can_read()` y `module_profile_allows('collections')`.
+- Confirma que RLS impide ver piezas de otro museo, que la función de cuota de Colecciones acepta al museo autorizado y rechaza explícitamente otro museo. Termina obligatoriamente en `ROLLBACK` y no guarda ningún consumo ni cambio de perfil.
+- Se ejecutó en staging el archivo **tal como quedó en el PR**, sin errores. En la comprobación posterior, `ai_assistant_usage=0`, el perfil ficticio sigue inactivo y no existen museos residuales del ensayo E2E.
+- La Edge Function de staging sigue en versión **18**, `verify_jwt=true`; no fue necesario desplegarla ni cambiar migraciones.
+- **Diferencia importante:** este ejercicio verifica control de acceso PostgreSQL con reclamaciones simuladas; **no representa una sesión HTTP con JWT criptográficamente firmado** ni evalúa la respuesta del modelo. El ensayo HTTP real sigue bloqueado por la falta de credenciales exclusivas de staging disponibles en esta sesión.
