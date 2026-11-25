@@ -18,6 +18,18 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_URL!==URL)
   throw Error("NOT_STAGING: refused non-staging URL");
 
 const marker="instituva-ai-e2e-"+randomBytes(7).toString("hex");
+// Validate staging API surface before creating any disposable organization.
+async function preflight(){
+  for(const path of [
+    "/rest/v1/museums?select=id&limit=0",
+    "/rest/v1/profiles?select=id,museum_id,role,status&limit=0",
+    "/rest/v1/user_roles?select=user_id,museum_id,role_id&limit=0",
+    "/rest/v1/ai_assistant_usage?select=museum_id&limit=0"
+  ]){
+    const r=await api(path);
+    assert.equal(r.status,200,"staging API preflight failed: "+path.split("?")[0]);
+  }
+}
 const museums=[];
 const users=[];
 const checks=[];
@@ -81,6 +93,7 @@ async function createActor(museum,suffix){
 const post=(path,token,body)=>api(path,{method:"POST",token,key:anon,body,allowError:true});
 let failed=false;
 try {
+  await preflight();
   const a=await setupMuseum("a"),b=await setupMuseum("b");
   const alice=await createActor(a,"alice"),bob=await createActor(b,"bob");
   for(const actor of [alice,bob]){
@@ -174,6 +187,10 @@ try {
     mode:"product",question:"¿Cómo funciona el diagnóstico institucional?"
   });
   check("inactive fixture denied despite still-signed JWT",inactiveProduct.status===403);
+  const inactiveQuota=await post("/rest/v1/rpc/ai_assistant_claim_slot_v2",bob.token,{
+    p_museum_id:bob.museum,p_mode:"product"
+  });
+  check("inactive fixture denied from quota despite still-signed JWT",inactiveQuota.status===403);
   const noAuth=await api("/functions/v1/instituva-ai-assistant",{
     method:"POST",token:anon,key:anon,body:{mode:"product",question:"¿Qué es INSTITUVA?"},
     allowError:true
@@ -202,6 +219,26 @@ try {
   }
   for(const museum of museums){
     await cleanup("/rest/v1/museums?id=eq."+museum);
+  }
+  // Server responses must confirm cleanup; HTTP 204 alone cannot prove
+  // a scoped DELETE affected a row. Verify every disposable identity.
+  for(const id of users){
+    try{
+      const authLookup=await api("/auth/v1/admin/users/"+id,{allowError:true});
+      if(authLookup.status!==404)cleanupErrors.push("auth user still present or unverified: "+id);
+      const roleLookup=await api("/rest/v1/user_roles?select=user_id&user_id=eq."+id);
+      if(!Array.isArray(roleLookup.data)||roleLookup.data.length)
+        cleanupErrors.push("synthetic role still present or unverified: "+id);
+    }catch(e){cleanupErrors.push("user cleanup check failed: "+id+": "+String(e));}
+  }
+  for(const museum of museums){
+    try{
+      const profileLookup=await api("/rest/v1/profiles?select=id&museum_id=eq."+museum);
+      const museumLookup=await api("/rest/v1/museums?select=id&id=eq."+museum);
+      if(!Array.isArray(profileLookup.data)||profileLookup.data.length||
+         !Array.isArray(museumLookup.data)||museumLookup.data.length)
+        cleanupErrors.push("synthetic museum/profile still present or unverified: "+museum);
+    }catch(e){cleanupErrors.push("museum cleanup check failed: "+museum+": "+String(e));}
   }
   if(cleanupErrors.length){
     console.error("TEST-FIXTURE CLEANUP INCOMPLETE",JSON.stringify({
