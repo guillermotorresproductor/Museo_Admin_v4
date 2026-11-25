@@ -95,11 +95,30 @@ try {
       });
       check(mode+" Edge HTTP denied before data retrieval",edgeDenied.status===403);
     }
+    // Newly-created random museum IDs cannot be on an existing explicit allowlist.
+    // Even a valid JWT must fail closed before product knowledge or model invocation.
+    const disabledProduct=await post("/functions/v1/instituva-ai-assistant",actor.token,{
+      mode:"product",question:"¿Cómo podemos investigar una incidencia en INSTITUVA?"
+    });
+    check("new museum is denied when absent from AI allowlist",disabledProduct.status===503);
+    const wrongMode=await post("/functions/v1/instituva-ai-assistant",actor.token,{
+      mode:"delete",question:"Intento de modo no autorizado"
+    });
+    check("unsupported AI mode is rejected",wrongMode.status===400);
     const directUsage=await api("/rest/v1/ai_assistant_usage?select=museum_id",{
       token:actor.token,key:anon,allowError:true
     });
     check("usage counter unavailable through client API",directUsage.status===401||directUsage.status===403);
   }
+  // Deactivate only one of our own disposable accounts and prove immediate
+  // server-side denial; no existing identity or role is touched.
+  await api("/rest/v1/profiles?id=eq."+bob.id,{
+    method:"PATCH",body:{status:"inactive"}
+  });
+  const inactiveProduct=await post("/functions/v1/instituva-ai-assistant",bob.token,{
+    mode:"product",question:"¿Cómo funciona el diagnóstico institucional?"
+  });
+  check("inactive fixture denied despite still-signed JWT",inactiveProduct.status===403);
   const noAuth=await api("/functions/v1/instituva-ai-assistant",{
     method:"POST",token:anon,key:anon,body:{mode:"product",question:"¿Qué es INSTITUVA?"},
     allowError:true
