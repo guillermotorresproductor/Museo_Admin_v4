@@ -97,7 +97,7 @@ Deno.serve(async (req: Request) => {
       if (!Number.isInteger(year) || year<2020 || year>2100) throw Error("INVALID_REQUEST");
       // Use caller-scoped RLS, never service-role bypass for financial data.
       // Existing finance_records contract is budget cells, not paid ledger entries.
-      const rows: Array<{museum_id:string;month:number;amount:number;finance_budget_lines:{record_type:string;category:string;name:string;counts_in_operating_balance:boolean}[]|{record_type:string;category:string;name:string;counts_in_operating_balance:boolean}|null}> = [];
+      const rows: Array<{museum_id:string;month:string;amount:number;finance_budget_lines:{record_type:string;category:string;name:string;counts_in_operating_balance:boolean}[]|{record_type:string;category:string;name:string;counts_in_operating_balance:boolean}|null}> = [];
       for (let offset=0; offset<=1500; offset+=500) {
         const {data,error}=await caller.from("finance_records")
           .select("museum_id,month,amount,finance_budget_lines(record_type,category,name,counts_in_operating_balance)")
@@ -113,7 +113,7 @@ Deno.serve(async (req: Request) => {
         const rawLine=record.finance_budget_lines;
         const line=Array.isArray(rawLine) ? (rawLine.length===1 ? rawLine[0] : null) : rawLine;
         if (!line || !["income","expense"].includes(line.record_type) ||
-            !Number.isInteger(record.month) || record.month<1 || record.month>12 ||
+            !["Septiembre","Octubre","Noviembre","Diciembre","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto"].includes(record.month) ||
             !Number.isFinite(record.amount) || Math.abs(record.amount)>1e10)
           throw Error("UPSTREAM_FAILURE");
         const category=clean(line.category,100);
