@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders, json } from "../_shared/security.ts";
+import { corsHeaders } from "../_shared/security.ts";
+const send = (body:unknown,status=200) => new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json","Cache-Control":"no-store"}});
 
 // INSTITUVA AI v1: closed query vocabulary, read-only, opt-in per tenant.
 // Never expose a service-role key or database query API to the language model.
@@ -23,21 +24,21 @@ const allowedMuseum = (museum: string) => {
 };
 const denied = (error: unknown) => {
   const code = String((error as Error)?.message || "");
-  if (code === "AUTH_REQUIRED") return json({error:"Inicia sesión para consultar al asistente."},401);
-  if (code === "FORBIDDEN") return json({error:"Tu perfil no autoriza este diagnóstico."},403);
-  if (code === "NOT_ENABLED") return json({error:"El asistente todavía no está activado para este museo."},503);
-  if (code === "NOT_CONFIGURED") return json({error:"El servicio de IA aún no tiene su configuración de proveedor."},503);
-  if (code === "INVALID_REQUEST") return json({error:"Comprueba el nombre, la fecha y la pregunta."},400);
-  if (code === "AMBIGUOUS_EMPLOYEE") return json({error:"Hay varios empleados con ese nombre. Consulta el expediente con Administración."},409);
-  if (code === "EMPLOYEE_NOT_FOUND") return json({error:"No se encontró ese empleado activo en este museo."},404);
-  if (code === "RATE_LIMITED") return json({error:"Se alcanzó el límite mensual de consultas del asistente para esta cuenta o museo."},429);
-  if (code === "UPSTREAM_FAILURE") return json({error:"No se pudo completar el diagnóstico. Vuelve a intentarlo más tarde."},502);
-  return json({error:"El diagnóstico no está disponible. Ningún dato ha sido modificado."},500);
+  if (code === "AUTH_REQUIRED") return send({error:"Inicia sesión para consultar al asistente."},401);
+  if (code === "FORBIDDEN") return send({error:"Tu perfil no autoriza este diagnóstico."},403);
+  if (code === "NOT_ENABLED") return send({error:"El asistente todavía no está activado para este museo."},503);
+  if (code === "NOT_CONFIGURED") return send({error:"El servicio de IA aún no tiene su configuración de proveedor."},503);
+  if (code === "INVALID_REQUEST") return send({error:"Comprueba el nombre, la fecha y la pregunta."},400);
+  if (code === "AMBIGUOUS_EMPLOYEE") return send({error:"Hay varios empleados con ese nombre. Consulta el expediente con Administración."},409);
+  if (code === "EMPLOYEE_NOT_FOUND") return send({error:"No se encontró ese empleado activo en este museo."},404);
+  if (code === "RATE_LIMITED") return send({error:"Se alcanzó el límite mensual de consultas del asistente para esta cuenta o museo."},429);
+  if (code === "UPSTREAM_FAILURE") return send({error:"No se pudo completar el diagnóstico. Vuelve a intentarlo más tarde."},502);
+  return send({error:"El diagnóstico no está disponible. Ningún dato ha sido modificado."},500);
 };
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", {headers:corsHeaders});
-  if (req.method !== "POST") return json({error:"Método no permitido."},405);
+  if (req.method !== "POST") return send({error:"Método no permitido."},405);
   try {
     const bearer = req.headers.get("Authorization");
     if (!bearer?.startsWith("Bearer ")) throw Error("AUTH_REQUIRED");
@@ -62,7 +63,7 @@ Deno.serve(async (req: Request) => {
     if (!allowedMuseum(profile.museum_id)) throw Error("NOT_ENABLED");
 
     // Prevent consuming inference tokens for unbounded queries or arbitrary SQL.
-    const input=await req.json().catch(()=>null);
+    const input=await req.send().catch(()=>null);
     if (!input || typeof input !== "object") throw Error("INVALID_REQUEST");
     const question=clean(input.question,MAX_QUESTION + 1);
     const name=clean(input.employee_name,120);
@@ -138,12 +139,12 @@ Responde con: Hallazgo; Qué comprobar; Pasos sugeridos. Máximo 200 palabras.`,
       })
     });
     if (!response.ok) throw Error("UPSTREAM_FAILURE");
-    const data=await response.json();
+    const data=await response.send();
     const answer=(data.output||[]).flatMap((item:{content?:Array<{type:string,text?:string}>})=>item.content||[])
       .filter((part:{type:string,text?:string})=>part.type==="output_text")
       .map((part:{text?:string})=>part.text||"").join("\n").trim().slice(0,4500);
     if (!answer) throw Error("UPSTREAM_FAILURE");
-    return json({answer, evidence:{employee:snapshot.employee,date:day,punch_count:snapshot.punches.length,
+    return send({answer, evidence:{employee:snapshot.employee,date:day,punch_count:snapshot.punches.length,
       alert_count:snapshot.alerts.length,open_entries:snapshot.time_entries.filter(t=>t.open).length},
       read_only:true});
   } catch(error){
