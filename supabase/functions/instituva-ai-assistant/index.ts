@@ -10,6 +10,7 @@ import { summarizeSchedules, type ScheduleEvidenceRow } from "./schedules-summar
 import { summarizeSelfNotifications, type NotificationEvidenceRow } from "./notifications-summary.ts";
 import { DIAGNOSTIC_FORMAT, formatDiagnosticResponse } from "./diagnostic-response.ts";
 import { extractCompletedDiagnosis } from "./provider-response.ts";
+import { canonicalFinanceCategory, OTHER_FINANCE_CATEGORY } from "./finance-categories.ts";
 const send = (body:unknown,status=200) => new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json","Cache-Control":"no-store"}});
 
 // INSTITUVA AI v1: closed query vocabulary, read-only, opt-in per tenant.
@@ -111,10 +112,10 @@ Deno.serve(async (req: Request) => {
       if (!Number.isInteger(year) || year<2020 || year>2100) throw Error("INVALID_REQUEST");
       // Use caller-scoped RLS, never service-role bypass for financial data.
       // Existing finance_records contract is budget cells, not paid ledger entries.
-      const rows: Array<{museum_id:string;month:string;amount:number;finance_budget_lines:{museum_id:string;record_type:string;category:string;name:string;counts_in_operating_balance:boolean}[]|{museum_id:string;record_type:string;category:string;name:string;counts_in_operating_balance:boolean}|null}> = [];
+      const rows: Array<{museum_id:string;month:string;amount:number;finance_budget_lines:{museum_id:string;record_type:string;category:string;counts_in_operating_balance:boolean}[]|{museum_id:string;record_type:string;category:string;counts_in_operating_balance:boolean}|null}> = [];
       for (let offset=0; offset<=1500; offset+=500) {
         const {data,error}=await caller.from("finance_records")
-          .select("museum_id,month,amount,finance_budget_lines(museum_id,record_type,category,name,counts_in_operating_balance)")
+          .select("museum_id,month,amount,finance_budget_lines(museum_id,record_type,category,counts_in_operating_balance)")
           .eq("museum_id",museumId).eq("year",year)
           .order("id",{ascending:true}).range(offset,offset+499);
         if (error) throw Error("UPSTREAM_FAILURE");
@@ -123,6 +124,7 @@ Deno.serve(async (req: Request) => {
         if (offset===1500) throw Error("UPSTREAM_FAILURE");
       }
       const grouped=new Map<string,{type:string;category:string;total_cents:number;records:number}>();
+      let redactedCategoryRecords=0;
       for (const record of rows) {
         const rawLine=record.finance_budget_lines;
         const line=Array.isArray(rawLine) ? (rawLine.length===1 ? rawLine[0] : null) : rawLine;
@@ -134,21 +136,30 @@ Deno.serve(async (req: Request) => {
             !["Septiembre","Octubre","Noviembre","Diciembre","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto"].includes(record.month) ||
             !Number.isFinite(record.amount) || Math.abs(record.amount)>1e10)
           throw Error("UPSTREAM_FAILURE");
-        const category=clean(line.category,100);
+        // Budget categories are editable free text. Never relay arbitrary
+        // category labels (including embedded instructions) to the model.
+        // Keep the amounts under a neutral group rather than dropping rows.
+        const category=canonicalFinanceCategory(line.category);
+        if(category===OTHER_FINANCE_CATEGORY)redactedCategoryRecords++;
         const groupKey=line.record_type+"|"+category;
         const entry=grouped.get(groupKey)||{type:line.record_type,category,total_cents:0,records:0};
         if (line.counts_in_operating_balance!==false) entry.total_cents+=Math.round(record.amount*100);
+        if (!Number.isSafeInteger(entry.total_cents))throw Error("UPSTREAM_FAILURE");
         entry.records++;
         grouped.set(groupKey,entry);
       }
       const totals=Array.from(grouped.values());
       const income=totals.filter(x=>x.type==="income").reduce((sum,x)=>sum+x.total_cents,0);
       const expense=totals.filter(x=>x.type==="expense").reduce((sum,x)=>sum+x.total_cents,0);
+      if(!Number.isSafeInteger(income)||!Number.isSafeInteger(expense)||
+         !Number.isSafeInteger(income-expense))throw Error("UPSTREAM_FAILURE");
       snapshot={type:"finance_budget_snapshot",year,record_count:rows.length,
         totals_by_category:totals.map(x=>({type:x.type,category:x.category,amount:x.total_cents/100,records:x.records})),
         income:income/100,expense:expense/100,balance:(income-expense)/100,
-        warning:"Estos son importes de celdas presupuestarias; no prueban pagos, cobros, facturas saldadas ni conciliación."};
-      evidence={domain:"finance",year,record_count:rows.length,category_count:totals.length};
+        category_labels_redacted_records:redactedCategoryRecords,
+        warning:"Estos son importes de celdas presupuestarias; no prueban pagos, cobros, facturas saldadas ni conciliación. Las categorías de texto no reconocido se agrupan sin exponer su etiqueta, pero sus importes continúan en los totales."};
+      evidence={domain:"finance",year,record_count:rows.length,category_count:totals.length,
+        category_labels_redacted_records:redactedCategoryRecords};
       sources=["finance_records","finance_budget_lines"];
     } else if (mode==="collections") {
       // Existing collection RLS and permission checks: no privileged reads.
