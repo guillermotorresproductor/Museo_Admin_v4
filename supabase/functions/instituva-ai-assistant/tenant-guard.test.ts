@@ -1,5 +1,5 @@
 import {
-  requiredPermissionsForMode,assertActiveMuseumProfile,assertTenantRows
+  requiredPermissionsForMode,assertActiveMuseumProfile,assertTenantRows,assertEmployeeTenantRows
 } from "./tenant-guard.ts";
 function check(value:boolean,message:string){if(!value)throw Error(message)}
 function rejects(fn:()=>unknown){try{fn()}catch(e){return (e as Error).message==="FORBIDDEN"}return false}
@@ -30,4 +30,15 @@ Deno.test("tenant row isolation rejects cross-museum evidence atomically",()=>{
   check(rejects(()=>assertTenantRows([{museum_id:museumA},{museum_id:museumB}],museumA)),"foreign row accepted");
   check(rejects(()=>assertTenantRows([{museum_id:undefined}],museumA)),"unscoped row accepted");
   check(assertTenantRows([],museumA).length===0,"empty authorized result rejected");
+});
+
+Deno.test("attendance data from another museum or employee is rejected",()=>{
+ const authorizedEmployee="33333333-3333-4333-8333-333333333333";
+ const otherEmployee="44444444-4444-4444-8444-444444444444";
+ const correct={museum_id:museumA,employee_id:authorizedEmployee,id:"synthetic"};
+ check(assertEmployeeTenantRows([correct],museumA,authorizedEmployee).length===1,"own attendance rejected");
+ check(rejects(()=>assertEmployeeTenantRows([correct,{...correct,museum_id:museumB}],museumA,authorizedEmployee)),"foreign museum attendance accepted");
+ check(rejects(()=>assertEmployeeTenantRows([correct,{...correct,employee_id:otherEmployee}],museumA,authorizedEmployee)),"foreign employee attendance accepted");
+ check(rejects(()=>assertEmployeeTenantRows([{...correct,museum_id:undefined}],museumA,authorizedEmployee)),"missing museum accepted");
+ check(rejects(()=>assertEmployeeTenantRows([{...correct,employee_id:undefined}],museumA,authorizedEmployee)),"missing employee accepted");
 });
