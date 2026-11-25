@@ -9,6 +9,7 @@ const sql=fs.readFileSync("supabase/migrations/20261125170000_ai_assistant_usage
 const sqlV2=fs.readFileSync("supabase/migrations/20261125194500_ai_assistant_mode_quota.sql","utf8");
 const sqlCollections=fs.readFileSync("supabase/migrations/20261125233000_ai_collections_readonly_quota.sql","utf8");
 const sqlInventory=fs.readFileSync("supabase/migrations/20261125234500_ai_inventory_readonly_quota.sql","utf8");
+const sqlSchedules=fs.readFileSync("supabase/migrations/20261125235500_ai_schedules_readonly_quota.sql","utf8");
 const runbooks=fs.readFileSync("supabase/functions/instituva-ai-assistant/incident-runbooks.ts","utf8");
 const kb=fs.readFileSync("supabase/functions/instituva-ai-assistant/product-knowledge.ts","utf8");
 
@@ -80,7 +81,7 @@ test("general mode does not reach private employee retrieval",()=>{
  const elseBranch=endpoint.indexOf('} else {',start);
  const employeeQuery=endpoint.indexOf('admin.from("employees")',start);
  assert.ok(start>0 && elseBranch>start && employeeQuery>elseBranch);
- const perms=endpoint.indexOf('if (mode==="attendance" || mode==="finance" || mode==="collections" || mode==="inventory")');
+ const perms=endpoint.indexOf('if (mode==="attendance" || mode==="finance" || mode==="collections" || mode==="inventory" || mode==="schedules")');
  const auth=endpoint.indexOf('caller.rpc("has_permission"',perms);
  assert.ok(perms>0 && auth>perms);
  assert.match(endpoint,/return send\(\{answer,evidence,sources,mode,read_only:true\}\)/);
@@ -244,4 +245,27 @@ test("inventory quota explicitly requires inventory reader and shares original a
  assert.match(sqlInventory,/grant execute on function public\.ai_assistant_claim_inventory_slot_v1\(uuid\) to authenticated/);
  assert.doesNotMatch(sqlInventory,/alter table public\.(?:inventory_|finance_|employee_)/i);
  assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_inventory_slot_v1"/);
+});
+
+test("weekly schedule diagnostics stay within explicit RLS and 7-day window",()=>{
+ assert.match(endpoint,/mode==="schedules"/);
+ assert.match(endpoint,/validAttendanceDay\(input\.start_day\)/);
+ assert.match(endpoint,/for\(let i=0;i<7;i\+\+\)endExclusive=nextAttendanceDay\(endExclusive\)/);
+ assert.match(endpoint,/caller\.from\("employee_shifts"\)/);
+ assert.match(endpoint,/\.select\("id,museum_id,employee_id,shift_date,starts_at,ends_at,status"\)/);
+ assert.match(endpoint,/\.eq\("museum_id",museumId\)\.gte\("shift_date",startDay\)\.lt\("shift_date",endExclusive\)/);
+ assert.match(endpoint,/assertTenantRows\(\(data\|\|\[\]\) as unknown as ScheduleEvidenceRow\[\],museumId\)/);
+ assert.match(endpoint,/snapshot=summarizeSchedules\(scheduleRows,museumId,startDay,endExclusive\)/);
+ assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_schedules_slot_v1"/);
+ assert.doesNotMatch(endpoint,/admin\.from\("employee_shifts"\).*schedules/m);
+ assert.match(ui,/canReadSchedules=hasPermission\("time\.read\.all"\)/);
+ assert.match(html,/value="schedules"/);
+});
+test("weekly schedules quota uses invoker and shared limit without changing operational roles",()=>{
+ assert.match(sqlSchedules,/security invoker/);
+ assert.match(sqlSchedules,/public\.has_permission\('time\.read\.all'\)/);
+ assert.match(sqlSchedules,/p_museum_id is distinct from public\.current_user_museum_id\(\)/);
+ assert.match(sqlSchedules,/public\.ai_assistant_claim_slot_v2\(p_museum_id,'product'\)/);
+ assert.match(sqlSchedules,/revoke all on function public\.ai_assistant_claim_schedules_slot_v1\(uuid\) from public,anon/);
+ assert.doesNotMatch(sqlSchedules,/update public\.(?:employee_|attendance_|finance_)/i);
 });
