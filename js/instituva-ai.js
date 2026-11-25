@@ -18,6 +18,7 @@ function bindInstituvaAi() {
   const canDiagnose=hasPermission("attendance.history.read") && hasPermission("finance.read");
   const canReadFinance=hasPermission("finance.read");
   const canReadCollections=hasPermission("collections.read");
+  const canReadInventory=hasPermission("modules.inventory.read");
 
   const updateMode=()=>{
     const attendance=mode.value==="attendance";
@@ -28,7 +29,8 @@ function bindInstituvaAi() {
     employee.required=attendance;
     date.required=attendance;
     const collections=mode.value==="collections";
-    if ((attendance && !canDiagnose) || (finance && !canReadFinance) || (collections && !canReadCollections)) {
+    const inventory=mode.value==="inventory";
+    if ((attendance && !canDiagnose) || (finance && !canReadFinance) || (collections && !canReadCollections) || (inventory && !canReadInventory)) {
       status.textContent="Tu perfil no tiene permiso para este tipo de consulta.";
       form.querySelector('button[type="submit"]').disabled=true;
     } else {
@@ -51,6 +53,7 @@ function bindInstituvaAi() {
     if (!question || (queryMode==="attendance" && (!canDiagnose || !employee_name || !day))) return;
     if (queryMode==="finance" && (!canReadFinance || !Number.isInteger(fiscalYear) || fiscalYear<2020 || fiscalYear>2100)) return;
     if (queryMode==="collections" && !canReadCollections) return;
+    if (queryMode==="inventory" && !canReadInventory) return;
     busy=true;
     const button=form.querySelector('button[type="submit"]');
     button.disabled=true;
@@ -77,6 +80,8 @@ function bindInstituvaAi() {
         evidence.textContent=`Presupuesto del año ${Number(body.evidence?.year||fiscalYear)}; celdas consultadas: ${Number(body.evidence?.record_count||0)}. No equivale a pagos ni cobros conciliados. Solo lectura.`;
       } else if (body.mode==="collections") {
         evidence.textContent=`Colecciones: ${Number(body.evidence?.item_count||0)} piezas; ${Number(body.evidence?.photo_count||0)} fotografías; ${Number(body.evidence?.history_count||0)} movimientos históricos. ${Number(body.evidence?.items_without_photos||0)} piezas sin fotografía registrada; esto no implica necesariamente un error. Solo lectura.`;
+      } else if (body.mode==="inventory") {
+        evidence.textContent=`Inventario: ${Number(body.evidence?.record_count||0)} registros; ${Number(body.evidence?.missing_photo_records||0)} sin fotografía asociada; ${Number(body.evidence?.archived_records||0)} archivados. Son datos administrativos, no una inspección física. Solo lectura.`;
       } else {
         evidence.textContent="Conocimiento general de INSTITUVA, sujeto a revisión y actualización. Sin acceso a datos de empleados.";
       }
