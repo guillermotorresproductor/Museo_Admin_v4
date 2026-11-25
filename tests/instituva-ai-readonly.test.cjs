@@ -98,7 +98,7 @@ test("financial AI uses RLS-scoped budget-only reading and never writes finance 
  assert.match(endpoint,/mode==="finance"/);
  assert.match(endpoint,/caller\.from\("finance_records"\)/);
  assert.match(endpoint,/\.eq\("museum_id",museumId\)\.eq\("year",year\)/);
- assert.match(endpoint,/finance_budget_lines\(record_type,category,name,counts_in_operating_balance\)/);
+ assert.match(endpoint,/finance_budget_lines\(museum_id,record_type,category,name,counts_in_operating_balance\)/);
  assert.match(endpoint,/finance_budget_snapshot/);
  assert.match(endpoint,/no prueban pagos, cobros, facturas saldadas ni conciliación/);
  assert.doesNotMatch(endpoint,/admin\.from\("finance_records"\)/);
@@ -182,4 +182,11 @@ test("attendance diagnosing prior open shifts and protecting bounded evidence",(
  assert.match(endpoint,/previous_open_entries:\(snapshot\.previous_open_entries as unknown\[\]\)\.length/);
  assert.match(endpoint,/validAttendanceDay\(input\.day\)/);
  assert.match(endpoint,/nextAttendanceDay\(day\)/);
+});
+
+test("embedded budget lines are tenant-verified, not just their parent records",()=>{
+ assert.match(endpoint,/finance_budget_lines\(museum_id,record_type,category,name,counts_in_operating_balance\)/);
+ assert.match(endpoint,/if \(!line\) throw Error\("UPSTREAM_FAILURE"\)/);
+ assert.match(endpoint,/assertTenantRows\(\[line\],museumId\)/);
+ assert.doesNotMatch(endpoint,/\.select\("museum_id,month,amount,finance_budget_lines\(record_type/);
 });
