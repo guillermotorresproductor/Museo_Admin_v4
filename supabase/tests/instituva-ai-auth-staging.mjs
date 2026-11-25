@@ -72,7 +72,7 @@ try {
       token:actor.token,key:anon
     });
     check("cross-museum profile invisible",foreign.data?.length===0);
-    for(const perm of ["finance.read","attendance.history.read"]){
+    for(const perm of ["finance.read","attendance.history.read","collections.read"]){
       const result=await post("/rest/v1/rpc/has_permission",actor.token,{requested_permission:perm});
       check("ordinary test profile lacks "+perm,result.status===200&&result.data===false);
     }
@@ -105,6 +105,14 @@ try {
       mode:"delete",question:"Intento de modo no autorizado"
     });
     check("unsupported AI mode is rejected",wrongMode.status===400);
+    const collectionsQuotaDenied=await post("/rest/v1/rpc/ai_assistant_claim_collections_slot_v1",actor.token,{
+      p_museum_id:actor.museum
+    });
+    check("collection quota denied without collections.read",collectionsQuotaDenied.status===403);
+    const collectionsEdgeDenied=await post("/functions/v1/instituva-ai-assistant",actor.token,{
+      mode:"collections",question:"Revisar el conteo de piezas y fotografías ficticias"
+    });
+    check("collections Edge rejected without collection permission",collectionsEdgeDenied.status===403);
     const directUsage=await api("/rest/v1/ai_assistant_usage?select=museum_id",{
       token:actor.token,key:anon,allowError:true
     });
