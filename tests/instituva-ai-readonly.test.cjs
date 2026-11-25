@@ -24,7 +24,7 @@ test("AI assistant is museum-owned, gated, and never receives arbitrary SQL or t
  assert.match(endpoint,/model:MODEL,store:false,max_output_tokens:ANSWER_LIMIT/);
  assert.doesNotMatch(endpoint,/eval\(|execute_sql|executeSql|rpc\("correct_|\.insert\(|\.update\(|\.delete\(|tools:\s*\[/);
  assert.match(endpoint,/OPENAI_API_KEY/);
- assert.match(endpoint,/Nunca afirmes que un empleado estuvo presente/);
+ assert.match(endpoint,/Nunca afirmes presencia laboral por un horario programado/);
 });
 test("sensitive employee columns are not queried or passed to model",()=>{
  assert.match(endpoint,/\.select\("id,first_name,last_name"\)/);
