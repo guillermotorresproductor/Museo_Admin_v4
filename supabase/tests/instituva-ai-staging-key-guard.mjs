@@ -46,3 +46,12 @@ export function assertStagingUserJwt({userToken,confirmRef,nowEpochSeconds=Math.
     throw Error("STAGING_USER_JWT_SCOPE_INVALID");
   return true;
 }
+
+export function assertStagingAnonKey({anonKey,confirmRef,nowEpochSeconds=Math.floor(Date.now()/1000)}){
+  if(confirmRef!==STAGING_REF)throw Error("STAGING_EXPLICIT_OPT_IN_REQUIRED");
+  const claims=claimsFromLegacyKey(anonKey);
+  if(claims.ref!==STAGING_REF||claims.role!=="anon"||claims.iss!=="supabase"||
+     !Number.isSafeInteger(claims.exp)||claims.exp<=nowEpochSeconds+300)
+    throw Error("STAGING_ANON_KEY_SCOPE_INVALID");
+  return true;
+}
