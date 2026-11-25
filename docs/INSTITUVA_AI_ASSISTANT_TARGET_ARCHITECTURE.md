@@ -1,5 +1,5 @@
 # INSTITUVA — Arquitectura objetivo del asistente integral de IA
-**Estado:** especificación aprobada de producto para implementar por etapas; **NO desplegada ni habilitada**.
+**Estado:** arquitectura aprobada. Etapa A parcial implementada en rama PR #125 y staging; Etapas B–D pendientes. **NO habilitada en producción**.
 **Fecha:** 2026-11-25.
 
 ## 1. Propósito y propiedad
@@ -73,3 +73,12 @@ Usuario del Museo A
 
 ## 8. Estado frente al prototipo v1
 `supabase/functions/instituva-ai-assistant/index.ts` en PR #125 solo consulta un empleado, una fecha, turnos, ponches y alertas. **No conoce la programación completa de INSTITUVA ni consulta todos los dominios autorizados**. No considerarlo finalizado, ni activar producción bajo la descripción de "asistente integral", hasta implementar las etapas A–C.
+
+## 9. Avance verificado el 25/nov/2026
+- Se añadió `product-knowledge.ts`, catálogo inicial de conocimiento de módulos con referencias al repositorio. Es **curado, parcial y no sensible**; no constituye un índice exhaustivo del código ni autorización para leer repositorios privados.
+- La función ahora distingue consultas de producto (`mode=product`) de diagnósticos privados (`mode=attendance`). Preguntas de producto no consultan tablas de empleados; diagnósticos laborales requieren ambos permisos de lectura existentes.
+- Se modificó la interfaz para que la consulta de producto no exija nombre de empleado ni fecha, y para mostrar fuentes recuperadas.
+- Si no se encuentra una fuente, responde que la documentación disponible es insuficiente en vez de inventar.
+- Se mantuvieron las cuotas y el indicador de habilitación por museo apagado por defecto.
+- Suite CI: Node.js y comprobación de tipos Deno. Función instalada en staging, sin activación del proveedor de IA.
+- La siguiente iteración debe ampliar el índice a código y documentación versionados con referencias exactas a `main` aprobado, construir consultas autorizadas adicionales por dominio y pruebas cruzadas de permisos antes de habilitar a clientes.
