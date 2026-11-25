@@ -288,12 +288,13 @@ Deno.serve(async (req: Request) => {
         .eq("museum_id",museumId).eq("employee_id",employee.id).eq("alert_date",day).limit(30),
       admin.from("employee_time_entries").select("museum_id,employee_id,clock_in,clock_out,excluded_at")
         .eq("museum_id",museumId).eq("employee_id",employee.id)
-        .gte("clock_in",day+"T04:00:00Z").lt("clock_in",nextAttendanceDay(day)+"T04:00:00Z").limit(30),
+        .gte("clock_in",day+"T04:00:00Z").lt("clock_in",nextAttendanceDay(day)+"T04:00:00Z")
+        .is("excluded_at",null).limit(30),
       // An unresolved shift may have started before the requested day.
       // Only read open entries for this exact employee and museum, latest first.
       admin.from("employee_time_entries").select("museum_id,employee_id,clock_in,clock_out,excluded_at")
         .eq("museum_id",museumId).eq("employee_id",employee.id)
-        .is("clock_out",null).lt("clock_in",day+"T04:00:00Z")
+        .is("clock_out",null).is("excluded_at",null).lt("clock_in",day+"T04:00:00Z")
         .order("clock_in",{ascending:false}).limit(10)
     ]);
     if ([shifts,events,alerts,timeEntries,earlierOpenEntries].some(r=>r.error)) throw Error("UPSTREAM_FAILURE");
@@ -318,8 +319,8 @@ Deno.serve(async (req: Request) => {
         type:e.event_type,at:asLocal(e.occurred_at),classification:e.classification
       })),
       alerts:safeAlerts.map(a=>({type:a.alert_type,status:a.status,detected_at:asLocal(a.detected_at)})),
-      time_entries:safeTimeEntries.filter(t=>!t.excluded_at).map(t=>({in:asLocal(t.clock_in),out:asLocal(t.clock_out),open:t.clock_out===null})),
-      previous_open_entries:safeEarlierOpen.filter(t=>!t.excluded_at)
+      time_entries:safeTimeEntries.map(t=>({in:asLocal(t.clock_in),out:asLocal(t.clock_out),open:t.clock_out===null})),
+      previous_open_entries:safeEarlierOpen
         .map(t=>({since:asLocal(t.clock_in),open:true,origin:"jornada anterior al día consultado"}))
     };
     evidence={employee:snapshot.employee,date:day,punch_count:(snapshot.punches as unknown[]).length,
