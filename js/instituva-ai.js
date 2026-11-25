@@ -5,6 +5,8 @@ function bindInstituvaAi() {
   const form=root.querySelector("[data-ai-form]");
   const mode=form.querySelector('[name="mode"]');
   const privateFields=root.querySelector("[data-ai-private]");
+  const financeFields=root.querySelector("[data-ai-finance]");
+  const year=form.querySelector('[name="year"]');
   const employee=form.querySelector('[name="employee_name"]');
   const date=form.querySelector('[name="day"]');
   const status=root.querySelector("[data-ai-status]");
@@ -18,9 +20,12 @@ function bindInstituvaAi() {
   const updateMode=()=>{
     const attendance=mode.value==="attendance";
     privateFields.hidden=!attendance;
+    const finance=mode.value==="finance";
+    financeFields.hidden=!finance;
+    year.required=finance;
     employee.required=attendance;
     date.required=attendance;
-    if (attendance && !canDiagnose) {
+    if ((attendance || finance) && !canDiagnose) {
       status.textContent="Tu perfil no autoriza consultar Asistencia y Nómina de empleados.";
       form.querySelector('button[type="submit"]').disabled=true;
     } else {
@@ -39,7 +44,9 @@ function bindInstituvaAi() {
     const question=String(data.get("question")||"").trim();
     const employee_name=String(data.get("employee_name")||"").trim();
     const day=String(data.get("day")||"");
+    const fiscalYear=Number(data.get("year"));
     if (!question || (queryMode==="attendance" && (!canDiagnose || !employee_name || !day))) return;
+    if (queryMode==="finance" && (!canDiagnose || !Number.isInteger(fiscalYear) || fiscalYear<2020 || fiscalYear>2100)) return;
     busy=true;
     const button=form.querySelector('button[type="submit"]');
     button.disabled=true;
@@ -52,6 +59,7 @@ function bindInstituvaAi() {
         request.employee_name=employee_name;
         request.day=day;
       }
+      if (queryMode==="finance") request.year=fiscalYear;
       const res=await fetch(`${supabaseUrl}/functions/v1/instituva-ai-assistant`,{
         method:"POST",headers,body:JSON.stringify(request),cache:"no-store"
       });
@@ -61,6 +69,8 @@ function bindInstituvaAi() {
       answer.textContent=body.answer;
       if (body.mode==="attendance") {
         evidence.textContent=`Fuente: asistencia de ${String(body.evidence?.employee||"").slice(0,120)}; fecha ${String(body.evidence?.date||day)}. Ponches: ${Number(body.evidence?.punch_count||0)}. Alertas: ${Number(body.evidence?.alert_count||0)}. Solo lectura.`;
+      } else if (body.mode==="finance") {
+        evidence.textContent=`Presupuesto del año ${Number(body.evidence?.year||fiscalYear)}; celdas consultadas: ${Number(body.evidence?.record_count||0)}. No equivale a pagos ni cobros conciliados. Solo lectura.`;
       } else {
         evidence.textContent="Conocimiento general de INSTITUVA, sujeto a revisión y actualización. Sin acceso a datos de empleados.";
       }
