@@ -122,3 +122,15 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - API EXECUTE: denegada a `anon`, disponible a `authenticated` con verificación interna. Perfil de prueba originalmente inactivo sigue igual y ai_assistant_usage permanece sin registros.
 - Edge Function actualizada exclusivamente en staging a **versión 13**, con `verify_jwt=true`.
 - Suite Deno/Node incluye tests de autoscoping, prompt injection en categorías, incertidumbre, cero registros y permisos. Prueba HTTP real con JWT firmado sigue pendiente; no afirmar validación extremo a extremo ni publicar producción.
+
+## 25 de noviembre — Contrato de diagnóstico estructurado y no operativo
+- Se reforzó el objetivo original de la IA: investigar incidencias y proponer soluciones, pero no ejecutar cambios. Las fuentes y los contadores de evidencia son construidos y remitidos **por el servidor**, no se solicitan como "hechos confirmados" al modelo.
+- Nuevo esquema estricto `DIAGNOSTIC_FORMAT` del Responses API: `resumen`, `hipotesis`, `verificaciones`, `recomendaciones_manuales` y `limitaciones`, con claves cerradas y campos obligatorios.
+- Se rechazan respuestas incompletas, inválidas, con claves extra, listas obligatorias vacías o secciones sobredimensionadas. No se muestra al usuario como válido el texto libre ni resultados de la API con estado incompleto.
+- El servidor presenta `DIAGNÓSTICO PRELIMINAR`, distingue `Hipótesis (no confirmadas)`, `Verificaciones pendientes`, `Acciones manuales propuestas (NO ejecutadas)` y `Limitaciones de la evidencia`.
+- El objeto devuelto por la función incluye `read_only:true`, `actions_executed:false` y `diagnostic_contract:"read_only_v1"`. La interfaz rechaza la respuesta si faltan esos atributos.
+- Una consulta de producto sin documentación pertinente sigue siendo denegación informativa, sin llamadas al modelo, e incorpora el mismo contrato no operativo.
+- La función continúa sin herramientas del modelo ni RPC operacionales; el único cambio técnico permitido es el contador de cuota existente y acotado. La leyenda se refiere expresamente a **registros operacionales**.
+- Pruebas Deno del parser y formato: rechazan documentos inválidos y acciones sin calificación, comprueban incertidumbre y ausencia de causas inventadas. Pruebas Node/CI con regresión de permisos y lectura aprobadas para commit `df9889d60cf676642d5f32552c66df1434e000f1`.
+- Despliegue exclusivamente en **staging v14** con `verify_jwt=true`. Se recuperó el código desplegado y se confirmó el contrato y parser. `ai_assistant_usage` conserva 0 filas; el perfil ficticio empleado antes sigue inactivo.
+- **Limitación**: un formato JSON estricto controla estructura, no demuestra por sí solo que toda hipótesis sea correcta. La respuesta del proveedor de IA y la sesión HTTP JWT auténtica no pudieron verificarse en esta ejecución; quedan como requisito de aprobación. No autorizar producción ni merge todavía.
