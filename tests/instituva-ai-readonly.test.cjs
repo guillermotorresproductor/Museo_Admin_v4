@@ -385,4 +385,5 @@ test("finance diagnostic never forwards editable category text or unused budget 
  assert.doesNotMatch(endpoint,/const category=clean\(line\.category,/);
  assert.match(sanitizer,/OTHER_FINANCE_CATEGORY/);
  assert.match(sanitizer,/Object\.prototype\.hasOwnProperty\.call/);
+ assert.match(ui,/category_labels_redacted_records/);
 });
