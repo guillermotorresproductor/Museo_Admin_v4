@@ -39,7 +39,7 @@ test("sensitive employee columns are not queried or passed to model",()=>{
  assert.match(endpoint,/\.select\("id,museum_id,employee_id,shift_id,event_type,occurred_at,classification,supersedes_event_id"\)/);
  assert.match(endpoint,/\.select\("museum_id,employee_id,clock_in,clock_out,excluded_at"\)/);
  assert.doesNotMatch(endpoint,/\.select\("\*"\)|\.select\(".*(?:salary|medical_condition|phone|address|email|photo_url)/);
- assert.match(endpoint,/filter\(t=>!t\.excluded_at\)/);
+ assert.match(endpoint,/\.is\("excluded_at",null\)\.limit\(30\)/);
 });
 test("frontend displays AI text as literal text and contains no write actions",()=>{
  assert.match(ui,/answer\.textContent=body\.answer/);
@@ -180,10 +180,10 @@ test("attendance diagnosing prior open shifts and protecting bounded evidence",(
  assert.match(endpoint,/const scopedEmployees=assertTenantRows\(employees\|\|\[\],museumId\)/);
  assert.match(endpoint,/scopedEmployees\.length>=300/);
  assert.match(endpoint,/const safeEarlierOpen=assertEmployeeTenantRows\(earlierOpenEntries\.data\|\|\[\],museumId,employee\.id\)/);
- assert.match(endpoint,/\.is\("clock_out",null\)\.lt\("clock_in",day\+"T04:00:00Z"\)/);
+ assert.match(endpoint,/\.is\("clock_out",null\)\.is\("excluded_at",null\)\.lt\("clock_in",day\+"T04:00:00Z"\)/);
  assert.match(endpoint,/\.order\("clock_in",\{ascending:false\}\)\.limit\(10\)/);
  assert.match(endpoint,/safeEarlierOpen\.length>=10/);
- assert.match(endpoint,/previous_open_entries:safeEarlierOpen\.filter/);
+ assert.match(endpoint,/previous_open_entries:safeEarlierOpen\s*\.map/);
  assert.match(endpoint,/previous_open_entries:\(snapshot\.previous_open_entries as unknown\[\]\)\.length/);
  assert.match(endpoint,/validAttendanceDay\(input\.day\)/);
  assert.match(endpoint,/nextAttendanceDay\(day\)/);
@@ -359,4 +359,17 @@ test("model output is accepted only after a complete single-message Responses AP
  assert.match(provider,/content\[0\]\.type!=="output_text"/);
  assert.match(provider,/return parseDiagnosticResponse\(content\[0\]\.text\.trim\(\)\)/);
  assert.doesNotMatch(endpoint,/\.flatMap\(\(item:\{content\?/);
+});
+
+test("discarded attendance rows are filtered in SQL before pagination, not after",()=>{
+ const daily=endpoint.indexOf('admin.from("employee_time_entries")');
+ const prior=endpoint.indexOf('admin.from("employee_time_entries")',daily+1);
+ const after=endpoint.indexOf(']);',prior);
+ assert.ok(daily>=0&&prior>daily&&after>prior,"attendance sources located");
+ const dayQuery=endpoint.slice(daily,prior),priorQuery=endpoint.slice(prior,after);
+ assert.match(dayQuery,/\.is\("excluded_at",null\)\.limit\(30\)/);
+ assert.match(priorQuery,/\.is\("clock_out",null\)\.is\("excluded_at",null\)/);
+ assert.match(priorQuery,/\.order\("clock_in",\{ascending:false\}\)\.limit\(10\)/);
+ assert.doesNotMatch(endpoint,/safeEarlierOpen\.filter\(t=>!t\.excluded_at\)/);
+ assert.doesNotMatch(endpoint,/safeTimeEntries\.filter\(t=>!t\.excluded_at\)/);
 });
