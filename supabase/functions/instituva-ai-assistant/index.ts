@@ -94,20 +94,21 @@ Deno.serve(async (req: Request) => {
       if (!Number.isInteger(year) || year<2020 || year>2100) throw Error("INVALID_REQUEST");
       // Use caller-scoped RLS, never service-role bypass for financial data.
       // Existing finance_records contract is budget cells, not paid ledger entries.
-      const rows: Array<{month:number;amount:number;finance_budget_lines:{record_type:string;category:string;name:string;counts_in_operating_balance:boolean}|null}> = [];
+      const rows: Array<{month:number;amount:number;finance_budget_lines:{record_type:string;category:string;name:string;counts_in_operating_balance:boolean}[]|{record_type:string;category:string;name:string;counts_in_operating_balance:boolean}|null}> = [];
       for (let offset=0; offset<=1500; offset+=500) {
         const {data,error}=await caller.from("finance_records")
           .select("month,amount,finance_budget_lines(record_type,category,name,counts_in_operating_balance)")
           .eq("museum_id",profile.museum_id).eq("year",year)
           .order("id",{ascending:true}).range(offset,offset+499);
         if (error) throw Error("UPSTREAM_FAILURE");
-        rows.push(...(data||[]) as typeof rows);
+        rows.push(...((data||[]) as unknown as typeof rows));
         if ((data||[]).length<500) break;
         if (offset===1500) throw Error("UPSTREAM_FAILURE");
       }
       const grouped=new Map<string,{type:string;category:string;total_cents:number;records:number}>();
       for (const record of rows) {
-        const line=record.finance_budget_lines;
+        const rawLine=record.finance_budget_lines;
+        const line=Array.isArray(rawLine) ? (rawLine.length===1 ? rawLine[0] : null) : rawLine;
         if (!line || !["income","expense"].includes(line.record_type) ||
             !Number.isInteger(record.month) || record.month<1 || record.month>12 ||
             !Number.isFinite(record.amount) || Math.abs(record.amount)>1e10)
