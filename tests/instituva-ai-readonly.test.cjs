@@ -321,3 +321,15 @@ test("staging Auth E2E must isolate default-trigger roles before issuing a real 
  assert.match(stagingHarness,/await cleanup\("\/auth\/v1\/admin\/users\/"\+id\)/);
  assert.doesNotMatch(stagingHarness,/api\("\/rest\/v1\/user_roles"\s*,\s*\{method:"DELETE"/);
 });
+
+test("real-JWT staging harness preflights and confirms all disposable fixture cleanup",()=>{
+ assert.match(stagingHarness,/await preflight\(\)/);
+ assert.match(stagingHarness,/staging API preflight failed/);
+ assert.match(stagingHarness,/inactive fixture denied from quota despite still-signed JWT/);
+ assert.match(stagingHarness,/authLookup\.status!==404/);
+ assert.match(stagingHarness,/roleLookup\.data\.length/);
+ assert.match(stagingHarness,/profileLookup\.data\.length/);
+ assert.match(stagingHarness,/museumLookup\.data\.length/);
+ assert.match(stagingHarness,/if\(cleanupErrors\.length\)/);
+ assert.match(stagingHarness,/process\.exitCode=1/);
+});
