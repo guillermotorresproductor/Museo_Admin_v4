@@ -16,7 +16,7 @@
         <section class="card panel section-stack" data-instituva-ai>
           <p class="page-kicker">INSTITUVA / Soporte inteligente</p>
           <h2>Asistente INSTITUVA</h2>
-          <p>Orienta a la dirección y administración a investigar incidencias de INSTITUVA, contrastar evidencias y aplicar procedimientos seguros. Las consultas privadas de asistencia y presupuesto requieren permisos específicos. <strong>Nunca modifica registros, permisos ni pagos.</strong></p>
+          <p>Orienta a la dirección y administración a investigar incidencias de INSTITUVA, contrastar evidencias y aplicar procedimientos seguros. Las consultas privadas de Asistencia, presupuesto y Colecciones requieren permisos específicos. <strong>Nunca modifica registros, permisos ni pagos.</strong></p>
           <form class="form-grid" data-ai-form>
             <div class="field">
               <label for="ai-mode">Tipo de consulta</label>
@@ -24,6 +24,7 @@
                 <option value="product">Resolver una incidencia / cómo funciona INSTITUVA</option>
                 <option value="attendance">Diagnóstico privado de Asistencia / Nómina</option>
                 <option value="finance">Consulta de presupuesto financiero (acceso restringido)</option>
+                <option value="collections">Diagnóstico agregado de Colecciones (solo lectura)</option>
               </select>
             </div>
             <div data-ai-private hidden>
@@ -62,7 +63,7 @@
   <script src="js/config.js"></script>
   <script src="js/time-format.js?v=us-time-20261028"></script>
   <script src="js/services/supabase.js?v=external-accountant-20261123"></script>
-  <script src="js/instituva-ai.js?v=20261125-ai-finance"></script>
+  <script src="js/instituva-ai.js?v=20261125-ai-collections"></script>
   <script src="js/app.js?v=20261125-ai"></script>
 </body>
 </html>
