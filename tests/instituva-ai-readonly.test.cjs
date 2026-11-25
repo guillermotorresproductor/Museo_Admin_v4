@@ -162,3 +162,11 @@ test("attendance bypass reads enforce tenant plus employee boundaries before mod
  assert.match(endpoint,/safeEvents\.filter\(e=>!replaced\.has\(e\.id\)\)/);
  assert.doesNotMatch(endpoint,/\(events\.data\|\|\[\]\)\.filter\(/);
 });
+
+test("attendance snapshot reaches diagnostic model instead of being shadowed",()=>{
+ assert.match(endpoint,/let snapshot: Record<string,unknown> = \{\}/);
+ assert.match(endpoint,/snapshot=\{\s*employee:clean\(employee\.first_name/);
+ assert.doesNotMatch(endpoint,/const snapshot=\{\s*employee:/);
+ assert.match(endpoint,/JSON\.stringify\(snapshot\)/);
+ assert.match(endpoint,/snapshot=\{\.\.\.snapshot,\s*incident_guidance/);
+});
