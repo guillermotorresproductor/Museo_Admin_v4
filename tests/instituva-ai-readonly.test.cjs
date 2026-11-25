@@ -164,7 +164,7 @@ test("attendance bypass reads enforce tenant plus employee boundaries before mod
    assert.ok(endpoint.includes("const "+dataset+"=assertEmployeeTenantRows("));
  }
  assert.match(endpoint,/if\(safeShifts\.length>=5 \|\| safeEvents\.length>=60/);
- assert.match(endpoint,/safeEvents\.filter\(e=>!replaced\.has\(e\.id\)\)/);
+ assert.match(endpoint,/resolveEffectiveAttendanceEvents\(\s*safeEvents,replacementRows,museumId,employee\.id\s*\)/);
  assert.doesNotMatch(endpoint,/\(events\.data\|\|\[\]\)\.filter\(/);
 });
 
@@ -407,7 +407,7 @@ test("day-off and punch correlation uses only already-authorized attendance and 
  const check=endpoint.indexOf("summarizeAttendanceScheduleCrosscheck(");
  const reads=endpoint.indexOf('admin.from("employee_shifts")');
  assert.ok(gate>=0&&reads>gate&&check>reads,"correlation must follow authorization and bounded reads");
- assert.match(endpoint,/const effectiveEvents=safeEvents\.filter\(e=>!replaced\.has\(e\.id\)\)/);
+ assert.match(endpoint,/const \{effectiveEvents,supersededCount\}=resolveEffectiveAttendanceEvents\(/);
  assert.match(endpoint,/summarizeAttendanceScheduleCrosscheck\(\s*safeShifts,effectiveEvents,museumId,employee\.id,day\s*\)/);
  assert.match(endpoint,/attendance_schedule_crosscheck:crosscheck/);
  assert.match(endpoint,/schedule_day_off_with_punches:crosscheck\.day_off_and_punches_same_calendar_day/);
@@ -416,4 +416,21 @@ test("day-off and punch correlation uses only already-authorized attendance and 
  assert.match(compare,/assertEmployeeTenantRows\(shifts,museumId,employeeId\)/);
  assert.match(compare,/assertEmployeeTenantRows\(effectiveEvents,museumId,employeeId\)/);
  assert.doesNotMatch(compare,/createClient|fetch\(|\.insert\(|\.update\(|\.delete\(|\.rpc\(/);
+});
+
+test("attendance punch correction references across dates are read narrowly and fail closed",()=>{
+ const resolver=fs.readFileSync("supabase/functions/instituva-ai-assistant/attendance-event-corrections.ts","utf8");
+ const correctionIndex=endpoint.indexOf('const eventIds=safeEvents.map(e=>e.id)');
+ const modelIndex=endpoint.indexOf('const key = Deno.env.get("OPENAI_API_KEY")');
+ assert.ok(correctionIndex>0 && modelIndex>correctionIndex,"query must run before model");
+ const query=endpoint.slice(correctionIndex,endpoint.indexOf('const alertStateCounts',correctionIndex));
+ assert.match(query,/\.in\("supersedes_event_id",eventIds\)/);
+ assert.match(query,/\.eq\("museum_id",museumId\)\.eq\("employee_id",employee\.id\)/);
+ assert.match(query,/\.order\("id",\{ascending:true\}\)\.limit\(61\)/);
+ assert.match(query,/replacementRows\.length>=61/);
+ assert.match(query,/resolveEffectiveAttendanceEvents\(\s*safeEvents,replacementRows,museumId,employee\.id\s*\)/);
+ assert.match(endpoint,/superseded_punch_count:supersededCount/);
+ assert.match(resolver,/assertEmployeeTenantRows\(supersedingEvents,museumId,employeeId\)/);
+ assert.match(resolver,/original\.shift_id!==e\.shift_id/);
+ assert.doesNotMatch(resolver,/fetch\(|createClient|\.insert\(|\.update\(|\.delete\(/);
 });
