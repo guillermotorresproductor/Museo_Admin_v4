@@ -20,6 +20,8 @@ on:
       - 'supabase/functions/instituva-ai-assistant/notifications-summary.test.ts'
       - 'supabase/functions/instituva-ai-assistant/diagnostic-response.ts'
       - 'supabase/functions/instituva-ai-assistant/diagnostic-response.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/provider-response.ts'
+      - 'supabase/functions/instituva-ai-assistant/provider-response.test.ts'
       - 'supabase/migrations/20261125170000_ai_assistant_usage_quota.sql'
       - 'supabase/migrations/20261125194500_ai_assistant_mode_quota.sql'
       - 'supabase/migrations/20261125233000_ai_collections_readonly_quota.sql'
@@ -61,3 +63,4 @@ jobs:
       - run: deno test supabase/functions/instituva-ai-assistant/schedules-summary.test.ts
       - run: deno test supabase/functions/instituva-ai-assistant/notifications-summary.test.ts
       - run: deno test supabase/functions/instituva-ai-assistant/diagnostic-response.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/provider-response.test.ts
