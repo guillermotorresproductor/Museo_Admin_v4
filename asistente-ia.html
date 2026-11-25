@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>INSTITUVA | Asistente IA de diagnóstico</title>
+  <link rel="stylesheet" href="css/main.css?v=20261125-ai">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" data-sidebar></aside>
+    <div class="sidebar-backdrop" data-sidebar-backdrop></div>
+    <div class="main-area">
+      <header class="site-header" data-header></header>
+      <main class="page-content">
+        <section class="card panel section-stack" data-instituva-ai>
+          <p class="page-kicker">INSTITUVA / Soporte inteligente</p>
+          <h2>Asistente de diagnóstico</h2>
+          <p>Consulta las incidencias de asistencia y nómina de tu museo. El asistente explica los registros y cómo revisarlos; <strong>no puede modificar ponches, jornadas, autorizaciones ni pagos.</strong></p>
+          <form class="form-grid" data-ai-form>
+            <div class="field">
+              <label for="ai-employee">Nombre y apellido del empleado</label>
+              <input id="ai-employee" name="employee_name" type="text" minlength="3" maxlength="120" autocomplete="off" placeholder="Ejemplo: Edgardo Medina" required>
+            </div>
+            <div class="field">
+              <label for="ai-date">Fecha de la incidencia</label>
+              <input id="ai-date" name="day" type="date" required>
+            </div>
+            <div class="field">
+              <label for="ai-question">¿Qué necesitas saber?</label>
+              <textarea id="ai-question" name="question" rows="3" minlength="8" maxlength="1000" required placeholder="¿Por qué aparece pendiente la asistencia y qué debo revisar?"></textarea>
+            </div>
+            <button type="submit" class="button submit-button">Consultar sin modificar datos</button>
+          </form>
+          <p class="form-message" role="status" data-ai-status></p>
+          <section class="card" data-ai-result hidden>
+            <h3>Diagnóstico</h3>
+            <div data-ai-answer style="white-space:pre-wrap"></div>
+            <p class="field-hint" data-ai-evidence></p>
+          </section>
+          <p class="field-hint">Las respuestas son orientación y deben contrastarse con los registros originales. No sustituyen una autorización de personal. Los datos se consultan únicamente bajo el museo y permisos de la sesión.</p>
+        </section>
+      </main>
+      <footer class="site-footer" data-footer></footer>
+    </div>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/time-format.js?v=us-time-20261028"></script>
+  <script src="js/services/supabase.js?v=external-accountant-20261123"></script>
+  <script src="js/instituva-ai.js?v=20261125-ai"></script>
+  <script src="js/app.js?v=20261125-ai"></script>
+</body>
+</html>
