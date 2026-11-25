@@ -1,0 +1,75 @@
+# INSTITUVA — Arquitectura objetivo del asistente integral de IA
+**Estado:** especificación aprobada de producto para implementar por etapas; **NO desplegada ni habilitada**.
+**Fecha:** 2026-11-25.
+
+## 1. Propósito y propiedad
+El asistente es un **servicio de INSTITUVA**, compartido entre museos pero aislado por `museum_id`. Su función es explicar cómo opera la aplicación completa (módulos, permisos, procesos, gobernanza, limitaciones, problemas técnicos, logística y documentación operativa), diagnosticar hechos **mediante consultas de solo lectura autorizadas** y orientar al usuario sobre acciones manuales dentro de la interfaz. No escribe ni corrige información del museo.
+
+Dos universos deliberadamente distintos:
+- **Conocimiento global del producto:** código **revisado** del repositorio de INSTITUVA, migraciones vigentes, funciones Edge, documentación técnica, manuales, gobernanza aprobada, flujos de trabajo, mensajes de error y procedimientos. Disponible como conocimiento de consulta, no como credenciales ni herramientas para desplegar o modificar código.
+- **Conocimiento privado de un museo:** sus datos reales de asistencia, nómina, colecciones, inventario, finanzas, documentos, calendarios y auditorías, siempre **únicamente** dentro de los permisos que posee la persona autenticada. No se comparte entre museos ni se incorpora a un índice global.
+
+El repositorio GitHub de **programación** es un producto compartido, no un depósito segregado de información personal de cada museo. Si cada museo dispone de un repositorio documental propio, debe registrarse como fuente separada y autorizarse individualmente; no se debe inferir que todos utilizan un repositorio GitHub propio.
+
+## 2. Plano de conocimiento global de INSTITUVA
+- Construir un **índice de lectura versionado** a partir de un commit o release aprobado en `main`, nunca del contenido mutable de una rama de trabajo.
+- Fuentes autorizadas: `docs/`, especificaciones vigentes, catálogo de módulos, páginas/servicios, migraciones y Edge Functions; excluir `.env`, claves, tokens, credenciales históricas, cadenas de conexión, secretos, datos de clientes, fotografías y archivos subidos a Storage.
+- **No indexar automáticamente todo el repositorio**: seleccionar rutas, extraer reglas y dependencias, resolver documentos desactualizados, anotar nivel de confianza y fuente exacta (`ruta, commit, sección`).
+- Generar un catálogo de capacidades, permisos, estados y errores con revisión técnica. No inferir que un módulo está en producción solo por aparecer en una especificación antigua.
+- El asistente recuperará los pasajes relevantes mediante búsqueda semántica y lexical sobre el índice **global**. Responderá con citas al origen, versión y advertencia cuando haya contradicción entre documentación y código vigente.
+- Actualización **solo después de revisiones/aprobaciones de código** y pruebas del índice. Jamás otorgar al modelo acceso directo para hacer commits, merges, SQL, despliegues o cambios de configuración.
+
+## 3. Plano de datos privados por museo
+- Autenticar token de sesión con Supabase Auth y resolver en servidor `user_id`, `museum_id`, estado del perfil y permisos vigentes; nunca confiar en `museum_id`, `role` o nombre de museo del navegador.
+- **Catálogo explícito de consultas de solo lectura** por dominio: asistencia, nómina, finanzas, colecciones, inventario, calendario, documentos, mantenimientos, seguridad/bitácora según rol. Cada consulta tiene identificador y esquema de parámetros fijados.
+- Para cada dominio se aplica autorización **antes de leer**; una persona con solo `finance.read` nunca obtendrá registros laborales o personales de otros empleados. Usuarios de múltiples museos necesitan selección de museo autorizada y sesión contextual segura.
+- Limitar campos y periodos por tipo de consulta; evitar datos médicos, dirección, identificación personal, cuentas bancarias, fotografías y contenido documental sensible salvo permisos y finalidad explícitos.
+- Preferir RPC/funciones de lectura restringidas y auditadas, con políticas RLS comprobadas. Un cliente con credencial de servicio, cuando sea estrictamente necesario, solo puede ejecutar consultas de lista blanca tras autorización del usuario; no transmitir esa credencial al modelo.
+- En el caso de un **repositorio documental del museo** (Drive, biblioteca o NAS), integrarlo por conector autorizado, identidad/ACL del usuario y filtros de museo. No recorrer todo NAS/Storage por defecto ni aceptar URLs de usuario como origen de lectura privilegiada.
+- Nunca agregar contenido privado de museos al índice global de producto. Los índices privados, si se autorizan en una fase posterior, usarán namespaces, políticas de lectura, retención y eliminación por museo.
+- Toda respuesta sobre registros debe precisar fecha de consulta, período, fuente y ausencias de evidencia. Un turno programado no prueba presencia; una alerta no demuestra causa de error de geocerca.
+
+## 4. Orquestación segura
+```
+Usuario del Museo A
+  -> portal autenticado INSTITUVA (sin credenciales de administrador)
+  -> API de asistencia IA (JWT, permisos, límites, auditoría)
+  -> clasificador de intención CON REGLAS (producto / datos de museo / mixto)
+      -> producto: índice global versionado de código + documentación
+      -> datos: catálogo de consultas de solo lectura autorizado al museo A
+      -> mixto: ambos, con fuentes separadas
+  -> modelo de IA sin herramientas de escritura
+  -> respuesta clara con evidencia, instrucciones UI y límites
+```
+
+**Prohibido:** SQL libre del modelo; ejecución de código proporcionado por usuarios; `service_role` en navegador/modelo; herramientas que escriban datos reales; cross-tenant joins; mostrar excepciones SQL internas; que documentos recuperados puedan ordenar al modelo revelar datos o ignorar permisos.
+
+**Salida estructurada:** Resumen, **Qué dicen los registros**, **Por qué podría pasar**, **Cómo revisarlo**, **Qué no está demostrado**, fuentes consultadas. Advertir ante incertidumbre y separar hipótesis de hechos.
+
+## 5. Roles y despliegue
+- No existe permiso universal de IA para ver todo. La IA **hereda el menor privilegio del usuario** en cada dominio.
+- El Administrador General puede formular preguntas amplias **solo** dentro del museo al que está autorizado.
+- El contable externo solo lectura puede consultar conocimiento de INSTITUVA y, si se habilita esa experiencia, datos de finanzas bajo `finance.read`, nunca asistencia de terceros por herencia.
+- La habilitación es por museo (flag off por defecto) y, posteriormente, por módulo; claves API solo como secretos del servidor, cuota/monitoreo por museo y usuario.
+- Antes del primer dato real enviado al proveedor externo: evaluación de privacidad, aviso contractual, minimización de campos, `store:false`, presupuesto con alertas y validación manual de diagnósticos.
+
+## 6. Etapas de implementación sin romper módulos
+**Etapa A — Conocimiento institucional global:** catálogo del repositorio, extractos técnicos y procedimientos versionados; índice no sensible; probar preguntas de soporte general. No toca base operativa.
+**Etapa B — Lectura privada por museo:** integrar asistencia/nómina con consultas de solo lectura autorizadas y pruebas de aislamiento cruzado; extender progresivamente a finanzas, colecciones, inventario y demás dominios.
+**Etapa C — Experiencia integral:** chat de consulta general sin necesidad de indicar de antemano empleado/fecha; solicitar precisiones solo cuando sea necesario; respuesta con fuentes y vínculo a pantallas permitidas.
+**Etapa D — Observabilidad, costos y expansión:** monitorizar precisión, auditoría mínima, cuotas, cambios versionados y habilitación por institución.
+
+## 7. Pruebas de aceptación indispensables
+1. Preguntas sobre gobernanza, módulos y código vigente responden con fuente y commit; reconocen documentación obsoleta.
+2. Usuario del Museo A nunca obtiene filas, documentos ni índice privado del Museo B.
+3. Contable externo no consigue registros de asistencia ajenos ni puede usar la IA para modificar Finanzas.
+4. El asistente no puede alterar nómina, ponches, cheques, inventario, ni abrir conexiones SQL de escritura.
+5. Al revocar permisos o cuenta, cualquier consulta posterior falla incluso con token previo.
+6. Documentos maliciosos no convierten instrucciones del usuario ni textos recuperados en llamadas a funciones privilegiadas.
+7. Las consultas fallidas no revelan nombres de empleados de otro museo; no hay acceso a claves ni logs sensibles.
+8. Pruebas de diagnósticos con datos sintéticos y comparación humana antes de habilitación real.
+9. Cuando falta evidencia, la respuesta indica explícitamente lo que no sabe.
+10. El costo y la activación se controlan independientemente por museo.
+
+## 8. Estado frente al prototipo v1
+`supabase/functions/instituva-ai-assistant/index.ts` en PR #125 solo consulta un empleado, una fecha, turnos, ponches y alertas. **No conoce la programación completa de INSTITUVA ni consulta todos los dominios autorizados**. No considerarlo finalizado, ni activar producción bajo la descripción de "asistente integral", hasta implementar las etapas A–C.
