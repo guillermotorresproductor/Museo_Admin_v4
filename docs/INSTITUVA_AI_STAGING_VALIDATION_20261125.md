@@ -202,3 +202,13 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - Edge Function desplegada **solo en staging v19**, `verify_jwt=true`. Código de la función recuperado: sanitización, contador de etiquetas, ausencia de `name` en join y contrato `actions_executed:false` comprobados.
 - Postverificación: 0 registros persistentes de cuota, identidad ficticia anterior inactiva y 0 museos sintéticos residuales. No hubo migraciones ni cambios operacionales, ni despliegue en producción; PR #125 permanece abierto.
 - **Pendiente:** prueba HTTP con JWT auténtico y salida real de OpenAI en staging para validar precisión y utilidad, no solo forma o aislamiento. Esta prueba no se ejecutó durante este cambio.
+
+## 25 de noviembre — Horarios: `day_off` sin horas y estados oficiales (staging v20)
+- Verificación SQL de solo lectura en staging: `employee_shifts_status_check` solo admite `scheduled`, `cancelled`, `completed` y `day_off`. `employee_shifts_time_contract_check` exige horas para los tres primeros y exige `starts_at IS NULL`, `ends_at IS NULL` y `expected_lunch_minutes IS NULL` para `day_off`.
+- Riesgo corregido: el resumen IA requería timestamps de todos los registros, por lo que un día libre válido podía provocar `UPSTREAM_FAILURE` y frustrar el diagnóstico semanal. `ScheduleEvidenceRow` admite ahora ambos timestamps nulos **únicamente en `day_off`**.
+- Un día libre se contabiliza en el estado, pero no incrementa turnos activos ni participa en detección de solapamientos; tampoco se interpreta como aprobación de una solicitud de ausencia. Los turnos activos para detectar solapamientos se limitan a `scheduled`. Valores `published`, `draft`, `canceled` o texto arbitrario se rechazan conforme al CHECK efectivo de la BD, sin trasladar instrucciones al modelo.
+- Deno prueba días libres múltiples, ausencia de solapamientos ficticios, identidad no expuesta, rechazos de `day_off` con horas, turnos temporizados sin horas y estados fuera del catálogo. Se agregó un escenario funcional sintético sin datos operacionales.
+- Workflow `INSTITUVA AI tenant-safe diagnostics` completó **success** para commit `a04835b9ccb72608c3391ac69b89258e733f9815`.
+- Despliegue **solo staging v20**, `verify_jwt=true`; código publicado recuperado y confirmado. Sin cambios en migraciones, permisos, RLS, jornadas, ponches o módulos operacionales.
+- Postvalidación SQL: `ai_assistant_usage=0`, ningún museo de ensayo residual y la identidad ficticia anterior continúa inactiva.
+- Sigue pendiente la validación HTTP con JWT genuino y una respuesta real del proveedor. Este resultado no autoriza merge ni producción.
