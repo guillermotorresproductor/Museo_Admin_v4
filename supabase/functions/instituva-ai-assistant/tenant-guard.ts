@@ -1,11 +1,12 @@
 // Pure, fail-closed permission and tenant checks. No database or network access.
-export type AiDiagnosticMode = "product"|"attendance"|"finance"|"collections"|"inventory"|"schedules";
+export type AiDiagnosticMode = "product"|"attendance"|"finance"|"collections"|"inventory"|"schedules"|"notifications";
 export const requiredPermissionsForMode=(mode:AiDiagnosticMode):readonly string[]=>{
   if(mode==="product")return [];
   if(mode==="finance")return ["finance.read"];
   if(mode==="collections")return ["collections.read"];
   if(mode==="inventory")return ["modules.inventory.read"];
   if(mode==="schedules")return ["time.read.all"];
+  if(mode==="notifications")return ["notifications.read.self"];
   if(mode==="attendance")return ["attendance.history.read","finance.read"];
   throw Error("FORBIDDEN");
 };
