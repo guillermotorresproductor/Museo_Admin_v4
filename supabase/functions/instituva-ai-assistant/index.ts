@@ -76,6 +76,10 @@ Deno.serve(async (req: Request) => {
     let sources: string[] = [];
     if (mode==="product") {
       const sections=findProductKnowledge(question);
+      if (!sections.length) return send({
+        answer:"No tengo documentación verificada suficiente para responder esa pregunta. Consulta el manual del módulo o al administrador de INSTITUVA; no corresponde inventar instrucciones.",
+        mode:"product", evidence:{domain:"instituva",source_count:0}, sources:[], read_only:true
+      });
       snapshot={
         type:"instituva_product_knowledge",
         coverage:"Catálogo revisado, incompleto; no afirma conocimiento exhaustivo.",
