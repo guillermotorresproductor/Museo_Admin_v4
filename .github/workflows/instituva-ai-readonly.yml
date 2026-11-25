@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'supabase/functions/instituva-ai-assistant/index.ts'
+      - 'supabase/functions/instituva-ai-assistant/product-knowledge.ts'
       - 'supabase/migrations/20261125170000_ai_assistant_usage_quota.sql'
       - 'js/instituva-ai.js'
       - 'js/app.js'
