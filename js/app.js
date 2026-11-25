@@ -431,6 +431,11 @@ function enforceAuthenticatedPageAccess() {
     showProtectedAccessDenied("Su perfil no autoriza administrar contables externos.");
     return true;
   }
+  if (page === "asistente-ia.html") {
+    if (hasPermission("attendance.history.read") && hasPermission("finance.read")) return false;
+    showProtectedAccessDenied("Tu perfil no autoriza diagnósticos de Asistencia y Nómina.");
+    return true;
+  }
   if (hasModuleProfile()) {
     if (page === "dashboard.html" || page === "index.html") return false;
     if (profilePageAllowed(page)) return false;
@@ -8600,6 +8605,7 @@ async function initApp() {
   bindNotificationsModule();
   bindFinanceModule();
   if (typeof bindExternalAccountants === "function") bindExternalAccountants();
+  if (typeof bindInstituvaAi === "function") bindInstituvaAi();
   bindExecutiveDirectionModule();
   bindReportsModule();
   await bindEmployeeProfile();
