@@ -8,7 +8,8 @@ import { summarizeCollections } from "./collections-summary.ts";
 import { summarizeInventory, type InventoryEvidenceRow } from "./inventory-summary.ts";
 import { summarizeSchedules, type ScheduleEvidenceRow } from "./schedules-summary.ts";
 import { summarizeSelfNotifications, type NotificationEvidenceRow } from "./notifications-summary.ts";
-import { DIAGNOSTIC_FORMAT, parseDiagnosticResponse, formatDiagnosticResponse } from "./diagnostic-response.ts";
+import { DIAGNOSTIC_FORMAT, formatDiagnosticResponse } from "./diagnostic-response.ts";
+import { extractCompletedDiagnosis } from "./provider-response.ts";
 const send = (body:unknown,status=200) => new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json","Cache-Control":"no-store"}});
 
 // INSTITUVA AI v1: closed query vocabulary, read-only, opt-in per tenant.
@@ -364,7 +365,7 @@ Deno.serve(async (req: Request) => {
 
     // No tools or SQL execution. Stored=false and an explicit output cap.
     const response=await fetch("https://api.openai.com/v1/responses",{
-      method:"POST",
+      method:"POST",signal:AbortSignal.timeout(20000),
       headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},
       body:JSON.stringify({
         model:MODEL,store:false,max_output_tokens:ANSWER_LIMIT,
@@ -385,12 +386,7 @@ Si source_status es historical-unverified, explica que esa referencia no está c
     });
     if (!response.ok) throw Error("UPSTREAM_FAILURE");
     const data=await response.json();
-    if (data.status!=="completed" || data.error || data.incomplete_details)
-      throw Error("UPSTREAM_FAILURE");
-    const rawText=(data.output||[]).flatMap((item:{content?:Array<{type:string,text?:string}>})=>item.content||[])
-      .filter((part:{type:string,text?:string})=>part.type==="output_text")
-      .map((part:{text?:string})=>part.text||"").join("").trim();
-    const diagnosis=parseDiagnosticResponse(rawText);
+    const diagnosis=extractCompletedDiagnosis(data);
     const answer=formatDiagnosticResponse(diagnosis);
     return send({answer,evidence,sources,mode,read_only:true,
       actions_executed:false,diagnostic_contract:"read_only_v1"});
