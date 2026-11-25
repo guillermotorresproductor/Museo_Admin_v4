@@ -7,6 +7,7 @@ const html=fs.readFileSync("asistente-ia.html","utf8");
 const app=fs.readFileSync("js/app.js","utf8");
 const sql=fs.readFileSync("supabase/migrations/20261125170000_ai_assistant_usage_quota.sql","utf8");
 const sqlV2=fs.readFileSync("supabase/migrations/20261125194500_ai_assistant_mode_quota.sql","utf8");
+const runbooks=fs.readFileSync("supabase/functions/instituva-ai-assistant/incident-runbooks.ts","utf8");
 const kb=fs.readFileSync("supabase/functions/instituva-ai-assistant/product-knowledge.ts","utf8");
 
 test("AI assistant is museum-owned, gated, and never receives arbitrary SQL or tools",()=>{
@@ -122,4 +123,18 @@ test("AI quota v2 enforces mode-specific privileges without modifying permission
  assert.match(endpoint,/mode==="finance" \? \["finance\.read"\] : PERMISSIONS/);
  assert.match(ui,/canReadFinance=hasPermission\("finance\.read"\)/);
  assert.match(ui,/finance && !canReadFinance/);
+});
+
+test("institutional incident guidance is source-labeled and does not reach private data",()=>{
+ assert.match(endpoint,/findIncidentRunbooks\(question\)/);
+ assert.match(endpoint,/incident_guidance:incidents\.map/);
+ assert.match(endpoint,/procedimiento documental; no diagnóstico de datos reales/);
+ assert.match(endpoint,/Administrador General, Director Ejecutivo y Gerente Administrativo/);
+ for(const incident of ["attendance-open","schedules","finance-budget","finance-checks","collections","access"]){
+   assert.ok(runbooks.includes('id:"'+incident+'"'),"missing incident "+incident);
+ }
+ assert.match(runbooks,/const MAIN_SNAPSHOT/);
+ assert.match(runbooks,/safeActions/);
+ assert.match(runbooks,/uncertainty/);
+ assert.doesNotMatch(runbooks,/\b(?:insert|update|delete)\s+(?:into|from|public\.)/i);
 });
