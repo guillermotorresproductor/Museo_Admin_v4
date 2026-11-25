@@ -60,3 +60,9 @@ Deno.test("weekly schedules requires time.read.all without management permission
  check(perms.length===1&&perms[0]==="time.read.all","incorrect schedule read permission");
  check(!perms.includes("schedules.manage")&&!perms.includes("attendance.punches.correct"),"read permission escalation");
 });
+
+Deno.test("self notifications only requires own read permission",()=>{
+ const perms=requiredPermissionsForMode("notifications");
+ check(perms.length===1&&perms[0]==="notifications.read.self","self permission changed");
+ check(!perms.includes("notifications.manage")&&!perms.includes("finance.read"),"unexpected elevated permission");
+});
