@@ -297,8 +297,8 @@ test("self-notifications quota remains invoker-only and inherits the atomic glob
 
 test("diagnosis must distinguish evidence, uncertain causes and unexecuted proposals",()=>{
  assert.match(endpoint,/text:\{format:DIAGNOSTIC_FORMAT\}/);
- assert.match(endpoint,/data\.status!=="completed"/);
- assert.match(endpoint,/parseDiagnosticResponse\(rawText\)/);
+ assert.match(endpoint,/extractCompletedDiagnosis\(data\)/);
+ assert.match(endpoint,/signal:AbortSignal\.timeout\(20000\)/);
  assert.match(endpoint,/formatDiagnosticResponse\(diagnosis\)/);
  assert.match(endpoint,/actions_executed:false,diagnostic_contract:"read_only_v1"/);
  assert.match(endpoint,/resumen provisional, hipotesis no confirmadas/);
@@ -346,4 +346,17 @@ test("finance and collections verify restrictive RLS module-profile visibility b
  assert.match(endpoint,/caller\.rpc\(\s*"module_profile_allows",\{module_code:rlsModule\}/);
  assert.match(endpoint,/if\(moduleError \|\| moduleAllowed!==true\)throw Error\("FORBIDDEN"\)/);
  assert.doesNotMatch(endpoint,/admin\.rpc\(\s*"module_profile_allows"/);
+});
+
+test("model output is accepted only after a complete single-message Responses API envelope",()=>{
+ const provider=fs.readFileSync("supabase/functions/instituva-ai-assistant/provider-response.ts","utf8");
+ assert.match(provider,/res\.status!=="completed"/);
+ assert.match(provider,/res\.error!=null/);
+ assert.match(provider,/res\.incomplete_details!=null/);
+ assert.match(provider,/messages\.length!==1/);
+ assert.match(provider,/content\.length!==1/);
+ assert.match(provider,/part\.type==="message" && part\.role==="assistant"/);
+ assert.match(provider,/content\[0\]\.type!=="output_text"/);
+ assert.match(provider,/return parseDiagnosticResponse\(content\[0\]\.text\.trim\(\)\)/);
+ assert.doesNotMatch(endpoint,/\.flatMap\(\(item:\{content\?/);
 });
