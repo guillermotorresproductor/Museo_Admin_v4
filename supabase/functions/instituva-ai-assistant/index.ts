@@ -14,7 +14,9 @@ const clean = (s: unknown, max = 300) =>
   String(s ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max);
 const validDay = (value: unknown) => {
   const day = clean(value, 10);
-  if (!/^20\d{2}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(day + "T00:00:00Z")))
+  if (!/^20\d{2}-\d{2}-\d{2}$/.test(day) ||
+      !Number.isFinite(Date.parse(day + "T00:00:00Z")) ||
+      new Date(day + "T00:00:00Z").toISOString().slice(0,10)!==day)
     throw Error("INVALID_REQUEST");
   return day;
 };
@@ -147,12 +149,14 @@ Deno.serve(async (req: Request) => {
     if (empError) throw Error("UPSTREAM_FAILURE");
     const normalized=(s:string)=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim();
     const scopedEmployees=assertTenantRows(employees||[],museumId);
+    // A truncated name lookup cannot prove absence or uniqueness.
+    if (scopedEmployees.length>=300) throw Error("UPSTREAM_FAILURE");
     const matches=scopedEmployees.filter(e=> normalized(e.first_name+" "+e.last_name)===normalized(name));
     if (!matches.length) throw Error("EMPLOYEE_NOT_FOUND");
     if (matches.length !== 1) throw Error("AMBIGUOUS_EMPLOYEE");
     const employee=matches[0];
 
-    const [shifts,events,alerts,timeEntries]=await Promise.all([
+    const [shifts,events,alerts,timeEntries,earlierOpenEntries]=await Promise.all([
       admin.from("employee_shifts").select("id,museum_id,employee_id,shift_date,starts_at,ends_at,expected_lunch_minutes,status")
         .eq("museum_id",museumId).eq("employee_id",employee.id).eq("shift_date",day).limit(5),
       admin.from("attendance_events").select("id,museum_id,employee_id,shift_id,event_type,occurred_at,classification,supersedes_event_id")
@@ -162,18 +166,26 @@ Deno.serve(async (req: Request) => {
         .eq("museum_id",museumId).eq("employee_id",employee.id).eq("alert_date",day).limit(30),
       admin.from("employee_time_entries").select("museum_id,employee_id,clock_in,clock_out,excluded_at")
         .eq("museum_id",museumId).eq("employee_id",employee.id)
-        .gte("clock_in",day+"T04:00:00Z").lt("clock_in",plusDay(day)+"T04:00:00Z").limit(30)
+        .gte("clock_in",day+"T04:00:00Z").lt("clock_in",plusDay(day)+"T04:00:00Z").limit(30),
+      // An unresolved shift may have started before the requested day.
+      // Only read open entries for this exact employee and museum, latest first.
+      admin.from("employee_time_entries").select("museum_id,employee_id,clock_in,clock_out,excluded_at")
+        .eq("museum_id",museumId).eq("employee_id",employee.id)
+        .is("clock_out",null).lt("clock_in",day+"T04:00:00Z")
+        .order("clock_in",{ascending:false}).limit(10)
     ]);
-    if ([shifts,events,alerts,timeEntries].some(r=>r.error)) throw Error("UPSTREAM_FAILURE");
+    if ([shifts,events,alerts,timeEntries,earlierOpenEntries].some(r=>r.error)) throw Error("UPSTREAM_FAILURE");
     // Service-role reads bypass RLS. Check every returned row before any
     // attendance evidence is built or forwarded to the language model.
     const safeShifts=assertEmployeeTenantRows(shifts.data||[],museumId,employee.id);
     const safeEvents=assertEmployeeTenantRows(events.data||[],museumId,employee.id);
     const safeAlerts=assertEmployeeTenantRows(alerts.data||[],museumId,employee.id);
     const safeTimeEntries=assertEmployeeTenantRows(timeEntries.data||[],museumId,employee.id);
+    const safeEarlierOpen=assertEmployeeTenantRows(earlierOpenEntries.data||[],museumId,employee.id);
     // Never produce a misleading diagnosis from silently truncated evidence.
     if(safeShifts.length>=5 || safeEvents.length>=60 ||
-       safeAlerts.length>=30 || safeTimeEntries.length>=30) throw Error("UPSTREAM_FAILURE");
+       safeAlerts.length>=30 || safeTimeEntries.length>=30 || safeEarlierOpen.length>=10)
+      throw Error("UPSTREAM_FAILURE");
     const replaced=new Set(safeEvents.map(e=>e.supersedes_event_id).filter(Boolean));
     snapshot={
       employee:clean(employee.first_name+" "+employee.last_name,120),
@@ -184,11 +196,14 @@ Deno.serve(async (req: Request) => {
         type:e.event_type,at:asLocal(e.occurred_at),classification:e.classification
       })),
       alerts:safeAlerts.map(a=>({type:a.alert_type,status:a.status,detected_at:asLocal(a.detected_at)})),
-      time_entries:safeTimeEntries.filter(t=>!t.excluded_at).map(t=>({in:asLocal(t.clock_in),out:asLocal(t.clock_out),open:t.clock_out===null}))
+      time_entries:safeTimeEntries.filter(t=>!t.excluded_at).map(t=>({in:asLocal(t.clock_in),out:asLocal(t.clock_out),open:t.clock_out===null})),
+      previous_open_entries:safeEarlierOpen.filter(t=>!t.excluded_at)
+        .map(t=>({since:asLocal(t.clock_in),open:true,origin:"jornada anterior al día consultado"}))
     };
     evidence={employee:snapshot.employee,date:day,punch_count:(snapshot.punches as unknown[]).length,
       alert_count:(snapshot.alerts as unknown[]).length,
-      open_entries:(snapshot.time_entries as Array<{open:boolean}>).filter(t=>t.open).length};
+      open_entries:(snapshot.time_entries as Array<{open:boolean}>).filter(t=>t.open).length,
+      previous_open_entries:(snapshot.previous_open_entries as unknown[]).length};
     sources=["attendance_events","attendance_operational_alerts","employee_shifts","employee_time_entries"];
     }
     // A permission-filtered snapshot is already prepared. Guidance is static,
