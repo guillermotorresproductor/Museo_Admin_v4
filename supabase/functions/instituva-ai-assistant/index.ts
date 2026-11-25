@@ -30,6 +30,7 @@ const denied = (error: unknown) => {
   if (code === "INVALID_REQUEST") return json({error:"Comprueba el nombre, la fecha y la pregunta."},400);
   if (code === "AMBIGUOUS_EMPLOYEE") return json({error:"Hay varios empleados con ese nombre. Consulta el expediente con Administración."},409);
   if (code === "EMPLOYEE_NOT_FOUND") return json({error:"No se encontró ese empleado activo en este museo."},404);
+  if (code === "RATE_LIMITED") return json({error:"Se alcanzó el límite mensual de consultas del asistente para esta cuenta o museo."},429);
   if (code === "UPSTREAM_FAILURE") return json({error:"No se pudo completar el diagnóstico. Vuelve a intentarlo más tarde."},502);
   return json({error:"El diagnóstico no está disponible. Ningún dato ha sido modificado."},500);
 };
@@ -110,6 +111,13 @@ Deno.serve(async (req: Request) => {
     };
     const key = Deno.env.get("OPENAI_API_KEY");
     if (!key) throw Error("NOT_CONFIGURED");
+    // Atomic monthly quota: 500 per museum / 100 per authorized user.
+    // Only this isolated technical counter is written, not museum operational data.
+    const { data: slot, error: quotaError } = await caller.rpc("ai_assistant_claim_slot",{
+      p_museum_id:profile.museum_id
+    });
+    if (quotaError) throw Error("UPSTREAM_FAILURE");
+    if (slot !== true) throw Error("RATE_LIMITED");
 
     // No tools or SQL execution. Stored=false and an explicit output cap.
     const response=await fetch("https://api.openai.com/v1/responses",{
