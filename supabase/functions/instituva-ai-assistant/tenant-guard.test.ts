@@ -48,3 +48,9 @@ Deno.test("collections is read-only and requires an explicit collection permissi
  check(permissions.length===1&&permissions[0]==="collections.read","collections permission");
  check(!permissions.includes("finance.read")&&!permissions.includes("collections.write"),"unexpected access");
 });
+
+Deno.test("inventory mode has explicit read-only permission and no finance access",()=>{
+ const required=requiredPermissionsForMode("inventory");
+ check(required.length===1&&required[0]==="modules.inventory.read","inventory permission");
+ check(!required.includes("inventory.manage")&&!required.includes("finance.read"),"unauthorized module permission");
+});
