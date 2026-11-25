@@ -1,0 +1,54 @@
+const test=require("node:test");
+const assert=require("node:assert/strict");
+const fs=require("node:fs");
+const endpoint=fs.readFileSync("supabase/functions/instituva-ai-assistant/index.ts","utf8");
+const ui=fs.readFileSync("js/instituva-ai.js","utf8");
+const html=fs.readFileSync("asistente-ia.html","utf8");
+const app=fs.readFileSync("js/app.js","utf8");
+const sql=fs.readFileSync("supabase/migrations/20261125170000_ai_assistant_usage_quota.sql","utf8");
+
+test("AI assistant is museum-owned, gated, and never receives arbitrary SQL or tools",()=>{
+ assert.match(endpoint,/INSTITUVA_AI_ENABLED/);
+ assert.match(endpoint,/INSTITUVA_AI_MUSEUM_IDS/);
+ assert.match(endpoint,/\.includes\(museum\)/);
+ assert.match(endpoint,/caller\.auth\.getUser/);
+ assert.match(endpoint,/caller\.rpc\("has_permission"/);
+ assert.match(endpoint,/attendance\.history\.read/);
+ assert.match(endpoint,/finance\.read/);
+ assert.match(endpoint,/\.eq\("museum_id",profile\.museum_id\)/);
+ assert.match(endpoint,/\.eq\("employee_id",employee\.id\)/);
+ assert.match(endpoint,/model:MODEL,store:false,max_output_tokens:ANSWER_LIMIT/);
+ assert.doesNotMatch(endpoint,/eval\(|execute_sql|executeSql|rpc\("correct_|\.insert\(|\.update\(|\.delete\(|tools:\s*\[/);
+ assert.match(endpoint,/OPENAI_API_KEY/);
+ assert.match(endpoint,/Nunca afirmes que un empleado estuvo presente/);
+});
+test("sensitive employee columns are not queried or passed to model",()=>{
+ assert.match(endpoint,/\.select\("id,first_name,last_name"\)/);
+ assert.match(endpoint,/\.select\("id,shift_date,starts_at,ends_at,expected_lunch_minutes,status"\)/);
+ assert.match(endpoint,/\.select\("id,shift_id,event_type,occurred_at,classification,supersedes_event_id"\)/);
+ assert.match(endpoint,/\.select\("clock_in,clock_out,excluded_at"\)/);
+ assert.doesNotMatch(endpoint,/\.select\("\*"\)|\.select\(".*(?:salary|medical_condition|phone|address|email|photo_url)/);
+ assert.match(endpoint,/filter\(t=>!t\.excluded_at\)/);
+});
+test("frontend displays AI text as literal text and contains no write actions",()=>{
+ assert.match(ui,/answer\.textContent=body\.answer/);
+ assert.match(ui,/result\.hidden=false/);
+ assert.match(html,/data-ai-form/);
+ assert.match(html,/no puede modificar ponches/);
+ assert.doesNotMatch(ui,/innerHTML|\.submit\(|\.update\(|\.delete\(/);
+});
+test("administration route requires both permissions without changing other guards",()=>{
+ assert.match(app,/page === "asistente-ia\.html"/);
+ assert.match(app,/hasPermission\("attendance\.history\.read"\) && hasPermission\("finance\.read"\)/);
+ assert.match(app,/typeof bindInstituvaAi === "function"/);
+});
+test("usage quota is a distinct minimal table, atomic, and cannot be raised by client",()=>{
+ assert.match(sql,/create table if not exists public\.ai_assistant_usage/);
+ assert.match(sql,/primary key \(museum_id,user_id,usage_month\)/);
+ assert.match(sql,/pg_advisory_xact_lock/);
+ assert.match(sql,/p_museum_id is distinct from public\.current_user_museum_id\(\)/);
+ assert.match(sql,/if p_monthly_limit is distinct from 500 or p_per_user_limit is distinct from 100/);
+ assert.match(sql,/month_count>=500 or user_count>=100/);
+ assert.match(sql,/revoke all on public\.ai_assistant_usage from anon,authenticated/);
+ assert.doesNotMatch(sql,/alter table (?:public\.)?(?:attendance_|employee_|finance_)/);
+});
