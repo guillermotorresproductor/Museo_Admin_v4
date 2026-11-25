@@ -156,7 +156,7 @@ test("finance budget validates Spanish fiscal month labels from staging contract
 
 test("attendance bypass reads enforce tenant plus employee boundaries before model",()=>{
  for(const dataset of ["safeShifts","safeEvents","safeAlerts","safeTimeEntries"]){
-   assert.match(endpoint,new RegExp("const "+dataset+"=assertEmployeeTenantRows\\\\("));
+   assert.ok(endpoint.includes("const "+dataset+"=assertEmployeeTenantRows("));
  }
  assert.match(endpoint,/if\(safeShifts\.length>=5 \|\| safeEvents\.length>=60/);
  assert.match(endpoint,/safeEvents\.filter\(e=>!replaced\.has\(e\.id\)\)/);
