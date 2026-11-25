@@ -28,6 +28,6 @@ Deno.test("active museum profile must belong to authenticated user",()=>{
 Deno.test("tenant row isolation rejects cross-museum evidence atomically",()=>{
   check(assertTenantRows([{museum_id:museumA,id:"fixture-1"}],museumA).length===1,"own row rejected");
   check(rejects(()=>assertTenantRows([{museum_id:museumA},{museum_id:museumB}],museumA)),"foreign row accepted");
-  check(rejects(()=>assertTenantRows([{id:"no-museum"}],museumA)),"unscoped row accepted");
+  check(rejects(()=>assertTenantRows([{museum_id:undefined}],museumA)),"unscoped row accepted");
   check(assertTenantRows([],museumA).length===0,"empty authorized result rejected");
 });
