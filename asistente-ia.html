@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>INSTITUVA | Asistente IA de diagnóstico</title>
+  <title>INSTITUVA | Asistente IA</title>
   <link rel="stylesheet" href="css/main.css?v=20261125-ai">
 </head>
 <body>
@@ -15,20 +15,29 @@
       <main class="page-content">
         <section class="card panel section-stack" data-instituva-ai>
           <p class="page-kicker">INSTITUVA / Soporte inteligente</p>
-          <h2>Asistente de diagnóstico</h2>
-          <p>Consulta las incidencias de asistencia y nómina de tu museo. El asistente explica los registros y cómo revisarlos; <strong>no puede modificar ponches, jornadas, autorizaciones ni pagos.</strong></p>
+          <h2>Asistente INSTITUVA</h2>
+          <p>Conoce los procedimientos revisados de INSTITUVA y puede consultar incidencias de asistencia de tu museo cuando tienes autorización. <strong>Nunca modifica registros, permisos ni pagos.</strong></p>
           <form class="form-grid" data-ai-form>
             <div class="field">
+              <label for="ai-mode">Tipo de consulta</label>
+              <select id="ai-mode" name="mode">
+                <option value="product">Cómo funciona INSTITUVA (cualquier módulo)</option>
+                <option value="attendance">Diagnóstico privado de Asistencia / Nómina</option>
+              </select>
+            </div>
+            <div data-ai-private hidden>
+            <div class="field">
               <label for="ai-employee">Nombre y apellido del empleado</label>
-              <input id="ai-employee" name="employee_name" type="text" minlength="3" maxlength="120" autocomplete="off" placeholder="Ejemplo: Edgardo Medina" required>
+              <input id="ai-employee" name="employee_name" type="text" minlength="3" maxlength="120" autocomplete="off" placeholder="Ejemplo: Edgardo Medina">
             </div>
             <div class="field">
               <label for="ai-date">Fecha de la incidencia</label>
-              <input id="ai-date" name="day" type="date" required>
+              <input id="ai-date" name="day" type="date">
+            </div>
             </div>
             <div class="field">
               <label for="ai-question">¿Qué necesitas saber?</label>
-              <textarea id="ai-question" name="question" rows="3" minlength="8" maxlength="1000" required placeholder="¿Por qué aparece pendiente la asistencia y qué debo revisar?"></textarea>
+              <textarea id="ai-question" name="question" rows="3" minlength="8" maxlength="1000" required placeholder="Ejemplo: ¿Cómo funcionan los permisos de Colecciones en INSTITUVA?"></textarea>
             </div>
             <button type="submit" class="button submit-button">Consultar sin modificar datos</button>
           </form>
@@ -37,8 +46,9 @@
             <h3>Diagnóstico</h3>
             <div data-ai-answer style="white-space:pre-wrap"></div>
             <p class="field-hint" data-ai-evidence></p>
+            <p class="field-hint" data-ai-sources></p>
           </section>
-          <p class="field-hint">Las respuestas son orientación y deben contrastarse con los registros originales. No sustituyen una autorización de personal. Los datos se consultan únicamente bajo el museo y permisos de la sesión.</p>
+          <p class="field-hint">Las respuestas son orientación y deben contrastarse con los registros originales. No sustituyen una autorización de personal. Los datos privados se consultan únicamente bajo el museo y los permisos de la sesión. El catálogo técnico es parcial y se amplía mediante revisiones documentadas.</p>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
