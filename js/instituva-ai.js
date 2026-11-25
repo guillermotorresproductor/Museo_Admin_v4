@@ -91,7 +91,8 @@ function bindInstituvaAi() {
       if (body.mode==="attendance") {
         evidence.textContent=`Fuente: asistencia de ${String(body.evidence?.employee||"").slice(0,120)}; fecha ${String(body.evidence?.date||day)}. Ponches: ${Number(body.evidence?.punch_count||0)}. Alertas: ${Number(body.evidence?.alert_count||0)}. Solo lectura.`;
       } else if (body.mode==="finance") {
-        evidence.textContent=`Presupuesto del año ${Number(body.evidence?.year||fiscalYear)}; celdas consultadas: ${Number(body.evidence?.record_count||0)}. No equivale a pagos ni cobros conciliados. Solo lectura.`;
+        const otherBudgetCategories=Number(body.evidence?.category_labels_redacted_records||0);
+        evidence.textContent=`Presupuesto del año ${Number(body.evidence?.year||fiscalYear)}; celdas consultadas: ${Number(body.evidence?.record_count||0)}. ${otherBudgetCategories>0?`${otherBudgetCategories} registros con categoría no reconocida (importes incluidos en el total). `:""}No equivale a pagos ni cobros conciliados. Solo lectura.`;
       } else if (body.mode==="collections") {
         evidence.textContent=`Colecciones: ${Number(body.evidence?.item_count||0)} piezas; ${Number(body.evidence?.photo_count||0)} fotografías; ${Number(body.evidence?.history_count||0)} movimientos históricos. ${Number(body.evidence?.items_without_photos||0)} piezas sin fotografía registrada; esto no implica necesariamente un error. Solo lectura.`;
       } else if (body.mode==="inventory") {
