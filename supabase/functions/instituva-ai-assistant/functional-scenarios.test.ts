@@ -45,6 +45,15 @@ Deno.test("scenario: overlapping schedule flagged without inventing attendance",
  check(facts.warning.includes("no evidencia de asistencia"),"attendance inferred from schedule");
  check(!JSON.stringify(facts).includes("person-1"),"employee ID leaked");
 });
+Deno.test("scenario: day off is counted separately without suggesting leave approval",()=>{
+ const record={id:"day-off-syn",museum_id:museum,employee_id:"person-1",
+   shift_date:"2026-11-25",starts_at:null,ends_at:null,status:"day_off"};
+ const facts=summarizeSchedules([record],museum,"2026-11-25","2026-12-02");
+ check(facts.record_count===1&&facts.active_shift_records===0,"day off counted as working shift");
+ check(facts.potential_overlap_pairs===0,"day off has invented time overlap");
+ check(facts.statuses[0].status==="day_off"&&facts.statuses[0].count===1,"day off missing");
+ check(facts.warning.includes("no demuestra aprobación"),"invented day-off approval");
+});
 Deno.test("scenario: own notification counted, delivery via email not asserted",()=>{
  const facts=summarizeSelfNotifications([
  {id:"notice-1",museum_id:museum,recipient_user_id:user,category:"alert",created_at:"2026-11-24T12:00:00.000Z",read_at:null},
