@@ -3,19 +3,25 @@
 // Required: INSTITUVA_AI_TEST_SERVICE_KEY, INSTITUVA_AI_TEST_ANON_KEY,
 // and INSTITUVA_AI_E2E_CONFIRM_STAGING=<exact staging project ref>.
 // No model calls, no finance/attendance business-record writes.
+// Requires LEGACY project-bound staging service_role + anon JWT keys.
 import assert from "node:assert/strict";
 import {randomBytes} from "node:crypto";
+import {
+  assertStagingLegacyApiKeys,STAGING_REF,STAGING_URL
+} from "./instituva-ai-staging-key-guard.mjs";
 
-const REF="lonpdmxdvbxuagqxztig";
-const URL="https://"+REF+".supabase.co";
-if(process.env.INSTITUVA_AI_E2E_CONFIRM_STAGING!==REF)
-  throw Error("STAGING_EXPLICIT_OPT_IN_REQUIRED: set INSTITUVA_AI_E2E_CONFIRM_STAGING="+REF);
+const REF=STAGING_REF;
+const URL=STAGING_URL;
 const service=process.env.INSTITUVA_AI_TEST_SERVICE_KEY;
 const anon=process.env.INSTITUVA_AI_TEST_ANON_KEY;
-if (!service || !anon || service===anon)
-  throw Error("STAGING_KEYS_REQUIRED: use separate staging service and anon keys");
-if (process.env.SUPABASE_URL && process.env.SUPABASE_URL!==URL)
-  throw Error("NOT_STAGING: refused non-staging URL");
+// Fail locally BEFORE making any HTTP request or creating any fixture.
+// A production service_role JWT, even if accidentally provided, is rejected.
+assertStagingLegacyApiKeys({
+  serviceKey:service,
+  anonKey:anon,
+  confirmRef:process.env.INSTITUVA_AI_E2E_CONFIRM_STAGING,
+  url:process.env.SUPABASE_URL
+});
 
 const marker="instituva-ai-e2e-"+randomBytes(7).toString("hex");
 // Validate staging API surface before creating any disposable organization.
