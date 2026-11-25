@@ -85,3 +85,16 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - La Edge Function se desplegó **solo en staging v10** con verify_jwt=true. Aún falta E2E real con dos JWT genuinos y pruebas positivas de la generación de diagnóstico.
 - Verificación posterior: ai_assistant_usage=0; perfil ficticio utilizado permanece inactive. Producción sin cambios. No se tocó el módulo original de Colecciones.
 - Se añadieron pruebas sintéticas de aislamiento y conteo, verificaciones estáticas del endpoint y casos negativos en el futuro ensayo HTTP con Auth real.
+
+## 25 de noviembre — Inventario: diagnóstico administrativo privado
+- Se añadió modo `inventory` al asistente con permiso específico `modules.inventory.read`; no concede administración ni permisos de edición.
+- La lectura se hace con el cliente del usuario autenticado y RLS, filtrada explícitamente por museum_id. Selecciona solo id, museum_id, record_type, status, quantity y archived_at. Paginación máxima de 3000 filas; un resultado que alcance el máximo se rechaza por potencial truncamiento.
+- Se verifican todos los museum_id, IDs repetidos y cantidades numéricas. Se agrupan estados y tipos a etiquetas cerradas para evitar enviar instrucciones incluidas en datos al modelo.
+- La cantidad de registros sin foto se calcula mediante dos consultas exactas de solo conteo (rutas nulas y vacías) con `head:true`; jamás se consultan las rutas de imágenes. No se extraen números de serie, costos, responsables, ubicaciones ni descripciones.
+- El modelo recibe exclusivamente cantidad de registros, suma de unidades, número de archivados, ausencia de foto y distribución limitada de estados/tipos. Se advierte que inventario administrativo no prueba existencia o pérdida física.
+- Migración nueva `ai_assistant_claim_inventory_slot_v1` SECURITY INVOKER aplicada únicamente a staging. Exige permiso de lectura, museo activo del solicitante y reutiliza la cuota atómica existente sin cambiar sus límites.
+- Verificación de seguridad en staging: `anon` no puede ejecutar la cuota; `authenticated` sí puede invocarla, pero una cuenta ficticia sin permiso fue denegada tanto en su museo como en el otro. La prueba se ejecutó en transacción revertida.
+- Suite de INSTITUVA AI aprobada para commit `efae2b660f7ea6c253d77d9b11b90a9243f3d1f3`; nuevas pruebas de agregación, datos foráneos, metadatos hostiles e invariantes Node.
+- Edge Function desplegada únicamente en staging versión 11 con verify_jwt=true. Comprobación posterior: cero registros en ai_assistant_usage, el perfil de prueba permanece inactivo y producción no fue modificada.
+- No se modificaron archivos, fotos, datos, permisos ni políticas del módulo Inventario. La prueba independiente de equipo de Marketing permanece ajena a este desarrollo.
+- **Pendiente:** prueba HTTP de extremo a extremo con JWT realmente firmado, perfiles y datos ficticios autorizados, y prueba de respuesta del modelo. No aprobar merge ni producción.
