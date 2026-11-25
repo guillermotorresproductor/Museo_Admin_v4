@@ -16,6 +16,7 @@ function bindInstituvaAi() {
   const sources=root.querySelector("[data-ai-sources]");
   let busy=false;
   const canDiagnose=hasPermission("attendance.history.read") && hasPermission("finance.read");
+  const canReadFinance=hasPermission("finance.read");
 
   const updateMode=()=>{
     const attendance=mode.value==="attendance";
@@ -25,7 +26,7 @@ function bindInstituvaAi() {
     year.required=finance;
     employee.required=attendance;
     date.required=attendance;
-    if ((attendance || finance) && !canDiagnose) {
+    if ((attendance && !canDiagnose) || (finance && !canReadFinance)) {
       status.textContent="Tu perfil no autoriza consultar Asistencia y Nómina de empleados.";
       form.querySelector('button[type="submit"]').disabled=true;
     } else {
@@ -46,7 +47,7 @@ function bindInstituvaAi() {
     const day=String(data.get("day")||"");
     const fiscalYear=Number(data.get("year"));
     if (!question || (queryMode==="attendance" && (!canDiagnose || !employee_name || !day))) return;
-    if (queryMode==="finance" && (!canDiagnose || !Number.isInteger(fiscalYear) || fiscalYear<2020 || fiscalYear>2100)) return;
+    if (queryMode==="finance" && (!canReadFinance || !Number.isInteger(fiscalYear) || fiscalYear<2020 || fiscalYear>2100)) return;
     busy=true;
     const button=form.querySelector('button[type="submit"]');
     button.disabled=true;
