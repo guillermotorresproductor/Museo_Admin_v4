@@ -16,12 +16,12 @@
         <section class="card panel section-stack" data-instituva-ai>
           <p class="page-kicker">INSTITUVA / Soporte inteligente</p>
           <h2>Asistente INSTITUVA</h2>
-          <p>Conoce los procedimientos revisados de INSTITUVA y puede consultar incidencias de asistencia y presupuestos de tu museo cuando tienes autorización. <strong>Nunca modifica registros, permisos ni pagos.</strong></p>
+          <p>Orienta a la dirección y administración a investigar incidencias de INSTITUVA, contrastar evidencias y aplicar procedimientos seguros. Las consultas privadas de asistencia y presupuesto requieren permisos específicos. <strong>Nunca modifica registros, permisos ni pagos.</strong></p>
           <form class="form-grid" data-ai-form>
             <div class="field">
               <label for="ai-mode">Tipo de consulta</label>
               <select id="ai-mode" name="mode">
-                <option value="product">Cómo funciona INSTITUVA (cualquier módulo)</option>
+                <option value="product">Resolver una incidencia / cómo funciona INSTITUVA</option>
                 <option value="attendance">Diagnóstico privado de Asistencia / Nómina</option>
                 <option value="finance">Consulta de presupuesto financiero (acceso restringido)</option>
               </select>
@@ -42,7 +42,7 @@
             </div>
             <div class="field">
               <label for="ai-question">¿Qué necesitas saber?</label>
-              <textarea id="ai-question" name="question" rows="3" minlength="8" maxlength="1000" required placeholder="Ejemplo: ¿Cómo funcionan los permisos de Colecciones en INSTITUVA?"></textarea>
+              <textarea id="ai-question" name="question" rows="3" minlength="8" maxlength="1000" required placeholder="Ejemplo: ¿Por qué aparece una jornada abierta y qué debemos revisar sin modificar ponches?"></textarea>
             </div>
             <button type="submit" class="button submit-button">Consultar sin modificar datos</button>
           </form>
