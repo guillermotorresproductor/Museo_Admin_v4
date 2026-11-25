@@ -234,3 +234,14 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - La función se publicó **solo en staging v22**, `verify_jwt=true`. Código desplegado recuperado con la comparación y `actions_executed:false`.
 - Verificación posterior solo lectura: `ai_assistant_usage=0`, 0 museos E2E residuales y perfil sintético anterior inactivo. No se modificaron tablas, políticas, roles, ponches, horarios, nómina ni datos reales, y no hubo despliegue en producción.
 - Sigue pendiente el ensayo HTTP con JWT auténtico y una respuesta del modelo real; los casos sintéticos no reemplazan esa aprobación.
+
+## 25 de noviembre — Correcciones de ponches entre fechas (staging v23)
+- Se examinó mediante SQL agregado de **solo lectura** la cadena de `attendance_events.supersedes_event_id`: siete sustituciones presentes en staging; en el conjunto examinado ninguna cruza fecha local, museo, empleado, turno ni tipo de evento. La corrección atiende un riesgo futuro y no afirma haber detectado un caso real defectuoso.
+- Riesgo: el diagnóstico diario suprimía originales sustituidos únicamente cuando el evento sucesor también estaba dentro de la fecha solicitada. Una sustitución registrada en otra fecha podía dejar el original erróneamente como ponche vigente.
+- El asistente consulta ahora **solo** las referencias `supersedes_event_id IN (IDs consultados)`, para el mismo museo y empleado, límite 61 filas; si alcanza ese límite o los datos son inconsistentes, falla sin diagnóstico. No se amplían permisos, no se hace búsqueda general de personal, ni se reenvían los eventos sucesores crudos a OpenAI.
+- `attendance-event-corrections.ts` valida explícitamente pertenencia a museo y empleado, integridad del vínculo, turno coincidente, duplicados y sucesiones ambiguas; devuelve solo los eventos efectivos y su conteo de sustituidos. Los eventos originales sustituidos no alimentan la comparación de días libres y ponches.
+- Las pruebas Deno cubren sustitución en fecha posterior, sustitución dentro del mismo día, cadena de correcciones, registro no sustituido, referencias de otro empleado/museo/turno y duplicaciones. Tests Node controlan la consulta estrecha, su límite, la autorización y la ausencia de escrituras.
+- CI `INSTITUVA AI tenant-safe diagnostics` **aprobada** para commit `d60fe27ceea52c127b8fdf45bc36969a769dc19d`.
+- Edge Function desplegada **solo en staging v23**, `verify_jwt=true`; código recuperado confirma resolvedor, consulta acotada, límite y contrato `actions_executed:false`.
+- Posverificación de solo lectura: `ai_assistant_usage=0`, perfil ficticio anterior inactivo, cero museos de prueba residuales. No se aplicaron migraciones ni se modificaron ponches, horarios, permisos o producción; PR #125 permanece sin fusionar.
+- **Sigue pendiente** la prueba HTTP con JWT auténtico y una respuesta real del proveedor; no se considera satisfecha mediante las pruebas sintéticas.
