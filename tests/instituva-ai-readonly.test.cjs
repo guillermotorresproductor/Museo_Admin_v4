@@ -10,6 +10,7 @@ const sqlV2=fs.readFileSync("supabase/migrations/20261125194500_ai_assistant_mod
 const sqlCollections=fs.readFileSync("supabase/migrations/20261125233000_ai_collections_readonly_quota.sql","utf8");
 const sqlInventory=fs.readFileSync("supabase/migrations/20261125234500_ai_inventory_readonly_quota.sql","utf8");
 const sqlSchedules=fs.readFileSync("supabase/migrations/20261125235500_ai_schedules_readonly_quota.sql","utf8");
+const sqlNotifications=fs.readFileSync("supabase/migrations/20261126000500_ai_notifications_self_quota.sql","utf8");
 const runbooks=fs.readFileSync("supabase/functions/instituva-ai-assistant/incident-runbooks.ts","utf8");
 const kb=fs.readFileSync("supabase/functions/instituva-ai-assistant/product-knowledge.ts","utf8");
 
@@ -81,7 +82,7 @@ test("general mode does not reach private employee retrieval",()=>{
  const elseBranch=endpoint.indexOf('} else {',start);
  const employeeQuery=endpoint.indexOf('admin.from("employees")',start);
  assert.ok(start>0 && elseBranch>start && employeeQuery>elseBranch);
- const perms=endpoint.indexOf('if (mode==="attendance" || mode==="finance" || mode==="collections" || mode==="inventory" || mode==="schedules")');
+ const perms=endpoint.indexOf('if (mode==="attendance" || mode==="finance" || mode==="collections" || mode==="inventory" || mode==="schedules" || mode==="notifications")');
  const auth=endpoint.indexOf('caller.rpc("has_permission"',perms);
  assert.ok(perms>0 && auth>perms);
  assert.match(endpoint,/return send\(\{answer,evidence,sources,mode,read_only:true\}\)/);
@@ -268,4 +269,27 @@ test("weekly schedules quota uses invoker and shared limit without changing oper
  assert.match(sqlSchedules,/public\.ai_assistant_claim_slot_v2\(p_museum_id,'product'\)/);
  assert.match(sqlSchedules,/revoke all on function public\.ai_assistant_claim_schedules_slot_v1\(uuid\) from public,anon/);
  assert.doesNotMatch(sqlSchedules,/update public\.(?:employee_|attendance_|finance_)/i);
+});
+
+test("notification evidence is explicitly self-scoped and cannot retrieve messages",()=>{
+ assert.match(endpoint,/mode==="notifications"/);
+ assert.match(endpoint,/caller\.from\("employee_notifications"\)/);
+ assert.match(endpoint,/\.select\("id,museum_id,recipient_user_id,category,read_at,created_at"\)/);
+ assert.match(endpoint,/\.eq\("museum_id",museumId\)\.eq\("recipient_user_id",user\.id\)/);
+ assert.match(endpoint,/\.gte\("created_at",since\)\.lte\("created_at",until\)/);
+ assert.match(endpoint,/assertTenantRows\(\(data\|\|\[\]\) as unknown as NotificationEvidenceRow\[\],museumId\)/);
+ assert.match(endpoint,/snapshot=summarizeSelfNotifications\(rows,museumId,user\.id,since,until\)/);
+ assert.doesNotMatch(endpoint,/admin\.from\("employee_notifications"\)/);
+ assert.doesNotMatch(endpoint,/\.select\(".*(?:title|message|related_announcement_id)/);
+ assert.match(ui,/canReadNotifications=hasPermission\("notifications\.read\.self"\)/);
+ assert.match(html,/value="notifications"/);
+});
+test("self-notifications quota remains invoker-only and inherits the atomic global limits",()=>{
+ assert.match(sqlNotifications,/security invoker/);
+ assert.match(sqlNotifications,/public\.has_permission\('notifications\.read\.self'\)/);
+ assert.match(sqlNotifications,/p_museum_id is distinct from public\.current_user_museum_id\(\)/);
+ assert.match(sqlNotifications,/public\.ai_assistant_claim_slot_v2\(p_museum_id,'product'\)/);
+ assert.match(sqlNotifications,/revoke all on function public\.ai_assistant_claim_notifications_slot_v1\(uuid\) from public,anon/);
+ assert.doesNotMatch(sqlNotifications,/update public\.(?:employee_notifications|attendance_|finance_)/i);
+ assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_notifications_slot_v1"/);
 });
