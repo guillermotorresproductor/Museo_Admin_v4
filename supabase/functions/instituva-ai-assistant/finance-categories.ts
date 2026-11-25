@@ -12,7 +12,7 @@ const approvedCategories:Readonly<Record<string,string>>={
 };
 export const OTHER_FINANCE_CATEGORY="Otras categorías (sin exponer etiquetas)";
 export function canonicalFinanceCategory(value:unknown):string {
-  if(typeof value!=="string")return OTHER_FINANCE_CATEGORY;
+  if(typeof value!=="string"||value.length>100)return OTHER_FINANCE_CATEGORY;
   const normalized=value.normalize("NFD").replace(/[\u0300-\u036f]/g,"")
     .trim().toLowerCase().replace(/\s+/g," ");
   return Object.prototype.hasOwnProperty.call(approvedCategories,normalized)
