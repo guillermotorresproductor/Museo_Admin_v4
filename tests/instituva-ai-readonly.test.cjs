@@ -103,7 +103,7 @@ test("financial AI uses RLS-scoped budget-only reading and never writes finance 
  assert.match(endpoint,/mode==="finance"/);
  assert.match(endpoint,/caller\.from\("finance_records"\)/);
  assert.match(endpoint,/\.eq\("museum_id",museumId\)\.eq\("year",year\)/);
- assert.match(endpoint,/finance_budget_lines\(museum_id,record_type,category,name,counts_in_operating_balance\)/);
+ assert.match(endpoint,/finance_budget_lines\(museum_id,record_type,category,counts_in_operating_balance\)/);
  assert.match(endpoint,/finance_budget_snapshot/);
  assert.match(endpoint,/no prueban pagos, cobros, facturas saldadas ni conciliación/);
  assert.doesNotMatch(endpoint,/admin\.from\("finance_records"\)/);
@@ -190,7 +190,7 @@ test("attendance diagnosing prior open shifts and protecting bounded evidence",(
 });
 
 test("embedded budget lines are tenant-verified, not just their parent records",()=>{
- assert.match(endpoint,/finance_budget_lines\(museum_id,record_type,category,name,counts_in_operating_balance\)/);
+ assert.match(endpoint,/finance_budget_lines\(museum_id,record_type,category,counts_in_operating_balance\)/);
  assert.match(endpoint,/if \(!line\) throw Error\("UPSTREAM_FAILURE"\)/);
  assert.match(endpoint,/assertTenantRows\(\[line\],museumId\)/);
  assert.doesNotMatch(endpoint,/\.select\("museum_id,month,amount,finance_budget_lines\(record_type/);
@@ -372,4 +372,17 @@ test("discarded attendance rows are filtered in SQL before pagination, not after
  assert.match(priorQuery,/\.order\("clock_in",\{ascending:false\}\)\.limit\(10\)/);
  assert.doesNotMatch(endpoint,/safeEarlierOpen\.filter\(t=>!t\.excluded_at\)/);
  assert.doesNotMatch(endpoint,/safeTimeEntries\.filter\(t=>!t\.excluded_at\)/);
+});
+
+test("finance diagnostic never forwards editable category text or unused budget line names",()=>{
+ const sanitizer=fs.readFileSync("supabase/functions/instituva-ai-assistant/finance-categories.ts","utf8");
+ assert.match(endpoint,/canonicalFinanceCategory\(line\.category\)/);
+ assert.match(endpoint,/category_labels_redacted_records:redactedCategoryRecords/);
+ assert.match(endpoint,/entry\.total_cents\+=Math\.round\(record\.amount\*100\)/);
+ assert.match(endpoint,/Number\.isSafeInteger\(entry\.total_cents\)/);
+ assert.match(endpoint,/finance_budget_lines\(museum_id,record_type,category,counts_in_operating_balance\)/);
+ assert.doesNotMatch(endpoint,/finance_budget_lines\(museum_id,record_type,category,name,/);
+ assert.doesNotMatch(endpoint,/const category=clean\(line\.category,/);
+ assert.match(sanitizer,/OTHER_FINANCE_CATEGORY/);
+ assert.match(sanitizer,/Object\.prototype\.hasOwnProperty\.call/);
 });
