@@ -143,3 +143,13 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - Pruebas de sintaxis, Node, Deno y regresiones del asistente aprobadas en el commit `5fbf6afe58b15ef6b9495e148530b592626559a0`.
 - **El arnés HTTP genuino NO ha sido ejecutado**, porque no están disponibles `INSTITUVA_AI_TEST_SERVICE_KEY` e `INSTITUVA_AI_TEST_ANON_KEY` para esta sesión. Ningún test actual sustituye la prueba con JWT y respuesta del proveedor de IA.
 - No se hizo un nuevo despliegue de Edge Function: la versión de staging vigente sigue siendo v14, con verify_jwt=true. La producción continúa sin cambios.
+
+## 25 de noviembre — Evitar falsos diagnósticos por lectura restringida (staging v15)
+- Se verificaron directamente en staging las políticas RLS: `finance_records` y `collection_items` tienen una política adicional `module_profile_boundary` **RESTRICTIVE**; `inventory_items` también. Una consulta que devuelve cero filas puede representar falta de autorización por perfil y no ausencia de datos.
+- Antes de consultar Finanzas, Colecciones o Inventario, la función Edge usa el cliente autenticado para llamar a `module_profile_allows(module_code)`. La correspondencia validada es Finanzas -> `administration`, Colecciones -> `collections`, Inventario -> `inventory`. Si la verificación falla o no es `true`, devuelve `FORBIDDEN`; nunca presenta el resultado como cero registros.
+- No se modificaron políticas RLS, roles, funciones de autorización existentes, tablas operacionales, contenidos ni cuotas. El nuevo control opera en la función del asistente exclusivamente.
+- Se añadió prueba Node de orden de autorización, mapeo exacto y prohibición de verificación con service-role. Suite `INSTITUVA AI tenant-safe diagnostics` aprobada en commit `d80bbe0ddf8c7256fab07198f55631dadccee397`.
+- Publicada Edge Function **solo en staging v15**, `verify_jwt=true`. Código publicado recuperado y comprobación `module_profile_allows` confirmada.
+- Verificación posterior de solo lectura: 0 consumos de IA; perfil ficticio anterior sigue inactivo; 0 museos residuales con marcador del arnés E2E.
+- La compatibilidad nominal del modelo `gpt-5.4-mini` con Responses API y el uso de `text.format` se cotejó con la documentación del proveedor. No reemplaza una ejecución real.
+- **Pendiente para fusionar/publicar**: prueba real de autenticación HTTP y salida estructurada del modelo con usuarios y museos ficticios creados y eliminados bajo credenciales autorizadas exclusivas de staging.
