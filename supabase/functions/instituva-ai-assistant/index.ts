@@ -71,8 +71,8 @@ Deno.serve(async (req: Request) => {
     if (!allowedMuseum(profile.museum_id)) throw Error("NOT_ENABLED");
 
     // Fixed read-only evidence paths. General product questions never read employee tables.
-    let snapshot: Record<string,unknown>;
-    let evidence: Record<string,unknown>;
+    let snapshot: Record<string,unknown> = {};
+    let evidence: Record<string,unknown> = {};
     let sources: string[] = [];
     if (mode==="product") {
       const sections=findProductKnowledge(question);
