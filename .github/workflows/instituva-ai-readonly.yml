@@ -27,6 +27,8 @@ on:
       - 'supabase/functions/instituva-ai-assistant/finance-categories.test.ts'
       - 'supabase/functions/instituva-ai-assistant/attendance-alert-summary.ts'
       - 'supabase/functions/instituva-ai-assistant/attendance-alert-summary.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-schedule-crosscheck.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-schedule-crosscheck.test.ts'
       - 'supabase/migrations/20261125170000_ai_assistant_usage_quota.sql'
       - 'supabase/migrations/20261125194500_ai_assistant_mode_quota.sql'
       - 'supabase/migrations/20261125233000_ai_collections_readonly_quota.sql'
@@ -72,3 +74,4 @@ jobs:
       - run: deno test supabase/functions/instituva-ai-assistant/functional-scenarios.test.ts
       - run: deno test supabase/functions/instituva-ai-assistant/finance-categories.test.ts
       - run: deno test supabase/functions/instituva-ai-assistant/attendance-alert-summary.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/attendance-schedule-crosscheck.test.ts
