@@ -432,9 +432,9 @@ function enforceAuthenticatedPageAccess() {
     return true;
   }
   if (page === "asistente-ia.html") {
-    if (hasPermission("attendance.history.read") && hasPermission("finance.read")) return false;
-    showProtectedAccessDenied("Tu perfil no autoriza diagnósticos de Asistencia y Nómina.");
-    return true;
+    // General product help is available to authenticated INSTITUVA accounts.
+    // Private evidence is independently permission-gated by the Edge Function.
+    return false;
   }
   if (hasModuleProfile()) {
     if (page === "dashboard.html" || page === "index.html") return false;
