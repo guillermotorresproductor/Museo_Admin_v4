@@ -54,3 +54,9 @@ Deno.test("inventory mode has explicit read-only permission and no finance acces
  check(required.length===1&&required[0]==="modules.inventory.read","inventory permission");
  check(!required.includes("inventory.manage")&&!required.includes("finance.read"),"unauthorized module permission");
 });
+
+Deno.test("weekly schedules requires time.read.all without management permission",()=>{
+ const perms=requiredPermissionsForMode("schedules");
+ check(perms.length===1&&perms[0]==="time.read.all","incorrect schedule read permission");
+ check(!perms.includes("schedules.manage")&&!perms.includes("attendance.punches.correct"),"read permission escalation");
+});
