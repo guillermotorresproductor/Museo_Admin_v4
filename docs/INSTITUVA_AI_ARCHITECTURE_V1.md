@@ -1,5 +1,7 @@
 # INSTITUVA | Asistente de IA de diagnóstico (v1)
 
+> **Actualización de alcance (25/nov/2026).** Esta v1 es únicamente un prototipo acotado para diagnóstico de asistencia. **NO cumple todavía** el requisito del asistente integral de INSTITUVA. Antes de habilitarlo en producción debe implementarse el diseño aprobado en `docs/INSTITUVA_AI_ASSISTANT_TARGET_ARCHITECTURE.md`: conocimiento de la aplicación completa, lectura autorizada de datos por museo, trazabilidad y separación de repositorio de código frente a documentación institucional. No presentar v1 como el producto final.
+
 **Propiedad del servicio:** INSTITUVA, no una implementación exclusiva del Museo de la Música. Cada museo es un tenant con su propio `museum_id` y habilitación independiente.
 
 ## Alcance inicial
