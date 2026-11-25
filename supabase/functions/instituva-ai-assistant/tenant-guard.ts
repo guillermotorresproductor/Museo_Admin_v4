@@ -20,3 +20,11 @@ export const assertTenantRows=<T extends {museum_id?:unknown}>(
   if(rows.some(row=>row.museum_id!==museumId))throw Error("FORBIDDEN");
   return rows;
 };
+
+export const assertEmployeeTenantRows=<T extends {museum_id?:unknown;employee_id?:unknown}>(
+  rows:readonly T[],museumId:string,employeeId:string
+):readonly T[]=>{
+  assertTenantRows(rows,museumId);
+  if(rows.some(row=>row.employee_id!==employeeId))throw Error("FORBIDDEN");
+  return rows;
+};
