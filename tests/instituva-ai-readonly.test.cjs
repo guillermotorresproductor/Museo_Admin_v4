@@ -200,7 +200,7 @@ test("collections diagnosis is permission-scoped, bounded and aggregate-only",()
  assert.match(endpoint,/readScoped\("collection_photos","museum_id,item_id,id"\)/);
  assert.match(endpoint,/readScoped\("collection_history","museum_id,item_id,id"\)/);
  assert.match(endpoint,/snapshot=summarizeCollections/);
- assert.match(endpoint,/assertTenantRows\(\(data\|\|\[\]\) as Array<\{museum_id:string\}>,museumId\)/);
+ assert.match(endpoint,/assertTenantRows\(\(data\|\|\[\]\) as unknown as Array<\{museum_id:string\}>,museumId\)/);
  assert.match(endpoint,/if\(offset===2500\) throw Error\("UPSTREAM_FAILURE"\)/);
  assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_collections_slot_v1"/);
  assert.doesNotMatch(endpoint,/admin\.from\("collection_/);
