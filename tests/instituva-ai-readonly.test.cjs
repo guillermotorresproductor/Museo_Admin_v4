@@ -170,3 +170,16 @@ test("attendance snapshot reaches diagnostic model instead of being shadowed",()
  assert.match(endpoint,/JSON\.stringify\(snapshot\)/);
  assert.match(endpoint,/snapshot=\{\.\.\.snapshot,\s*incident_guidance/);
 });
+
+test("attendance diagnosing prior open shifts and protecting bounded evidence",()=>{
+ assert.match(endpoint,/const scopedEmployees=assertTenantRows\(employees\|\|\[\],museumId\)/);
+ assert.match(endpoint,/scopedEmployees\.length>=300/);
+ assert.match(endpoint,/const safeEarlierOpen=assertEmployeeTenantRows\(earlierOpenEntries\.data\|\|\[\],museumId,employee\.id\)/);
+ assert.match(endpoint,/\.is\("clock_out",null\)\.lt\("clock_in",day\+"T04:00:00Z"\)/);
+ assert.match(endpoint,/\.order\("clock_in",\{ascending:false\}\)\.limit\(10\)/);
+ assert.match(endpoint,/safeEarlierOpen\.length>=10/);
+ assert.match(endpoint,/previous_open_entries:safeEarlierOpen\.filter/);
+ assert.match(endpoint,/previous_open_entries:\(snapshot\.previous_open_entries as unknown\[\]\)\.length/);
+ assert.match(endpoint,/validAttendanceDay\(input\.day\)/);
+ assert.match(endpoint,/nextAttendanceDay\(day\)/);
+});
