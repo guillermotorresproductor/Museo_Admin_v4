@@ -8,6 +8,7 @@ const app=fs.readFileSync("js/app.js","utf8");
 const sql=fs.readFileSync("supabase/migrations/20261125170000_ai_assistant_usage_quota.sql","utf8");
 const sqlV2=fs.readFileSync("supabase/migrations/20261125194500_ai_assistant_mode_quota.sql","utf8");
 const sqlCollections=fs.readFileSync("supabase/migrations/20261125233000_ai_collections_readonly_quota.sql","utf8");
+const sqlInventory=fs.readFileSync("supabase/migrations/20261125234500_ai_inventory_readonly_quota.sql","utf8");
 const runbooks=fs.readFileSync("supabase/functions/instituva-ai-assistant/incident-runbooks.ts","utf8");
 const kb=fs.readFileSync("supabase/functions/instituva-ai-assistant/product-knowledge.ts","utf8");
 
@@ -79,7 +80,7 @@ test("general mode does not reach private employee retrieval",()=>{
  const elseBranch=endpoint.indexOf('} else {',start);
  const employeeQuery=endpoint.indexOf('admin.from("employees")',start);
  assert.ok(start>0 && elseBranch>start && employeeQuery>elseBranch);
- const perms=endpoint.indexOf('if (mode==="attendance" || mode==="finance" || mode==="collections")');
+ const perms=endpoint.indexOf('if (mode==="attendance" || mode==="finance" || mode==="collections" || mode==="inventory")');
  const auth=endpoint.indexOf('caller.rpc("has_permission"',perms);
  assert.ok(perms>0 && auth>perms);
  assert.match(endpoint,/return send\(\{answer,evidence,sources,mode,read_only:true\}\)/);
@@ -215,4 +216,32 @@ test("collections quota wrapper delegates to atomic existing cap and never grant
  assert.match(sqlCollections,/public\.ai_assistant_claim_slot_v2\(p_museum_id,'product'\)/);
  assert.match(sqlCollections,/revoke all on function public\.ai_assistant_claim_collections_slot_v1\(uuid\) from public,anon/);
  assert.doesNotMatch(sqlCollections,/update public\.(?:collection_|finance_|employee_)/i);
+});
+
+test("inventory diagnostic reads only bounded, user-RLS scoped administrative fields",()=>{
+ assert.match(endpoint,/mode==="inventory"/);
+ assert.match(endpoint,/requiredPermissionsForMode\(mode\)/);
+ assert.match(endpoint,/caller\.from\("inventory_items"\)/);
+ assert.match(endpoint,/\.select\("id,museum_id,record_type,status,quantity,archived_at"\)/);
+ assert.match(endpoint,/\.eq\("museum_id",museumId\)\.order\("id",\{ascending:true\}\)\.range\(offset,offset\+499\)/);
+ assert.match(endpoint,/assertTenantRows\(\(data\|\|\[\]\) as unknown as InventoryEvidenceRow\[\],museumId\)/);
+ assert.match(endpoint,/if\(offset===2500\)throw Error\("UPSTREAM_FAILURE"\)/);
+ assert.match(endpoint,/\.select\("id",\{count:"exact",head:true\}\)/);
+ assert.match(endpoint,/\.is\("photo_path",null\)/);
+ assert.match(endpoint,/\.eq\("photo_path",""\)/);
+ assert.match(endpoint,/snapshot=summarizeInventory\(inventoryRows,museumId/);
+ assert.doesNotMatch(endpoint,/admin\.from\("inventory_items"\)/);
+ assert.doesNotMatch(endpoint,/\.select\(".*(?:serial_number|cost|responsible|location|photo_path)"/);
+ assert.match(ui,/canReadInventory=hasPermission\("modules\.inventory\.read"\)/);
+ assert.match(html,/value="inventory"/);
+});
+test("inventory quota explicitly requires inventory reader and shares original atomic counter",()=>{
+ assert.match(sqlInventory,/security invoker/);
+ assert.match(sqlInventory,/public\.has_permission\('modules\.inventory\.read'\)/);
+ assert.match(sqlInventory,/p_museum_id is distinct from public\.current_user_museum_id\(\)/);
+ assert.match(sqlInventory,/public\.ai_assistant_claim_slot_v2\(p_museum_id,'product'\)/);
+ assert.match(sqlInventory,/revoke all on function public\.ai_assistant_claim_inventory_slot_v1\(uuid\) from public,anon/);
+ assert.match(sqlInventory,/grant execute on function public\.ai_assistant_claim_inventory_slot_v1\(uuid\) to authenticated/);
+ assert.doesNotMatch(sqlInventory,/alter table public\.(?:inventory_|finance_|employee_)/i);
+ assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_inventory_slot_v1"/);
 });
