@@ -1,5 +1,5 @@
-// Collections read-only quota gate; preserves the existing global AI quota.
-// It uses the existing v2 shared quota counter, without widening its modes.
+-- Collections read-only quota gate; preserves the existing global AI quota.
+-- It uses the existing v2 shared quota counter, without widening its modes.
 create or replace function public.ai_assistant_claim_collections_slot_v1(
   p_museum_id uuid
 ) returns boolean
