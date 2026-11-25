@@ -44,6 +44,8 @@ on:
       - 'tests/instituva-ai-readonly.test.cjs'
       - 'supabase/tests/instituva-ai-auth-staging.mjs'
       - 'supabase/tests/instituva-ai-http-deny-staging.test.mjs'
+      - 'supabase/tests/instituva-ai-staging-key-guard.mjs'
+      - 'supabase/tests/instituva-ai-staging-key-guard.test.mjs'
       - '.github/workflows/instituva-ai-readonly.yml'
 jobs:
   secure-diagnostic:
@@ -59,6 +61,8 @@ jobs:
       - run: node --check js/app.js
       - run: node --check supabase/tests/instituva-ai-auth-staging.mjs
       - run: node --test supabase/tests/instituva-ai-http-deny-staging.test.mjs
+      # Synthetic metadata-only tests. Never inject admin secrets into PR CI.
+      - run: node --test supabase/tests/instituva-ai-staging-key-guard.test.mjs
       - run: node --test tests/instituva-ai-readonly.test.cjs
       - run: node --test tests/external-accountant-readonly.test.cjs
       - run: node --test tests/external-accountant-admin-route.test.cjs
