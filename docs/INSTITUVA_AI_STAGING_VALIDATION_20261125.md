@@ -110,3 +110,15 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - Migración aplicada **solo en staging**. Verificación: función instalada, EXECUTE denegado a anon, permitido para authenticated sujeto a verificación interna; usuario ficticio Gerencia Museográfica sin `time.read.all` rechazado para su museo y uno ajeno. La prueba PostgreSQL usó identidad simulada y transacción revertida, **no JWT real**.
 - Función Edge del asistente actualizada únicamente en staging a versión 12, con `verify_jwt=true`. Producción y módulos de Horarios/Nómina sin modificaciones. No se consumió el proveedor de IA.
 - Pendiente: autenticación HTTP real y pruebas de caso positivo con perfiles ficticios oficialmente autorizados antes de aprobar publicación.
+
+## 25 de noviembre — Mis Notificaciones: metadatos y conteos propios
+- Se añadió modo `notifications` al asistente de soporte, **exclusivamente** para la cuenta autenticada; no es una bandeja de lectura institucional para otros empleados.
+- Autorización independiente `notifications.read.self`, filtro de `museum_id` y `recipient_user_id=auth.uid()` mediante cliente con RLS (sin bypass de service-role).
+- Solo se consultan metadatos `id,museum_id,recipient_user_id,category,read_at,created_at` de los últimos 30 días. No se leen `title`, `message`, identificadores de anuncios ni otras comunicaciones.
+- La evidencia enviada al modelo consiste únicamente en recuento, pendientes de lectura y categorías de vocabulario cerrado. IDs y marcas de tiempo individuales no se entregan.
+- El código rechaza filas de otro museo o destinatario, registros duplicados, periodos inconsistentes y posibles resultados truncados. No se atribuye un fallo de correo, SMS ni push a partir de las notificaciones internas.
+- Función `ai_assistant_claim_notifications_slot_v1` SECURITY INVOKER instalada **solo en staging**; exige permiso propio y museo correspondiente, delega en contador atómico v2 y no cambia límites.
+- Validaciones SQL transaccionales con perfil ficticio: RLS dejó ver cero notificaciones de otro museo y cero de otros destinatarios; cuota propia aceptada y cuota de otro museo rechazada. `ROLLBACK` final.
+- API EXECUTE: denegada a `anon`, disponible a `authenticated` con verificación interna. Perfil de prueba originalmente inactivo sigue igual y ai_assistant_usage permanece sin registros.
+- Edge Function actualizada exclusivamente en staging a **versión 13**, con `verify_jwt=true`.
+- Suite Deno/Node incluye tests de autoscoping, prompt injection en categorías, incertidumbre, cero registros y permisos. Prueba HTTP real con JWT firmado sigue pendiente; no afirmar validación extremo a extremo ni publicar producción.
