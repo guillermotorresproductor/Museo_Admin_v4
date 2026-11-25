@@ -1,12 +1,15 @@
 // Staging ONLY. Disposable Supabase Auth sessions and two disposable museums.
 // All requests are HTTP using real signed access tokens; never use production keys.
-// Required: INSTITUVA_AI_TEST_SERVICE_KEY and INSTITUVA_AI_TEST_ANON_KEY.
+// Required: INSTITUVA_AI_TEST_SERVICE_KEY, INSTITUVA_AI_TEST_ANON_KEY,
+// and INSTITUVA_AI_E2E_CONFIRM_STAGING=<exact staging project ref>.
 // No model calls, no finance/attendance business-record writes.
 import assert from "node:assert/strict";
 import {randomBytes} from "node:crypto";
 
 const REF="lonpdmxdvbxuagqxztig";
 const URL="https://"+REF+".supabase.co";
+if(process.env.INSTITUVA_AI_E2E_CONFIRM_STAGING!==REF)
+  throw Error("STAGING_EXPLICIT_OPT_IN_REQUIRED: set INSTITUVA_AI_E2E_CONFIRM_STAGING="+REF);
 const service=process.env.INSTITUVA_AI_TEST_SERVICE_KEY;
 const anon=process.env.INSTITUVA_AI_TEST_ANON_KEY;
 if (!service || !anon || service===anon)
@@ -46,9 +49,29 @@ async function createActor(museum,suffix){
   }});
   assert.ok(user?.id,"fixture user creation missing");
   users.push(user.id);
-  await api("/rest/v1/profiles?id=eq."+user.id,{method:"PATCH",body:{
-    museum_id:museum,role:"empleado",status:"active",full_name:"INSTITUVA AI synthetic "+suffix
-  }});
+  // Auth's existing on_auth_user_created trigger assigns a baseline role
+  // to the DEFAULT museum before any test JWT exists. Remove ONLY the role
+  // rows for this newly created synthetic user, before password sign-in.
+  const inheritedRoles=await api("/rest/v1/user_roles?user_id=eq."+user.id,{
+    method:"DELETE"
+  });
+  check("synthetic user's default-museum roles removed before sign-in",
+    Array.isArray(inheritedRoles.data));
+  const noRoles=await api("/rest/v1/user_roles?select=user_id,museum_id&user_id=eq."+user.id);
+  check("synthetic user has no inherited role in any museum",
+    Array.isArray(noRoles.data)&&noRoles.data.length===0);
+  // The new user receives a profile through the existing Auth trigger;
+  // updating zero rows must never silently produce a false positive.
+  const profileUpdate=await api("/rest/v1/profiles?id=eq."+user.id,{
+    method:"PATCH",body:{
+      museum_id:museum,role:"empleado",status:"active",
+      full_name:"INSTITUVA AI synthetic "+suffix
+    }
+  });
+  check("exactly one synthetic profile reassigned",
+    Array.isArray(profileUpdate.data)&&profileUpdate.data.length===1&&
+    profileUpdate.data[0].id===user.id&&
+    profileUpdate.data[0].museum_id===museum);
   const session=await api("/auth/v1/token?grant_type=password",{
     method:"POST",body:{email,password},token:anon,key:anon
   });
@@ -172,6 +195,9 @@ try {
     await cleanup("/rest/v1/audit_logs?museum_id=eq."+museum);
   }
   for(const id of users){
+    // Clean only role rows owned by the synthetic Auth IDs created above.
+    // They may have been created by existing user-registration triggers.
+    await cleanup("/rest/v1/user_roles?user_id=eq."+id);
     await cleanup("/auth/v1/admin/users/"+id);
   }
   for(const museum of museums){
