@@ -3,6 +3,7 @@ import { corsHeaders } from "../_shared/security.ts";
 import { findProductKnowledge } from "./product-knowledge.ts";
 import { findIncidentRunbooks } from "./incident-runbooks.ts";
 import { requiredPermissionsForMode, assertActiveMuseumProfile, assertTenantRows, assertEmployeeTenantRows } from "./tenant-guard.ts";
+import { validAttendanceDay, nextAttendanceDay } from "./attendance-day.ts";
 const send = (body:unknown,status=200) => new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json","Cache-Control":"no-store"}});
 
 // INSTITUVA AI v1: closed query vocabulary, read-only, opt-in per tenant.
@@ -12,15 +13,6 @@ const ANSWER_LIMIT = 650;
 const MAX_QUESTION = 1000;
 const clean = (s: unknown, max = 300) =>
   String(s ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max);
-const validDay = (value: unknown) => {
-  const day = clean(value, 10);
-  if (!/^20\d{2}-\d{2}-\d{2}$/.test(day) ||
-      !Number.isFinite(Date.parse(day + "T00:00:00Z")) ||
-      new Date(day + "T00:00:00Z").toISOString().slice(0,10)!==day)
-    throw Error("INVALID_REQUEST");
-  return day;
-};
-const plusDay = (day: string) => new Date(Date.parse(day + "T00:00:00Z") + 86400000).toISOString().slice(0, 10);
 const asLocal = (time: unknown) => time ? new Date(String(time)).toLocaleString("es-PR", { timeZone:"America/Puerto_Rico", dateStyle:"short",timeStyle:"short", hour12:true }) : null;
 const allowedMuseum = (museum: string) => {
   const ids = (Deno.env.get("INSTITUVA_AI_MUSEUM_IDS") || "").split(",").map(v=>v.trim()).filter(Boolean);
@@ -136,7 +128,7 @@ Deno.serve(async (req: Request) => {
       sources=["finance_records","finance_budget_lines"];
     } else {
     const name=clean(input.employee_name,120);
-    const day=validDay(input.day);
+    const day=validAttendanceDay(input.day);
     if (name.length<3 || !/^[\p{L}\p{M}.' -]+$/u.test(name)) throw Error("INVALID_REQUEST");
     const parsedDay=Date.parse(day+"T04:00:00Z");
     if (parsedDay>Date.now()) throw Error("INVALID_REQUEST");
@@ -161,12 +153,12 @@ Deno.serve(async (req: Request) => {
         .eq("museum_id",museumId).eq("employee_id",employee.id).eq("shift_date",day).limit(5),
       admin.from("attendance_events").select("id,museum_id,employee_id,shift_id,event_type,occurred_at,classification,supersedes_event_id")
         .eq("museum_id",museumId).eq("employee_id",employee.id)
-        .gte("occurred_at",day+"T04:00:00Z").lt("occurred_at",plusDay(day)+"T04:00:00Z").limit(60),
+        .gte("occurred_at",day+"T04:00:00Z").lt("occurred_at",nextAttendanceDay(day)+"T04:00:00Z").limit(60),
       admin.from("attendance_operational_alerts").select("museum_id,employee_id,alert_type,status,alert_date,detected_at")
         .eq("museum_id",museumId).eq("employee_id",employee.id).eq("alert_date",day).limit(30),
       admin.from("employee_time_entries").select("museum_id,employee_id,clock_in,clock_out,excluded_at")
         .eq("museum_id",museumId).eq("employee_id",employee.id)
-        .gte("clock_in",day+"T04:00:00Z").lt("clock_in",plusDay(day)+"T04:00:00Z").limit(30),
+        .gte("clock_in",day+"T04:00:00Z").lt("clock_in",nextAttendanceDay(day)+"T04:00:00Z").limit(30),
       // An unresolved shift may have started before the requested day.
       // Only read open entries for this exact employee and museum, latest first.
       admin.from("employee_time_entries").select("museum_id,employee_id,clock_in,clock_out,excluded_at")
