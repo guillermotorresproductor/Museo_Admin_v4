@@ -387,3 +387,16 @@ test("finance diagnostic never forwards editable category text or unused budget 
  assert.match(sanitizer,/Object\.prototype\.hasOwnProperty\.call/);
  assert.match(ui,/category_labels_redacted_records/);
 });
+
+test("attendance diagnosis distinguishes active from historical alerts without granting writes",()=>{
+ const handler=fs.readFileSync("supabase/functions/instituva-ai-assistant/attendance-alert-summary.ts","utf8");
+ assert.match(endpoint,/summarizeAttendanceAlertStates\(safeAlerts,museumId,employee\.id\)/);
+ assert.match(endpoint,/alert_status_summary:alertStateCounts/);
+ assert.match(endpoint,/active_alert_count:alertStateCounts\.active_alerts/);
+ assert.match(endpoint,/reviewed_or_resolved_alert_count:alertStateCounts\.auto_resolved_alerts\+alertStateCounts\.reviewed_alerts/);
+ assert.match(ui,/Alertas activas:/);
+ assert.match(ui,/revisadas o resueltas:/);
+ assert.match(handler,/assertEmployeeTenantRows\(rows,museumId,employeeId\)/);
+ assert.match(handler,/alertStatuses=new Set\(\["active","auto_resolved","reviewed"\]\)/);
+ assert.doesNotMatch(handler,/\.insert\(|\.update\(|\.delete\(/);
+});
