@@ -6,6 +6,7 @@ const ui=fs.readFileSync("js/instituva-ai.js","utf8");
 const html=fs.readFileSync("asistente-ia.html","utf8");
 const app=fs.readFileSync("js/app.js","utf8");
 const sql=fs.readFileSync("supabase/migrations/20261125170000_ai_assistant_usage_quota.sql","utf8");
+const sqlV2=fs.readFileSync("supabase/migrations/20261125194500_ai_assistant_mode_quota.sql","utf8");
 const kb=fs.readFileSync("supabase/functions/instituva-ai-assistant/product-knowledge.ts","utf8");
 
 test("AI assistant is museum-owned, gated, and never receives arbitrary SQL or tools",()=>{
@@ -102,4 +103,23 @@ test("financial AI uses RLS-scoped budget-only reading and never writes finance 
  assert.doesNotMatch(endpoint,/admin\.from\("finance_records"\)/);
  assert.match(ui,/queryMode==="finance"/);
  assert.match(html,/data-ai-finance/);
+});
+
+test("AI quota v2 enforces mode-specific privileges without modifying permission system",()=>{
+ assert.match(sqlV2,/create or replace function public\.ai_assistant_claim_slot_v2/);
+ assert.match(sqlV2,/p_mode = 'finance'/);
+ assert.match(sqlV2,/public\.has_permission\('finance\.read'\)/);
+ assert.match(sqlV2,/p_mode = 'attendance'/);
+ assert.match(sqlV2,/public\.has_permission\('attendance\.history\.read'\)/);
+ assert.match(sqlV2,/p_mode is distinct from 'product'/);
+ assert.match(sqlV2,/pr\.status in \('active','activo'\)/);
+ assert.match(sqlV2,/pg_advisory_xact_lock/);
+ assert.match(sqlV2,/month_count>=500 or user_count>=100/);
+ assert.match(sqlV2,/revoke all on function public\.ai_assistant_claim_slot_v2\(uuid,text\) from public,anon/);
+ assert.doesNotMatch(sqlV2,/alter table public\.(?:finance_|employees|profiles)|update public\.finance_|delete from public\.finance_/i);
+ assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_slot_v2"/);
+ assert.match(endpoint,/p_mode:mode/);
+ assert.match(endpoint,/mode==="finance" \? \["finance\.read"\] : PERMISSIONS/);
+ assert.match(ui,/canReadFinance=hasPermission\("finance\.read"\)/);
+ assert.match(ui,/finance && !canReadFinance/);
 });
