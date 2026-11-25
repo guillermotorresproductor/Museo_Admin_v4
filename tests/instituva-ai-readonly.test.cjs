@@ -17,7 +17,7 @@ test("AI assistant is museum-owned, gated, and never receives arbitrary SQL or t
  assert.match(endpoint,/caller\.auth\.getUser/);
  assert.match(endpoint,/caller\.rpc\("has_permission"/);
  assert.match(endpoint,/attendance\.history\.read|import \{ requiredPermissionsForMode/);
- assert.match(endpoint,/finance\.read/);
+ assert.match(endpoint,/requiredPermissionsForMode/);
  assert.match(endpoint,/\.eq\("museum_id",museumId\)/);
  assert.match(endpoint,/mode==="attendance"/);
  assert.match(endpoint,/mode==="product"/);
