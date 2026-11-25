@@ -2,11 +2,11 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/security.ts";
 import { findProductKnowledge } from "./product-knowledge.ts";
 import { findIncidentRunbooks } from "./incident-runbooks.ts";
+import { requiredPermissionsForMode, assertActiveMuseumProfile, assertTenantRows } from "./tenant-guard.ts";
 const send = (body:unknown,status=200) => new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json","Cache-Control":"no-store"}});
 
 // INSTITUVA AI v1: closed query vocabulary, read-only, opt-in per tenant.
 // Never expose a service-role key or database query API to the language model.
-const PERMISSIONS = ["attendance.history.read", "finance.read"];
 const MODEL = "gpt-5.4-mini";
 const ANSWER_LIMIT = 650;
 const MAX_QUESTION = 1000;
@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
     const mode=input.mode === "attendance" ? "attendance" : input.mode === "finance" ? "finance" : input.mode === "product" ? "product" : null;
     if (!mode || question.length<8 || question.length>MAX_QUESTION) throw Error("INVALID_REQUEST");
     if (mode==="attendance" || mode==="finance") {
-      const required = mode==="finance" ? ["finance.read"] : PERMISSIONS;
+      const required = requiredPermissionsForMode(mode);
       for (const permission of required) {
         const {data,error} = await caller.rpc("has_permission",{requested_permission:permission});
         if (error || data !== true) throw Error("FORBIDDEN");
@@ -69,8 +69,9 @@ Deno.serve(async (req: Request) => {
     const admin=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
     const {data:profile,error:profileError} = await admin.from("profiles").select("id,museum_id,status")
       .eq("id",user.id).single();
-    if (profileError || !profile?.museum_id || !["activo","active"].includes(profile.status)) throw Error("FORBIDDEN");
-    if (!allowedMuseum(profile.museum_id)) throw Error("NOT_ENABLED");
+    if (profileError) throw Error("FORBIDDEN");
+    const museumId=assertActiveMuseumProfile(profile,user.id);
+    if (!allowedMuseum(museumId)) throw Error("NOT_ENABLED");
 
     // Fixed read-only evidence paths. General product questions never read employee tables.
     let snapshot: Record<string,unknown> = {};
@@ -96,14 +97,14 @@ Deno.serve(async (req: Request) => {
       if (!Number.isInteger(year) || year<2020 || year>2100) throw Error("INVALID_REQUEST");
       // Use caller-scoped RLS, never service-role bypass for financial data.
       // Existing finance_records contract is budget cells, not paid ledger entries.
-      const rows: Array<{month:number;amount:number;finance_budget_lines:{record_type:string;category:string;name:string;counts_in_operating_balance:boolean}[]|{record_type:string;category:string;name:string;counts_in_operating_balance:boolean}|null}> = [];
+      const rows: Array<{museum_id:string;month:number;amount:number;finance_budget_lines:{record_type:string;category:string;name:string;counts_in_operating_balance:boolean}[]|{record_type:string;category:string;name:string;counts_in_operating_balance:boolean}|null}> = [];
       for (let offset=0; offset<=1500; offset+=500) {
         const {data,error}=await caller.from("finance_records")
-          .select("month,amount,finance_budget_lines(record_type,category,name,counts_in_operating_balance)")
-          .eq("museum_id",profile.museum_id).eq("year",year)
+          .select("museum_id,month,amount,finance_budget_lines(record_type,category,name,counts_in_operating_balance)")
+          .eq("museum_id",museumId).eq("year",year)
           .order("id",{ascending:true}).range(offset,offset+499);
         if (error) throw Error("UPSTREAM_FAILURE");
-        rows.push(...((data||[]) as unknown as typeof rows));
+        rows.push(...assertTenantRows((data||[]) as unknown as typeof rows,museumId));
         if ((data||[]).length<500) break;
         if (offset===1500) throw Error("UPSTREAM_FAILURE");
       }
@@ -141,25 +142,26 @@ Deno.serve(async (req: Request) => {
     // Whitelist fields: no employee medical, address, email, phone, salary,
     // personal photos, payroll exports, permission tables or other museums.
     const {data:employees,error:empError} = await admin.from("employees")
-      .select("id,first_name,last_name").eq("museum_id",profile.museum_id).eq("status","activo")
+      .select("id,first_name,last_name,museum_id").eq("museum_id",museumId).eq("status","activo")
       .limit(300);
     if (empError) throw Error("UPSTREAM_FAILURE");
     const normalized=(s:string)=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim();
-    const matches=(employees||[]).filter(e=> normalized(e.first_name+" "+e.last_name)===normalized(name));
+    const scopedEmployees=assertTenantRows(employees||[],museumId);
+    const matches=scopedEmployees.filter(e=> normalized(e.first_name+" "+e.last_name)===normalized(name));
     if (!matches.length) throw Error("EMPLOYEE_NOT_FOUND");
     if (matches.length !== 1) throw Error("AMBIGUOUS_EMPLOYEE");
     const employee=matches[0];
 
     const [shifts,events,alerts,timeEntries]=await Promise.all([
       admin.from("employee_shifts").select("id,shift_date,starts_at,ends_at,expected_lunch_minutes,status")
-        .eq("museum_id",profile.museum_id).eq("employee_id",employee.id).eq("shift_date",day).limit(5),
+        .eq("museum_id",museumId).eq("employee_id",employee.id).eq("shift_date",day).limit(5),
       admin.from("attendance_events").select("id,shift_id,event_type,occurred_at,classification,supersedes_event_id")
-        .eq("museum_id",profile.museum_id).eq("employee_id",employee.id)
+        .eq("museum_id",museumId).eq("employee_id",employee.id)
         .gte("occurred_at",day+"T04:00:00Z").lt("occurred_at",plusDay(day)+"T04:00:00Z").limit(60),
       admin.from("attendance_operational_alerts").select("alert_type,status,alert_date,detected_at")
-        .eq("museum_id",profile.museum_id).eq("employee_id",employee.id).eq("alert_date",day).limit(30),
+        .eq("museum_id",museumId).eq("employee_id",employee.id).eq("alert_date",day).limit(30),
       admin.from("employee_time_entries").select("clock_in,clock_out,excluded_at")
-        .eq("museum_id",profile.museum_id).eq("employee_id",employee.id)
+        .eq("museum_id",museumId).eq("employee_id",employee.id)
         .gte("clock_in",day+"T04:00:00Z").lt("clock_in",plusDay(day)+"T04:00:00Z").limit(30)
     ]);
     if ([shifts,events,alerts,timeEntries].some(r=>r.error)) throw Error("UPSTREAM_FAILURE");
@@ -201,7 +203,7 @@ Deno.serve(async (req: Request) => {
     // Atomic monthly quota: 500 per museum / 100 per authorized user.
     // Only this isolated technical counter is written, not museum operational data.
     const { data: slot, error: quotaError } = await caller.rpc("ai_assistant_claim_slot_v2",{
-      p_museum_id:profile.museum_id,p_mode:mode
+      p_museum_id:museumId,p_mode:mode
     });
     if (quotaError) throw Error("UPSTREAM_FAILURE");
     if (slot !== true) throw Error("RATE_LIMITED");
