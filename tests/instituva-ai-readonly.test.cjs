@@ -147,3 +147,9 @@ test("AI rejects cross-tenant records despite scoped database queries",()=>{
  assert.match(endpoint,/\.select\("museum_id,month,amount,finance_budget_lines/);
  assert.doesNotMatch(endpoint,/admin\.from\("finance_records"\)/);
 });
+
+test("finance budget validates Spanish fiscal month labels from staging contract",()=>{
+ assert.match(endpoint,/month:string;amount:number/);
+ assert.match(endpoint,/"Septiembre","Octubre","Noviembre","Diciembre","Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto"/);
+ assert.doesNotMatch(endpoint,/Number\.isInteger\(record\.month\)/);
+});
