@@ -98,3 +98,15 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - Edge Function desplegada únicamente en staging versión 11 con verify_jwt=true. Comprobación posterior: cero registros en ai_assistant_usage, el perfil de prueba permanece inactivo y producción no fue modificada.
 - No se modificaron archivos, fotos, datos, permisos ni políticas del módulo Inventario. La prueba independiente de equipo de Marketing permanece ajena a este desarrollo.
 - **Pendiente:** prueba HTTP de extremo a extremo con JWT realmente firmado, perfiles y datos ficticios autorizados, y prueba de respuesta del modelo. No aprobar merge ni producción.
+
+## 25 de noviembre — Horarios: diagnóstico de turnos agregados
+- Se añadió modo `schedules`, con permiso `time.read.all` verificado por `has_permission` antes de cada consulta, y lectura mediante JWT del solicitante con RLS del módulo. No se concede `schedules.manage`, corrección de ponches ni edición de turnos.
+- Para una fecha inicial válida se inspeccionan exactamente **7 días calendario**, usando `employee_shifts`, filtro explícito del museo autenticado, campos permitidos id, museum_id, employee_id, shift_date, starts_at, ends_at y status. Consulta paginada, con rechazo ante truncamiento.
+- El agregador devuelve únicamente cantidad de turnos, distribución de estados normalizados, cantidad de empleados con turnos activos, posibles pares de solapamiento y turnos de más de 12 horas. Los ID de empleado y los horarios individuales **nunca se envían al modelo**.
+- Un solapamiento es un indicador para cotejo, no prueba de error ni de asistencia. `employee_shifts` no proporciona un campo específico que certifique la publicación en Mi Espacio; no se afirma que un turno esté publicado/no publicado.
+- Nuevo gate `ai_assistant_claim_schedules_slot_v1(uuid)` SECURITY INVOKER, que requiere `time.read.all`, museo propio y delega en el contador atómico v2 compartido; no altera límites ni la estructura del calendario.
+- Las pruebas unitarias cubren intervalos, solapamientos por empleado, turnos cancelados, identidades foráneas, filas repetidas, estados hostiles y ausencia de evidencias.
+- La suite `INSTITUVA AI tenant-safe diagnostics` aprobó para commit `2728b32cbd7aee488a00371edc05c9695f832744`.
+- Migración aplicada **solo en staging**. Verificación: función instalada, EXECUTE denegado a anon, permitido para authenticated sujeto a verificación interna; usuario ficticio Gerencia Museográfica sin `time.read.all` rechazado para su museo y uno ajeno. La prueba PostgreSQL usó identidad simulada y transacción revertida, **no JWT real**.
+- Función Edge del asistente actualizada únicamente en staging a versión 12, con `verify_jwt=true`. Producción y módulos de Horarios/Nómina sin modificaciones. No se consumió el proveedor de IA.
+- Pendiente: autenticación HTTP real y pruebas de caso positivo con perfiles ficticios oficialmente autorizados antes de aprobar publicación.
