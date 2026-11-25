@@ -17,6 +17,7 @@ function bindInstituvaAi() {
   let busy=false;
   const canDiagnose=hasPermission("attendance.history.read") && hasPermission("finance.read");
   const canReadFinance=hasPermission("finance.read");
+  const canReadCollections=hasPermission("collections.read");
 
   const updateMode=()=>{
     const attendance=mode.value==="attendance";
@@ -26,8 +27,9 @@ function bindInstituvaAi() {
     year.required=finance;
     employee.required=attendance;
     date.required=attendance;
-    if ((attendance && !canDiagnose) || (finance && !canReadFinance)) {
-      status.textContent="Tu perfil no autoriza consultar Asistencia y Nómina de empleados.";
+    const collections=mode.value==="collections";
+    if ((attendance && !canDiagnose) || (finance && !canReadFinance) || (collections && !canReadCollections)) {
+      status.textContent="Tu perfil no tiene permiso para este tipo de consulta.";
       form.querySelector('button[type="submit"]').disabled=true;
     } else {
       if (!busy) status.textContent="";
@@ -48,6 +50,7 @@ function bindInstituvaAi() {
     const fiscalYear=Number(data.get("year"));
     if (!question || (queryMode==="attendance" && (!canDiagnose || !employee_name || !day))) return;
     if (queryMode==="finance" && (!canReadFinance || !Number.isInteger(fiscalYear) || fiscalYear<2020 || fiscalYear>2100)) return;
+    if (queryMode==="collections" && !canReadCollections) return;
     busy=true;
     const button=form.querySelector('button[type="submit"]');
     button.disabled=true;
@@ -72,6 +75,8 @@ function bindInstituvaAi() {
         evidence.textContent=`Fuente: asistencia de ${String(body.evidence?.employee||"").slice(0,120)}; fecha ${String(body.evidence?.date||day)}. Ponches: ${Number(body.evidence?.punch_count||0)}. Alertas: ${Number(body.evidence?.alert_count||0)}. Solo lectura.`;
       } else if (body.mode==="finance") {
         evidence.textContent=`Presupuesto del año ${Number(body.evidence?.year||fiscalYear)}; celdas consultadas: ${Number(body.evidence?.record_count||0)}. No equivale a pagos ni cobros conciliados. Solo lectura.`;
+      } else if (body.mode==="collections") {
+        evidence.textContent=`Colecciones: ${Number(body.evidence?.item_count||0)} piezas; ${Number(body.evidence?.photo_count||0)} fotografías; ${Number(body.evidence?.history_count||0)} movimientos históricos. ${Number(body.evidence?.items_without_photos||0)} piezas sin fotografía registrada; esto no implica necesariamente un error. Solo lectura.`;
       } else {
         evidence.textContent="Conocimiento general de INSTITUVA, sujeto a revisión y actualización. Sin acceso a datos de empleados.";
       }
