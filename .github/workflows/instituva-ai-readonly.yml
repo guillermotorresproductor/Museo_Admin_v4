@@ -8,6 +8,8 @@ on:
       - 'supabase/functions/instituva-ai-assistant/incident-runbooks.test.ts'
       - 'supabase/functions/instituva-ai-assistant/tenant-guard.ts'
       - 'supabase/functions/instituva-ai-assistant/tenant-guard.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-day.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-day.test.ts'
       - 'supabase/migrations/20261125170000_ai_assistant_usage_quota.sql'
       - 'supabase/migrations/20261125194500_ai_assistant_mode_quota.sql'
       - 'js/instituva-ai.js'
@@ -39,3 +41,4 @@ jobs:
       - run: deno check supabase/functions/instituva-ai-assistant/index.ts
       - run: deno test supabase/functions/instituva-ai-assistant/incident-runbooks.test.ts
       - run: deno test supabase/functions/instituva-ai-assistant/tenant-guard.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/attendance-day.test.ts
