@@ -13,6 +13,7 @@ const sqlSchedules=fs.readFileSync("supabase/migrations/20261125235500_ai_schedu
 const sqlNotifications=fs.readFileSync("supabase/migrations/20261126000500_ai_notifications_self_quota.sql","utf8");
 const runbooks=fs.readFileSync("supabase/functions/instituva-ai-assistant/incident-runbooks.ts","utf8");
 const kb=fs.readFileSync("supabase/functions/instituva-ai-assistant/product-knowledge.ts","utf8");
+const stagingHarness=fs.readFileSync("supabase/tests/instituva-ai-auth-staging.mjs","utf8");
 
 test("AI assistant is museum-owned, gated, and never receives arbitrary SQL or tools",()=>{
  assert.match(endpoint,/INSTITUVA_AI_ENABLED/);
@@ -305,4 +306,18 @@ test("diagnosis must distinguish evidence, uncertain causes and unexecuted propo
  assert.match(ui,/body\.actions_executed!==false/);
  assert.match(ui,/body\.diagnostic_contract!=="read_only_v1"/);
  assert.doesNotMatch(endpoint,/const answer=\(data\.output\|\|\[\]\)\.flatMap/);
+});
+
+test("staging Auth E2E must isolate default-trigger roles before issuing a real JWT",()=>{
+ assert.match(stagingHarness,/INSTITUVA_AI_E2E_CONFIRM_STAGING!==REF/);
+ assert.match(stagingHarness,/const REF="lonpdmxdvbxuagqxztig"/);
+ assert.match(stagingHarness,/const inheritedRoles=await api\("\/rest\/v1\/user_roles\?user_id=eq\."\+user\.id/);
+ assert.match(stagingHarness,/noRoles\.data\.length===0/);
+ assert.match(stagingHarness,/profileUpdate\.data\[0\]\.museum_id===museum/);
+ const roleCleanup=stagingHarness.indexOf('method:"DELETE"',stagingHarness.indexOf("const inheritedRoles"));
+ const token=stagingHarness.indexOf('"/auth/v1/token?grant_type=password"');
+ assert.ok(roleCleanup>0&&token>roleCleanup,"Auth session must follow synthetic-role cleanup");
+ assert.match(stagingHarness,/await cleanup\("\/rest\/v1\/user_roles\?user_id=eq\."\+id\)/);
+ assert.match(stagingHarness,/await cleanup\("\/auth\/v1\/admin\/users\/"\+id\)/);
+ assert.doesNotMatch(stagingHarness,/api\("\/rest\/v1\/user_roles"\s*,\s*\{method:"DELETE"/);
 });
