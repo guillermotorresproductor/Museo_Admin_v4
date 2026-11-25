@@ -14,10 +14,13 @@ on:
       - 'supabase/functions/instituva-ai-assistant/collections-summary.test.ts'
       - 'supabase/functions/instituva-ai-assistant/inventory-summary.ts'
       - 'supabase/functions/instituva-ai-assistant/inventory-summary.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/schedules-summary.ts'
+      - 'supabase/functions/instituva-ai-assistant/schedules-summary.test.ts'
       - 'supabase/migrations/20261125170000_ai_assistant_usage_quota.sql'
       - 'supabase/migrations/20261125194500_ai_assistant_mode_quota.sql'
       - 'supabase/migrations/20261125233000_ai_collections_readonly_quota.sql'
       - 'supabase/migrations/20261125234500_ai_inventory_readonly_quota.sql'
+      - 'supabase/migrations/20261125235500_ai_schedules_readonly_quota.sql'
       - 'js/instituva-ai.js'
       - 'js/app.js'
       - 'asistente-ia.html'
@@ -50,3 +53,4 @@ jobs:
       - run: deno test supabase/functions/instituva-ai-assistant/attendance-day.test.ts
       - run: deno test supabase/functions/instituva-ai-assistant/collections-summary.test.ts
       - run: deno test supabase/functions/instituva-ai-assistant/inventory-summary.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/schedules-summary.test.ts
