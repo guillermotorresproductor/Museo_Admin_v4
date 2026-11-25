@@ -37,3 +37,12 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - Requiere INSTITUVA_AI_TEST_SERVICE_KEY y INSTITUVA_AI_TEST_ANON_KEY de **staging**. No hay credenciales administrativas de prueba disponibles mediante los conectores para ejecutarlo en esta sesión, por lo que **no se afirma prueba HTTP Auth completada**.
 - Validación de sintaxis incluida en CI del PR. Para ejecutarlo en entorno autorizado: `node supabase/tests/instituva-ai-auth-staging.mjs` con las dos variables secretas establecidas en el entorno (no en archivos ni en Git).
 - Los escenarios positivos de Finance/Asistencia con usuarios autorizados y la respuesta IA siguen pendientes.
+## 25 de noviembre — Refuerzo de evidencia laboral (PR #125)
+- Protección del servicio: cada fila de employee_shifts, attendance_events, attendance_operational_alerts y employee_time_entries incluye museo y empleado para comprobar ambas identidades antes de construir evidencia para el modelo.
+- La respuesta se rechaza si un registro pertenece a otro museo o a otro empleado, si falta alguno de los identificadores, o si una consulta alcanza el máximo establecido y pudiera estar truncada.
+- Se añadieron pruebas Deno sintéticas de registros propios, registros foráneos y falta de identificadores, además de inspecciones estáticas Node.
+- CI de INSTITUVA AI y regresiones de los módulos vecinos: aprobados en commit 0586bc6c1ca44a38ce7050bb71dee94e480d6163 (Inventario de Marketing conserva fallo histórico independiente).
+- Edge Function versión 6 desplegada solamente en staging, con verify_jwt=true. Producción sin cambios.
+- En staging se ensayó autorización positiva mediante permisos temporalmente asignados a una cuenta ficticia de perfil Gerencia Museográfica; el sistema negó Finanzas/Asistencia porque también aplica la barrera del perfil departamental. Intento de cambiar temporalmente el perfil a Director Ejecutivo fue rechazado por el control existente MODULE_PROFILE_ASSIGNMENT_REQUIRED. No se intentó eludirlo.
+- Las operaciones se revirtieron: la cuenta ficticia mantiene status inactive, perfil gerente_museografica, cero permisos adicionales y cero registros de cuota.
+- **Continúa pendiente** la prueba E2E con sesiones Auth reales y perfiles de Director Ejecutivo, Administrador General y Gerente Administrativo otorgados mediante los flujos oficiales. No afirmar que está validada.
