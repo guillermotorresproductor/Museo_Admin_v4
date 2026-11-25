@@ -59,9 +59,8 @@ Deno.serve(async (req: Request) => {
     const mode=input.mode === "attendance" ? "attendance" : input.mode === "finance" ? "finance" : input.mode === "product" ? "product" : null;
     if (!mode || question.length<8 || question.length>MAX_QUESTION) throw Error("INVALID_REQUEST");
     if (mode==="attendance" || mode==="finance") {
-      // Temporary dual-permission gate also enforced by the existing quota RPC.
-      // Never relax authorization or claim the accountant-only role is supported.
-      for (const permission of PERMISSIONS) {
+      const required = mode==="finance" ? ["finance.read"] : PERMISSIONS;
+      for (const permission of required) {
         const {data,error} = await caller.rpc("has_permission",{requested_permission:permission});
         if (error || data !== true) throw Error("FORBIDDEN");
       }
@@ -182,8 +181,8 @@ Deno.serve(async (req: Request) => {
     if (!key) throw Error("NOT_CONFIGURED");
     // Atomic monthly quota: 500 per museum / 100 per authorized user.
     // Only this isolated technical counter is written, not museum operational data.
-    const { data: slot, error: quotaError } = await caller.rpc("ai_assistant_claim_slot",{
-      p_museum_id:profile.museum_id
+    const { data: slot, error: quotaError } = await caller.rpc("ai_assistant_claim_slot_v2",{
+      p_museum_id:profile.museum_id,p_mode:mode
     });
     if (quotaError) throw Error("UPSTREAM_FAILURE");
     if (slot !== true) throw Error("RATE_LIMITED");
