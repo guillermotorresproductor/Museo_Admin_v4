@@ -76,7 +76,7 @@ test("general mode does not reach private employee retrieval",()=>{
  const elseBranch=endpoint.indexOf('} else {',start);
  const employeeQuery=endpoint.indexOf('admin.from("employees")',start);
  assert.ok(start>0 && elseBranch>start && employeeQuery>elseBranch);
- const perms=endpoint.indexOf('if (mode==="attendance")');
+ const perms=endpoint.indexOf('if (mode==="attendance" || mode==="finance")');
  const auth=endpoint.indexOf('caller.rpc("has_permission"',perms);
  assert.ok(perms>0 && auth>perms);
  assert.match(endpoint,/return send\(\{answer,evidence,sources,mode,read_only:true\}\)/);
