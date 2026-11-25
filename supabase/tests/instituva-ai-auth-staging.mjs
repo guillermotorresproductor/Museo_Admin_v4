@@ -72,7 +72,7 @@ try {
       token:actor.token,key:anon
     });
     check("cross-museum profile invisible",foreign.data?.length===0);
-    for(const perm of ["finance.read","attendance.history.read","collections.read","modules.inventory.read","time.read.all"]){
+    for(const perm of ["finance.read","attendance.history.read","collections.read","modules.inventory.read","time.read.all","notifications.read.self"]){
       const result=await post("/rest/v1/rpc/has_permission",actor.token,{requested_permission:perm});
       check("ordinary test profile lacks "+perm,result.status===200&&result.data===false);
     }
@@ -129,6 +129,14 @@ try {
       mode:"schedules",question:"Diagnóstico de turnos de prueba",start_day:"2026-11-25"
     });
     check("schedules Edge rejected without time.read.all",schedulesEdgeDenied.status===403);
+    const notificationsQuotaDenied=await post("/rest/v1/rpc/ai_assistant_claim_notifications_slot_v1",actor.token,{
+      p_museum_id:actor.museum
+    });
+    check("self notifications quota denied without notifications.read.self",notificationsQuotaDenied.status===403);
+    const notificationsEdgeDenied=await post("/functions/v1/instituva-ai-assistant",actor.token,{
+      mode:"notifications",question:"Investigar notificaciones ficticias no recibidas"
+    });
+    check("self notifications Edge rejected without permission",notificationsEdgeDenied.status===403);
     const directUsage=await api("/rest/v1/ai_assistant_usage?select=museum_id",{
       token:actor.token,key:anon,allowError:true
     });
