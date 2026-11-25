@@ -85,7 +85,7 @@ test("general mode does not reach private employee retrieval",()=>{
  const perms=endpoint.indexOf('if (mode==="attendance" || mode==="finance" || mode==="collections" || mode==="inventory" || mode==="schedules" || mode==="notifications")');
  const auth=endpoint.indexOf('caller.rpc("has_permission"',perms);
  assert.ok(perms>0 && auth>perms);
- assert.match(endpoint,/return send\(\{answer,evidence,sources,mode,read_only:true\}\)/);
+ assert.match(endpoint,/return send\(\{answer,evidence,sources,mode,read_only:true,\s*actions_executed:false,diagnostic_contract:"read_only_v1"\}\)/);
 });
 
 test("product knowledge distinguishes pinned main evidence from unverified legacy references",()=>{
