@@ -89,7 +89,8 @@ function bindInstituvaAi() {
         throw Error("Respuesta del servicio no válida.");
       answer.textContent=body.answer;
       if (body.mode==="attendance") {
-        evidence.textContent=`Fuente: asistencia de ${String(body.evidence?.employee||"").slice(0,120)}; fecha ${String(body.evidence?.date||day)}. Ponches: ${Number(body.evidence?.punch_count||0)}. Alertas activas: ${Number(body.evidence?.active_alert_count||0)}; revisadas o resueltas: ${Number(body.evidence?.reviewed_or_resolved_alert_count||0)}. El conteo no confirma una causa. Solo lectura.`;
+        const dayOffPunchCoincidence=body.evidence?.schedule_day_off_with_punches===true;
+        evidence.textContent=`Fuente: asistencia de ${String(body.evidence?.employee||"").slice(0,120)}; fecha ${String(body.evidence?.date||day)}. Ponches: ${Number(body.evidence?.punch_count||0)}. Alertas activas: ${Number(body.evidence?.active_alert_count||0)}; revisadas o resueltas: ${Number(body.evidence?.reviewed_or_resolved_alert_count||0)}. ${dayOffPunchCoincidence?"Observación: día libre registrado y ponches en la misma fecha; cotejar turnos y correcciones manualmente, no prueba incumplimiento. ":""}El conteo no confirma una causa. Solo lectura.`;
       } else if (body.mode==="finance") {
         const otherBudgetCategories=Number(body.evidence?.category_labels_redacted_records||0);
         evidence.textContent=`Presupuesto del año ${Number(body.evidence?.year||fiscalYear)}; celdas consultadas: ${Number(body.evidence?.record_count||0)}. ${otherBudgetCategories>0?`${otherBudgetCategories} registros con categoría no reconocida (importes incluidos en el total). `:""}No equivale a pagos ni cobros conciliados. Solo lectura.`;
