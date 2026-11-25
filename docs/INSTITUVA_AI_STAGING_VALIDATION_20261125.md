@@ -65,3 +65,12 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - Suite de INSTITUVA AI aprobada en commit fc094d065c447810a1cf5a45835f04d9cd603154. Edge Function versión 8 desplegada solo en staging con verify_jwt=true; producción sin cambios.
 - No se activaron museos, se hicieron llamadas al modelo, se ejecutaron correcciones de ponches ni se modificaron documentos, nómina o Finanzas.
 - Falta la ejecución HTTP con usuarios ficticios reales, bajo credenciales administrativas exclusivas de staging; no constituye aprobación de publicación.
+
+## 25 de noviembre — Verificación adicional del vínculo de categorías financieras
+- Auditoría de **solo lectura** en staging de las FK de finance_records y finance_budget_lines: la relación budget_line_id referencia el id de la línea, pero NO tiene una restricción compuesta que obligue igualdad de museum_id.
+- Se verificaron 648 registros presupuestarios en staging: cero líneas vinculadas ausentes, cero líneas de otro museo. Esto no prueba que sea imposible una anomalía futura.
+- El asistente ahora solicita explícitamente finance_budget_lines.museum_id y rechaza cualquier línea embebida cuyo museo difiera del autorizado; no utiliza el modelo ni calcula importes ante ese error.
+- Se actualizaron las aserciones de regresión para evitar la pérdida de este control y la suite de INSTITUVA AI aprobó en commit b9a9fe15987fd99ccf8559571018b96e4005d1b6.
+- La Edge Function del asistente se desplegó solo en **staging v9**, con verify_jwt=true y guardia de línea verificada desde su código recuperado.
+- Comprobación posterior: tabla ai_assistant_usage sin registros; no se cambiaron datos financieros, FK, RLS, permisos ni producción.
+- Las pruebas HTTP E2E con JWT firmados de los perfiles institucionales continúan **pendientes** de credenciales exclusivas de staging. No habilitar ni fusionar hasta completarlas.
