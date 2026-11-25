@@ -15,6 +15,7 @@ on:
       - 'asistente-ia.html'
       - 'administracion.html'
       - 'tests/instituva-ai-readonly.test.cjs'
+      - 'supabase/tests/instituva-ai-auth-staging.mjs'
       - '.github/workflows/instituva-ai-readonly.yml'
 jobs:
   secure-diagnostic:
@@ -28,6 +29,7 @@ jobs:
           node-version: '22'
       - run: node --check js/instituva-ai.js
       - run: node --check js/app.js
+      - run: node --check supabase/tests/instituva-ai-auth-staging.mjs
       - run: node --test tests/instituva-ai-readonly.test.cjs
       - run: node --test tests/external-accountant-readonly.test.cjs
       - run: node --test tests/external-accountant-admin-route.test.cjs
