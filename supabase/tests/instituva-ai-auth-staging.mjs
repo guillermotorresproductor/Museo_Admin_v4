@@ -72,7 +72,7 @@ try {
       token:actor.token,key:anon
     });
     check("cross-museum profile invisible",foreign.data?.length===0);
-    for(const perm of ["finance.read","attendance.history.read","collections.read"]){
+    for(const perm of ["finance.read","attendance.history.read","collections.read","modules.inventory.read"]){
       const result=await post("/rest/v1/rpc/has_permission",actor.token,{requested_permission:perm});
       check("ordinary test profile lacks "+perm,result.status===200&&result.data===false);
     }
@@ -113,6 +113,14 @@ try {
       mode:"collections",question:"Revisar el conteo de piezas y fotografías ficticias"
     });
     check("collections Edge rejected without collection permission",collectionsEdgeDenied.status===403);
+    const inventoryQuotaDenied=await post("/rest/v1/rpc/ai_assistant_claim_inventory_slot_v1",actor.token,{
+      p_museum_id:actor.museum
+    });
+    check("inventory quota denied without modules.inventory.read",inventoryQuotaDenied.status===403);
+    const inventoryEdgeDenied=await post("/functions/v1/instituva-ai-assistant",actor.token,{
+      mode:"inventory",question:"Revisar cantidad de equipos ficticios en inventario"
+    });
+    check("inventory Edge rejected without inventory read permission",inventoryEdgeDenied.status===403);
     const directUsage=await api("/rest/v1/ai_assistant_usage?select=museum_id",{
       token:actor.token,key:anon,allowError:true
     });
