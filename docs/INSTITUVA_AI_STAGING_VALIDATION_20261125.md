@@ -212,3 +212,14 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - Despliegue **solo staging v20**, `verify_jwt=true`; código publicado recuperado y confirmado. Sin cambios en migraciones, permisos, RLS, jornadas, ponches o módulos operacionales.
 - Postvalidación SQL: `ai_assistant_usage=0`, ningún museo de ensayo residual y la identidad ficticia anterior continúa inactiva.
 - Sigue pendiente la validación HTTP con JWT genuino y una respuesta real del proveedor. Este resultado no autoriza merge ni producción.
+
+## 25 de noviembre — Asistencia: distinguir alertas activas de alertas históricas (staging v21)
+- Auditoría SQL **solo lectura** confirmó que `attendance_operational_alerts.status` tiene valores admitidos `active`, `auto_resolved` y `reviewed`; el tipo de alerta también tiene vocabulario cerrado. En el staging inspeccionado no había alertas, por lo que la lógica se probó con registros **sintéticos**, no con incidencias reales.
+- Se examinó de forma agregada la relación `attendance_events.supersedes_event_id`: se encontraron siete referencias de sustitución; ninguna cruza empleado, museo, turno ni día. No se copiaron a la IA identificadores de dichos registros.
+- El asistente utilizaba un `alert_count` total en la respuesta que podía hacer parecer que todas las alertas eran problemas actuales. Nuevo resumen `summarizeAttendanceAlertStates` valida pertenencia del museo y empleado, tipo, estado y fecha, y separa `active_alerts`, `auto_resolved_alerts` y `reviewed_alerts` sin divulgar IDs.
+- `snapshot.alert_status_summary` y `evidence.active_alert_count` / `reviewed_or_resolved_alert_count` sustituyen la interpretación ambigua de alertas pendientes; la UI diferencia expresamente activas de revisadas o resueltas. Un conteo vacío no demuestra que toda la asistencia sea correcta.
+- Se añadieron pruebas Deno con casos activos, resueltos, revisados, valores maliciosos, fechas inválidas y registros de otro empleado/museo; pruebas Node verifican la integración con la interfaz y el carácter de solo lectura.
+- GitHub Actions `INSTITUVA AI tenant-safe diagnostics` aprobada para commit `42fd5991bb324b2d8ad1fe8015b3f4d31aaaa4d3`.
+- Edge Function publicada **solo en staging v21**, `verify_jwt=true`; el código publicado recuperado confirma la nueva clasificación y `actions_executed:false`.
+- Postverificación de solo lectura: cero consumos persistentes de cuota, cero museos sintéticos residuales, la identidad ficticia previa continúa inactiva. No hubo migraciones, cambios en RLS, modificaciones de ponches, alertas ni otros registros operacionales.
+- Permanece **pendiente** la prueba HTTP real con JWT firmado y una respuesta real del proveedor de IA, antes de fusionar o publicar en producción.
