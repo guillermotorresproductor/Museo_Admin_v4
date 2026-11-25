@@ -22,6 +22,7 @@ function bindInstituvaAi() {
   const canReadCollections=hasPermission("collections.read");
   const canReadInventory=hasPermission("modules.inventory.read");
   const canReadSchedules=hasPermission("time.read.all");
+  const canReadNotifications=hasPermission("notifications.read.self");
 
   const updateMode=()=>{
     const attendance=mode.value==="attendance";
@@ -36,7 +37,8 @@ function bindInstituvaAi() {
     date.required=attendance;
     const collections=mode.value==="collections";
     const inventory=mode.value==="inventory";
-    if ((attendance && !canDiagnose) || (finance && !canReadFinance) || (collections && !canReadCollections) || (inventory && !canReadInventory) || (schedules && !canReadSchedules)) {
+    const notifications=mode.value==="notifications";
+    if ((attendance && !canDiagnose) || (finance && !canReadFinance) || (collections && !canReadCollections) || (inventory && !canReadInventory) || (schedules && !canReadSchedules) || (notifications && !canReadNotifications)) {
       status.textContent="Tu perfil no tiene permiso para este tipo de consulta.";
       form.querySelector('button[type="submit"]').disabled=true;
     } else {
@@ -62,6 +64,7 @@ function bindInstituvaAi() {
     if (queryMode==="collections" && !canReadCollections) return;
     if (queryMode==="inventory" && !canReadInventory) return;
     if (queryMode==="schedules" && (!canReadSchedules || !/^20\d{2}-\d{2}-\d{2}$/.test(start_day))) return;
+    if (queryMode==="notifications" && !canReadNotifications) return;
     busy=true;
     const button=form.querySelector('button[type="submit"]');
     button.disabled=true;
@@ -93,6 +96,8 @@ function bindInstituvaAi() {
         evidence.textContent=`Inventario: ${Number(body.evidence?.record_count||0)} registros; ${Number(body.evidence?.missing_photo_records||0)} sin fotografía asociada; ${Number(body.evidence?.archived_records||0)} archivados. Son datos administrativos, no una inspección física. Solo lectura.`;
       } else if (body.mode==="schedules") {
         evidence.textContent=`Horarios: ${Number(body.evidence?.record_count||0)} turnos entre ${String(body.evidence?.start_date||start_day)} y la fecha final exclusiva ${String(body.evidence?.end_date_exclusive||"")}. Posibles solapamientos: ${Number(body.evidence?.potential_overlap_pairs||0)}. Esto no prueba publicación ni asistencia. Solo lectura.`;
+      } else if (body.mode==="notifications") {
+        evidence.textContent=`Mis notificaciones (últimos 30 días): ${Number(body.evidence?.notification_count||0)} registradas, ${Number(body.evidence?.unread_count||0)} sin marcar como leídas. No acredita entrega por correo, SMS o push. Solo lectura.`;
       } else {
         evidence.textContent="Conocimiento general de INSTITUVA, sujeto a revisión y actualización. Sin acceso a datos de empleados.";
       }
