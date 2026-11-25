@@ -24,8 +24,8 @@ test("a production service_role key is rejected before any network access",()=>{
 test("a foreign anon key and swapped privileged roles are rejected",()=>{
   denied({anonKey:fake("anon","kfokfjngozgcwjpzxcsu")},
     "STAGING_PROJECT_OR_ROLE_MISMATCH");
-  denied({serviceKey:fake("anon")},"STAGING_PROJECT_OR_ROLE_MISMATCH");
-  denied({anonKey:fake("service_role")},"STAGING_PROJECT_OR_ROLE_MISMATCH");
+  denied({serviceKey:fake("anon",STAGING_REF,now+3700)},"STAGING_PROJECT_OR_ROLE_MISMATCH");
+  denied({anonKey:fake("service_role",STAGING_REF,now+3700)},"STAGING_PROJECT_OR_ROLE_MISMATCH");
 });
 test("explicit staging opt-in and URL cannot be bypassed",()=>{
   denied({confirmRef:undefined},"STAGING_EXPLICIT_OPT_IN_REQUIRED");
