@@ -81,3 +81,13 @@ test("general mode does not reach private employee retrieval",()=>{
  assert.ok(perms>0 && auth>perms);
  assert.match(endpoint,/return send\(\{answer,evidence,sources,mode,read_only:true\}\)/);
 });
+
+test("product knowledge distinguishes pinned main evidence from unverified legacy references",()=>{
+ const commit="a5c9cf42ab98c0af17fa3e5e18eae104e81ecde2";
+ assert.ok(kb.includes(commit));
+ assert.match(kb,/sourceStatus:"reviewed-main"/);
+ assert.match(kb,/historical-unverified/);
+ assert.match(endpoint,/source_commit:section.sourceCommit/);
+ assert.match(endpoint,/source_status:section.sourceStatus/);
+ assert.match(endpoint,/referencia histórica sin cotejo de versión/);
+});
