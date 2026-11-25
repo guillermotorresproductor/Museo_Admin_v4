@@ -141,7 +141,7 @@ Deno.serve(async (req: Request) => {
           const {data,error}=await caller.from(table).select(fields)
             .eq("museum_id",museumId).order("id",{ascending:true}).range(offset,offset+499);
           if(error) throw Error("UPSTREAM_FAILURE");
-          const page=assertTenantRows((data||[]) as Array<{museum_id:string}>,museumId);
+          const page=assertTenantRows((data||[]) as unknown as Array<{museum_id:string}>,museumId);
           rows.push(...page);
           if(page.length<500) return rows;
           if(offset===2500) throw Error("UPSTREAM_FAILURE");
