@@ -46,3 +46,12 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - En staging se ensayó autorización positiva mediante permisos temporalmente asignados a una cuenta ficticia de perfil Gerencia Museográfica; el sistema negó Finanzas/Asistencia porque también aplica la barrera del perfil departamental. Intento de cambiar temporalmente el perfil a Director Ejecutivo fue rechazado por el control existente MODULE_PROFILE_ASSIGNMENT_REQUIRED. No se intentó eludirlo.
 - Las operaciones se revirtieron: la cuenta ficticia mantiene status inactive, perfil gerente_museografica, cero permisos adicionales y cero registros de cuota.
 - **Continúa pendiente** la prueba E2E con sesiones Auth reales y perfiles de Director Ejecutivo, Administrador General y Gerente Administrativo otorgados mediante los flujos oficiales. No afirmar que está validada.
+
+## 25 de noviembre — Recuperación de evidencia diagnóstica y ensayo JWT
+- Se identificó un sombreado de variable en la rama Asistencia: el servicio construía una instantánea local y el modelo recibía el contexto externo vacío, aunque el recuento de evidencia sí se mostraba. Se corrigió asignando al contexto compartido y se incorporó una prueba Node para impedir regresión.
+- Se amplió el arnés HTTP JWT de staging con tres casos negativos adicionales: museo ficticio no incluido en la allowlist (503), modo de operación inválido (400) y perfil ficticio desactivado que conserva JWT válido (403).
+- Los tres casos están **preparados pero no ejecutados con JWT genuino**: siguen sin estar disponibles las credenciales API administrativas de staging a través de las herramientas actuales.
+- Pruebas automáticas de IA completadas con éxito en commit d7078399b2713c2257e6a3e9bad71771d001f96a. La versión 7 de Edge Function quedó desplegada únicamente en staging con verify_jwt=true.
+- Confirmación posterior: 0 consumos en la tabla de cuota de IA. No se ejecutaron peticiones al proveedor de IA ni se activaron museos nuevos.
+- El fallo independiente en el control CI de Inventario de equipos de Marketing no fue alterado.
+- Sigue prohibido fusionar o activar el producto antes del flujo HTTP real con dos museos y cuentas ficticias y los casos positivos autorizados de Finanzas/Asistencia.
