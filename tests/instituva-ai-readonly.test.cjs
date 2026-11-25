@@ -91,3 +91,15 @@ test("product knowledge distinguishes pinned main evidence from unverified legac
  assert.match(endpoint,/source_status:section.sourceStatus/);
  assert.match(endpoint,/referencia histórica sin cotejo de versión/);
 });
+
+test("financial AI uses RLS-scoped budget-only reading and never writes finance data",()=>{
+ assert.match(endpoint,/mode==="finance"/);
+ assert.match(endpoint,/caller\.from\("finance_records"\)/);
+ assert.match(endpoint,/\.eq\("museum_id",profile\.museum_id\)\.eq\("year",year\)/);
+ assert.match(endpoint,/finance_budget_lines\(record_type,category,name,counts_in_operating_balance\)/);
+ assert.match(endpoint,/finance_budget_snapshot/);
+ assert.match(endpoint,/no prueban pagos, cobros, facturas saldadas ni conciliación/);
+ assert.doesNotMatch(endpoint,/admin\.from\("finance_records"\)/);
+ assert.match(ui,/queryMode==="finance"/);
+ assert.match(html,/data-ai-finance/);
+});
