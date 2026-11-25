@@ -55,3 +55,13 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - Confirmación posterior: 0 consumos en la tabla de cuota de IA. No se ejecutaron peticiones al proveedor de IA ni se activaron museos nuevos.
 - El fallo independiente en el control CI de Inventario de equipos de Marketing no fue alterado.
 - Sigue prohibido fusionar o activar el producto antes del flujo HTTP real con dos museos y cuentas ficticias y los casos positivos autorizados de Finanzas/Asistencia.
+
+## 25 de noviembre — Jornadas abiertas anteriores y evidencia completa
+- Se agregó una segunda lectura **únicamente de employee_time_entries abiertos con clock_in previo al día consultado**, siempre filtrando por el museum_id autenticado y employee_id resuelto. Se devuelven solo clock_in, clock_out, excluded_at e identificadores de ámbito para verificación, sin acceder a otros empleados.
+- El contexto de Asistencia ahora distingue time_entries del día solicitado de previous_open_entries anteriores y proporciona ambos recuentos. Evita descartar un registro abierto que bloquea nuevos ponches solo por ser de otro día.
+- El máximo de la consulta histórica abierta es 10 filas; al alcanzarlo, la solicitud se rechaza por evidencia posiblemente incompleta. Se mantienen límites de las consultas existentes y el control de museo/empleado en todas las filas.
+- También se rechaza buscar un empleado en un listado que alcance las 300 filas máximas; el listado truncado no garantiza unicidad ni ausencia del nombre.
+- Nueva validación de días calendario, incluidos años bisiestos, con tests unitarios independientes.
+- Suite de INSTITUVA AI aprobada en commit fc094d065c447810a1cf5a45835f04d9cd603154. Edge Function versión 8 desplegada solo en staging con verify_jwt=true; producción sin cambios.
+- No se activaron museos, se hicieron llamadas al modelo, se ejecutaron correcciones de ponches ni se modificaron documentos, nómina o Finanzas.
+- Falta la ejecución HTTP con usuarios ficticios reales, bajo credenciales administrativas exclusivas de staging; no constituye aprobación de publicación.
