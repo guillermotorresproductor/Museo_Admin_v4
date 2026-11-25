@@ -309,8 +309,12 @@ test("diagnosis must distinguish evidence, uncertain causes and unexecuted propo
 });
 
 test("staging Auth E2E must isolate default-trigger roles before issuing a real JWT",()=>{
- assert.match(stagingHarness,/INSTITUVA_AI_E2E_CONFIRM_STAGING!==REF/);
- assert.match(stagingHarness,/const REF="lonpdmxdvbxuagqxztig"/);
+ assert.match(stagingHarness,/assertStagingLegacyApiKeys\(\{/);
+ assert.match(stagingHarness,/confirmRef:process\.env\.INSTITUVA_AI_E2E_CONFIRM_STAGING/);
+ assert.match(stagingHarness,/const REF=STAGING_REF/);
+ const keyGuard=fs.readFileSync("supabase/tests/instituva-ai-staging-key-guard.mjs","utf8");
+ assert.match(keyGuard,/export const STAGING_REF="lonpdmxdvbxuagqxztig"/);
+ assert.match(keyGuard,/claims\.ref!==STAGING_REF\|\|claims\.role!==expectedRole/);
  assert.match(stagingHarness,/const inheritedRoles=await api\("\/rest\/v1\/user_roles\?user_id=eq\."\+user\.id/);
  assert.match(stagingHarness,/noRoles\.data\.length===0/);
  assert.match(stagingHarness,/profileUpdate\.data\[0\]\.museum_id===museum/);
