@@ -84,7 +84,9 @@ function bindInstituvaAi() {
       });
       const body=await res.json().catch(()=>({}));
       if (!res.ok) throw Error(body.error||"El diagnóstico no está disponible.");
-      if (body.read_only!==true || typeof body.answer!=="string") throw Error("Respuesta del servicio no válida.");
+      if (body.read_only!==true || body.actions_executed!==false ||
+          body.diagnostic_contract!=="read_only_v1" || typeof body.answer!=="string")
+        throw Error("Respuesta del servicio no válida.");
       answer.textContent=body.answer;
       if (body.mode==="attendance") {
         evidence.textContent=`Fuente: asistencia de ${String(body.evidence?.employee||"").slice(0,120)}; fecha ${String(body.evidence?.date||day)}. Ponches: ${Number(body.evidence?.punch_count||0)}. Alertas: ${Number(body.evidence?.alert_count||0)}. Solo lectura.`;
