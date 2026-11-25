@@ -18,9 +18,14 @@ export function summarizeCollections(
     throw Error("FORBIDDEN");
   const photoIds=new Set(photos.map(photo=>photo.item_id));
   const historicalIds=new Set(history.map(entry=>entry.item_id));
+  // Match the live collection_items_status_check constraint. Status is
+  // a closed administrative vocabulary, never arbitrary prompt text.
+  const validStatuses=new Set(["ingreso","catalogada","conservacion","restauracion"]);
   const statuses=new Map<string,number>();
   for(const item of items){
-    const status=String(item.status||"sin estado").replace(/[\u0000-\u001f]/g," ").trim().slice(0,50);
+    const status=item.status;
+    if(typeof status!=="string"||!validStatuses.has(status))
+      throw Error("UPSTREAM_FAILURE");
     statuses.set(status,(statuses.get(status)||0)+1);
   }
   // Summarize only high-level administrative counts: no titles, accession
