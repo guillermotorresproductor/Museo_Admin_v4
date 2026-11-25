@@ -16,7 +16,7 @@ Deno.test("model hypothesis and actions remain labelled unconfirmed / unexecuted
  const text=formatDiagnosticResponse(response);
  ok(text.includes("Hipótesis (no confirmadas)"),"hypotheses presented as facts");
  ok(text.includes("Acciones manuales propuestas (NO ejecutadas)"),"actions missing status");
- ok(text.includes("No se ejecutó ninguna corrección"),"operation disclaimer missing");
+ ok(text.includes("No se ejecutó ninguna operación sobre los registros operacionales"),"operation disclaimer missing");
  ok(text.includes("Limitaciones de la evidencia"),"limitations missing");
 });
 Deno.test("reject malformed, missing and extra model output",()=>{
