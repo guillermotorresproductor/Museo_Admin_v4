@@ -7,6 +7,7 @@ const html=fs.readFileSync("asistente-ia.html","utf8");
 const app=fs.readFileSync("js/app.js","utf8");
 const sql=fs.readFileSync("supabase/migrations/20261125170000_ai_assistant_usage_quota.sql","utf8");
 const sqlV2=fs.readFileSync("supabase/migrations/20261125194500_ai_assistant_mode_quota.sql","utf8");
+const sqlCollections=fs.readFileSync("supabase/migrations/20261125233000_ai_collections_readonly_quota.sql","utf8");
 const runbooks=fs.readFileSync("supabase/functions/instituva-ai-assistant/incident-runbooks.ts","utf8");
 const kb=fs.readFileSync("supabase/functions/instituva-ai-assistant/product-knowledge.ts","utf8");
 
@@ -78,7 +79,7 @@ test("general mode does not reach private employee retrieval",()=>{
  const elseBranch=endpoint.indexOf('} else {',start);
  const employeeQuery=endpoint.indexOf('admin.from("employees")',start);
  assert.ok(start>0 && elseBranch>start && employeeQuery>elseBranch);
- const perms=endpoint.indexOf('if (mode==="attendance" || mode==="finance")');
+ const perms=endpoint.indexOf('if (mode==="attendance" || mode==="finance" || mode==="collections")');
  const auth=endpoint.indexOf('caller.rpc("has_permission"',perms);
  assert.ok(perms>0 && auth>perms);
  assert.match(endpoint,/return send\(\{answer,evidence,sources,mode,read_only:true\}\)/);
@@ -189,4 +190,29 @@ test("embedded budget lines are tenant-verified, not just their parent records",
  assert.match(endpoint,/if \(!line\) throw Error\("UPSTREAM_FAILURE"\)/);
  assert.match(endpoint,/assertTenantRows\(\[line\],museumId\)/);
  assert.doesNotMatch(endpoint,/\.select\("museum_id,month,amount,finance_budget_lines\(record_type/);
+});
+
+test("collections diagnosis is permission-scoped, bounded and aggregate-only",()=>{
+ assert.match(endpoint,/requiredPermissionsForMode\(mode\)/);
+ assert.match(endpoint,/mode==="collections"/);
+ assert.match(endpoint,/caller\.from\(table\)\.select\(fields\)/);
+ assert.match(endpoint,/readScoped\("collection_items","id,museum_id,status"\)/);
+ assert.match(endpoint,/readScoped\("collection_photos","museum_id,item_id,id"\)/);
+ assert.match(endpoint,/readScoped\("collection_history","museum_id,item_id,id"\)/);
+ assert.match(endpoint,/snapshot=summarizeCollections/);
+ assert.match(endpoint,/assertTenantRows\(\(data\|\|\[\]\) as Array<\{museum_id:string\}>,museumId\)/);
+ assert.match(endpoint,/if\(offset===2500\) throw Error\("UPSTREAM_FAILURE"\)/);
+ assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_collections_slot_v1"/);
+ assert.doesNotMatch(endpoint,/admin\.from\("collection_/);
+ assert.match(ui,/canReadCollections=hasPermission\("collections\.read"\)/);
+ assert.match(html,/value="collections"/);
+});
+test("collections quota wrapper delegates to atomic existing cap and never grants writes",()=>{
+ assert.match(sqlCollections,/security invoker/);
+ assert.match(sqlCollections,/public\.has_permission\('collections\.read'\)/);
+ assert.match(sqlCollections,/public\.collection_can_read\(\)/);
+ assert.match(sqlCollections,/p_museum_id is distinct from public\.current_user_museum_id\(\)/);
+ assert.match(sqlCollections,/public\.ai_assistant_claim_slot_v2\(p_museum_id,'product'\)/);
+ assert.match(sqlCollections,/revoke all on function public\.ai_assistant_claim_collections_slot_v1\(uuid\) from public,anon/);
+ assert.doesNotMatch(sqlCollections,/update public\.(?:collection_|finance_|employee_)/i);
 });
