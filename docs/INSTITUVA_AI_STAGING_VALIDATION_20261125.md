@@ -173,3 +173,13 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - Edge Function actualizada **solo en staging v17** con `verify_jwt=true`; código publicado recuperado con verificación de estados cerrados, error fail-closed y contrato `actions_executed:false`.
 - Comprobación posterior: `ai_assistant_usage=0` y ningún museo sintético residual con prefijo del ensayo E2E. Ninguna política, registro, permiso ni módulo operacional modificado; producción sin cambios; PR sin fusionar.
 - **Siguiente puerta de aprobación:** prueba HTTP real con usuarios ficticios y evidencia autorizada y comparación humana de exactitud y utilidad de la respuesta del modelo; se necesitan secretos exclusivos de staging y un entorno controlado.
+
+## 25 de noviembre — Asistencia: jornadas excluidas filtradas antes de limitar evidencia (staging v18)
+- Se auditó en staging por SQL de solo lectura que `employee_time_entries.excluded_at` existe y es nullable. El estado de exclusión no se debe tratar como una jornada abierta activa.
+- Anteriormente, las dos consultas de jornadas del día y jornadas abiertas anteriores recuperaban filas excluidas, aplicaban `.limit(30)`/`.limit(10)` y recién después eliminaban las excluidas en JavaScript. Eso podía producir diagnósticos incompletos o fallos por truncamiento si el límite se agotaba en registros excluidos.
+- Ahora las dos consultas aplican `.is("excluded_at",null)` **antes de la paginación/límite**. Los filtros existentes de `museum_id`, `employee_id`, `clock_out`, fechas y verificación de pertenencia con `assertEmployeeTenantRows` permanecen intactos. No se modifica ni corrige ningún ponche.
+- Las pruebas estáticas y de regresión verifican que la exclusión ocurre en la consulta y no a posteriori. El workflow `INSTITUVA AI tenant-safe diagnostics` aprobó para commit `e67e5107f1e9d2cd4060668ed76b46f3714f398e`.
+- En revisión separada se confirmó `finance_records.amount numeric(14,2)` y que en staging no hay valores con fracción subcentésima. No fue necesario modificar cálculo financiero.
+- Se desplegó exclusivamente la función del asistente en **staging v18**, `verify_jwt=true`. El código recuperado confirma los dos nuevos filtros antes de los límites.
+- Postverificación de solo lectura: `ai_assistant_usage=0`, ningún museo ficticio residual. No se aplicaron migraciones ni cambios a las tablas operacionales. Producción y PR principal sin fusionar.
+- **La prueba HTTP real con JWT firmado y una respuesta del proveedor permanece pendiente**. No se debe confundir esta regresión con validación E2E.
