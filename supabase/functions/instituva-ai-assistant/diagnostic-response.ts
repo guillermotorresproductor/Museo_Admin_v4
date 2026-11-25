@@ -56,7 +56,7 @@ export function formatDiagnosticResponse(d:DiagnosticResponse):string{
     heading+"\n"+(items.length?items.map((item,i)=>(i+1)+". "+item).join("\n"):"Sin hipótesis adicionales verificables.");
   return [
     "INSTITUVA — DIAGNÓSTICO PRELIMINAR",
-    "Orientación de solo lectura. No se ejecutó ninguna corrección, operación ni cambio de datos.",
+    "Orientación de solo lectura. No se ejecutó ninguna operación sobre los registros operacionales.",
     "",
     "Análisis inicial\n"+d.resumen,
     "",
