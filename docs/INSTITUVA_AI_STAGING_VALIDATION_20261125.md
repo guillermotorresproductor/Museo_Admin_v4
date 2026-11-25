@@ -74,3 +74,14 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - La Edge Function del asistente se desplegó solo en **staging v9**, con verify_jwt=true y guardia de línea verificada desde su código recuperado.
 - Comprobación posterior: tabla ai_assistant_usage sin registros; no se cambiaron datos financieros, FK, RLS, permisos ni producción.
 - Las pruebas HTTP E2E con JWT firmados de los perfiles institucionales continúan **pendientes** de credenciales exclusivas de staging. No habilitar ni fusionar hasta completarlas.
+
+## 25 de noviembre — Colecciones: primer diagnóstico privado real
+- Se incorpora modo **collections** al asistente, con autorización collections.read, museos habilitados explícitamente y consultas exclusivamente a través del cliente autenticado con RLS. Sin service-role para las colecciones.
+- Lecturas limitadas y paginadas de tres fuentes: collection_items (id, museum_id, status), collection_photos (id, museum_id, item_id) y collection_history (id, museum_id, item_id). No se consultan títulos, descripciones, propietarios, JSON patrimonial, nombres de actores, rutas, ni imágenes.
+- La función de resumen rechaza filas de museo extranjero, fotos/historial vinculados a piezas no visibles, IDs duplicados y datasets posiblemente truncados. Solo se envían al modelo conteos, estados resumidos y advertencias explícitas de incertidumbre.
+- Nueva función de base de datos ai_assistant_claim_collections_slot_v1(uuid) SECURITY INVOKER, aislada; requiere collections.read y collection_can_read, verifica museo y delega en la cuota atómica v2 existente. No modifica los límites ni los módulos de la aplicación.
+- Migración nueva aplicada **solo en staging**, sin DML sobre Colecciones; execute autorizado a authenticated y denegado a anon.
+- Prueba transaccional (SQL, JWT simulado) de usuario ficticio Gerencia Museográfica: collections.read=true, collection_can_read=true, cuota propia autorizada; cuota de otro museo rechazada. RLS: una pieza propia visible y cero piezas, fotos o historial del museo ajeno. ROLLBACK aplicado.
+- La Edge Function se desplegó **solo en staging v10** con verify_jwt=true. Aún falta E2E real con dos JWT genuinos y pruebas positivas de la generación de diagnóstico.
+- Verificación posterior: ai_assistant_usage=0; perfil ficticio utilizado permanece inactive. Producción sin cambios. No se tocó el módulo original de Colecciones.
+- Se añadieron pruebas sintéticas de aislamiento y conteo, verificaciones estáticas del endpoint y casos negativos en el futuro ensayo HTTP con Auth real.
