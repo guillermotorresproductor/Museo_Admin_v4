@@ -400,3 +400,20 @@ test("attendance diagnosis distinguishes active from historical alerts without g
  assert.match(handler,/alertStatuses=new Set\(\["active","auto_resolved","reviewed"\]\)/);
  assert.doesNotMatch(handler,/\.insert\(|\.update\(|\.delete\(/);
 });
+
+test("day-off and punch correlation uses only already-authorized attendance and schedule rows",()=>{
+ const compare=fs.readFileSync("supabase/functions/instituva-ai-assistant/attendance-schedule-crosscheck.ts","utf8");
+ const gate=endpoint.indexOf('if (mode==="attendance" || mode==="finance"');
+ const check=endpoint.indexOf("summarizeAttendanceScheduleCrosscheck(");
+ const reads=endpoint.indexOf('admin.from("employee_shifts")');
+ assert.ok(gate>=0&&reads>gate&&check>reads,"correlation must follow authorization and bounded reads");
+ assert.match(endpoint,/const effectiveEvents=safeEvents\.filter\(e=>!replaced\.has\(e\.id\)\)/);
+ assert.match(endpoint,/summarizeAttendanceScheduleCrosscheck\(\s*safeShifts,effectiveEvents,museumId,employee\.id,day\s*\)/);
+ assert.match(endpoint,/attendance_schedule_crosscheck:crosscheck/);
+ assert.match(endpoint,/schedule_day_off_with_punches:crosscheck\.day_off_and_punches_same_calendar_day/);
+ assert.match(ui,/schedule_day_off_with_punches===true/);
+ assert.match(ui,/no prueba incumplimiento/);
+ assert.match(compare,/assertEmployeeTenantRows\(shifts,museumId,employeeId\)/);
+ assert.match(compare,/assertEmployeeTenantRows\(effectiveEvents,museumId,employeeId\)/);
+ assert.doesNotMatch(compare,/createClient|fetch\(|\.insert\(|\.update\(|\.delete\(|\.rpc\(/);
+});
