@@ -153,3 +153,13 @@ Nota: Marketing equipment inventory guard sigue fallando por pruebas independien
 - Verificación posterior de solo lectura: 0 consumos de IA; perfil ficticio anterior sigue inactivo; 0 museos residuales con marcador del arnés E2E.
 - La compatibilidad nominal del modelo `gpt-5.4-mini` con Responses API y el uso de `text.format` se cotejó con la documentación del proveedor. No reemplaza una ejecución real.
 - **Pendiente para fusionar/publicar**: prueba real de autenticación HTTP y salida estructurada del modelo con usuarios y museos ficticios creados y eliminados bajo credenciales autorizadas exclusivas de staging.
+
+## 25 de noviembre — Validación robusta del sobre de respuesta del proveedor (staging v16)
+- Se añadió `provider-response.ts`: antes de aceptar texto del Responses API exige `status=completed`, ausencia de `error` e `incomplete_details`, exactamente un mensaje de asistente y un bloque `output_text`. La salida resultante debe superar `parseDiagnosticResponse` y su contrato JSON estricto existente.
+- Se rechaza por `UPSTREAM_FAILURE` cualquier respuesta incompleta, rechazada, ambigua, con múltiples mensajes, contenido no textual, JSON mal formado o campos no autorizados; **no se presentan diagnósticos ni operaciones realizadas** en esos casos.
+- La llamada HTTP a OpenAI ahora utiliza `AbortSignal.timeout(20000)`; el límite es del transporte, no concede capacidad de ejecución al modelo.
+- Pruebas unitarias con sobre **simulado** válido, rechazo, `status=incomplete`, error del proveedor, contenido ausente/múltiple, texto de usuario falsificado y claves extra. Sin tokens, solicitudes reales al modelo ni consumos.
+- CI `INSTITUVA AI tenant-safe diagnostics` aprobada en commit `364c8a2a4092691c593429bed349d3abe875301d`.
+- Edge Function publicada solo en staging **v16**, `verify_jwt=true`; código recuperado confirma `extractCompletedDiagnosis`, `AbortSignal.timeout(20000)`, `DIAGNOSTIC_FORMAT` y `actions_executed:false`.
+- Comprobación posterior solo lectura: `ai_assistant_usage=0` y ningún museo residual con marcador del ensayo E2E. Producción, módulos, permisos y datos operacionales sin modificaciones.
+- Pendiente: E2E HTTP con JWT real en staging con credenciales adecuadas y una respuesta real del proveedor, antes de cualquier autorización de producción. Las pruebas simuladas no sustituyen esa validación.
