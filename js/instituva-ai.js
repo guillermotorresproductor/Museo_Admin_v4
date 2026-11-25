@@ -6,6 +6,8 @@ function bindInstituvaAi() {
   const mode=form.querySelector('[name="mode"]');
   const privateFields=root.querySelector("[data-ai-private]");
   const financeFields=root.querySelector("[data-ai-finance]");
+  const schedulesFields=root.querySelector("[data-ai-schedules]");
+  const scheduleStart=form.querySelector('[name="start_day"]');
   const year=form.querySelector('[name="year"]');
   const employee=form.querySelector('[name="employee_name"]');
   const date=form.querySelector('[name="day"]');
@@ -19,18 +21,22 @@ function bindInstituvaAi() {
   const canReadFinance=hasPermission("finance.read");
   const canReadCollections=hasPermission("collections.read");
   const canReadInventory=hasPermission("modules.inventory.read");
+  const canReadSchedules=hasPermission("time.read.all");
 
   const updateMode=()=>{
     const attendance=mode.value==="attendance";
     privateFields.hidden=!attendance;
     const finance=mode.value==="finance";
     financeFields.hidden=!finance;
+    const schedules=mode.value==="schedules";
+    schedulesFields.hidden=!schedules;
+    scheduleStart.required=schedules;
     year.required=finance;
     employee.required=attendance;
     date.required=attendance;
     const collections=mode.value==="collections";
     const inventory=mode.value==="inventory";
-    if ((attendance && !canDiagnose) || (finance && !canReadFinance) || (collections && !canReadCollections) || (inventory && !canReadInventory)) {
+    if ((attendance && !canDiagnose) || (finance && !canReadFinance) || (collections && !canReadCollections) || (inventory && !canReadInventory) || (schedules && !canReadSchedules)) {
       status.textContent="Tu perfil no tiene permiso para este tipo de consulta.";
       form.querySelector('button[type="submit"]').disabled=true;
     } else {
@@ -49,11 +55,13 @@ function bindInstituvaAi() {
     const question=String(data.get("question")||"").trim();
     const employee_name=String(data.get("employee_name")||"").trim();
     const day=String(data.get("day")||"");
+    const start_day=String(data.get("start_day")||"");
     const fiscalYear=Number(data.get("year"));
     if (!question || (queryMode==="attendance" && (!canDiagnose || !employee_name || !day))) return;
     if (queryMode==="finance" && (!canReadFinance || !Number.isInteger(fiscalYear) || fiscalYear<2020 || fiscalYear>2100)) return;
     if (queryMode==="collections" && !canReadCollections) return;
     if (queryMode==="inventory" && !canReadInventory) return;
+    if (queryMode==="schedules" && (!canReadSchedules || !/^20\d{2}-\d{2}-\d{2}$/.test(start_day))) return;
     busy=true;
     const button=form.querySelector('button[type="submit"]');
     button.disabled=true;
@@ -67,6 +75,7 @@ function bindInstituvaAi() {
         request.day=day;
       }
       if (queryMode==="finance") request.year=fiscalYear;
+      if (queryMode==="schedules") request.start_day=start_day;
       const res=await fetch(`${supabaseUrl}/functions/v1/instituva-ai-assistant`,{
         method:"POST",headers,body:JSON.stringify(request),cache:"no-store"
       });
@@ -82,6 +91,8 @@ function bindInstituvaAi() {
         evidence.textContent=`Colecciones: ${Number(body.evidence?.item_count||0)} piezas; ${Number(body.evidence?.photo_count||0)} fotografías; ${Number(body.evidence?.history_count||0)} movimientos históricos. ${Number(body.evidence?.items_without_photos||0)} piezas sin fotografía registrada; esto no implica necesariamente un error. Solo lectura.`;
       } else if (body.mode==="inventory") {
         evidence.textContent=`Inventario: ${Number(body.evidence?.record_count||0)} registros; ${Number(body.evidence?.missing_photo_records||0)} sin fotografía asociada; ${Number(body.evidence?.archived_records||0)} archivados. Son datos administrativos, no una inspección física. Solo lectura.`;
+      } else if (body.mode==="schedules") {
+        evidence.textContent=`Horarios: ${Number(body.evidence?.record_count||0)} turnos entre ${String(body.evidence?.start_date||start_day)} y la fecha final exclusiva ${String(body.evidence?.end_date_exclusive||"")}. Posibles solapamientos: ${Number(body.evidence?.potential_overlap_pairs||0)}. Esto no prueba publicación ni asistencia. Solo lectura.`;
       } else {
         evidence.textContent="Conocimiento general de INSTITUVA, sujeto a revisión y actualización. Sin acceso a datos de empleados.";
       }
