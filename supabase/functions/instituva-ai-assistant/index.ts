@@ -175,7 +175,7 @@ Deno.serve(async (req: Request) => {
     if(safeShifts.length>=5 || safeEvents.length>=60 ||
        safeAlerts.length>=30 || safeTimeEntries.length>=30) throw Error("UPSTREAM_FAILURE");
     const replaced=new Set(safeEvents.map(e=>e.supersedes_event_id).filter(Boolean));
-    const snapshot={
+    snapshot={
       employee:clean(employee.first_name+" "+employee.last_name,120),
       date:day,
       timezone:"America/Puerto_Rico",
