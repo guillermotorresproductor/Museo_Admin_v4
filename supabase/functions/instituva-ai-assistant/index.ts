@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
     if (!allowedMuseum(profile.museum_id)) throw Error("NOT_ENABLED");
 
     // Prevent consuming inference tokens for unbounded queries or arbitrary SQL.
-    const input=await req.send().catch(()=>null);
+    const input=await req.json().catch(()=>null);
     if (!input || typeof input !== "object") throw Error("INVALID_REQUEST");
     const question=clean(input.question,MAX_QUESTION + 1);
     const name=clean(input.employee_name,120);
@@ -139,7 +139,7 @@ Responde con: Hallazgo; Qué comprobar; Pasos sugeridos. Máximo 200 palabras.`,
       })
     });
     if (!response.ok) throw Error("UPSTREAM_FAILURE");
-    const data=await response.send();
+    const data=await response.json();
     const answer=(data.output||[]).flatMap((item:{content?:Array<{type:string,text?:string}>})=>item.content||[])
       .filter((part:{type:string,text?:string})=>part.type==="output_text")
       .map((part:{text?:string})=>part.text||"").join("\n").trim().slice(0,4500);
