@@ -293,3 +293,16 @@ test("self-notifications quota remains invoker-only and inherits the atomic glob
  assert.doesNotMatch(sqlNotifications,/update public\.(?:employee_notifications|attendance_|finance_)/i);
  assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_notifications_slot_v1"/);
 });
+
+test("diagnosis must distinguish evidence, uncertain causes and unexecuted proposals",()=>{
+ assert.match(endpoint,/text:\{format:DIAGNOSTIC_FORMAT\}/);
+ assert.match(endpoint,/data\.status!=="completed"/);
+ assert.match(endpoint,/parseDiagnosticResponse\(rawText\)/);
+ assert.match(endpoint,/formatDiagnosticResponse\(diagnosis\)/);
+ assert.match(endpoint,/actions_executed:false,diagnostic_contract:"read_only_v1"/);
+ assert.match(endpoint,/resumen provisional, hipotesis no confirmadas/);
+ assert.match(endpoint,/Nunca generes hechos_confirmados/);
+ assert.match(ui,/body\.actions_executed!==false/);
+ assert.match(ui,/body\.diagnostic_contract!=="read_only_v1"/);
+ assert.doesNotMatch(endpoint,/const answer=\(data\.output\|\|\[\]\)\.flatMap/);
+});
