@@ -4,6 +4,7 @@ import { findProductKnowledge } from "./product-knowledge.ts";
 import { findIncidentRunbooks } from "./incident-runbooks.ts";
 import { requiredPermissionsForMode, assertActiveMuseumProfile, assertTenantRows, assertEmployeeTenantRows } from "./tenant-guard.ts";
 import { validAttendanceDay, nextAttendanceDay } from "./attendance-day.ts";
+import { inferEmployeeName, attendanceDayFromQuestion, resolveScopedEmployeeName } from "./employee-name-resolution.ts";
 import { summarizeCollections } from "./collections-summary.ts";
 import { summarizeInventory, type InventoryEvidenceRow } from "./inventory-summary.ts";
 import { summarizeSchedules, type ScheduleEvidenceRow } from "./schedules-summary.ts";
@@ -318,26 +319,56 @@ Deno.serve(async (req: Request) => {
         notification_count:rows.length,unread_count:snapshot.unread_count};
       sources=["employee_notifications [solo metadatos propios, sin mensajes]"];
     } else {
-    const name=clean(input.employee_name,120);
-    const day=validAttendanceDay(input.day);
-    if (name.length<3 || !/^[\p{L}\p{M}.' -]+$/u.test(name)) throw Error("INVALID_REQUEST");
+    // The user may ask "¿Qué pasó con el ponche de ayer de Juan?"
+    // before selecting a person. Extract only a conservative name candidate;
+    // never infer a name from unrelated private records or another tenant.
+    const name=clean(input.employee_name,120) || inferEmployeeName(question) || "";
+    if (!name) return send({code:"EMPLOYEE_NAME_REQUIRED",
+      error:"¿De qué empleado se trata? Indica el nombre para consultar su asistencia."},422);
+    const inferredDay=attendanceDayFromQuestion(input.day,question);
+    if (!inferredDay) return send({code:"ATTENDANCE_DATE_REQUIRED",
+      error:"¿De qué fecha necesitas el ponche? Puedes indicar hoy, ayer o seleccionar la fecha."},422);
+    const day=validAttendanceDay(inferredDay);
+    if (name.length<2 || !/^[\p{L}\p{M}.' -]+$/u.test(name)) throw Error("INVALID_REQUEST");
     const parsedDay=Date.parse(day+"T04:00:00Z");
     if (parsedDay>Date.now()) throw Error("INVALID_REQUEST");
 
     // Whitelist fields: no employee medical, address, email, phone, salary,
     // personal photos, payroll exports, permission tables or other museums.
-    const {data:employees,error:empError} = await admin.from("employees")
+    // First-name browsing can reveal a directory, so it needs the existing
+    // separate employees.read.all grant and administration module boundary.
+    // Full-name exact lookup retains the prior read-only attendance contract.
+    const firstNameOnly=name.trim().split(/\s+/).length===1;
+    if(firstNameOnly){
+      const [grant,gate]=await Promise.all([
+        caller.rpc("has_permission",{requested_permission:"employees.read.all"}),
+        caller.rpc("module_profile_allows",{module_code:"administration"})
+      ]);
+      if(grant.error || grant.data!==true || gate.error || gate.data!==true)
+        throw Error("FORBIDDEN");
+    }
+    const nameSource=firstNameOnly ? caller : admin;
+    const {data:employees,error:empError} = await nameSource.from("employees")
       .select("id,first_name,last_name,museum_id").eq("museum_id",museumId).eq("status","activo")
-      .limit(300);
+      .order("id",{ascending:true}).limit(300);
     if (empError) throw Error("UPSTREAM_FAILURE");
-    const normalized=(s:string)=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim();
     const scopedEmployees=assertTenantRows(employees||[],museumId);
-    // A truncated name lookup cannot prove absence or uniqueness.
-    if (scopedEmployees.length>=300) throw Error("UPSTREAM_FAILURE");
-    const matches=scopedEmployees.filter(e=> normalized(e.first_name+" "+e.last_name)===normalized(name));
-    if (!matches.length) throw Error("EMPLOYEE_NOT_FOUND");
-    if (matches.length !== 1) throw Error("AMBIGUOUS_EMPLOYEE");
-    const employee=matches[0];
+    const resolution=resolveScopedEmployeeName(
+      scopedEmployees,museumId,name,input.employee_id ?? null
+    );
+    if(resolution.kind==="not_found")throw Error("EMPLOYEE_NOT_FOUND");
+    if(resolution.kind==="need_more_name")return send({
+      code:"EMPLOYEE_NAME_TOO_BROAD",
+      error:"Hay varios empleados con ese nombre completo. Solicita a Administración un dato identificador adicional; no se seleccionará a nadie automáticamente."
+    },409);
+    if(resolution.kind==="ambiguous")return send({
+      code:"EMPLOYEE_SELECTION_REQUIRED",
+      error:"¿A cuál de estos empleados te refieres?",
+      question:"¿Te refieres a "+resolution.options.map(x=>x.name).join(" o ")+"?",
+      options:resolution.options,
+      read_only:true,actions_executed:false
+    },409);
+    const employee=resolution.employee;
 
     const [shifts,events,alerts,timeEntries,earlierOpenEntries,attempts]=await Promise.all([
       admin.from("employee_shifts").select("id,museum_id,employee_id,shift_date,starts_at,ends_at,expected_lunch_minutes,status")
