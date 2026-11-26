@@ -8603,6 +8603,7 @@ async function initApp() {
   document.body.classList.add("app-ready");
   await syncEmployeeCacheFromSupabase().catch(() => null);
   updateCurrentUserFromEmployeeCache();
+  if (getCurrentPage() === "asistente-ia.html" && typeof bindInstituvaAi === "function") bindInstituvaAi();
   renderHeader();
   renderInlineIcons();
   bindHeaderActions();
