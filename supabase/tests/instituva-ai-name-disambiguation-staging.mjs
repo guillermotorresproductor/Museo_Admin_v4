@@ -200,6 +200,17 @@ try{
    created.permissions.find(p=>p.code==="employees.read.all")?.permission_id);
  const denied=await postAi(actorSession.token,{mode:"attendance",question});
  check("without employees directory grant no first-name disclosure",denied.status===403);
+ if(manualUi){
+   // Restore only the same synthetic employee-directory grant after the negative
+   // permission test. Otherwise the browser UI cannot display the two Juan choices.
+   await grant(actorSession.id,["employees.read.all"]);
+   const browserRoster=await api("/rest/v1/employees?select=id,first_name,last_name,museum_id&first_name=eq.Juan",{
+     token:actorSession.token,apikey:anon
+   });
+   check("manual UI user can choose only the two current museum names",
+     browserRoster.data?.length===2 &&
+     browserRoster.data.every(e=>e.museum_id===allowedMuseum));
+ }
  console.log(JSON.stringify({status:"PASS",staging:STAGING_REF,checks:checks.length,
    signed_jwt:true,museums_isolated:true,choice_required:true,
    selected_employee_diagnosis:true,provider_calls:1,operational_writes_by_ai:0}));
