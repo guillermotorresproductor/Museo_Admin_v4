@@ -20,6 +20,36 @@ function bindInstituvaAi() {
   const choices=root.querySelector("[data-ai-employee-choices]");
   const choicesQuestion=root.querySelector("[data-ai-choices-question]");
   const choicesList=root.querySelector("[data-ai-choices-list]");
+  const history=root.querySelector("[data-ai-history]");
+  const thread=root.querySelector("[data-ai-thread]");
+  const welcome=root.querySelector("[data-ai-welcome]");
+  const questionInput=form.querySelector('[name="question"]');
+  const newChat=root.querySelector("[data-ai-new-chat]");
+  // Conversation state is display-only, kept solely in this page's DOM.
+  // Do not persist it or include previous turns in API requests.
+  const scrollChat=()=>{thread.scrollTop=thread.scrollHeight;};
+  const appendMessage=(role,message)=>{
+    const article=document.createElement("article");
+    article.className="ai-chat-message ai-chat-message--"+(role==="user"?"user":"assistant");
+    const heading=document.createElement("p");
+    heading.className="ai-chat-speaker";
+    heading.textContent=role==="user"?"Tú":"INSTITUVA AI";
+    const text=document.createElement("p");
+    text.className="ai-chat-body";
+    text.textContent=String(message).slice(0,14000);
+    article.appendChild(heading);
+    article.appendChild(text);
+    history.appendChild(article);
+    scrollChat();
+  };
+  const archiveResult=()=>{
+    if(result.hidden)return;
+    const lines=[answer.textContent,evidence.textContent];
+    const refs=Array.from(sources.children||[]).map(item=>item.textContent);
+    if(refs.length)lines.push("Fuentes consultadas:\n"+refs.join("\n"));
+    appendMessage("assistant",lines.filter(Boolean).join("\n\n"));
+    result.hidden=true;
+  };
   let selectedEmployeeId=null;
   const clearChoices=()=>{
     choices.hidden=true;
@@ -44,12 +74,14 @@ function bindInstituvaAi() {
       select.addEventListener("click",()=>{
         employee.value=option.name;
         selectedEmployeeId=option.employee_id;
+        appendMessage("user",option.name);
         clearChoices();
         form.requestSubmit();
       });
       choicesList.appendChild(select);
     }
     choices.hidden=false;
+    scrollChat();
     return true;
   };
   const isPrivateAttendanceQuestion=(question)=>{
@@ -65,6 +97,13 @@ function bindInstituvaAi() {
       words[i+1] && words[i+1].length>=2 && !stop.has(norm(words[i+1])));
   };
   employee.addEventListener("input",()=>{selectedEmployeeId=null;clearChoices();});
+  questionInput.addEventListener("input",()=>{selectedEmployeeId=null;clearChoices();});
+  questionInput.addEventListener("keydown",event=>{
+    if(event.key==="Enter" && !event.shiftKey && !event.isComposing){
+      event.preventDefault();
+      form.requestSubmit();
+    }
+  });
   clearChoices();
   const guide=root.querySelector("[data-ai-guide]");
   const guidePanel=root.querySelector("[data-ai-guide-panel]");
@@ -119,6 +158,23 @@ function bindInstituvaAi() {
     showGuideStep();
   });
   resetGuide();
+  const resetConversation=()=>{
+    history.replaceChildren(welcome);
+    result.hidden=true;
+    resetGuide();
+    selectedEmployeeId=null;
+    clearChoices();
+    employee.value="";
+    date.value="";
+    scheduleStart.value="";
+    year.value="";
+    questionInput.value="";
+    status.textContent="";
+    scrollChat();
+  };
+  newChat.addEventListener("click",()=>{
+    if(!busy)resetConversation();
+  });
   let busy=false;
   const canDiagnose=hasPermission("attendance.history.read") && hasPermission("finance.read");
   const canReadFinance=hasPermission("finance.read");
@@ -153,10 +209,9 @@ function bindInstituvaAi() {
     }
   };
   mode.addEventListener("change",()=>{
-    result.hidden=true;
-    resetGuide();
-    selectedEmployeeId=null;
-    clearChoices();
+    // Separate domains have different permissions: never carry a private
+    // conversation visually into a new domain.
+    resetConversation();
     updateMode(true);
   });
   updateMode();
@@ -189,7 +244,12 @@ function bindInstituvaAi() {
     if (queryMode==="assets" && !canReadAssets) return;
     if (queryMode==="schedules" && (!canReadSchedules || !/^20\d{2}-\d{2}-\d{2}$/.test(start_day))) return;
     if (queryMode==="notifications" && !canReadNotifications) return;
+    // Selecting an ambiguity choice reuses the original question and must not
+    // create a duplicate question bubble or transmit conversation history.
+    archiveResult();
+    if(!selectedId)appendMessage("user",question);
     busy=true;
+    newChat.disabled=true;
     const button=form.querySelector('button[type="submit"]');
     button.disabled=true;
     result.hidden=true;
@@ -265,11 +325,19 @@ function bindInstituvaAi() {
         : [];
       guide.hidden=guideSteps.length===0;
       result.hidden=false;
+      // One query is independent of the next. Do not carry a selected employee
+      // into an unrelated subsequent question.
+      questionInput.value="";
+      if(queryMode==="attendance")employee.value="";
       status.textContent="Consulta completada. Ningún registro operacional ha sido modificado.";
+      scrollChat();
     } catch(error){
-      status.textContent=error instanceof Error ? error.message : "No se pudo completar la consulta.";
+      const message=error instanceof Error ? error.message : "No se pudo completar la consulta.";
+      status.textContent=message;
+      appendMessage("assistant",message);
     } finally{
       busy=false;
+      newChat.disabled=false;
       button.disabled=false;
       updateMode();
     }
