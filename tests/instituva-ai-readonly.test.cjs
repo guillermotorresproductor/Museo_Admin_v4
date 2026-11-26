@@ -1261,3 +1261,21 @@ test("Cloudflare preview login and assistant pages resolve the same staging back
  assert.equal(resolve("demo.instituva.com","/login").environment,"staging");
  assert.equal(resolve("instituva-app.pages.dev","/login").environment,"production");
 });
+
+
+test("isolated production AI bootstrap is additive, service-only and non-destructive",()=>{
+ const sql=fs.readFileSync("supabase/rollouts/instituva-ai-production-bootstrap.sql","utf8");
+ assert.match(sql,/INSTITUVA_AI_BOOTSTRAP_ALREADY_PRESENT/);
+ assert.match(sql,/create table public\.ai_assistant_usage/);
+ assert.match(sql,/enable row level security/);
+ assert.match(sql,/revoke all on table public\.ai_assistant_usage from public,anon,authenticated/);
+ assert.match(sql,/create function public\.ai_assistant_claim_internal_v1/);
+ assert.match(sql,/security invoker/);
+ assert.match(sql,/current_user <> 'service_role'/);
+ assert.match(sql,/grant execute on function public\.ai_assistant_claim_internal_v1\(uuid,uuid\)\s+to service_role/);
+ assert.doesNotMatch(sql,/\b(drop|truncate|delete|alter table public\.(?!ai_assistant_usage)|update public\.(?!ai_assistant_usage))\b/i);
+ assert.doesNotMatch(sql,/create\s+(or\s+replace\s+)?(?:table|function)\s+public\.(?!ai_assistant_)/i);
+ assert.match(sql,/500/);
+ assert.match(sql,/100/);
+ assert.match(sql,/INSTITUVA_AI_MISSING_CORE_DEPENDENCY/);
+});
