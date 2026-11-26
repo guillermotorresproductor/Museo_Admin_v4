@@ -1,7 +1,7 @@
 import {assertEmployeeTenantRows} from "./tenant-guard.ts";
 import {resolveEffectiveAttendanceEvents} from "./attendance-event-corrections.ts";
 import {validAttendanceDay} from "./attendance-day.ts";
-type Row={id:string;museum_id:string;employee_id:string;event_type:string;occurred_at:string;supersedes_event_id?:string|null;shift_id?:string|null;classification?:string|null};
+type Row={id:string;museum_id:string;employee_id:string;event_type:string;occurred_at:string;supersedes_event_id:string|null;shift_id:string;classification?:string|null};
 type Shift={museum_id:string;employee_id:string;shift_date:string;starts_at:string;ends_at:string;status:string};
 const dayOf=(time:string)=>{const parts=new Intl.DateTimeFormat("en-US",{timeZone:"America/Puerto_Rico",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(time)); const part=(t:string)=>parts.find(p=>p.type===t)?.value||"";return part("year")+"-"+part("month")+"-"+part("day");};
 const minutesBetween=(a:string,b:string)=>Math.round((Date.parse(b)-Date.parse(a))/60000);
