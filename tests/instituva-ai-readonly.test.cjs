@@ -1215,3 +1215,18 @@ test("unavailable authorization service fails closed and does not show a complet
  assert.equal(mounted.button.disabled,true);
  assert.equal(mounted.answer.textContent,"");
 });
+
+
+test("Cloudflare PR previews stay on staging while production domains stay locked",()=>{
+ const config=fs.readFileSync("js/config.js","utf8");
+ const start=config.indexOf("function lockedMuseoEnvironment(");
+ const end=config.indexOf("function isMuseumProductionHost(",start);
+ assert.ok(start>=0&&end>start,"environment host gate must exist");
+ const hostGate=config.slice(start,end);
+ assert.match(hostGate,/instituva-app/);
+ assert.match(hostGate,/instituva-museo-demo/);
+ assert.match(hostGate,/return "staging"/);
+ assert.match(config,/"mmdpr.org": "production"/);
+ assert.match(config,/"demo.instituva.com": "staging"/);
+ assert.doesNotMatch(hostGate,/\^instituva-app.*pages.*dev/);
+});
