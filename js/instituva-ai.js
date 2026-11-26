@@ -69,6 +69,7 @@ function bindInstituvaAi() {
     article.appendChild(text);
     history.appendChild(article);
     scrollChat();
+    saveConversation();
   };
   // Format only the closed server-produced diagnosis structure. If it changes,
   // fall back to the original text without guessing sections or interpreting HTML.
@@ -124,6 +125,7 @@ function bindInstituvaAi() {
     if(refs.length)lines.push("Fuentes consultadas:\n"+refs.join("\n"));
     appendMessage("assistant",lines.filter(Boolean).join("\n\n"));
     result.hidden=true;
+    saveConversation();
   };
   let selectedEmployeeId=null;
   const clearChoices=()=>{
@@ -263,6 +265,7 @@ function bindInstituvaAi() {
     questionInput.value="";
     status.textContent="";
     scrollChat();
+    saveConversation();
   };
   newChat.addEventListener("click",()=>{
     if(!busy){
@@ -311,6 +314,7 @@ function bindInstituvaAi() {
     // conversation visually into a new domain.
     resetConversation();
     updateMode(true);
+    saveConversation();
   });
   updateMode();
 
@@ -322,11 +326,108 @@ function bindInstituvaAi() {
     ? String(getSupabaseSession()?.user?.id||"") : "";
   const mountedGrants=typeof currentPermissions!=="undefined"
     ? Array.from(currentPermissions).sort().join("\\n") : "";
+  // Short-lived, same-tab presentation snapshot. No server-side chat history.
+  // Revalidate the same user, museum, and grants before revealing saved text.
+  // No access tokens or employee identifiers used for lookups are serialized.
+  const continuityKey="instituva-ai-conversation-v1";
+  const continuityMaxAgeMs=15*60*1000; // Mirrors the application idle window.
+  let continuityReady=false;
+  let restoringConversation=false;
+  const clearContinuity=()=>{
+    try{sessionStorage.removeItem(continuityKey);}catch{}
+  };
+  const saveConversation=()=>{
+    if(!continuityReady || restoringConversation || accessRevoked || !verifiedMuseum)return;
+    const messages=Array.from(history.querySelectorAll(".ai-chat-message:not([data-ai-welcome])"))
+      .slice(-16).map(item=>({
+        role:item.classList.contains("ai-chat-message--user")?"user":"assistant",
+        text:String(item.querySelector(".ai-chat-body")?.textContent||"").slice(0,14000)
+      }));
+    const currentResult=result.hidden?null:{
+      answer:String(answer.textContent||"").slice(0,14000),
+      evidence:String(evidence.textContent||"").slice(0,1300),
+      sources:Array.from(sources.children).slice(0,12)
+        .map(item=>String(item.textContent||"").slice(0,500)),
+      guide:guideSteps.slice(0,10).map(step=>({phase:step.phase,text:step.text}))
+    };
+    try{
+      const serialized=JSON.stringify({
+        version:1,user:mountedUserId,museum:verifiedMuseum,grants:mountedGrants,
+        time:Date.now(),mode:String(mode.value),messages,currentResult
+      });
+      if(serialized.length<70000)sessionStorage.setItem(continuityKey,serialized);
+      else clearContinuity();
+    }catch{clearContinuity();}
+  };
+  const restoreConversation=()=>{
+    if(continuityReady)return;
+    continuityReady=true;
+    let stored;
+    try{
+      const raw=sessionStorage.getItem(continuityKey);
+      if(!raw)return;
+      if(raw.length>70000)throw Error("BAD_SIZE");
+      stored=JSON.parse(raw);
+    }catch{clearContinuity();return;}
+    if(!stored || stored.version!==1 || stored.user!==mountedUserId ||
+      stored.museum!==verifiedMuseum || stored.grants!==mountedGrants ||
+      !Number.isFinite(stored.time) ||
+      Date.now()-stored.time<0 || Date.now()-stored.time>continuityMaxAgeMs ||
+      !Array.isArray(stored.messages) || stored.messages.length>16){
+      clearContinuity();return;
+    }
+    restoringConversation=true;
+    try{
+      if(Array.from(mode.options).some(option=>option.value===stored.mode)){
+        mode.value=stored.mode;
+        updateMode(true);
+      }
+      history.replaceChildren(welcome);
+      for(const msg of stored.messages){
+        if(!msg || !["user","assistant"].includes(msg.role) ||
+          typeof msg.text!=="string" || msg.text.length>14000)
+          throw Error("INVALID_MESSAGE");
+        appendMessage(msg.role,msg.text);
+      }
+      if(stored.currentResult){
+        const item=stored.currentResult;
+        if(typeof item.answer!=="string" || item.answer.length>14000 ||
+          typeof item.evidence!=="string" || item.evidence.length>1300 ||
+          !Array.isArray(item.sources) || item.sources.length>12 ||
+          item.sources.some(s=>typeof s!=="string" || s.length>500))
+          throw Error("INVALID_RESULT");
+        answer.textContent=item.answer;
+        renderFormattedAnswer(item.answer);
+        evidence.textContent=item.evidence;
+        sources.replaceChildren();
+        for(const ref of item.sources){
+          const li=document.createElement("li");
+          li.textContent=ref;
+          sources.appendChild(li);
+        }
+        sourceDetails.hidden=item.sources.length===0;
+        guideSteps=Array.isArray(item.guide) && item.guide.length<=10 &&
+          item.guide.every(step=>step && ["verificar","accion_manual"].includes(step.phase) &&
+            typeof step.text==="string" && step.text.length<=440)
+          ? item.guide : [];
+        guide.hidden=guideSteps.length===0;
+        result.hidden=false;
+      }
+      status.textContent="";
+      scrollChat();
+    }catch{
+      history.replaceChildren(welcome);
+      result.hidden=true;
+      clearContinuity();
+    }finally{restoringConversation=false;}
+  };
   let verifiedMuseum=null;
   let verificationInFlight=null;
   const revokeAiContext=(reason="La sesión, el museo o los permisos cambiaron.")=>{
     if(accessRevoked)return;
     accessRevoked=true;
+    continuityReady=false;
+    clearContinuity();
     resetConversation();
     newChat.disabled=true;
     form.querySelector('button[type="submit"]').disabled=true;
@@ -357,6 +458,7 @@ function bindInstituvaAi() {
           revokeAiContext();return false;
         }
         verifiedMuseum=museum;
+        restoreConversation();
         return !accessRevoked;
       }catch{
         revokeAiContext("No se pudieron verificar los permisos de esta sesión.");
@@ -505,6 +607,7 @@ function bindInstituvaAi() {
       if(queryMode==="attendance")employee.value="";
       status.textContent="Consulta completada. Ningún registro operacional ha sido modificado.";
       scrollChat();
+      saveConversation();
     } catch(error){
       if(accessRevoked)return;
       const message=error instanceof Error ? error.message : "No se pudo completar la consulta.";
