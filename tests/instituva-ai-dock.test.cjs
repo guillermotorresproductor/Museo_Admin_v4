@@ -22,6 +22,7 @@ function runDock(page="horarios.html",environment="staging"){
         }
       },
       append(...children){this.children.push(...children);},
+      appendChild(child){this.children.push(child);},
       addEventListener(name,cb){this.listeners[name]=cb;},
       setAttribute(name,value){this.attributes[name]=String(value);},
       focus(){this.didFocus=true;}
