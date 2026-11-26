@@ -16,6 +16,7 @@ function bindInstituvaAi() {
   const answer=root.querySelector("[data-ai-answer]");
   const evidence=root.querySelector("[data-ai-evidence]");
   const sources=root.querySelector("[data-ai-sources]");
+  const sourceDetails=root.querySelector("[data-ai-sources-details]");
   let busy=false;
   const canDiagnose=hasPermission("attendance.history.read") && hasPermission("finance.read");
   const canReadFinance=hasPermission("finance.read");
@@ -24,7 +25,7 @@ function bindInstituvaAi() {
   const canReadSchedules=hasPermission("time.read.all");
   const canReadNotifications=hasPermission("notifications.read.self");
 
-  const updateMode=()=>{
+  const updateMode=(clearStatus=false)=>{
     const attendance=mode.value==="attendance";
     privateFields.hidden=!attendance;
     const finance=mode.value==="finance";
@@ -42,11 +43,11 @@ function bindInstituvaAi() {
       status.textContent="Tu perfil no tiene permiso para este tipo de consulta.";
       form.querySelector('button[type="submit"]').disabled=true;
     } else {
-      if (!busy) status.textContent="";
+      if (clearStatus && !busy) status.textContent="";
       form.querySelector('button[type="submit"]').disabled=busy;
     }
   };
-  mode.addEventListener("change",updateMode);
+  mode.addEventListener("change",()=>updateMode(true));
   updateMode();
 
   form.addEventListener("submit",async(event)=>{
@@ -85,7 +86,8 @@ function bindInstituvaAi() {
       const body=await res.json().catch(()=>({}));
       if (!res.ok) throw Error(body.error||"El diagnóstico no está disponible.");
       if (body.read_only!==true || body.actions_executed!==false ||
-          body.diagnostic_contract!=="read_only_v1" || typeof body.answer!=="string")
+          body.diagnostic_contract!=="read_only_v1" || typeof body.answer!=="string" ||
+          body.mode!==queryMode || !Array.isArray(body.sources))
         throw Error("Respuesta del servicio no válida.");
       answer.textContent=body.answer;
       if (body.mode==="attendance") {
@@ -105,7 +107,16 @@ function bindInstituvaAi() {
       } else {
         evidence.textContent="Conocimiento general de INSTITUVA, sujeto a revisión y actualización. Sin acceso a datos de empleados.";
       }
-      sources.textContent="Fuentes consultadas: "+(Array.isArray(body.sources)?body.sources.join("; ").slice(0,1200):"No disponibles");
+      // Provenance is rendered as literal text, never as HTML or clickable user-supplied URLs.
+      // Keep references intact instead of silently cutting the source list at 1,200 chars.
+      sources.replaceChildren();
+      const refs=body.sources.slice(0,20);
+      for (const reference of refs) {
+        const item=document.createElement("li");
+        item.textContent=String(reference).slice(0,500);
+        sources.appendChild(item);
+      }
+      sourceDetails.hidden=refs.length===0;
       result.hidden=false;
       status.textContent="Consulta completada. Ningún registro operacional ha sido modificado.";
     } catch(error){
