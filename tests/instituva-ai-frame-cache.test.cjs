@@ -6,9 +6,10 @@ const html=fs.readFileSync("asistente-ia.html","utf8");
 const dock=fs.readFileSync("js/instituva-ai-dock.js","utf8");
 const config=fs.readFileSync("js/config.js","utf8");
 test("iframe HTML loads a fresh assistant app and config",()=>{
-  for(const asset of ["js/config.js","js/app.js","js/instituva-ai.js"]) {
+  for(const asset of ["js/config.js","js/app.js"]) {
     assert.match(html,new RegExp(asset.replaceAll(".","\\.")+"\\?v=20261126-ai-frame-3"));
   }
+  assert.match(html,/js\/instituva-ai\.js\?v=20261126-continuity-1/);
   assert.match(dock,/searchParams\.set\("ai_ui","20261126-frame-3"\)/);
 });
 test("fail-closed fallback does not expose an unauthenticated chat",()=>{
