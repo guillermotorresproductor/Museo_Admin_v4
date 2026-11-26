@@ -3,6 +3,8 @@ function bindInstituvaAi() {
   const root=document.querySelector("[data-instituva-ai]");
   if (!root) return;
   const params=new URLSearchParams(window.location.search);
+  const standalonePopup=params.get("popup")==="1" && window.parent===window;
+  if(standalonePopup)document.body.classList.add("ai-popout-window");
   const embedded=params.get("dock")==="1" && window.parent!==window;
   if(embedded){
     document.body.classList.add("ai-embedded-frame");
