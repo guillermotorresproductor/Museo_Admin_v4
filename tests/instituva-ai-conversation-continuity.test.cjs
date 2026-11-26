@@ -9,8 +9,7 @@ const app=fs.readFileSync("js/app.js","utf8");
 test("assistant excludes redundant operational/technical disclaimers from chat",()=>{
   assert.doesNotMatch(html,/Módulo abierto: Panel principal|Conversación temporal en este navegador|Consulta incidencias, revisa evidencias autorizadas/);
   assert.doesNotMatch(dock,/Al cambiar de página, este panel reinicia/);
-  assert.match(dock,/Ventana aparte.*conserva la conversación/);
-  assert.match(dock,/No se guardan mensajes en el servidor/);
+  assert.doesNotMatch(dock,/ai-dock-disclaimer|footer\.textContent/);
 });
 test("same-tab conversation restoration is scoped and expires",()=>{
   assert.match(ai,/const continuityKey="instituva-ai-conversation-v1"/);
