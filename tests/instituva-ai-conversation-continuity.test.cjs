@@ -9,8 +9,7 @@ const app=fs.readFileSync("js/app.js","utf8");
 test("assistant excludes redundant operational/technical disclaimers from chat",()=>{
   assert.doesNotMatch(html,/Módulo abierto: Panel principal|Conversación temporal en este navegador|Consulta incidencias, revisa evidencias autorizadas/);
   assert.doesNotMatch(dock,/Al cambiar de página, este panel reinicia/);
-  assert.match(dock,/Ventana aparte.*conserva la conversación/);
-  assert.match(dock,/No se guardan mensajes en el servidor/);
+  assert.doesNotMatch(dock,/ai-dock-disclaimer|footer\.textContent/);
 });
 test("same-tab conversation restoration is scoped and expires",()=>{
   assert.match(ai,/const continuityKey="instituva-ai-conversation-v1"/);
@@ -34,7 +33,7 @@ test("dock automatically reopens after navigating the same tab",()=>{
   assert.match(dock,/sessionStorage\.setItem\(dockStateKey,open\?"1":"0"\)/);
   assert.match(dock,/sessionStorage\.getItem\(dockStateKey\)==="1"\)setOpen\(true\)/);
   assert.match(app,/js\/instituva-ai-dock\.js\?v=20261126-continuity-1/);
-  assert.match(html,/js\/instituva-ai\.js\?v=20261126-continuity-1/);
+  assert.match(html,/js\/instituva-ai\.js\?v=20261126-clean-chat-1/);
 });
 test("server still receives current query only, not conversation history",()=>{
   assert.match(ai,/const request=\{mode:queryMode,question\}/);
