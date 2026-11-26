@@ -147,7 +147,8 @@ Deno.serve(async (req: Request) => {
       sources=[...sections.map(section=>section.source+(section.sourceCommit?" @ "+section.sourceCommit:" [referencia histórica sin cotejo de versión]")),...incidents.map(item=>item.source+" @ "+item.commit+" [guía documental]")];
       evidence={domain:"instituva",source_count:sections.length+incidents.length,incident_guides:incidents.length,coverage:"parcial; guías documentales no equivalen a diagnósticos de registros reales"};
     } else if (mode==="finance") {
-      const year=Number(input.year);
+      const mentionedYear=question.match(/\b20\d{2}\b/);
+      const year=Number(input.year || mentionedYear?.[0] || new Date().getFullYear());
       if (!Number.isInteger(year) || year<2020 || year>2100) throw Error("INVALID_REQUEST");
       // Use caller-scoped RLS, never service-role bypass for financial data.
       // Existing finance_records contract is budget cells, not paid ledger entries.
@@ -291,7 +292,7 @@ Deno.serve(async (req: Request) => {
     } else if (mode==="schedules") {
       // Existing RLS enforces permitted museum and time.read.all. No
       // service-role bypass, employee names, notes, punches or payroll.
-      const startDay=validAttendanceDay(input.start_day);
+      const startDay=validAttendanceDay(input.start_day || plan.day || new Intl.DateTimeFormat("en-CA",{timeZone:"America/Puerto_Rico",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date()));
       let endExclusive=startDay;
       for(let i=0;i<7;i++)endExclusive=nextAttendanceDay(endExclusive);
       const scheduleRows:ScheduleEvidenceRow[]=[];
