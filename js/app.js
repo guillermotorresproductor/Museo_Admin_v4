@@ -8606,13 +8606,13 @@ async function initApp() {
   // The administration shortcut is never visible in production. It becomes
   // available only after the existing authenticated page permission gate.
   const aiAdminEntry=document.querySelector("[data-instituva-ai-admin-entry]");
-  if(aiAdminEntry && museoEnvironment.name==="staging"){
+  if(aiAdminEntry && instituvaAiUiEnabled){
     aiAdminEntry.style.display="";
     aiAdminEntry.hidden=false;
   }
   // Staging-only pilot. Load UI only AFTER authentication, permission refresh
   // and the original page-access gate. Never mount in login or AI iframe.
-  if (museoEnvironment.name === "staging" && getCurrentPage() !== "asistente-ia.html"
+  if (instituvaAiUiEnabled && getCurrentPage() !== "asistente-ia.html"
       && document.querySelector(".app-shell") && document.querySelector("[data-header]")) {
     const dockScript=document.createElement("script");
     dockScript.src="js/instituva-ai-dock.js?v=20261126-authenticated-dock-2";
