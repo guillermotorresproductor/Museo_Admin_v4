@@ -75,7 +75,7 @@ function bindInstituvaAi() {
   // fall back to the original text without guessing sections or interpreting HTML.
   // Strip only the redundant stock preamble; preserve all diagnostic evidence.
   const presentationAnswer=(raw)=>String(raw).replace(
-    /^INSTITUVA — DIAGNÓSTICO PRELIMINAR\nOrientación de solo lectura\. No se ejecutó ninguna operación sobre los registros operacionales\./,
+    /^INSTITUVA — DIAGNÓSTICO PRELIMINAR\nOrientación de solo lectura\. No se ejecutó ninguna operación sobre los registros operacionales\.\n/,
     "INSTITUVA — DIAGNÓSTICO PRELIMINAR\n"
   );
   const renderFormattedAnswer=(raw)=>{
