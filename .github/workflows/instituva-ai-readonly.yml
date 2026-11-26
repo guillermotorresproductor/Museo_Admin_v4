@@ -42,10 +42,13 @@ on:
       - 'supabase/migrations/20261125235500_ai_schedules_readonly_quota.sql'
       - 'supabase/migrations/20261126000500_ai_notifications_self_quota.sql'
       - 'js/instituva-ai.js'
+      - 'js/instituva-ai-dock.js'
+      - 'css/instituva-ai-dock.css'
       - 'js/app.js'
       - 'asistente-ia.html'
       - 'administracion.html'
       - 'tests/instituva-ai-readonly.test.cjs'
+      - 'tests/instituva-ai-dock.test.cjs'
       - 'supabase/tests/instituva-ai-name-disambiguation-staging.mjs'
       - 'supabase/tests/instituva-ai-auth-staging.mjs'
       - 'supabase/tests/instituva-ai-http-deny-staging.test.mjs'
@@ -64,6 +67,8 @@ jobs:
         with:
           node-version: '22'
       - run: node --check js/instituva-ai.js
+      - run: node --check js/instituva-ai-dock.js
+      - run: node --test tests/instituva-ai-dock.test.cjs
       - run: node --check js/app.js
       - run: node --check supabase/tests/instituva-ai-name-disambiguation-staging.mjs
       - run: node --check supabase/tests/instituva-ai-auth-staging.mjs
