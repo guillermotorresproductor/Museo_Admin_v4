@@ -30,9 +30,9 @@ test("assistant browser access requires active linked exact employee roles",()=>
   assert.match(app,/if \(canUseAi && getCurrentPage\(\) !== "asistente-ia.html"/);
 });
 test("assistant page uses same-origin script and no direct secrets",()=>{
-  assert.match(html,/src="js\/config\.js"/);
-  assert.match(html,/src="js\/instituva-ai\.js/);
-  assert.match(html,/src="js\/app\.js/);
+  assert.match(html,/src="js\/config\.js(?:\?[^"]*)?"/);
+  assert.match(html,/src="js\/instituva-ai\.js(?:\?[^"]*)?"/);
+  assert.match(html,/src="js\/app\.js(?:\?[^"]*)?"/);
   assert.doesNotMatch(html+ai+ dock,/sk-proj-|SUPABASE_SERVICE_ROLE_KEY/);
   assert.doesNotMatch(dock,/\.insert\(|\.update\(|\.delete\(|fetch\(/);
 });

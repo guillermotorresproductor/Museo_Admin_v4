@@ -110,6 +110,26 @@
       body.ai-popout-window [data-instituva-ai] .ai-chat-toolbar .field { flex-basis: 190px; }
     }
   </style>
+  <script>
+    // Fail visibly and closed if an authenticated assistant cannot initialize.
+    // No user data, auth tokens or service configuration are exposed.
+    (function () {
+      window.setTimeout(function () {
+        if (document.body?.classList.contains("app-ready")) return;
+        const main = document.querySelector(".page-content");
+        if (!main) return;
+        const section = document.createElement("section");
+        section.className = "card panel";
+        const title = document.createElement("h2");
+        title.textContent = "No se pudo abrir INSTITUVA AI";
+        const info = document.createElement("p");
+        info.textContent = "El chat no terminó de inicializarse. Cierra el panel, actualiza el Dashboard y vuelve a abrirlo. Si persiste, informa al administrador.";
+        section.append(title, info);
+        main.replaceChildren(section);
+        document.body.classList.add("app-ready");
+      }, 12000);
+    })();
+  </script>
 </head>
 <body>
   <div class="app-shell">
@@ -215,10 +235,10 @@
       <footer class="site-footer" data-footer></footer>
     </div>
   </div>
-  <script src="js/config.js"></script>
+  <script src="js/config.js?v=20261126-ai-frame-3"></script>
   <script src="js/time-format.js?v=us-time-20261028"></script>
   <script src="js/services/supabase.js?v=external-accountant-20261123"></script>
-  <script src="js/instituva-ai.js?v=20261126-popout-presentation-2"></script>
-  <script src="js/app.js?v=20261126-ai-ui-status"></script>
+  <script src="js/instituva-ai.js?v=20261126-ai-frame-3"></script>
+  <script src="js/app.js?v=20261126-ai-frame-3"></script>
 </body>
 </html>

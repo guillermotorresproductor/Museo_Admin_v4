@@ -30,6 +30,8 @@
     url.search="";
     url.searchParams.set("environment",museoEnvironment.name);
     url.searchParams.set("context",context);
+    // Force fresh assistant HTML after a verified production hotfix.
+    url.searchParams.set("ai_ui","20261126-frame-3");
     url.searchParams.set(popup ? "popup" : "dock","1");
     return url.href;
   };
