@@ -1,5 +1,5 @@
 # INSTITUVA — Arquitectura objetivo del asistente integral de IA
-**Estado:** arquitectura aprobada. Etapa A parcial implementada en rama PR #125 y staging; Etapas B–D pendientes. **NO habilitada en producción**.
+**Estado:** arquitectura aprobada. Etapa A parcial implementada en rama PR #125 y staging. Etapa B: piloto de cruce de conteos Colecciones + Inventario implementado solo en la rama, pendiente de pruebas positivas de autorización y despliegue de staging; el acceso privado integral continúa pendiente. Etapas C–D pendientes. **NO habilitada en producción**.
 **Fecha:** 2026-11-25.
 
 ## 1. Propósito y propiedad
@@ -82,3 +82,13 @@ Usuario del Museo A
 - Se mantuvieron las cuotas y el indicador de habilitación por museo apagado por defecto.
 - Suite CI: Node.js y comprobación de tipos Deno. Función instalada en staging, sin activación del proveedor de IA.
 - La siguiente iteración debe ampliar el índice a código y documentación versionados con referencias exactas a `main` aprobado, construir consultas autorizadas adicionales por dominio y pruebas cruzadas de permisos antes de habilitar a clientes.
+
+## 10. Incremento controlado 26/nov/2026 — piloto de evidencia de dos módulos
+
+- En `asistente-ia.html` se añadió el modo `assets` para contrastar **únicamente conteos visibles** de `collection_items` e `inventory_items`. Es una consulta comparativa limitada, no un expediente de reconciliación entre piezas y equipos.
+- El servidor exige conjuntamente `collections.read` y `modules.inventory.read`, verifica `module_profile_allows` de ambos dominios y limita las dos lecturas a `museum_id` obtenido del perfil autenticado, con RLS del usuario. No lee ni devuelve filas individuales, identidades, seriales, fotografías, precios ni rutas.
+- La respuesta separa fuentes y advierte que las diferencias entre registros de Colecciones e Inventario **no demuestran faltantes, duplicados, pérdidas ni vínculos pieza-equipo**.
+- La cuota del piloto utiliza la función existente `ai_assistant_claim_collections_slot_v1`, después de todas las comprobaciones de los dos dominios. No se añaden RPC ni permisos nuevos; la modalidad no incorpora ninguna ruta de escritura.
+- La interfaz conserva errores del proveedor, comprueba el modo y el contrato `read_only_v1`, y muestra fuentes como texto literal. Se añadieron regresiones automáticas.
+- **Sin merge ni despliegue de este incremento en producción o staging.** Antes de cualquier despliegue: CI de IA aprobada, JWT auténticos con ambos permisos y sin uno de ellos, aislamiento de dos museos ficticios, verificación de conteos contra RLS y limpieza final de fixtures. No utilizar datos operacionales para esta validación.
+- La investigación integral entre Asistencia, Horarios, Finanzas y otros dominios continúa como etapa posterior. Un modo combinado no otorga acceso universal ni sustituye permisos individuales.
