@@ -91,7 +91,10 @@ Deno.serve(async (req: Request) => {
     // module-profile boundary. Missing visibility is NOT a zero-data
     // diagnosis. Check the existing PostgreSQL authorization function using
     // the caller's JWT, without changing module permissions or RLS policies.
-    const rlsModule=mode==="finance"?"administration":
+    // Attendance requires the same administration module boundary before
+    // any privileged service-role employee/attendance read. A domain grant
+    // alone must not bypass the user's restricted module profile.
+    const rlsModule=mode==="finance" || mode==="attendance"?"administration":
       mode==="collections"?"collections":
       mode==="inventory"?"inventory":null;
     if (rlsModule!==null) {
