@@ -304,6 +304,23 @@ function bindInstituvaAi() {
   });
   updateMode();
 
+  // A standalone AI window may survive navigation in another tab. When that
+  // tab logs out or signs in as a different user, stop displaying old data.
+  // No conversation content or credentials are transmitted or persisted.
+  const mountedUserId=typeof getSupabaseSession==="function"
+    ? String(getSupabaseSession()?.user?.id||"") : "";
+  if(mountedUserId){
+    window.addEventListener("storage",event=>{
+      if(event.key!==supabaseSessionKey)return;
+      const currentSession=getSupabaseSession();
+      if(currentSession?.access_token && currentSession.user?.id===mountedUserId)return;
+      resetConversation();
+      form.querySelector('button[type="submit"]').disabled=true;
+      status.textContent="La sesión cambió o terminó. Debes entrar nuevamente.";
+      window.location.replace("login.html?environment="+encodeURIComponent(museoEnvironment.name));
+    });
+  }
+
   form.addEventListener("submit",async(event)=>{
     event.preventDefault();
     if (busy) return;
