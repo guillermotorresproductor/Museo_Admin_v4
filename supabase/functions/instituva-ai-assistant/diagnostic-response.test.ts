@@ -1,4 +1,4 @@
-import {DIAGNOSTIC_FORMAT,parseDiagnosticResponse,formatDiagnosticResponse} from "./diagnostic-response.ts";
+import {DIAGNOSTIC_FORMAT,parseDiagnosticResponse,formatDiagnosticResponse,buildManualGuide} from "./diagnostic-response.ts";
 const ok=(value:boolean,msg:string)=>{if(!value)throw Error(msg)};
 const reject=(f:()=>unknown)=>{try{f()}catch(e){return (e as Error).message==="UPSTREAM_FAILURE"}return false};
 const base={resumen:"Se requiere comparar los datos autorizados antes de concluir.",
@@ -33,4 +33,19 @@ Deno.test("zero hypotheses do not create invented causes",()=>{
  const d=parseDiagnosticResponse(JSON.stringify({...base,hipotesis:[]}));
  const text=formatDiagnosticResponse(d);
  ok(text.includes("Sin hipótesis adicionales verificables."),"missing no-hypothesis state");
+});
+
+Deno.test("guided steps are derived only from bounded parsed advice and require user consent",()=>{
+ const d=parseDiagnosticResponse(JSON.stringify({
+   ...base,
+   verificaciones:["Comprobar el registro sin modificarlo.","Confirmar el permiso efectivo."],
+   recomendaciones_manuales:["Solicitar revisión al responsable autorizado."]
+ }));
+ const steps=buildManualGuide(d);
+ ok(steps.length===3,"wrong guide length");
+ ok(steps[0].phase==="verificar"&&steps[1].phase==="verificar"&&
+    steps[2].phase==="accion_manual","wrong guided phase order");
+ ok(steps[0].text==="Comprobar el registro sin modificarlo.","invented step");
+ ok(!steps.some(s=>s.text.includes("corregido")),"guide claimed a write");
+ ok(steps.every(s=>s.text.length<=440),"unbounded guide step");
 });
