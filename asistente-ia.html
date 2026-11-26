@@ -47,6 +47,36 @@
       [data-instituva-ai] .ai-chat-message { max-width: 94%; }
       [data-instituva-ai] .ai-chat-composer-actions .button { width: 100%; }
     }
+
+    /* Presentation-only iframe mode for the authenticated first-party dock. */
+    body.ai-embedded-frame { background: #fff; min-height: 0; }
+    body.ai-embedded-frame .app-shell { display: block; min-height: 0; }
+    body.ai-embedded-frame .sidebar,
+    body.ai-embedded-frame .sidebar-backdrop,
+    body.ai-embedded-frame .site-header,
+    body.ai-embedded-frame .site-footer { display: none !important; }
+    body.ai-embedded-frame .main-area { margin: 0 !important; min-height: 0; }
+    body.ai-embedded-frame .page-content { padding: 0 !important; max-width: none; }
+    body.ai-embedded-frame [data-instituva-ai] {
+      max-width: none; height: 100dvh; min-height: 0; overflow: hidden;
+      margin: 0; padding: 12px 14px; border: 0; border-radius: 0;
+      box-shadow: none; display: flex; flex-direction: column; gap: 8px;
+    }
+    body.ai-embedded-frame [data-instituva-ai] > p { margin: 0; font-size: .85rem; }
+    body.ai-embedded-frame [data-instituva-ai] .ai-chat-heading h2 { font-size: 1.17rem; }
+    body.ai-embedded-frame [data-ai-form] {
+      display: flex; flex-direction: column; flex: 1 1 auto;
+      gap: 9px; margin-top: 4px; min-height: 0; overflow-y: auto;
+    }
+    body.ai-embedded-frame .ai-chat-toolbar .field { flex-basis: 210px; }
+    body.ai-embedded-frame .ai-chat-toolbar { align-items: end; gap: 8px; }
+    body.ai-embedded-frame .ai-chat-thread {
+      flex: 1 1 180px; min-height: 180px; max-height: none; padding: 12px;
+    }
+    body.ai-embedded-frame .ai-chat-reply { padding: 15px; }
+    body.ai-embedded-frame .ai-chat-composer textarea { min-height: 65px; }
+    body.ai-embedded-frame .ai-chat-composer-actions { gap: 6px; }
+    body.ai-embedded-frame .ai-chat-composer-actions .field-hint { font-size: .75rem; }
   </style>
 </head>
 <body>
@@ -62,6 +92,7 @@
             <h2>Asistente INSTITUVA</h2>
             <span class="ai-readonly-tag">Solo lectura</span>
           </div>
+          <p class="field-hint" data-ai-context hidden></p>
           <p>Consulta incidencias, revisa evidencias autorizadas y recibe instrucciones para verificarlas. Las áreas privadas requieren permisos específicos. <strong>Nunca modifica registros, permisos ni pagos.</strong></p>
           <form class="form-grid" data-ai-form>
             <div class="ai-chat-toolbar">
@@ -155,7 +186,7 @@
   <script src="js/config.js"></script>
   <script src="js/time-format.js?v=us-time-20261028"></script>
   <script src="js/services/supabase.js?v=external-accountant-20261123"></script>
-  <script src="js/instituva-ai.js?v=20261126-conversational-chat-readable-3"></script>
+  <script src="js/instituva-ai.js?v=20261126-embedded-sidebar-1"></script>
   <script src="js/app.js?v=20261126-ai-ui-status"></script>
 </body>
 </html>
