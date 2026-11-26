@@ -2002,6 +2002,15 @@ function bindIdleLogout() {
     if (!document.hidden) schedule();
   });
 
+  window.addEventListener("message",(event)=>{
+    const frame=document.querySelector("[data-ai-dock-frame]");
+    if (event.origin !== window.location.origin || !frame ||
+        event.source !== frame.contentWindow ||
+        event.data?.type !== "instituva-ai-dock-interaction") return;
+    // Only actual mouse/keyboard interaction inside this first-party iframe
+    // resets the ordinary inactivity timer. No heartbeat is permitted.
+    schedule();
+  });
   schedule();
 }
 
@@ -8594,6 +8603,14 @@ async function initApp() {
   renderInlineIcons();
   bindHeaderActions();
   document.body.classList.add("app-ready");
+  // Staging-only pilot. Load UI only AFTER authentication, permission refresh
+  // and the original page-access gate. Never mount in login or AI iframe.
+  if (museoEnvironment.name === "staging" && getCurrentPage() !== "asistente-ia.html"
+      && document.querySelector(".app-shell") && document.querySelector("[data-header]")) {
+    const dockScript=document.createElement("script");
+    dockScript.src="js/instituva-ai-dock.js?v=20261126-authenticated-dock-1";
+    document.head.appendChild(dockScript);
+  }
   await syncEmployeeCacheFromSupabase().catch(() => null);
   updateCurrentUserFromEmployeeCache();
   renderHeader();
@@ -8612,7 +8629,12 @@ async function initApp() {
   await bindEmployeeProfile();
   bindSidebarToggle();
   bindNotificationMenu();
-  bindIdleLogout();
+  // The parent module owns inactivity logout when the assistant is embedded.
+  // A second idle timer in its iframe could otherwise log out an active user.
+  if (!(getCurrentPage() === "asistente-ia.html" &&
+        new URLSearchParams(window.location.search).get("dock") === "1")) {
+    bindIdleLogout();
+  }
   bindRentalCatalog();
   bindRentalGeneralRules();
   bindRentalSpacePage();
