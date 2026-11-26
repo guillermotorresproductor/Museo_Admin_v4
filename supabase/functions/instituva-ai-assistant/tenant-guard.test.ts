@@ -66,3 +66,11 @@ Deno.test("self notifications only requires own read permission",()=>{
  check(perms.length===1&&perms[0]==="notifications.read.self","self permission changed");
  check(!perms.includes("notifications.manage")&&!perms.includes("finance.read"),"unexpected elevated permission");
 });
+
+Deno.test("combined assets requires both independent read grants, not write or management grants",()=>{
+ const perms=requiredPermissionsForMode("assets");
+ check(perms.length===2 && perms.includes("collections.read") &&
+       perms.includes("modules.inventory.read"),"combined permissions weakened");
+ check(!perms.includes("collections.write")&&!perms.includes("inventory.manage") &&
+       !perms.includes("finance.read"),"combined mode escalated");
+});
