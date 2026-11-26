@@ -87,10 +87,20 @@ function bindInstituvaAi() {
   const isPrivateAttendanceQuestion=(question)=>{
     const words=Array.from(question.matchAll(/[\p{L}\p{M}][\p{L}\p{M}.'-]*/gu),m=>m[0]);
     const norm=s=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    // Words describing a generic procedure are never treated as names.
+    // Only an explicit probable person ("ponche de Juan") may cause
+    // automatic routing to private attendance; the server still checks RLS.
     const stop=new Set(["ayer","hoy","dia","dias","ponche","ponches",
       "asistencia","jornada","jornadas","turno","turnos","entrada",
-      "salida","empleado","empleada","museo","la","el","los","las",
-      "un","una","que","como","cuando","de","del","para","este"]);
+      "salida","empleado","empleada","empleados","empleadas","museo",
+      "instituva","trabajo","laboral","horario","horarios","sistema",
+      "modulo","modulos","registro","registros","historial","plataforma",
+      "usuario","usuarios","personal","equipo","organizacion","empresa",
+      "informe","informes","reporte","reportes","incidencia","problema",
+      "pago","nomina","semana","mes","fecha","hora","horas","tiempo",
+      "entradas","salidas","cierre","apertura","operacion","trabajadores",
+      "mi","mis","tu","tus","su","sus","nuestro","nuestra",
+      "la","el","los","las","un","una","que","como","cuando","de","del","para","este"]);
     const attendanceWords=words.some(w=>/^(ponch[a-z]*|asistencia|jornada|marcaciones)$/.test(norm(w)));
     if(!attendanceWords)return false;
     return words.some((w,i)=>["de","del","para"].includes(norm(w)) &&
@@ -173,7 +183,12 @@ function bindInstituvaAi() {
     scrollChat();
   };
   newChat.addEventListener("click",()=>{
-    if(!busy)resetConversation();
+    if(!busy){
+      // The auto-routed private mode must not become the next chat's default.
+      mode.value="product";
+      resetConversation();
+      updateMode(true);
+    }
   });
   let busy=false;
   const canDiagnose=hasPermission("attendance.history.read") && hasPermission("finance.read");
