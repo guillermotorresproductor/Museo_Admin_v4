@@ -77,6 +77,38 @@
     body.ai-embedded-frame .ai-chat-composer textarea { min-height: 65px; }
     body.ai-embedded-frame .ai-chat-composer-actions { gap: 6px; }
     body.ai-embedded-frame .ai-chat-composer-actions .field-hint { font-size: .75rem; }
+
+    /* First-party companion window: full conversation area, no duplicate
+       museum navigation. Only activated by ?popup=1 in a top-level window. */
+    body.ai-popout-window { background: #fff; min-height: 0; }
+    body.ai-popout-window .app-shell { display: block; min-height: 0; }
+    body.ai-popout-window .sidebar,
+    body.ai-popout-window .sidebar-backdrop,
+    body.ai-popout-window .site-header,
+    body.ai-popout-window .site-footer { display: none !important; }
+    body.ai-popout-window .main-area { margin: 0 !important; min-height: 0; }
+    body.ai-popout-window .page-content { max-width: none; padding: 0 !important; }
+    body.ai-popout-window [data-instituva-ai] {
+      display: flex; flex-direction: column; gap: 10px;
+      width: 100%; max-width: none; min-height: 0; height: 100dvh;
+      margin: 0; padding: 16px; border: 0; border-radius: 0;
+      overflow: hidden; box-shadow: none;
+    }
+    body.ai-popout-window [data-instituva-ai] > p { margin: 0; font-size: .86rem; }
+    body.ai-popout-window [data-instituva-ai] [data-ai-form] {
+      display: flex; flex-direction: column; flex: 1 1 auto;
+      min-height: 0; overflow-y: auto; gap: 10px; margin-top: 4px;
+    }
+    body.ai-popout-window [data-instituva-ai] .ai-chat-thread {
+      flex: 1 1 auto; min-height: 180px; max-height: none; padding: 14px;
+    }
+    body.ai-popout-window [data-instituva-ai] .ai-chat-reply { padding: 16px; }
+    body.ai-popout-window [data-instituva-ai] .ai-chat-composer textarea { min-height: 64px; }
+    @media (max-width: 640px) {
+      body.ai-popout-window [data-instituva-ai] { padding: 10px 12px; }
+      body.ai-popout-window [data-instituva-ai] .ai-chat-heading h2 { font-size: 1.12rem; }
+      body.ai-popout-window [data-instituva-ai] .ai-chat-toolbar .field { flex-basis: 190px; }
+    }
   </style>
 </head>
 <body>
@@ -186,7 +218,7 @@
   <script src="js/config.js"></script>
   <script src="js/time-format.js?v=us-time-20261028"></script>
   <script src="js/services/supabase.js?v=external-accountant-20261123"></script>
-  <script src="js/instituva-ai.js?v=20261126-embedded-sidebar-1"></script>
+  <script src="js/instituva-ai.js?v=20261126-popout-presentation-2"></script>
   <script src="js/app.js?v=20261126-ai-ui-status"></script>
 </body>
 </html>
