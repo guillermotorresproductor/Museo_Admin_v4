@@ -1230,3 +1230,34 @@ test("Cloudflare PR previews stay on staging while production domains stay locke
  assert.match(config,/"demo.instituva.com": "staging"/);
  assert.doesNotMatch(hostGate,/\^instituva-app.*pages.*dev/);
 });
+
+test("Cloudflare preview login and assistant pages resolve the same staging backend",()=>{
+ const config=fs.readFileSync("js/config.js","utf8");
+ function resolve(hostname,pathname,search=""){
+   const values=new Map();
+   const storage={
+     getItem:key=>values.get(key)||null,
+     setItem:(key,value)=>values.set(key,String(value)),
+     removeItem:key=>values.delete(key)
+   };
+   return vm.runInNewContext(config+"\n;({environment:museoEnvironment.name,url:museoEnvironment.supabaseUrl})",{
+     window:{location:{hostname,pathname,search}},
+     sessionStorage:storage,URLSearchParams,URL
+   });
+ }
+ for(const host of ["7425bbc1.instituva-app.pages.dev",
+                    "review-125.instituva-museo-demo.pages.dev"]){
+   for(const path of ["/login","/dashboard.html","/asistente-ia.html"]){
+     const env=resolve(host,path);
+     assert.equal(env.environment,"staging",host+path);
+     assert.equal(env.url,"https://lonpdmxdvbxuagqxztig.supabase.co");
+   }
+ }
+ for(const path of ["/login","/dashboard.html","/asistente-ia.html"]){
+   const env=resolve("mmdpr.org",path,"?environment=staging");
+   assert.equal(env.environment,"production");
+   assert.equal(env.url,"https://kfokfjngozgcwjpzxcsu.supabase.co");
+ }
+ assert.equal(resolve("demo.instituva.com","/login").environment,"staging");
+ assert.equal(resolve("instituva-app.pages.dev","/login").environment,"production");
+});
