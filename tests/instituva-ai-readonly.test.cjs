@@ -446,7 +446,8 @@ test("attendance punch correction references across dates are read narrowly and 
  * They exercise the same browser form handler that previously cleared 503 errors.
  */
 function mountAiUiForTest(providerResponse,options={}) {
- const handlers={},resubmits=[];
+ const handlers={},resubmits=[],windowListeners={},redirects=[];
+ const authState={session:options.initialSession||null};
  const element=(extra={})=>({
    hidden:false,textContent:"",required:false,value:"",disabled:false,
    listeners:{},children:[],
@@ -528,8 +529,17 @@ function mountAiUiForTest(providerResponse,options={}) {
      body:{classList:{add(){}}},
      addEventListener(){}
    },
-   window:{location:{search:options.search||"",origin:"https://staging.example.invalid"}},
+   window:{
+     location:{
+       search:options.search||"",origin:"https://staging.example.invalid",
+       replace(url){redirects.push(url);}
+     },
+     addEventListener(name,cb){windowListeners[name]=cb;}
+   },
    URLSearchParams,
+   getSupabaseSession(){return authState.session;},
+   supabaseSessionKey:"staging-session-key",
+   museoEnvironment:{name:"staging"},
    hasPermission(permission){return (options.permissions||[]).includes(permission);},
    FormData:class {
      get(name){
@@ -555,7 +565,7 @@ function mountAiUiForTest(providerResponse,options={}) {
  return {handlers,status,result,answer,formattedAnswer,sources,sourceDetails,button,mode,requests,
    guide,guidePanel,guideProgress,guideStep,guideStart,guideBack,guideNext,
    choices,choicesQuestion,choicesList,employee,day,resubmits,
-   history,thread,welcome,newChat,questionInput,contextEl};
+   history,thread,welcome,newChat,questionInput,contextEl,windowListeners,authState,redirects};
 }
 
 test("AI frontend preserves rejected service message after submit and clears only on mode change",async()=>{
@@ -1042,4 +1052,39 @@ test("unrecognized dock context does not interpolate arbitrary URLs or user data
  assert.equal(mounted.contextEl.hidden,true);
  assert.equal(mounted.contextEl.textContent,"");
  assert.doesNotMatch(ui,/innerHTML|document\.write/);
+});
+
+
+test("separate assistant clears previous user messages on logout in another tab",async()=>{
+ const mounted=mountAiUiForTest({ok:true,status:200,async json(){return {
+   mode:"product",answer:"Información de prueba",
+   read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+   evidence:{},sources:[]
+ }; }},{question:"¿Qué debo revisar?",initialSession:{
+   access_token:"signed-staging-token",user:{id:"user-alpha"}
+ }});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.result.hidden,false);
+ assert.equal(typeof mounted.windowListeners.storage,"function");
+ mounted.authState.session={access_token:"different-user-token",user:{id:"user-beta"}};
+ mounted.windowListeners.storage({key:"staging-session-key"});
+ assert.equal(mounted.result.hidden,true);
+ assert.equal(mounted.history.children.length,1);
+ assert.equal(mounted.button.disabled,true);
+ assert.deepEqual(mounted.redirects,["login.html?environment=staging"]);
+});
+
+test("same user refreshing token across tabs does not erase active chat",async()=>{
+ const mounted=mountAiUiForTest({ok:true,status:200,async json(){return {
+   mode:"product",answer:"Información de prueba",
+   read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+   evidence:{},sources:[]
+ }; }},{question:"¿Cómo se registra un evento?",initialSession:{
+   access_token:"old-token",user:{id:"user-alpha"}
+ }});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ mounted.authState.session={access_token:"refreshed-token",user:{id:"user-alpha"}};
+ mounted.windowListeners.storage({key:"staging-session-key"});
+ assert.equal(mounted.result.hidden,false);
+ assert.equal(mounted.redirects.length,0);
 });
