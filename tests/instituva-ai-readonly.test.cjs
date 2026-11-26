@@ -6,6 +6,7 @@ const endpoint=fs.readFileSync("supabase/functions/instituva-ai-assistant/index.
 const ui=fs.readFileSync("js/instituva-ai.js","utf8");
 const html=fs.readFileSync("asistente-ia.html","utf8");
 const app=fs.readFileSync("js/app.js","utf8");
+const administration=fs.readFileSync("administracion.html","utf8");
 const sql=fs.readFileSync("supabase/migrations/20261125170000_ai_assistant_usage_quota.sql","utf8");
 const sqlV2=fs.readFileSync("supabase/migrations/20261125194500_ai_assistant_mode_quota.sql","utf8");
 const sqlCollections=fs.readFileSync("supabase/migrations/20261125233000_ai_collections_readonly_quota.sql","utf8");
@@ -43,6 +44,22 @@ test("sensitive employee columns are not queried or passed to model",()=>{
  assert.doesNotMatch(endpoint,/\.select\("\*"\)|\.select\(".*(?:salary|medical_condition|phone|address|email|photo_url)/);
  assert.match(endpoint,/\.is\("excluded_at",null\)\.limit\(30\)/);
 });
+test("administration AI shortcut stays hidden outside approved staging",()=>{
+ assert.match(administration,/data-instituva-ai-admin-entry hidden style="display:none"/);
+ assert.match(app,/aiAdminEntry && museoEnvironment\.name==="staging"/);
+ assert.match(app,/if \(enforceAuthenticatedPageAccess\(\)\) return;/);
+ assert.ok(app.indexOf("if (enforceAuthenticatedPageAccess()) return;")<
+   app.indexOf("aiAdminEntry.style.display"),
+   "no link reveal before page auth");
+});
+test("attendance domain requires administration module boundary before service-role reads",()=>{
+ const moduleGate=endpoint.indexOf('const rlsModule=mode==="finance" || mode==="attendance"?"administration"');
+ const attendanceRead=endpoint.indexOf('admin.from("employee_shifts")');
+ assert.ok(moduleGate>0 && attendanceRead>moduleGate);
+ assert.match(endpoint,/caller\.rpc\(\s*"module_profile_allows",\{module_code:rlsModule\}/);
+ assert.doesNotMatch(endpoint,/admin\.rpc\(\s*"module_profile_allows"/);
+});
+
 test("frontend displays AI text as literal text and contains no write actions",()=>{
  assert.match(ui,/answer\.textContent=body\.answer/);
  assert.match(ui,/result\.hidden=false/);
