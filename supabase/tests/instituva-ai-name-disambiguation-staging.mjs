@@ -213,6 +213,11 @@ try{
  // Delete audit records only for synthetic employees created by this test.
  for(const e of created.employees)await clean("/rest/v1/audit_logs?museum_id=eq."+e.museum+"&record_id=eq."+e.id+"&table_name=eq.employees");
  for(const actorId of created.users){
+   // AI provider invocation increments the synthetic user's monthly technical quota.
+   // Its FK to auth.users has no ON DELETE CASCADE; remove ONLY this test user's
+   // usage row before attempting to delete the disposable Auth identity.
+   await clean("/rest/v1/ai_assistant_usage?user_id=eq."+actorId+
+     "&museum_id=eq."+allowedMuseum);
    await clean("/rest/v1/user_permissions?user_id=eq."+actorId);
    await clean("/rest/v1/user_roles?user_id=eq."+actorId);
    try{
@@ -246,6 +251,7 @@ try{
  for(const e of created.employees)
    await verifyEmpty("audit_logs","record_id",e.id,"synthetic employee audit log");
  for(const id of created.users){
+   await verifyEmpty("ai_assistant_usage","user_id",id,"synthetic AI usage");
    await verifyEmpty("user_roles","user_id",id,"role");
    await verifyEmpty("user_permissions","user_id",id,"permission");
    try{
