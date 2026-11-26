@@ -1,0 +1,28 @@
+name: INSTITUVA AI isolated UI pre-release
+on:
+  pull_request:
+    paths:
+      - 'asistente-ia.html'
+      - 'js/app.js'
+      - 'js/config.js'
+      - 'js/instituva-ai*.js'
+      - 'css/instituva-ai-dock.css'
+      - 'tests/instituva-ai-isolated-release.test.cjs'
+      - '.github/workflows/instituva-ai-isolated-ui.yml'
+  workflow_dispatch:
+jobs:
+  security-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate application syntax
+        run: |
+          node --check js/app.js
+          node --check js/config.js
+          node --check js/instituva-ai.js
+          node --check js/instituva-ai-dock.js
+      - name: Check isolated UI release guards
+        run: node --test tests/instituva-ai-isolated-release.test.cjs
