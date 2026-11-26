@@ -8608,7 +8608,7 @@ async function initApp() {
   if (museoEnvironment.name === "staging" && getCurrentPage() !== "asistente-ia.html"
       && document.querySelector(".app-shell") && document.querySelector("[data-header]")) {
     const dockScript=document.createElement("script");
-    dockScript.src="js/instituva-ai-dock.js?v=20261126-authenticated-dock-1";
+    dockScript.src="js/instituva-ai-dock.js?v=20261126-authenticated-dock-2";
     document.head.appendChild(dockScript);
   }
   await syncEmployeeCacheFromSupabase().catch(() => null);
