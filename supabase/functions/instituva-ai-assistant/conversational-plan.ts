@@ -47,7 +47,7 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
  const candidate=question.match(/\b(?:de|del|trabajo|trabaj[oó]|lleg[oó]|ponch[oó]|marc[oó])\s+([\p{Lu}][\p{L}\p{M}.'-]{1,40})(?:\s+([\p{Lu}][\p{L}\p{M}.'-]{1,40}))?/u);
  let employeeName=candidate?(candidate[1]+(candidate[2]?" "+candidate[2]:"")):null;
  if(employeeName && employeeName.split(" ").some(x=>nameStops.has(normalized(x))))employeeName=null;
- if(!employeeName && /^[\p{L}\p{M}.\' -]{2,120}$/u.test(question.trim()) && question.trim().split(/\s+/).length<=3) employeeName=question.trim();
+ if(!employeeName && /^[\p{L}\p{M}.' -]{2,120}$/u.test(question.trim()) && question.trim().split(/\s+/).length<=3) employeeName=question.trim();
  if(typeof input.employee_name==="string"&&input.employee_name.trim())employeeName=input.employee_name.trim().slice(0,120);
  if(!employeeName && context?.mode==="attendance")employeeName=context.employee_name||null;
  let range:ConversationPlan["range"]=null;
