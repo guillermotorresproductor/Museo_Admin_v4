@@ -444,15 +444,27 @@ test("attendance punch correction references across dates are read narrowly and 
  * Small DOM-free regression harness. These tests never call Supabase or OpenAI.
  * They exercise the same browser form handler that previously cleared 503 errors.
  */
-function mountAiUiForTest(providerResponse) {
- const handlers={};
- const element=(extra={})=>({hidden:false,textContent:"",required:false,...extra});
+function mountAiUiForTest(providerResponse,options={}) {
+ const handlers={},resubmits=[];
+ const element=(extra={})=>({
+   hidden:false,textContent:"",required:false,value:"",disabled:false,
+   listeners:{},
+   addEventListener(name,cb){this.listeners[name]=cb;},
+   ...extra
+ });
  const status=element();
  const result=element({hidden:true});
  const answer=element();
  const evidence=element();
  const sourceDetails=element({hidden:true});
  const sources=element({
+   items:[],
+   replaceChildren(){this.items=[];},
+   appendChild(item){this.items.push(item);}
+ });
+ const choices=element({hidden:true});
+ const choicesQuestion=element();
+ const choicesList=element({
    items:[],
    replaceChildren(){this.items=[];},
    appendChild(item){this.items.push(item);}
@@ -465,7 +477,7 @@ function mountAiUiForTest(providerResponse) {
  const guideStart=element({addEventListener(name,cb){handlers["guide-start:"+name]=cb;}});
  const guideBack=element({addEventListener(name,cb){handlers["guide-back:"+name]=cb;}});
  const guideNext=element({addEventListener(name,cb){handlers["guide-next:"+name]=cb;}});
- const mode=element({value:"product",addEventListener(name,callback){handlers["mode:"+name]=callback;}});
+ const mode=element({value:"product",addEventListener(name,cb){handlers["mode:"+name]=cb;}});
  const start=element(),year=element(),employee=element(),day=element();
  const controls={
    '[name="mode"]':mode,'[name="start_day"]':start,'[name="year"]':year,
@@ -474,7 +486,8 @@ function mountAiUiForTest(providerResponse) {
  };
  const form={
    querySelector(selector){return controls[selector];},
-   addEventListener(name,callback){handlers["form:"+name]=callback;}
+   addEventListener(name,cb){handlers["form:"+name]=cb;},
+   requestSubmit(){resubmits.push(handlers["form:submit"]({preventDefault(){}}));}
  };
  const rootItems={
    "[data-ai-form]":form,"[data-ai-private]":element(),
@@ -482,6 +495,9 @@ function mountAiUiForTest(providerResponse) {
    "[data-ai-status]":status,"[data-ai-result]":result,
    "[data-ai-answer]":answer,"[data-ai-evidence]":evidence,
    "[data-ai-sources]":sources,"[data-ai-sources-details]":sourceDetails,
+   "[data-ai-employee-choices]":choices,
+   "[data-ai-choices-question]":choicesQuestion,
+   "[data-ai-choices-list]":choicesList,
    "[data-ai-guide]":guide,"[data-ai-guide-panel]":guidePanel,
    "[data-ai-guide-progress]":guideProgress,"[data-ai-guide-step]":guideStep,
    "[data-ai-guide-start]":guideStart,"[data-ai-guide-back]":guideBack,
@@ -494,20 +510,31 @@ function mountAiUiForTest(providerResponse) {
      querySelector(selector){return selector==="[data-instituva-ai]"?root:null;},
      createElement(tag){return element({tagName:tag});}
    },
-   hasPermission(){return false;},
+   hasPermission(permission){return (options.permissions||[]).includes(permission);},
    FormData:class {
-     get(name){return name==="mode"?mode.value:name==="question"?
-       "Una jornada abierta impide registrar ponches":"";}
+     get(name){
+       if(name==="mode")return mode.value;
+       if(name==="question")return options.question||"Una jornada abierta impide registrar ponches";
+       if(name==="employee_name")return employee.value;
+       if(name==="day")return day.value;
+       if(name==="start_day")return start.value;
+       if(name==="year")return year.value;
+       return "";
+     }
    },
    async supabaseAuthHeaders(){return {Authorization:"Bearer signed-test-jwt"};},
    supabaseUrl:"https://staging.example.invalid",
-   fetch:async (url,options)=>{
-     requests.push({url,options});
-     return providerResponse;
+   fetch:async (url,body)=>{
+     requests.push({url,options:body});
+     return Array.isArray(providerResponse)
+       ? providerResponse[requests.length-1]
+       : providerResponse;
    }
  };
  vm.runInNewContext(ui+"\nbindInstituvaAi();",sandbox,{filename:"js/instituva-ai.js"});
- return {handlers,status,result,answer,sources,sourceDetails,button,mode,requests,guide,guidePanel,guideProgress,guideStep,guideStart,guideBack,guideNext};
+ return {handlers,status,result,answer,sources,sourceDetails,button,mode,requests,
+   guide,guidePanel,guideProgress,guideStep,guideStart,guideBack,guideNext,
+   choices,choicesQuestion,choicesList,employee,day,resubmits};
 }
 
 test("AI frontend preserves rejected service message after submit and clears only on mode change",async()=>{
