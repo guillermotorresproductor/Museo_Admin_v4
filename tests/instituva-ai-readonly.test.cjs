@@ -729,6 +729,47 @@ test("rejected punch attempts are strictly employee/tenant scoped and reduced to
  assert.doesNotMatch(source,/fetch\(|createClient|\.insert\(|\.update\(|\.delete\(/);
 });
 
+test("generic questions about open workdays remain public product guidance",async()=>{
+ const genericQuestions=[
+   "¿Cómo puedo investigar una jornada de trabajo que quedó abierta en INSTITUVA?",
+   "¿Cómo funcionan los ponches de entrada en el sistema?",
+   "¿Por qué la asistencia de los empleados muestra una jornada abierta?",
+   "¿Dónde veo el historial de registros de asistencia?"
+ ];
+ for(const question of genericQuestions){
+   const mounted=mountAiUiForTest({
+     ok:true,status:200,async json(){return {
+       mode:"product",answer:"Procedimiento general de diagnóstico.",
+       read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+       evidence:{},sources:[]
+     };}
+   },{question});
+   await mounted.handlers["form:submit"]({preventDefault(){}});
+   assert.equal(mounted.mode.value,"product","must not auto-route: "+question);
+   assert.equal(mounted.requests.length,1,"product help must remain available");
+   assert.deepEqual(Object.keys(JSON.parse(mounted.requests[0].options.body)).sort(),
+     ["mode","question"]);
+   assert.equal(JSON.parse(mounted.requests[0].options.body).mode,"product");
+   assert.equal(mounted.result.hidden,false);
+   assert.equal(mounted.answer.textContent,"Procedimiento general de diagnóstico.");
+ }
+});
+
+test("new chat reverts automatically selected private mode to general help",async()=>{
+ const mounted=mountAiUiForTest({
+   ok:true,async json(){throw Error("unauthorized roster request must not happen");}
+ },{question:"¿Qué pasó con el ponche de ayer de Juan?"});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.mode.value,"attendance");
+ assert.equal(mounted.requests.length,0);
+ mounted.handlers["new-chat:click"]();
+ assert.equal(mounted.mode.value,"product");
+ assert.equal(mounted.status.textContent,"");
+ assert.equal(mounted.questionInput.value,"");
+ assert.equal(mounted.button.disabled,false);
+ assert.equal(mounted.history.children.length,1);
+});
+
 test("personal question from general help requires permissions before any employee lookup",async()=>{
  const mounted=mountAiUiForTest({
    ok:true,async json(){throw Error("must not fetch unauthorized roster");}
