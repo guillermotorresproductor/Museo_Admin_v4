@@ -25,6 +25,7 @@
   // Only a public page category is passed, never record IDs, employee names,
   // messages, access tokens, or authorization information.
   const context=moduleContexts[page]||"general";
+  const dockStateKey="instituva-ai-dock-open-v1";
   const destination=(popup=false)=>{
     const url=new URL("asistente-ia.html",window.location.href);
     url.search="";
@@ -83,7 +84,7 @@
   // Iframe remains mounted when minimized, preserving in-page conversation.
   const footer=document.createElement("p");
   footer.className="ai-dock-disclaimer";
-  footer.textContent="Al cambiar de página, este panel reinicia. «Ventana aparte» conserva la conversación mientras la mantengas abierta. No se almacenan mensajes.";
+  footer.textContent="«Ventana aparte» conserva la conversación mientras la mantengas abierta. No se guardan mensajes en el servidor.";
   panel.append(header,iframe,footer);
   document.body.append(launch,panel);
 
@@ -96,11 +97,15 @@
     }
     panel.hidden=!open;
     launch.hidden=open;
+    try {sessionStorage.setItem(dockStateKey,open?"1":"0");}catch{}
     document.body.classList.toggle("ai-dock-open",open);
     launch.setAttribute("aria-expanded",String(open));
     if(open)close.focus();
     else launch.focus();
   };
+  // Same-tab navigation remounts the dock in its previous open/closed state.
+  // The conversation itself is restored only after rechecking live grants.
+  try {if(sessionStorage.getItem(dockStateKey)==="1")setOpen(true);}catch{}
   launch.addEventListener("click",()=>setOpen(true));
   close.addEventListener("click",()=>setOpen(false));
   expand.addEventListener("click",()=>{
