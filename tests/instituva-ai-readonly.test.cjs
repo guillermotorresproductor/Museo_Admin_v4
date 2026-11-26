@@ -648,7 +648,7 @@ test("AI frontend rejects a response whose mode does not match the requested evi
 test("cross-domain assets mode fails closed before private reads and never exposes individual records",()=>{
  const combinedGate=endpoint.indexOf('if(mode==="assets"){');
  const sources=endpoint.indexOf('} else if (mode==="assets")');
- const quota=endpoint.indexOf('const { data: slot, error: quotaError }');
+ const quota=endpoint.indexOf('const {data:slot,error:quotaError}=await admin.rpc(');
  assert.ok(combinedGate>0 && sources>combinedGate && quota>sources);
  const gate=endpoint.slice(combinedGate,sources);
  assert.match(endpoint,/for\(const permission of requiredPermissionsForMode\(mode\)\)/);
@@ -663,7 +663,8 @@ test("cross-domain assets mode fails closed before private reads and never expos
  assert.match(branch,/Number\.isSafeInteger\(collectionCount\.count\)/);
  assert.match(branch,/Number\.isSafeInteger\(inventoryCount\.count\)/);
  assert.doesNotMatch(branch,/admin\.from\(|\.insert\(|\.update\(|\.delete\(|\.select\("\*"/);
- assert.match(endpoint,/\(mode==="collections" \|\| mode==="assets"\)/);
+ assert.match(endpoint,/mode==="assets"/);
+ assert.match(endpoint,/admin\.rpc\(\s*"ai_assistant_claim_internal_v1"/);
  assert.match(ui,/canReadAssets=canReadCollections && canReadInventory/);
  assert.match(ui,/queryMode==="assets" && !canReadAssets/);
  assert.match(html,/value="assets"/);
