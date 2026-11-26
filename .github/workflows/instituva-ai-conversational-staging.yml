@@ -4,6 +4,9 @@ on:
     paths:
       - 'supabase/functions/instituva-ai-assistant/**'
       - 'tests/instituva-ai-conversational-staging.test.mjs'
+      - 'tests/instituva-ai-conversational-ui.test.cjs'
+      - 'js/instituva-ai.js'
+      - 'asistente-ia.html'
       - '.github/workflows/instituva-ai-conversational-staging.yml'
   workflow_dispatch:
 jobs:
@@ -15,7 +18,7 @@ jobs:
         with:
           node-version: '22'
       - name: Test conversational planner and bounded period calculations
-        run: node --experimental-strip-types --test tests/instituva-ai-conversational-staging.test.mjs
+        run: node --experimental-strip-types --test tests/instituva-ai-conversational-staging.test.mjs tests/instituva-ai-conversational-ui.test.cjs
       - name: Preserve production read-only isolation
         shell: bash
         run: |
