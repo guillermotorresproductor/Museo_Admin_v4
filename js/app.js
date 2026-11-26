@@ -535,6 +535,11 @@ function clearLoginState(redirect = true, reason = "") {
   clearAllSensitiveModuleUnlocks();
   clearPasswordSetupPending();
   clearSupabaseSession();
+  // Only same-tab temporary AI presentation data, never operational records.
+  try {
+    sessionStorage.removeItem("instituva-ai-conversation-v1");
+    sessionStorage.removeItem("instituva-ai-dock-open-v1");
+  } catch {}
   currentPermissions.clear();
   currentPermissionsLoaded = false;
   localStorage.removeItem(currentUserKey);
@@ -8638,7 +8643,7 @@ async function initApp() {
   if (getCurrentPage() === "asistente-ia.html" && canUseAi && typeof bindInstituvaAi === "function") bindInstituvaAi();
   if (canUseAi && getCurrentPage() !== "asistente-ia.html" && document.querySelector(".app-shell") && document.querySelector("[data-header]")) {
     const aiDockScript = document.createElement("script");
-    aiDockScript.src = "js/instituva-ai-dock.js?v=20261126-isolated-gate-1";
+    aiDockScript.src = "js/instituva-ai-dock.js?v=20261126-continuity-1";
     document.head.appendChild(aiDockScript);
   }
   renderHeader();
