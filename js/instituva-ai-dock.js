@@ -30,7 +30,7 @@
     url.search="";
     url.searchParams.set("environment",museoEnvironment.name);
     url.searchParams.set("context",context);
-    if(!popup)url.searchParams.set("dock","1");
+    url.searchParams.set(popup ? "popup" : "dock","1");
     return url.href;
   };
 
