@@ -53,9 +53,16 @@ function bindInstituvaAi() {
     return true;
   };
   const isPrivateAttendanceQuestion=(question)=>{
-    const q=question.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
-    return /\b(ponch[a-z]*|asistencia|jornada|marcaciones)\b/.test(q) &&
-      /\b(de|del|para)\s+([a-z]{2,}\s+){0,3}[a-z]{2,}/.test(q);
+    const words=Array.from(question.matchAll(/[\p{L}\p{M}][\p{L}\p{M}.'-]*/gu),m=>m[0]);
+    const norm=s=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    const stop=new Set(["ayer","hoy","dia","dias","ponche","ponches",
+      "asistencia","jornada","jornadas","turno","turnos","entrada",
+      "salida","empleado","empleada","museo","la","el","los","las",
+      "un","una","que","como","cuando","de","del","para","este"]);
+    const attendanceWords=words.some(w=>/^(ponch[a-z]*|asistencia|jornada|marcaciones)$/.test(norm(w)));
+    if(!attendanceWords)return false;
+    return words.some((w,i)=>["de","del","para"].includes(norm(w)) &&
+      words[i+1] && words[i+1].length>=2 && !stop.has(norm(words[i+1])));
   };
   employee.addEventListener("input",()=>{selectedEmployeeId=null;clearChoices();});
   clearChoices();
