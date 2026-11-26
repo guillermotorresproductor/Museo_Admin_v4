@@ -190,7 +190,7 @@ function bindInstituvaAi() {
         body.guide_steps.every(step=>step && typeof step==="object" &&
           (step.phase==="verificar"||step.phase==="accion_manual") &&
           typeof step.text==="string" && step.text.trim().length>0 &&
-          step.text.length<=440 && !/[\\u0000-\\u001f\\u007f]/.test(step.text))
+          step.text.length<=440 && !/[\u0000-\u001f\u007f]/.test(step.text))
         ? body.guide_steps.map(step=>({phase:step.phase,text:step.text.trim()}))
         : [];
       guide.hidden=guideSteps.length===0;
