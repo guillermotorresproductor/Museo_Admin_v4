@@ -17,6 +17,59 @@ function bindInstituvaAi() {
   const evidence=root.querySelector("[data-ai-evidence]");
   const sources=root.querySelector("[data-ai-sources]");
   const sourceDetails=root.querySelector("[data-ai-sources-details]");
+  const guide=root.querySelector("[data-ai-guide]");
+  const guidePanel=root.querySelector("[data-ai-guide-panel]");
+  const guideStart=root.querySelector("[data-ai-guide-start]");
+  const guideBack=root.querySelector("[data-ai-guide-back]");
+  const guideNext=root.querySelector("[data-ai-guide-next]");
+  const guideProgress=root.querySelector("[data-ai-guide-progress]");
+  const guideStep=root.querySelector("[data-ai-guide-step]");
+  let guideSteps=[];
+  let guideIndex=-1;
+
+  const resetGuide=()=>{
+    guideSteps=[];
+    guideIndex=-1;
+    guide.hidden=true;
+    guidePanel.hidden=true;
+    guideStart.hidden=false;
+    guideStart.textContent="Comenzar guía";
+    guideStep.textContent="";
+    guideProgress.textContent="";
+  };
+  const showGuideStep=()=>{
+    const current=guideSteps[guideIndex];
+    if (!current) return;
+    guidePanel.hidden=false;
+    guideStart.hidden=true;
+    guideProgress.textContent=`Paso ${guideIndex+1} de ${guideSteps.length} — ${current.phase==="verificar"?"Comprobación":"Acción manual propuesta"}`;
+    guideStep.textContent=current.text;
+    guideBack.disabled=guideIndex===0;
+    guideNext.textContent=guideIndex===guideSteps.length-1?"Finalizar recorrido":"Siguiente paso";
+  };
+  guideStart.addEventListener("click",()=>{
+    if (!guideSteps.length) return;
+    guideIndex=0;
+    showGuideStep();
+  });
+  guideBack.addEventListener("click",()=>{
+    if (guideIndex<=0) return;
+    guideIndex--;
+    showGuideStep();
+  });
+  guideNext.addEventListener("click",()=>{
+    if(guideIndex<0 || !guideSteps.length) return;
+    if(guideIndex===guideSteps.length-1){
+      guidePanel.hidden=true;
+      guideStart.hidden=false;
+      guideStart.textContent="Revisar los pasos otra vez";
+      guideIndex=-1;
+      return;
+    }
+    guideIndex++;
+    showGuideStep();
+  });
+  resetGuide();
   let busy=false;
   const canDiagnose=hasPermission("attendance.history.read") && hasPermission("finance.read");
   const canReadFinance=hasPermission("finance.read");
@@ -49,7 +102,11 @@ function bindInstituvaAi() {
       form.querySelector('button[type="submit"]').disabled=busy;
     }
   };
-  mode.addEventListener("change",()=>updateMode(true));
+  mode.addEventListener("change",()=>{
+    result.hidden=true;
+    resetGuide();
+    updateMode(true);
+  });
   updateMode();
 
   form.addEventListener("submit",async(event)=>{
@@ -73,6 +130,11 @@ function bindInstituvaAi() {
     const button=form.querySelector('button[type="submit"]');
     button.disabled=true;
     result.hidden=true;
+    resetGuide();
+    answer.textContent="";
+    evidence.textContent="";
+    sources.replaceChildren();
+    sourceDetails.hidden=true;
     status.textContent="Consultando las fuentes autorizadas...";
     try {
       const headers=await supabaseAuthHeaders();
@@ -122,6 +184,16 @@ function bindInstituvaAi() {
         sources.appendChild(item);
       }
       sourceDetails.hidden=refs.length===0;
+      // Only present a local guided walkthrough if the server supplied
+      // explicitly typed, bounded advice. Never turn these strings into HTML.
+      guideSteps=Array.isArray(body.guide_steps) && body.guide_steps.length<=10 &&
+        body.guide_steps.every(step=>step && typeof step==="object" &&
+          (step.phase==="verificar"||step.phase==="accion_manual") &&
+          typeof step.text==="string" && step.text.trim().length>0 &&
+          step.text.length<=440 && !/[\\u0000-\\u001f\\u007f]/.test(step.text))
+        ? body.guide_steps.map(step=>({phase:step.phase,text:step.text.trim()}))
+        : [];
+      guide.hidden=guideSteps.length===0;
       result.hidden=false;
       status.textContent="Consulta completada. Ningún registro operacional ha sido modificado.";
     } catch(error){
