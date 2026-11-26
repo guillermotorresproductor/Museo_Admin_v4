@@ -33,11 +33,11 @@
             </div>
             <div data-ai-private hidden>
             <div class="field">
-              <label for="ai-employee">Nombre y apellido del empleado</label>
-              <input id="ai-employee" name="employee_name" type="text" minlength="3" maxlength="120" autocomplete="off" placeholder="Ejemplo: Edgardo Medina">
+              <label for="ai-employee">Nombre del empleado (opcional si lo indicas en la pregunta)</label>
+              <input id="ai-employee" name="employee_name" type="text" minlength="3" maxlength="120" autocomplete="off" placeholder="Ejemplo: Juan o Juan Vélez">
             </div>
             <div class="field">
-              <label for="ai-date">Fecha de la incidencia</label>
+              <label for="ai-date">Fecha de la incidencia (puedes escribir «ayer» en la pregunta)</label>
               <input id="ai-date" name="day" type="date">
             </div>
             </div>
@@ -51,11 +51,17 @@
             </div>
             <div class="field">
               <label for="ai-question">¿Qué necesitas saber?</label>
-              <textarea id="ai-question" name="question" rows="3" minlength="8" maxlength="1000" required placeholder="Ejemplo: ¿Por qué aparece una jornada abierta y qué debemos revisar sin modificar ponches?"></textarea>
+              <textarea id="ai-question" name="question" rows="3" minlength="8" maxlength="1000" required placeholder="Ejemplo: ¿Qué pasó con el ponche de ayer de Juan?"></textarea>
             </div>
             <button type="submit" class="button submit-button">Consultar sin modificar datos</button>
           </form>
           <p class="form-message" role="status" data-ai-status></p>
+          <section class="card section-stack" data-ai-employee-choices hidden>
+            <h3>Confirmar empleado</h3>
+            <p data-ai-choices-question></p>
+            <div class="row" data-ai-choices-list></div>
+            <p class="field-hint">Solo se muestran empleados autorizados del museo actual. Seleccionar un nombre no modifica registros.</p>
+          </section>
           <section class="card" data-ai-result hidden>
             <h3>Diagnóstico</h3>
             <div data-ai-answer style="white-space:pre-wrap"></div>
@@ -88,7 +94,7 @@
   <script src="js/config.js"></script>
   <script src="js/time-format.js?v=us-time-20261028"></script>
   <script src="js/services/supabase.js?v=external-accountant-20261123"></script>
-  <script src="js/instituva-ai.js?v=20261126-punch-attempts"></script>
+  <script src="js/instituva-ai.js?v=20261126-same-museum-employee-name"></script>
   <script src="js/app.js?v=20261126-ai-ui-status"></script>
 </body>
 </html>
