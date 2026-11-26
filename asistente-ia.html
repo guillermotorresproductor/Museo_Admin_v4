@@ -6,7 +6,7 @@
   <title>INSTITUVA | Asistente IA</title>
   <link rel="stylesheet" href="css/main.css?v=20261125-ai">
   <style>
-    [data-instituva-ai] { max-width: 980px; margin: 0 auto; }
+    [data-instituva-ai] { width: 100%; max-width: 1120px; min-width: 0; margin: 0 auto; font-size: 1rem; line-height: 1.55; }
     [data-instituva-ai] button:disabled { opacity: .48; cursor: not-allowed; }
     [data-instituva-ai] .ai-chat-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
     [data-instituva-ai] .ai-chat-heading h2 { margin: 0; }
@@ -14,16 +14,26 @@
     [data-instituva-ai] .ai-chat-toolbar { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
     [data-instituva-ai] .ai-chat-toolbar .field { flex: 1 1 290px; margin: 0; }
     [data-instituva-ai] .ai-chat-toolbar .button { flex: 0 0 auto; }
-    [data-instituva-ai] .ai-chat-thread { display: flex; flex-direction: column; gap: 12px; min-height: 280px; max-height: min(64vh, 720px); overflow-y: auto; overscroll-behavior: contain; padding: 18px; border: 1px solid #dde5e9; border-radius: 14px; background: #f7f9fb; }
-    [data-instituva-ai] [data-ai-history] { display: flex; flex-direction: column; gap: 12px; }
-    [data-instituva-ai] .ai-chat-message { max-width: 86%; width: fit-content; overflow-wrap: anywhere; padding: 12px 15px; border-radius: 16px; border: 1px solid #e0e6eb; background: white; box-shadow: 0 1px 3px rgba(17,24,39,.04); }
+    [data-instituva-ai] .ai-chat-thread { display: flex; flex-direction: column; gap: 18px; min-height: 340px; max-height: min(68vh, 800px); overflow-y: auto; overscroll-behavior: contain; padding: 22px; border: 1px solid #dde5e9; border-radius: 14px; background: #f7f9fb; }
+    [data-instituva-ai] [data-ai-history] { display: flex; flex-direction: column; gap: 16px; }
+    [data-instituva-ai] .ai-chat-message { max-width: 88%; width: fit-content; overflow-wrap: anywhere; padding: 15px 18px; border-radius: 16px; border: 1px solid #e0e6eb; background: white; font-size: 1rem; box-shadow: 0 1px 3px rgba(17,24,39,.04); }
     [data-instituva-ai] .ai-chat-message--user { align-self: flex-end; border-radius: 16px 16px 4px 16px; background: #e8f3ee; border-color: #c7decf; }
     [data-instituva-ai] .ai-chat-message--assistant { align-self: flex-start; border-radius: 16px 16px 16px 4px; }
     [data-instituva-ai] .ai-chat-speaker { font-weight: 700; color: #344456; font-size: .79rem; margin: 0 0 5px; }
-    [data-instituva-ai] .ai-chat-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
-    [data-instituva-ai] .ai-chat-reply { align-self: flex-start; width: min(100%, 780px); max-width: 100%; border: 1px solid #dce6eb; border-radius: 16px 16px 16px 4px; padding: 16px; background: white; }
+    [data-instituva-ai] .ai-chat-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
+    [data-instituva-ai] .ai-chat-reply { align-self: flex-start; width: min(100%, 940px); max-width: 100%; border: 1px solid #dce6eb; border-radius: 16px 16px 16px 4px; padding: 22px; background: white; font-size: 1.02rem; }
     [data-instituva-ai] .ai-chat-reply h3 { margin-top: 0; }
-    [data-instituva-ai] [data-ai-answer] { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+    [data-instituva-ai] [data-ai-answer] { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.75; font-size: 1.02rem; }
+    [data-instituva-ai] .ai-diagnostic-section { padding: 14px 0 4px; border-top: 1px solid #e8eef1; }
+    [data-instituva-ai] .ai-diagnostic-section:first-of-type { border-top: 0; }
+    [data-instituva-ai] .ai-diagnostic-section h4 { margin: 0 0 9px; font-size: 1.06rem; font-weight: 800; color: #182b3d; }
+    [data-instituva-ai] .ai-diagnostic-section p { margin: 0 0 10px; line-height: 1.75; }
+    [data-instituva-ai] .ai-diagnostic-section ol { margin: 0 0 11px; padding-left: 1.6rem; }
+    [data-instituva-ai] .ai-diagnostic-section li { margin-bottom: 8px; line-height: 1.65; }
+    [data-instituva-ai] .ai-diagnostic-intro { margin: 0 0 12px; color: #455568; font-size: .95rem; line-height: 1.6; }
+    [data-instituva-ai] .ai-chat-composer label { font-weight: 800; }
+    [data-instituva-ai] .ai-chat-composer textarea { font: inherit; font-size: 1rem; line-height: 1.5; }
+    [data-instituva-ai] [data-ai-status] { font-size: .92rem; }
     [data-instituva-ai] [data-ai-choices-list] { display: flex; flex-wrap: wrap; gap: 10px; }
     [data-instituva-ai] .ai-chat-composer { display: flex; flex-direction: column; gap: 8px; }
     [data-instituva-ai] .ai-chat-composer textarea { width: 100%; resize: vertical; min-height: 76px; }
@@ -32,7 +42,8 @@
     [data-instituva-ai] [data-ai-status] { min-height: 1.3em; }
     [data-instituva-ai] [hidden] { display: none !important; }
     @media (max-width: 640px) {
-      [data-instituva-ai] .ai-chat-thread { max-height: 58vh; padding: 12px; }
+      [data-instituva-ai] .ai-chat-thread { max-height: 62vh; min-height: 280px; padding: 14px; }
+      [data-instituva-ai] .ai-chat-reply { padding: 14px; }
       [data-instituva-ai] .ai-chat-message { max-width: 94%; }
       [data-instituva-ai] .ai-chat-composer-actions .button { width: 100%; }
     }
@@ -103,6 +114,7 @@
               <section class="ai-chat-reply section-stack" data-ai-result hidden>
                 <h3>INSTITUVA AI · Diagnóstico</h3>
                 <div data-ai-answer></div>
+                <div data-ai-answer-formatted hidden></div>
                 <p class="field-hint" data-ai-evidence></p>
                 <section class="card section-stack" data-ai-guide hidden>
                   <h4>¿Quieres que te guíe paso a paso?</h4>
@@ -143,7 +155,7 @@
   <script src="js/config.js"></script>
   <script src="js/time-format.js?v=us-time-20261028"></script>
   <script src="js/services/supabase.js?v=external-accountant-20261123"></script>
-  <script src="js/instituva-ai.js?v=20261126-conversational-chat-routing-2"></script>
+  <script src="js/instituva-ai.js?v=20261126-conversational-chat-readable-3"></script>
   <script src="js/app.js?v=20261126-ai-ui-status"></script>
 </body>
 </html>
