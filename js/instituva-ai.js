@@ -2,6 +2,31 @@
 function bindInstituvaAi() {
   const root=document.querySelector("[data-instituva-ai]");
   if (!root) return;
+  const params=new URLSearchParams(window.location.search);
+  const embedded=params.get("dock")==="1" && window.parent!==window;
+  if(embedded){
+    document.body.classList.add("ai-embedded-frame");
+    const notifyActivity=()=>{
+      // Parent validates same-origin sender and frame identity before resetting
+      // its normal inactivity timer; no text, token or record data crosses.
+      window.parent.postMessage({type:"instituva-ai-dock-interaction"},window.location.origin);
+    };
+    document.addEventListener("pointerdown",notifyActivity,{passive:true});
+    document.addEventListener("keydown",notifyActivity,{passive:true});
+  }
+  const moduleNames=Object.freeze({
+    general:"Panel principal",administracion:"Administración",
+    "recursos-humanos":"Recursos Humanos",asistencia:"Asistencia",
+    finanzas:"Finanzas",inventario:"Inventario",colecciones:"Colecciones",
+    horarios:"Horarios",notificaciones:"Notificaciones",direccion:"Dirección Ejecutiva"
+  });
+  const context=params.get("context");
+  const contextElement=root.querySelector("[data-ai-context]");
+  if(contextElement && Object.prototype.hasOwnProperty.call(moduleNames,context)){
+    contextElement.textContent="Módulo abierto: "+moduleNames[context]+
+      ". El contexto indica solo la sección actual; no consulta registros automáticamente.";
+    contextElement.hidden=false;
+  }
   const form=root.querySelector("[data-ai-form]");
   const mode=form.querySelector('[name="mode"]');
   const privateFields=root.querySelector("[data-ai-private]");
