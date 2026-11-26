@@ -1,0 +1,27 @@
+name: INSTITUVA AI conversational staging guards
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/instituva-ai-assistant/**'
+      - 'tests/instituva-ai-conversational-staging.test.mjs'
+      - '.github/workflows/instituva-ai-conversational-staging.yml'
+  workflow_dispatch:
+jobs:
+  read-only-conversational:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test conversational planner and bounded period calculations
+        run: node --experimental-strip-types --test tests/instituva-ai-conversational-staging.test.mjs
+      - name: Preserve production read-only isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f supabase/functions/instituva-ai-assistant/index.ts
+          grep -q 'authorizedStaffProfiles' supabase/functions/instituva-ai-assistant/index.ts
+          grep -q 'assertEmployeeTenantRows' supabase/functions/instituva-ai-assistant/index.ts
+          grep -q 'requiredPermissionsForMode' supabase/functions/instituva-ai-assistant/index.ts
+          grep -q 'diagnostic_contract:"read_only_v1"' supabase/functions/instituva-ai-assistant/index.ts
