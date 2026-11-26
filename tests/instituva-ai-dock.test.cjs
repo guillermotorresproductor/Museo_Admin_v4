@@ -50,7 +50,13 @@ function runDock(page="horarios.html",environment="staging"){
   const window={
     location,
     open(url,name,opts){
+      const previous=popups.find(item=>item.name===name&&!item.closed);
+      if(previous)return previous;
       const popup={url,name,opts,focused:false,focus(){this.focused=true;}};
+      popup.location={
+        href:"about:blank",
+        replace(target){this.href=target;popup.url=target;popup.navigations=(popup.navigations||0)+1;}
+      };
       popups.push(popup);return popup;
     }
   };
@@ -117,8 +123,22 @@ test("separate assistant window is first party and survives parent page navigati
  assert.equal(d.popups[0].url,
    "https://demo.instituva.com/asistente-ia.html?environment=staging&context=finanzas&popup=1");
  assert.equal(d.popups[0].focused,true);
+ assert.equal(d.popups[0].navigations,1);
  assert.doesNotMatch(d.popups[0].url,/token|password|employee_id|history/i);
  assert.match(d.popups[0].url,/[?&]popup=1$/);
+});
+
+test("reopening a named assistant window preserves conversation rather than reloading",()=>{
+ const d=runDock("dashboard.html");
+ d.launcher.listeners.click();
+ d.controls[1].listeners.click();
+ const first=d.popups[0];
+ assert.equal(first.navigations,1);
+ first.privateChat="mensaje privado efímero";
+ d.controls[1].listeners.click();
+ assert.equal(d.popups.length,1);
+ assert.equal(first.navigations,1,"same window must not reload");
+ assert.equal(first.privateChat,"mensaje privado efímero");
 });
 
 test("dock transports only public page category, not records or auth, and has no data mutations",()=>{
