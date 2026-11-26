@@ -46,7 +46,7 @@ test("sensitive employee columns are not queried or passed to model",()=>{
 });
 test("administration AI shortcut stays hidden outside approved staging",()=>{
  assert.match(administration,/data-instituva-ai-admin-entry hidden style="display:none"/);
- assert.match(app,/aiAdminEntry && museoEnvironment\.name==="staging"/);
+ assert.match(app,/aiAdminEntry && instituvaAiUiEnabled/);
  assert.match(app,/if \(enforceAuthenticatedPageAccess\(\)\) return;/);
  assert.ok(app.indexOf("if (enforceAuthenticatedPageAccess()) return;")<
    app.indexOf("aiAdminEntry.style.display"),
