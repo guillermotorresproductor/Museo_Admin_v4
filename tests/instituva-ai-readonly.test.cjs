@@ -341,12 +341,13 @@ test("real-JWT staging harness preflights and confirms all disposable fixture cl
 });
 
 test("finance and collections verify restrictive RLS module-profile visibility before reading",()=>{
- const gate=endpoint.indexOf('const rlsModule=mode==="finance"?"administration"');
+ const gate=endpoint.indexOf('const rlsModule=mode==="finance" || mode==="attendance"?"administration"');
  const finance=endpoint.indexOf('} else if (mode==="finance")');
  const collection=endpoint.indexOf('} else if (mode==="collections")');
  const inventory=endpoint.indexOf('} else if (mode==="inventory")');
  assert.ok(gate>0 && finance>gate && collection>gate && inventory>gate,
    "module-boundary permission must be checked before private queries");
+ assert.match(endpoint,/mode==="attendance"\?"administration"/);
  assert.match(endpoint,/mode==="collections"\?"collections"/);
  assert.match(endpoint,/mode==="inventory"\?"inventory"/);
  assert.match(endpoint,/caller\.rpc\(\s*"module_profile_allows",\{module_code:rlsModule\}/);
