@@ -368,11 +368,11 @@ function bindInstituvaAi() {
     // A matching token refresh must not erase the conversation. A different
     // user/museum/grant set or failed verification always clears it.
     window.addEventListener("storage",event=>{
-      if(event.key===supabaseSessionKey)void verifyAiContext();
+      if(event.key===supabaseSessionKey)return verifyAiContext();
     });
-    window.addEventListener("focus",()=>{void verifyAiContext();});
+    window.addEventListener("focus",()=>verifyAiContext());
     document.addEventListener("visibilitychange",()=>{
-      if(!document.hidden)void verifyAiContext();
+      if(!document.hidden)return verifyAiContext();
     });
     window.setInterval(()=>{
       if(!document.hidden)void verifyAiContext();
