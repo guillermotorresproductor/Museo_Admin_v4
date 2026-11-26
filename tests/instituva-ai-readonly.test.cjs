@@ -448,6 +448,7 @@ test("attendance punch correction references across dates are read narrowly and 
 function mountAiUiForTest(providerResponse,options={}) {
  const handlers={},resubmits=[],windowListeners={},redirects=[];
  const authState={session:options.initialSession||null};
+ const bodyClasses=new Set();
  const element=(extra={})=>({
    hidden:false,textContent:"",required:false,value:"",disabled:false,
    listeners:{},children:[],
@@ -526,7 +527,7 @@ function mountAiUiForTest(providerResponse,options={}) {
    document:{
      querySelector(selector){return selector==="[data-instituva-ai]"?root:null;},
      createElement(tag){return element({tagName:tag});},
-     body:{classList:{add(){}}},
+     body:{classList:{add(name){bodyClasses.add(name);}}},
      addEventListener(){}
    },
    window:{
@@ -561,11 +562,12 @@ function mountAiUiForTest(providerResponse,options={}) {
        : providerResponse;
    }
  };
+ sandbox.window.parent=sandbox.window; // top-level page unless explicitly mocked
  vm.runInNewContext(ui+"\nbindInstituvaAi();",sandbox,{filename:"js/instituva-ai.js"});
  return {handlers,status,result,answer,formattedAnswer,sources,sourceDetails,button,mode,requests,
    guide,guidePanel,guideProgress,guideStep,guideStart,guideBack,guideNext,
    choices,choicesQuestion,choicesList,employee,day,resubmits,
-   history,thread,welcome,newChat,questionInput,contextEl,windowListeners,authState,redirects};
+   history,thread,welcome,newChat,questionInput,contextEl,windowListeners,authState,redirects,bodyClasses};
 }
 
 test("AI frontend preserves rejected service message after submit and clears only on mode change",async()=>{
@@ -1087,4 +1089,26 @@ test("same user refreshing token across tabs does not erase active chat",async()
  mounted.windowListeners.storage({key:"staging-session-key"});
  assert.equal(mounted.result.hidden,false);
  assert.equal(mounted.redirects.length,0);
+});
+
+
+test("standalone popup uses compact chat-only layout without changing data access",async()=>{
+ const mounted=mountAiUiForTest({ok:true,status:200,async json(){return {
+   mode:"product",answer:"Asistencia en general",
+   read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+   sources:[],evidence:{}
+ }; }},{question:"¿Cómo funcionan los permisos?",search:"?popup=1&environment=staging&context=horarios"});
+ assert.equal(mounted.bodyClasses.has("ai-popout-window"),true);
+ assert.equal(mounted.bodyClasses.has("ai-embedded-frame"),false);
+ assert.match(html,/body\.ai-popout-window \.sidebar,/);
+ assert.match(html,/body\.ai-popout-window \[data-instituva-ai\] \.ai-chat-thread/);
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(JSON.parse(mounted.requests[0].options.body).mode,"product");
+ assert.deepEqual(Object.keys(JSON.parse(mounted.requests[0].options.body)).sort(),["mode","question"]);
+ assert.equal(mounted.result.hidden,false);
+});
+
+test("ordinary AI tab has normal navigation, no popup-only class",()=>{
+ const mounted=mountAiUiForTest({ok:true,status:200,async json(){return {}}},{search:"?context=general"});
+ assert.equal(mounted.bodyClasses.has("ai-popout-window"),false);
 });
