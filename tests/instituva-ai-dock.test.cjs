@@ -147,3 +147,16 @@ test("dock transports only public page category, not records or auth, and has no
  assert.doesNotMatch(dockSource,/localStorage|sessionStorage|fetch\(|postMessage|\.innerHTML|\.insert\(|\.update\(|\.delete\(/);
  assert.match(dockCss,/max-width: 1099px/);
 });
+
+
+test("production AI interface is off by default; staging alone is enabled",()=>{
+ const cfg=fs.readFileSync("js/config.js","utf8");
+ const prod=cfg.slice(cfg.indexOf("production: Object.freeze({"),cfg.indexOf("staging: Object.freeze({"));
+ const staging=cfg.slice(cfg.indexOf("staging: Object.freeze({"),cfg.indexOf("const requestedMuseoEnvironment"));
+ assert.match(prod,/aiAssistantUiEnabled:\s*false/);
+ assert.match(staging,/aiAssistantUiEnabled:\s*true/);
+ assert.match(cfg,/const instituvaAiUiEnabled = museoEnvironment\.aiAssistantUiEnabled === true;/);
+ assert.match(app,/if\(aiAdminEntry && instituvaAiUiEnabled\)/);
+ assert.match(app,/if \(instituvaAiUiEnabled && getCurrentPage\(\) !== "asistente-ia\.html"/);
+ assert.doesNotMatch(app,/if \(museoEnvironment\.name === "production" && .*ai/i);
+});
