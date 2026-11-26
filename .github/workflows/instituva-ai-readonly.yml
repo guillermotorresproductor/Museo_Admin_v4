@@ -46,6 +46,7 @@ on:
       - 'asistente-ia.html'
       - 'administracion.html'
       - 'tests/instituva-ai-readonly.test.cjs'
+      - 'supabase/tests/instituva-ai-name-disambiguation-staging.mjs'
       - 'supabase/tests/instituva-ai-auth-staging.mjs'
       - 'supabase/tests/instituva-ai-http-deny-staging.test.mjs'
       - 'supabase/tests/instituva-ai-staging-key-guard.mjs'
@@ -64,6 +65,7 @@ jobs:
           node-version: '22'
       - run: node --check js/instituva-ai.js
       - run: node --check js/app.js
+      - run: node --check supabase/tests/instituva-ai-name-disambiguation-staging.mjs
       - run: node --check supabase/tests/instituva-ai-auth-staging.mjs
       - run: node --test supabase/tests/instituva-ai-http-deny-staging.test.mjs
       # Synthetic metadata-only tests. Never inject admin secrets into PR CI.
