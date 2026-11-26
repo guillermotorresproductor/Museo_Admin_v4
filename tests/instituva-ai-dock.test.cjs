@@ -115,9 +115,10 @@ test("separate assistant window is first party and survives parent page navigati
  assert.equal(d.popups.length,1);
  assert.equal(d.popups[0].name,"instituva-ai-workspace");
  assert.equal(d.popups[0].url,
-   "https://demo.instituva.com/asistente-ia.html?environment=staging&context=finanzas");
+   "https://demo.instituva.com/asistente-ia.html?environment=staging&context=finanzas&popup=1");
  assert.equal(d.popups[0].focused,true);
  assert.doesNotMatch(d.popups[0].url,/token|password|employee_id|history/i);
+ assert.match(d.popups[0].url,/[?&]popup=1$/);
 });
 
 test("dock transports only public page category, not records or auth, and has no data mutations",()=>{
