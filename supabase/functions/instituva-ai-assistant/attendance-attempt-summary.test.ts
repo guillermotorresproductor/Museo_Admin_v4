@@ -35,10 +35,11 @@ Deno.test("hostile or unknown codes and excessive results fail closed",()=>{
  check(summarizeAttendanceAttemptOutcomes([],M,E).total_attempts===0,"empty evidence");
 });
 Deno.test("no private metadata is exposed to output",()=>{
- const evidence=summarizeAttendanceAttemptOutcomes([{
+ const rowWithUntrustedExtraFields={
    ...row("presence_validation_failed"),actor_user_id:"sensitive",
    presence_evidence:{location:"private"},reason_code:"secret"
- }],M,E);
+ };
+ const evidence=summarizeAttendanceAttemptOutcomes([rowWithUntrustedExtraFields],M,E);
  check(evidence.rejected_attempts===1,"failed attempt");
  const output=JSON.stringify(evidence);
  check(!output.includes("sensitive")&&!output.includes("private")&&!output.includes("secret"),"private metadata leak");
