@@ -255,6 +255,7 @@ function bindInstituvaAi() {
   resetGuide();
   const resetConversation=()=>{
     history.replaceChildren(welcome);
+    conversationContext=null;
     result.hidden=true;
     answer.textContent="";
     answer.hidden=false;
@@ -278,7 +279,7 @@ function bindInstituvaAi() {
   newChat.addEventListener("click",()=>{
     if(!busy){
       // The auto-routed private mode must not become the next chat's default.
-      mode.value="product";
+      mode.value="auto";
       resetConversation();
       updateMode(true);
     }
@@ -339,6 +340,22 @@ function bindInstituvaAi() {
   // No access tokens or employee identifiers used for lookups are serialized.
   const continuityKey="instituva-ai-conversation-v1";
   const continuityMaxAgeMs=15*60*1000; // Mirrors the application idle window.
+  let conversationContext=null;
+  const validatedContext=(raw)=>{
+    if(!raw || typeof raw!=="object" || Array.isArray(raw) || raw.mode!=="attendance")return null;
+    const clean={mode:"attendance"};
+    for(const key of ["employee_name","day","start_day","end_day"]){
+      const value=raw[key];
+      if(value===undefined || value==="")continue;
+      if(typeof value!=="string" || value.length>(key==="employee_name"?120:10))return null;
+      if(key==="employee_name"){
+        if(!/^[\p{L}\p{M}.' -]{2,120}$/u.test(value))return null;
+      }else if(!/^20\d{2}-\d{2}-\d{2}$/.test(value))return null;
+      clean[key]=value;
+    }
+    if(Boolean(clean.start_day)!==Boolean(clean.end_day))return null;
+    return clean;
+  };
   let continuityReady=false;
   let restoringConversation=false;
   const clearContinuity=()=>{
@@ -361,7 +378,7 @@ function bindInstituvaAi() {
     try{
       const serialized=JSON.stringify({
         version:1,user:mountedUserId,museum:verifiedMuseum,grants:mountedGrants,
-        time:Date.now(),mode:String(mode.value),messages,currentResult
+        time:Date.now(),mode:String(mode.value),messages,currentResult,conversationContext
       });
       if(serialized.length<70000)sessionStorage.setItem(continuityKey,serialized);
       else clearContinuity();
@@ -386,10 +403,9 @@ function bindInstituvaAi() {
     }
     restoringConversation=true;
     try{
-      if(Array.from(mode.options).some(option=>option.value===stored.mode)){
-        mode.value=stored.mode;
-        updateMode(true);
-      }
+      // The visible interface always uses automatic intent routing.
+      mode.value="auto";
+      conversationContext=validatedContext(stored.conversationContext);
       history.replaceChildren(welcome);
       for(const msg of stored.messages){
         if(!msg || !["user","assistant"].includes(msg.role) ||
@@ -549,7 +565,8 @@ function bindInstituvaAi() {
       const headers=await supabaseAuthHeaders();
       if(accessRevoked)return;
       const request={mode:queryMode,question};
-      if (queryMode==="attendance") {
+      if(conversationContext)request.conversation_context=conversationContext;
+      if (queryMode==="attendance" || queryMode==="auto") {
         if(employee_name)request.employee_name=employee_name;
         if(day)request.day=day;
         if(selectedId)request.employee_id=selectedId;
@@ -567,15 +584,24 @@ function bindInstituvaAi() {
         status.textContent="Selecciona el empleado correcto para continuar; todavía no se ha consultado su expediente.";
         return;
       }
+      if (!res.ok && [422,409].includes(res.status)){
+        const partial=validatedContext(body.conversation_context);
+        if(partial){conversationContext=partial;saveConversation();}
+      }
       if (!res.ok) throw Error(body.error||"El diagnóstico no está disponible.");
       if (body.read_only!==true || body.actions_executed!==false ||
           body.diagnostic_contract!=="read_only_v1" || typeof body.answer!=="string" ||
-          body.mode!==queryMode || !Array.isArray(body.sources))
+          (queryMode!=="auto" && body.mode!==queryMode) ||
+          (queryMode==="auto" && !["product","attendance","finance","collections","inventory","assets","schedules","notifications"].includes(body.mode)) ||
+          !Array.isArray(body.sources))
         throw Error("Respuesta del servicio no válida.");
+      conversationContext=validatedContext(body.conversation_context);
       const displayAnswer=presentationAnswer(body.answer);
       answer.textContent=displayAnswer;
       renderFormattedAnswer(displayAnswer);
-      if (body.mode==="attendance") {
+      if (body.mode==="attendance" && body.evidence?.domain==="attendance") {
+        evidence.textContent="";
+      } else if (body.mode==="attendance") {
         const dayOffPunchCoincidence=body.evidence?.schedule_day_off_with_punches===true;
         evidence.textContent=`Fuente: asistencia de ${String(body.evidence?.employee||"").slice(0,120)}; fecha ${String(body.evidence?.date||day)}. Ponches efectivos: ${Number(body.evidence?.punch_count||0)}. Intentos rechazados: ${Number(body.evidence?.rejected_attempt_count||0)} (secuencia inválida: ${Number(body.evidence?.invalid_sequence_attempts||0)}). Alertas activas: ${Number(body.evidence?.active_alert_count||0)}; revisadas o resueltas: ${Number(body.evidence?.reviewed_or_resolved_alert_count||0)}. ${dayOffPunchCoincidence?"Observación: día libre registrado y ponches en la misma fecha; cotejar turnos y correcciones manualmente, no prueba incumplimiento. ":""}El conteo no confirma una causa. Solo lectura.`;
       } else if (body.mode==="finance") {
@@ -619,7 +645,7 @@ function bindInstituvaAi() {
       // into an unrelated subsequent question.
       questionInput.value="";
       if(queryMode==="attendance")employee.value="";
-      status.textContent="Consulta completada. Ningún registro operacional ha sido modificado.";
+      status.textContent="";
       scrollChat();
       saveConversation();
     } catch(error){
