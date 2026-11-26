@@ -449,8 +449,10 @@ function mountAiUiForTest(providerResponse,options={}) {
  const handlers={},resubmits=[];
  const element=(extra={})=>({
    hidden:false,textContent:"",required:false,value:"",disabled:false,
-   listeners:{},
+   listeners:{},children:[],
    addEventListener(name,cb){this.listeners[name]=cb;},
+   appendChild(child){this.children.push(child);},
+   replaceChildren(...children){this.children=children;},
    ...extra
  });
  const status=element();
@@ -460,15 +462,15 @@ function mountAiUiForTest(providerResponse,options={}) {
  const sourceDetails=element({hidden:true});
  const sources=element({
    items:[],
-   replaceChildren(){this.items=[];},
-   appendChild(item){this.items.push(item);}
+   replaceChildren(){this.items=[];this.children=[];},
+   appendChild(item){this.items.push(item);this.children.push(item);}
  });
  const choices=element({hidden:true});
  const choicesQuestion=element();
  const choicesList=element({
    items:[],
-   replaceChildren(){this.items=[];},
-   appendChild(item){this.items.push(item);}
+   replaceChildren(){this.items=[];this.children=[];},
+   appendChild(item){this.items.push(item);this.children.push(item);}
  });
  const button=element({disabled:false});
  const guide=element({hidden:true});
@@ -480,9 +482,14 @@ function mountAiUiForTest(providerResponse,options={}) {
  const guideNext=element({addEventListener(name,cb){handlers["guide-next:"+name]=cb;}});
  const mode=element({value:"product",addEventListener(name,cb){handlers["mode:"+name]=cb;}});
  const start=element(),year=element(),employee=element(),day=element();
+ const questionInput=element({value:options.question||"Una jornada abierta impide registrar ponches"});
+ const history=element(),thread=element(),welcome=element();
+ history.appendChild(welcome);
+ const newChat=element({addEventListener(name,cb){handlers["new-chat:"+name]=cb;}});
  const controls={
    '[name="mode"]':mode,'[name="start_day"]':start,'[name="year"]':year,
    '[name="employee_name"]':employee,'[name="day"]':day,
+   '[name="question"]':questionInput,
    'button[type="submit"]':button
  };
  const form={
@@ -499,6 +506,10 @@ function mountAiUiForTest(providerResponse,options={}) {
    "[data-ai-employee-choices]":choices,
    "[data-ai-choices-question]":choicesQuestion,
    "[data-ai-choices-list]":choicesList,
+   "[data-ai-thread]":thread,
+   "[data-ai-history]":history,
+   "[data-ai-welcome]":welcome,
+   "[data-ai-new-chat]":newChat,
    "[data-ai-guide]":guide,"[data-ai-guide-panel]":guidePanel,
    "[data-ai-guide-progress]":guideProgress,"[data-ai-guide-step]":guideStep,
    "[data-ai-guide-start]":guideStart,"[data-ai-guide-back]":guideBack,
@@ -515,7 +526,7 @@ function mountAiUiForTest(providerResponse,options={}) {
    FormData:class {
      get(name){
        if(name==="mode")return mode.value;
-       if(name==="question")return options.question||"Una jornada abierta impide registrar ponches";
+       if(name==="question")return questionInput.value;
        if(name==="employee_name")return employee.value;
        if(name==="day")return day.value;
        if(name==="start_day")return start.value;
@@ -535,7 +546,8 @@ function mountAiUiForTest(providerResponse,options={}) {
  vm.runInNewContext(ui+"\nbindInstituvaAi();",sandbox,{filename:"js/instituva-ai.js"});
  return {handlers,status,result,answer,sources,sourceDetails,button,mode,requests,
    guide,guidePanel,guideProgress,guideStep,guideStart,guideBack,guideNext,
-   choices,choicesQuestion,choicesList,employee,day,resubmits};
+   choices,choicesQuestion,choicesList,employee,day,resubmits,
+   history,thread,welcome,newChat,questionInput};
 }
 
 test("AI frontend preserves rejected service message after submit and clears only on mode change",async()=>{
@@ -798,4 +810,115 @@ test("server disambiguation is limited to a verified museum and a separate direc
  assert.match(branch,/code:"EMPLOYEE_SELECTION_REQUIRED"/);
  assert.match(branch,/code:"EMPLOYEE_NAME_TOO_BROAD"/);
  assert.doesNotMatch(branch,/\.insert\(|\.update\(|\.delete\(/);
+});
+
+
+test("chatbox presents ephemeral text-only dialogue and does not send previous messages",async()=>{
+ const replies=[
+  {ok:true,status:200,async json(){return {
+    mode:"product",answer:"Primera respuesta informativa.",
+    read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+    evidence:{},sources:["docs/manual.md"]
+  };}},
+  {ok:true,status:200,async json(){return {
+    mode:"product",answer:"Segunda respuesta independiente.",
+    read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+    evidence:{},sources:[]
+  };}}
+ ];
+ const mounted=mountAiUiForTest(replies,{question:"¿Cómo funciona el inventario?"});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.result.hidden,false);
+ assert.equal(mounted.history.children.length,2,"welcome plus first user message");
+ assert.equal(mounted.history.children[1].children[1].textContent,"¿Cómo funciona el inventario?");
+ assert.equal(mounted.questionInput.value,"","question cleared after completed answer");
+ mounted.questionInput.value="¿Cómo funciona el calendario?";
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.requests.length,2);
+ assert.equal(mounted.history.children.length,4,"welcome, first user, archived response, second user");
+ assert.match(mounted.history.children[2].children[1].textContent,/Primera respuesta informativa/);
+ assert.match(mounted.history.children[2].children[1].textContent,/docs\/manual.md/);
+ assert.equal(mounted.history.children[3].children[1].textContent,"¿Cómo funciona el calendario?");
+ assert.equal(mounted.answer.textContent,"Segunda respuesta independiente.");
+ for (const [i,payload] of mounted.requests.map(r=>JSON.parse(r.options.body)).entries()){
+   assert.deepEqual(Object.keys(payload).sort(),["mode","question"],
+     "request "+i+" must not include history or mutable metadata");
+ }
+ assert.match(html,/data-ai-thread/);
+ assert.match(html,/data-ai-new-chat/);
+ assert.match(html,/data-ai-history/);
+ assert.doesNotMatch(ui,/localStorage|sessionStorage|innerHTML/);
+});
+
+test("new conversation clears private fragments and mode changes reset visual context",async()=>{
+ const mounted=mountAiUiForTest({
+   ok:true,status:200,async json(){return {
+     mode:"product",answer:"Solo conocimiento institucional.",
+     read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+     evidence:{},sources:[]
+   };}
+ },{question:"¿Cómo puedo consultar horarios?"});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.result.hidden,false);
+ mounted.handlers["new-chat:click"]();
+ assert.equal(mounted.history.children.length,1);
+ assert.equal(mounted.history.children[0],mounted.welcome);
+ assert.equal(mounted.result.hidden,true);
+ assert.equal(mounted.choices.hidden,true);
+ assert.equal(mounted.questionInput.value,"");
+ assert.equal(mounted.employee.value,"");
+ mounted.questionInput.value="¿Cómo funcionan los reportes?";
+ mounted.mode.value="finance";
+ mounted.handlers["mode:change"]();
+ assert.equal(mounted.history.children.length,1,"cross-domain chat must reset");
+ assert.equal(mounted.questionInput.value,"");
+ assert.equal(mounted.result.hidden,true);
+});
+
+test("chat composer Enter submits while Shift+Enter keeps multiline input",async()=>{
+ const mounted=mountAiUiForTest({
+   ok:true,status:200,async json(){return {
+     mode:"product",answer:"Explicación segura.",
+     read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+     evidence:{},sources:[]
+   };}
+ },{question:"¿Qué sucede en INSTITUVA?"});
+ let prevented=0;
+ mounted.questionInput.listeners.keydown({
+   key:"Enter",shiftKey:true,isComposing:false,preventDefault(){prevented++;}
+ });
+ assert.equal(prevented,0);
+ assert.equal(mounted.requests.length,0);
+ mounted.questionInput.listeners.keydown({
+   key:"Enter",shiftKey:false,isComposing:false,preventDefault(){prevented++;}
+ });
+ await Promise.all(mounted.resubmits);
+ assert.equal(prevented,1);
+ assert.equal(mounted.requests.length,1);
+});
+
+test("chat selection avoids duplicate question bubbles and clears selected employee after diagnosis",async()=>{
+ const id="fa710000-2026-4000-8000-000000000202";
+ const mounted=mountAiUiForTest([
+  {ok:false,status:409,async json(){return {
+    code:"EMPLOYEE_SELECTION_REQUIRED",question:"¿Juan Vélez o Juan Torres?",
+    options:[{employee_id:id,name:"Juan Vélez"},
+      {employee_id:"fa710000-2026-4000-8000-000000000201",name:"Juan Torres"}]
+  };}},
+  {ok:true,status:200,async json(){return {
+    mode:"attendance",answer:"Revisión de Juan Vélez.",
+    read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+    evidence:{employee:"Juan Vélez",date:"2026-11-25"},sources:[]
+  };}}
+ ],{question:"¿Qué pasó con el ponche de ayer de Juan?",
+    permissions:["attendance.history.read","finance.read"]});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ mounted.choicesList.items[0].listeners.click();
+ await Promise.all(mounted.resubmits);
+ assert.equal(mounted.history.children.length,3,"welcome, question, selected name; no duplicate question");
+ assert.equal(mounted.history.children[2].children[1].textContent,"Juan Vélez");
+ assert.equal(mounted.employee.value,"","must not leak prior employee to next request");
+ assert.equal(mounted.result.hidden,false);
+ assert.equal(mounted.requests.length,2);
+ assert.equal(JSON.parse(mounted.requests[1].options.body).employee_id,id);
 });
