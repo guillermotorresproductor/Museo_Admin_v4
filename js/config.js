@@ -3,6 +3,7 @@
 const museoEnvironments = Object.freeze({
   production: Object.freeze({
     name: "production",
+    aiAssistantUiEnabled: false, // Explicit production release gate; defaults OFF.
     supabaseUrl: "https://kfokfjngozgcwjpzxcsu.supabase.co",
     supabasePublishableKey: "sb_publishable_wBGL3o2YcfbR_dvhT3mTnw_OXuHB0y3",
     institutionalData: Object.freeze({
@@ -12,6 +13,7 @@ const museoEnvironments = Object.freeze({
   }),
   staging: Object.freeze({
     name: "staging",
+    aiAssistantUiEnabled: true,
     supabaseUrl: "https://lonpdmxdvbxuagqxztig.supabase.co",
     supabasePublishableKey: "sb_publishable_M6ByE4TQKwaQIuLfyHdHhQ_HOxWqebX",
     institutionalData: Object.freeze({
@@ -63,6 +65,8 @@ if (hostEnvironment) {
 
 const museoEnvironmentName = hostEnvironment || sessionStorage.getItem("museo-admin-environment") || "production";
 const museoEnvironment = museoEnvironments[museoEnvironmentName] || museoEnvironments.production;
+// Presentation only: backend independently enforces JWT, museum allowlist and permissions.
+const instituvaAiUiEnabled = museoEnvironment.aiAssistantUiEnabled === true;
 
 const institutionalDataQuery = new URLSearchParams(window.location.search).get("institutionalData");
 if (institutionalDataQuery === "1") {
