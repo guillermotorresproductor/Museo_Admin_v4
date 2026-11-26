@@ -64,7 +64,7 @@ function bindInstituvaAi() {
     heading.textContent=role==="user"?"Tú":"INSTITUVA AI";
     const text=document.createElement("p");
     text.className="ai-chat-body";
-    text.textContent=String(message).slice(0,14000);
+    text.textContent=(role==="assistant"?presentationAnswer(message):String(message)).slice(0,14000);
     article.appendChild(heading);
     article.appendChild(text);
     history.appendChild(article);
@@ -73,6 +73,11 @@ function bindInstituvaAi() {
   };
   // Format only the closed server-produced diagnosis structure. If it changes,
   // fall back to the original text without guessing sections or interpreting HTML.
+  // Strip only the redundant stock preamble; preserve all diagnostic evidence.
+  const presentationAnswer=(raw)=>String(raw).replace(
+    /^INSTITUVA — DIAGNÓSTICO PRELIMINAR\nOrientación de solo lectura\. No se ejecutó ninguna operación sobre los registros operacionales\./,
+    "INSTITUVA — DIAGNÓSTICO PRELIMINAR\n"
+  );
   const renderFormattedAnswer=(raw)=>{
     formattedAnswer.replaceChildren();
     formattedAnswer.hidden=true;
@@ -92,7 +97,7 @@ function bindInstituvaAi() {
     const intro=document.createElement("p");
     intro.className="ai-diagnostic-intro";
     intro.textContent=chunks[0].split("\n").slice(1).join(" ").trim();
-    formattedAnswer.appendChild(intro);
+    if(intro.textContent)formattedAnswer.appendChild(intro);
     for(let index=0;index<headings.length;index++){
       const section=document.createElement("section");
       section.className="ai-diagnostic-section";
@@ -396,8 +401,9 @@ function bindInstituvaAi() {
           !Array.isArray(item.sources) || item.sources.length>12 ||
           item.sources.some(s=>typeof s!=="string" || s.length>500))
           throw Error("INVALID_RESULT");
-        answer.textContent=item.answer;
-        renderFormattedAnswer(item.answer);
+        const displayAnswer=presentationAnswer(item.answer);
+        answer.textContent=displayAnswer;
+        renderFormattedAnswer(displayAnswer);
         evidence.textContent=item.evidence;
         sources.replaceChildren();
         for(const ref of item.sources){
@@ -559,8 +565,9 @@ function bindInstituvaAi() {
           body.diagnostic_contract!=="read_only_v1" || typeof body.answer!=="string" ||
           body.mode!==queryMode || !Array.isArray(body.sources))
         throw Error("Respuesta del servicio no válida.");
-      answer.textContent=body.answer;
-      renderFormattedAnswer(body.answer);
+      const displayAnswer=presentationAnswer(body.answer);
+      answer.textContent=displayAnswer;
+      renderFormattedAnswer(displayAnswer);
       if (body.mode==="attendance") {
         const dayOffPunchCoincidence=body.evidence?.schedule_day_off_with_punches===true;
         evidence.textContent=`Fuente: asistencia de ${String(body.evidence?.employee||"").slice(0,120)}; fecha ${String(body.evidence?.date||day)}. Ponches efectivos: ${Number(body.evidence?.punch_count||0)}. Intentos rechazados: ${Number(body.evidence?.rejected_attempt_count||0)} (secuencia inválida: ${Number(body.evidence?.invalid_sequence_attempts||0)}). Alertas activas: ${Number(body.evidence?.active_alert_count||0)}; revisadas o resueltas: ${Number(body.evidence?.reviewed_or_resolved_alert_count||0)}. ${dayOffPunchCoincidence?"Observación: día libre registrado y ponches en la misma fecha; cotejar turnos y correcciones manualmente, no prueba incumplimiento. ":""}El conteo no confirma una causa. Solo lectura.`;
@@ -578,7 +585,7 @@ function bindInstituvaAi() {
       } else if (body.mode==="notifications") {
         evidence.textContent=`Mis notificaciones (últimos 30 días): ${Number(body.evidence?.notification_count||0)} registradas, ${Number(body.evidence?.unread_count||0)} sin marcar como leídas. No acredita entrega por correo, SMS o push. Solo lectura.`;
       } else {
-        evidence.textContent="Conocimiento general de INSTITUVA, sujeto a revisión y actualización. Sin acceso a datos de empleados.";
+        evidence.textContent="";
       }
       // Provenance is rendered as literal text, never as HTML or clickable user-supplied URLs.
       // Keep references intact instead of silently cutting the source list at 1,200 chars.
