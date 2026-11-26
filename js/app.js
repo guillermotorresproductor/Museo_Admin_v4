@@ -1,6 +1,7 @@
 const appPages = {
   "index.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
   "dashboard.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
+  "asistente-ia.html": { title: "Asistente INSTITUVA", subtitle: "Diagnósticos institucionales y evidencia autorizada, solo lectura." },
   "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Música." },
   "empleados.html": { title: "Solicitud de Empleo", subtitle: "Formulario para candidatos." },
   "ujieres.html": { title: "Calendario de Ujieres", subtitle: "Calendario mensual de ujieres, horarios y áreas asignadas." },
