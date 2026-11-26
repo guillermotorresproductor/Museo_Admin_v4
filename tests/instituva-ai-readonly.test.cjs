@@ -487,6 +487,7 @@ function mountAiUiForTest(providerResponse,options={}) {
  const history=element(),thread=element(),welcome=element();
  history.appendChild(welcome);
  const newChat=element({addEventListener(name,cb){handlers["new-chat:"+name]=cb;}});
+ const contextEl=element({hidden:true});
  const controls={
    '[name="mode"]':mode,'[name="start_day"]':start,'[name="year"]':year,
    '[name="employee_name"]':employee,'[name="day"]':day,
@@ -512,6 +513,7 @@ function mountAiUiForTest(providerResponse,options={}) {
    "[data-ai-history]":history,
    "[data-ai-welcome]":welcome,
    "[data-ai-new-chat]":newChat,
+   "[data-ai-context]":contextEl,
    "[data-ai-guide]":guide,"[data-ai-guide-panel]":guidePanel,
    "[data-ai-guide-progress]":guideProgress,"[data-ai-guide-step]":guideStep,
    "[data-ai-guide-start]":guideStart,"[data-ai-guide-back]":guideBack,
@@ -522,8 +524,12 @@ function mountAiUiForTest(providerResponse,options={}) {
  const sandbox={
    document:{
      querySelector(selector){return selector==="[data-instituva-ai]"?root:null;},
-     createElement(tag){return element({tagName:tag});}
+     createElement(tag){return element({tagName:tag});},
+     body:{classList:{add(){}}},
+     addEventListener(){}
    },
+   window:{location:{search:options.search||"",origin:"https://staging.example.invalid"}},
+   URLSearchParams,
    hasPermission(permission){return (options.permissions||[]).includes(permission);},
    FormData:class {
      get(name){
@@ -549,7 +555,7 @@ function mountAiUiForTest(providerResponse,options={}) {
  return {handlers,status,result,answer,formattedAnswer,sources,sourceDetails,button,mode,requests,
    guide,guidePanel,guideProgress,guideStep,guideStart,guideBack,guideNext,
    choices,choicesQuestion,choicesList,employee,day,resubmits,
-   history,thread,welcome,newChat,questionInput};
+   history,thread,welcome,newChat,questionInput,contextEl};
 }
 
 test("AI frontend preserves rejected service message after submit and clears only on mode change",async()=>{
@@ -1015,4 +1021,25 @@ test("unrecognized diagnosis format falls back to original plain text",async()=>
  assert.equal(mounted.formattedAnswer.hidden,true);
  assert.equal(mounted.formattedAnswer.children.length,0);
  assert.match(html,/data-ai-answer-formatted/);
+});
+
+
+test("dock module context is a non-sensitive caption and never an API argument",async()=>{
+ const mounted=mountAiUiForTest({ok:true,status:200,async json(){return {
+   mode:"product",answer:"Guía de horarios",
+   read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+   sources:[],evidence:{}
+ }; }},{search:"?context=horarios",question:"¿Cómo funcionan los horarios?"});
+ assert.equal(mounted.contextEl.hidden,false);
+ assert.match(mounted.contextEl.textContent,/Módulo abierto: Horarios/);
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.deepEqual(Object.keys(JSON.parse(mounted.requests[0].options.body)).sort(),["mode","question"]);
+});
+test("unrecognized dock context does not interpolate arbitrary URLs or user data",()=>{
+ const mounted=mountAiUiForTest({ok:true,status:200,async json(){return {}}},{
+   search:"?context=%3Cscript%3Ealert(1)%3C%2Fscript%3E"
+ });
+ assert.equal(mounted.contextEl.hidden,true);
+ assert.equal(mounted.contextEl.textContent,"");
+ assert.doesNotMatch(ui,/innerHTML|document\.write/);
 });
