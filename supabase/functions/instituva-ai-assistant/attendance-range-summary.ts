@@ -3,7 +3,7 @@ import {resolveEffectiveAttendanceEvents} from "./attendance-event-corrections.t
 import {validAttendanceDay} from "./attendance-day.ts";
 type Row={id:string;museum_id:string;employee_id:string;event_type:string;occurred_at:string;supersedes_event_id?:string|null;shift_id?:string|null;classification?:string|null};
 type Shift={museum_id:string;employee_id:string;shift_date:string;starts_at:string;ends_at:string;status:string};
-const dayOf=(time:string)=>new Date(time).toLocaleDateString("en-CA",{timeZone:"America/Puerto_Rico"});
+const dayOf=(time:string)=>{const parts=new Intl.DateTimeFormat("en-US",{timeZone:"America/Puerto_Rico",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(time)); const part=(t:string)=>parts.find(p=>p.type===t)?.value||"";return part("year")+"-"+part("month")+"-"+part("day");};
 const minutesBetween=(a:string,b:string)=>Math.round((Date.parse(b)-Date.parse(a))/60000);
 export function summarizeAttendancePeriod(events:Row[],replacements:Row[],shifts:Shift[],
   museumId:string,employeeId:string,start:string,endExclusive:string){
@@ -38,7 +38,7 @@ export function summarizeAttendancePeriod(events:Row[],replacements:Row[],shifts
       status="lunch_unverified";unverifiedLunchDays++;
     }
     if(status==="incomplete")incompleteDays++;
-    const matching=safeShifts.filter(s=>s.shift_date===day && s.status==="published");
+    const matching=safeShifts.filter(s=>s.shift_date===day && (s.status==="scheduled" || s.status==="published"));
     let late:null|boolean=null;
     if(kinds[0]==="clock_in" && matching.length===1){
       late=Date.parse(list[0].occurred_at)>Date.parse(matching[0].starts_at);
@@ -52,8 +52,8 @@ export function summarizeAttendancePeriod(events:Row[],replacements:Row[],shifts
     days_with_punches:days.size,verified_net_minutes:verifiedNetMinutes,
     verified_days:verifiedDays,incomplete_days:incompleteDays,
     days_without_confirmed_lunch:unverifiedLunchDays,
-    late_entries_vs_scheduled_start:lateStarts,late_comparable_days:lateComparableDays,
-    days_without_comparable_published_shift:unmatchedShifts,
+    entries_after_scheduled_start:lateStarts,comparable_schedule_days:lateComparableDays,
+    days_without_comparable_shift:unmatchedShifts,
     superseded_punch_count:supersededCount,
     coverage:"Verified hours are only summed on days with all four valid chronological punch types; other days are excluded, not treated as zero.",
     day_details:diagnostics
