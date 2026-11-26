@@ -82,7 +82,7 @@ test("global knowledge is a curated, source-labelled, non-secret catalogue",()=>
 test("general mode does not reach private employee retrieval",()=>{
  const start=endpoint.indexOf('if (mode==="product")');
  const elseBranch=endpoint.indexOf('} else {',start);
- const employeeQuery=endpoint.indexOf('admin.from("employees")',start);
+ const employeeQuery=endpoint.indexOf('nameSource.from("employees")',start);
  assert.ok(start>0 && elseBranch>start && employeeQuery>elseBranch);
  const perms=endpoint.indexOf('if (mode==="attendance" || mode==="finance" || mode==="collections" || mode==="inventory" || mode==="schedules" || mode==="notifications")');
  const auth=endpoint.indexOf('caller.rpc("has_permission"',perms);
@@ -179,14 +179,15 @@ test("attendance snapshot reaches diagnostic model instead of being shadowed",()
 
 test("attendance diagnosing prior open shifts and protecting bounded evidence",()=>{
  assert.match(endpoint,/const scopedEmployees=assertTenantRows\(employees\|\|\[\],museumId\)/);
- assert.match(endpoint,/scopedEmployees\.length>=300/);
+ assert.match(fs.readFileSync("supabase/functions/instituva-ai-assistant/employee-name-resolution.ts","utf8"),/rows\.length>=300/);
  assert.match(endpoint,/const safeEarlierOpen=assertEmployeeTenantRows\(earlierOpenEntries\.data\|\|\[\],museumId,employee\.id\)/);
  assert.match(endpoint,/\.is\("clock_out",null\)\.is\("excluded_at",null\)\.lt\("clock_in",day\+"T04:00:00Z"\)/);
  assert.match(endpoint,/\.order\("clock_in",\{ascending:false\}\)\.limit\(10\)/);
  assert.match(endpoint,/safeEarlierOpen\.length>=10/);
  assert.match(endpoint,/previous_open_entries:safeEarlierOpen\s*\.map/);
  assert.match(endpoint,/previous_open_entries:\(snapshot\.previous_open_entries as unknown\[\]\)\.length/);
- assert.match(endpoint,/validAttendanceDay\(input\.day\)/);
+ assert.match(endpoint,/attendanceDayFromQuestion\(input\.day,question\)/);
+ assert.match(endpoint,/validAttendanceDay\(inferredDay\)/);
  assert.match(endpoint,/nextAttendanceDay\(day\)/);
 });
 
