@@ -1,5 +1,5 @@
 # INSTITUVA — Arquitectura objetivo del asistente integral de IA
-**Estado:** arquitectura aprobada. Etapa A parcial implementada en rama PR #125 y staging. Etapa B: piloto de cruce de conteos Colecciones + Inventario implementado solo en la rama, pendiente de pruebas positivas de autorización y despliegue de staging; el acceso privado integral continúa pendiente. Etapas C–D pendientes. **NO habilitada en producción**.
+**Estado:** arquitectura aprobada. Etapa A parcial implementada en rama PR #125 y staging. Etapa B: piloto de cruce de conteos Colecciones + Inventario en rama y staging v33, pendiente de prueba positiva con JWT real y ambos permisos; el acceso privado integral continúa pendiente. Etapa C: guía humana paso a paso incorporada al código (frontend en rama, backend en staging v33), pendiente de validación manual de interfaz. Etapa D pendiente. **NO habilitada en producción**.
 **Fecha:** 2026-11-25.
 
 ## 1. Propósito y propiedad
@@ -90,5 +90,13 @@ Usuario del Museo A
 - La respuesta separa fuentes y advierte que las diferencias entre registros de Colecciones e Inventario **no demuestran faltantes, duplicados, pérdidas ni vínculos pieza-equipo**.
 - La cuota del piloto utiliza la función existente `ai_assistant_claim_collections_slot_v1`, después de todas las comprobaciones de los dos dominios. No se añaden RPC ni permisos nuevos; la modalidad no incorpora ninguna ruta de escritura.
 - La interfaz conserva errores del proveedor, comprueba el modo y el contrato `read_only_v1`, y muestra fuentes como texto literal. Se añadieron regresiones automáticas.
-- **Sin merge ni despliegue de este incremento en producción o staging.** Antes de cualquier despliegue: CI de IA aprobada, JWT auténticos con ambos permisos y sin uno de ellos, aislamiento de dos museos ficticios, verificación de conteos contra RLS y limpieza final de fixtures. No utilizar datos operacionales para esta validación.
+- **Despliegue exclusivo a staging v33, verify_jwt=true, tras CI de IA aprobada. SIN merge ni despliegue en producción.** Verificada denegación del usuario ficticio sin permisos mediante contexto de lectura autenticado y rollback. Aún falta una prueba HTTP positiva con JWT auténtico y ambos permisos, pruebas con un permiso faltante y dos museos ficticios, cotejo de conteos contra RLS y limpieza final de fixtures. No utilizar datos operacionales reales para esa validación.
 - La investigación integral entre Asistencia, Horarios, Finanzas y otros dominios continúa como etapa posterior. Un modo combinado no otorga acceso universal ni sustituye permisos individuales.
+
+## 11. 26/nov/2026 — experiencia humana guiada (incremento de PR #125)
+
+- Se documentó `docs/INSTITUVA_AI_HUMAN_SUPPORT_BEHAVIOR_V1.md`: ejemplos generalizados de incidentes y estilo de asistencia derivados de la experiencia de uso. No se incorpora ninguna conversación privada ni registros de clientes al índice global. Es una **guía de diseño provisional**, no prueba factual de una incidencia actual.
+- El modelo tiene instrucciones para explicar el síntoma y la evidencia antes de sugerir comprobaciones y soluciones humanas; debe reconocer desconocidos y no repetir información ya suministrada.
+- Las verificaciones y recomendaciones manuales se someten al contrato JSON estricto existente y se proyectan en `guide_steps` con longitud limitada. La UI ofrece el botón **Comenzar guía** solamente después del diagnóstico; muestra un paso a la vez, permite Anterior/Siguiente y no realiza una nueva consulta, mutación ni acción.
+- Sin cambios en tablas, roles, políticas RLS, funciones de escritura, secretos, cuotas ni operaciones existentes. Backend `instituva-ai-assistant` en staging v33; frontend solo en rama PR #125, no en web de producción.
+- La suite de IA y regresiones de consulta/seguridad pasó. Las pruebas funcionales positivas entre dominios con identidades sintéticas aún están pendientes y no autorizan publicación.
