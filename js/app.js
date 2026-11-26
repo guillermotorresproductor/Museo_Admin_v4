@@ -1,4 +1,5 @@
 const appPages = {
+  "asistente-ia.html": { title: "Asistente INSTITUVA", subtitle: "Diagnósticos autorizados de solo lectura." },
   "index.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
   "dashboard.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
   "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Música." },
@@ -396,6 +397,13 @@ function showProtectedAccessDenied(message) {
   if (typeof renderInlineIcons === "function") renderInlineIcons();
   // Reveal only the replacement denial view; protected modules stay uninitialized.
   document.body.classList.add("app-ready");
+  // Optional AI shell is loaded after authentication and page authorization.
+  if (instituvaAiUiEnabled && getCurrentPage() !== "asistente-ia.html"
+      && document.querySelector(".app-shell") && document.querySelector("[data-header]")) {
+    const dockScript=document.createElement("script");
+    dockScript.src="js/instituva-ai-dock.js?v=20261126-isolated-release-1";
+    document.head.appendChild(dockScript);
+  }
 }
 
 async function recordSecurityAuditEvent(action, moduleId, result, details = {}) {
@@ -415,6 +423,11 @@ async function recordSecurityAuditEvent(action, moduleId, result, details = {}) 
 function enforceAuthenticatedPageAccess() {
   const page = getCurrentPage();
   if (page === "login.html") return false;
+  // The stand-alone assistant must not bypass the production release gate.
+  if (page === "asistente-ia.html" && !instituvaAiUiEnabled) {
+    showProtectedAccessDenied("INSTITUVA AI no está habilitado para este entorno.");
+    return true;
+  }
 
   const session = getSupabaseSession()?.access_token;
   if (!session) {
@@ -8605,7 +8618,11 @@ async function initApp() {
   await bindEmployeeProfile();
   bindSidebarToggle();
   bindNotificationMenu();
-  bindIdleLogout();
+  // Embedded chat inherits the parent page inactivity policy.
+  if (!(getCurrentPage() === "asistente-ia.html" &&
+        new URLSearchParams(window.location.search).get("dock") === "1")) {
+    bindIdleLogout();
+  }
   bindRentalCatalog();
   bindRentalGeneralRules();
   bindRentalSpacePage();
