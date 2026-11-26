@@ -273,6 +273,7 @@ function bindInstituvaAi() {
     }
   });
   let busy=false;
+  let accessRevoked=false;
   const canDiagnose=hasPermission("attendance.history.read") && hasPermission("finance.read");
   const canReadFinance=hasPermission("finance.read");
   const canReadCollections=hasPermission("collections.read");
@@ -297,7 +298,7 @@ function bindInstituvaAi() {
     const inventory=mode.value==="inventory";
     const assets=mode.value==="assets";
     const notifications=mode.value==="notifications";
-    if ((attendance && !canDiagnose) || (finance && !canReadFinance) || (collections && !canReadCollections) || (inventory && !canReadInventory) || (assets && !canReadAssets) || (schedules && !canReadSchedules) || (notifications && !canReadNotifications)) {
+    if (accessRevoked || (attendance && !canDiagnose) || (finance && !canReadFinance) || (collections && !canReadCollections) || (inventory && !canReadInventory) || (assets && !canReadAssets) || (schedules && !canReadSchedules) || (notifications && !canReadNotifications)) {
       status.textContent="Tu perfil no tiene permiso para este tipo de consulta.";
       form.querySelector('button[type="submit"]').disabled=true;
     } else {
@@ -323,7 +324,6 @@ function bindInstituvaAi() {
     ? Array.from(currentPermissions).sort().join("\\n") : "";
   let verifiedMuseum=null;
   let verificationInFlight=null;
-  let accessRevoked=false;
   const revokeAiContext=(reason="La sesión, el museo o los permisos cambiaron.")=>{
     if(accessRevoked)return;
     accessRevoked=true;
@@ -431,6 +431,7 @@ function bindInstituvaAi() {
     status.textContent="Consultando las fuentes autorizadas...";
     try {
       const headers=await supabaseAuthHeaders();
+      if(accessRevoked)return;
       const request={mode:queryMode,question};
       if (queryMode==="attendance") {
         if(employee_name)request.employee_name=employee_name;
@@ -504,13 +505,14 @@ function bindInstituvaAi() {
       status.textContent="Consulta completada. Ningún registro operacional ha sido modificado.";
       scrollChat();
     } catch(error){
+      if(accessRevoked)return;
       const message=error instanceof Error ? error.message : "No se pudo completar la consulta.";
       status.textContent=message;
       appendMessage("assistant",message);
     } finally{
       busy=false;
-      newChat.disabled=false;
-      button.disabled=false;
+      newChat.disabled=accessRevoked;
+      button.disabled=accessRevoked;
       updateMode();
     }
   });
