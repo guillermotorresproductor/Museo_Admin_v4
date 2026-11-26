@@ -60,6 +60,20 @@
             <h3>Diagnóstico</h3>
             <div data-ai-answer style="white-space:pre-wrap"></div>
             <p class="field-hint" data-ai-evidence></p>
+            <section class="card section-stack" data-ai-guide hidden>
+              <h4>¿Quieres que te guíe paso a paso?</h4>
+              <p>Primero revisa el diagnóstico. Si quieres, te mostraré una comprobación o acción manual a la vez. Avanzar no consulta más datos ni ejecuta cambios.</p>
+              <button type="button" class="button" data-ai-guide-start>Comenzar guía</button>
+              <div class="section-stack" data-ai-guide-panel hidden>
+                <p class="field-hint" data-ai-guide-progress aria-live="polite"></p>
+                <p data-ai-guide-step></p>
+                <div class="row">
+                  <button type="button" class="button" data-ai-guide-back>Anterior</button>
+                  <button type="button" class="button" data-ai-guide-next>Siguiente paso</button>
+                </div>
+                <p class="field-hint">Solo una persona con permisos puede efectuar cambios. El asistente no ejecuta nada.</p>
+              </div>
+            </section>
             <details class="field-hint" data-ai-sources-details hidden>
               <summary>Fuentes documentales consultadas</summary>
               <ul data-ai-sources></ul>
@@ -74,7 +88,7 @@
   <script src="js/config.js"></script>
   <script src="js/time-format.js?v=us-time-20261028"></script>
   <script src="js/services/supabase.js?v=external-accountant-20261123"></script>
-  <script src="js/instituva-ai.js?v=20261126-ai-assets"></script>
+  <script src="js/instituva-ai.js?v=20261126-human-support"></script>
   <script src="js/app.js?v=20261126-ai-ui-status"></script>
 </body>
 </html>
