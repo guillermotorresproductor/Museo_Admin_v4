@@ -552,3 +552,40 @@ test("AI frontend rejects a response whose mode does not match the requested evi
  assert.equal(mounted.answer.textContent,"");
  assert.equal(mounted.status.textContent,"Respuesta del servicio no válida.");
 });
+
+test("cross-domain assets mode fails closed before private reads and never exposes individual records",()=>{
+ const combinedGate=endpoint.indexOf('if(mode==="assets"){');
+ const sources=endpoint.indexOf('} else if (mode==="assets")');
+ const quota=endpoint.indexOf('const { data: slot, error: quotaError }');
+ assert.ok(combinedGate>0 && sources>combinedGate && quota>sources);
+ const gate=endpoint.slice(combinedGate,sources);
+ assert.match(endpoint,/for\(const permission of requiredPermissionsForMode\(mode\)\)/);
+ assert.match(gate,/module_profile_allows/);
+ assert.match(gate,/\["collections","inventory"\]/);
+ assert.match(gate,/if\(moduleError \|\| moduleAllowed!==true\)throw Error\("FORBIDDEN"\)/);
+ const branch=endpoint.slice(sources,endpoint.indexOf('} else if (mode==="schedules")',sources));
+ assert.match(branch,/caller\.from\("collection_items"\)/);
+ assert.match(branch,/caller\.from\("inventory_items"\)/);
+ assert.match(branch,/\.select\("id",\{count:"exact",head:true\}\)/);
+ assert.match(branch,/\.eq\("museum_id",museumId\)/);
+ assert.match(branch,/Number\.isSafeInteger\(collectionCount\.count\)/);
+ assert.match(branch,/Number\.isSafeInteger\(inventoryCount\.count\)/);
+ assert.doesNotMatch(branch,/admin\.from\(|\.insert\(|\.update\(|\.delete\(|\.select\("\*"/);
+ assert.match(endpoint,/\(mode==="collections" \|\| mode==="assets"\)/);
+ assert.match(ui,/canReadAssets=canReadCollections && canReadInventory/);
+ assert.match(ui,/queryMode==="assets" && !canReadAssets/);
+ assert.match(html,/value="assets"/);
+});
+
+test("unauthorized combined request is prevented by UI without sending any request",async()=>{
+ const mounted=mountAiUiForTest({
+   ok:true,
+   async json(){throw Error("unexpected provider call");}
+ });
+ mounted.mode.value="assets";
+ mounted.handlers["mode:change"]();
+ assert.equal(mounted.button.disabled,true);
+ assert.match(mounted.status.textContent,/no tiene permiso/);
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.requests.length,0);
+});
