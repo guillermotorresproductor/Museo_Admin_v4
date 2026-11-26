@@ -343,10 +343,11 @@ function bindInstituvaAi() {
     if(verificationInFlight)return verificationInFlight;
     verificationInFlight=(async()=>{
       try{
-        const [museum,grants]=await Promise.all([
-          supabasePost("/rest/v1/rpc/current_user_museum_id",{}),
-          fetchCurrentSupabasePermissions()
-        ]);
+        // Sequential calls: the app's legacy refresh-token helper has no
+        // single-flight lock. Parallel requests close to expiry could both
+        // try to rotate one refresh token and inadvertently log the user out.
+        const museum=await supabasePost("/rest/v1/rpc/current_user_museum_id",{});
+        const grants=await fetchCurrentSupabasePermissions();
         const latest=getSupabaseSession();
         const currentGrants=Array.isArray(grants)?grants.slice().sort().join("\\n"):"";
         if(!latest?.access_token || latest.user?.id!==mountedUserId ||
