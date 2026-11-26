@@ -6,9 +6,35 @@
   <title>INSTITUVA | Asistente IA</title>
   <link rel="stylesheet" href="css/main.css?v=20261125-ai">
   <style>
+    [data-instituva-ai] { max-width: 980px; margin: 0 auto; }
     [data-instituva-ai] button:disabled { opacity: .48; cursor: not-allowed; }
-    [data-instituva-ai] [data-ai-choices-list] {
-      display: flex; flex-wrap: wrap; gap: 10px;
+    [data-instituva-ai] .ai-chat-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    [data-instituva-ai] .ai-chat-heading h2 { margin: 0; }
+    [data-instituva-ai] .ai-readonly-tag { border: 1px solid #a8d6bf; border-radius: 99px; padding: 3px 10px; font-size: .78rem; color: #17613d; background: #effaf3; }
+    [data-instituva-ai] .ai-chat-toolbar { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+    [data-instituva-ai] .ai-chat-toolbar .field { flex: 1 1 290px; margin: 0; }
+    [data-instituva-ai] .ai-chat-toolbar .button { flex: 0 0 auto; }
+    [data-instituva-ai] .ai-chat-thread { display: flex; flex-direction: column; gap: 12px; min-height: 280px; max-height: min(64vh, 720px); overflow-y: auto; overscroll-behavior: contain; padding: 18px; border: 1px solid #dde5e9; border-radius: 14px; background: #f7f9fb; }
+    [data-instituva-ai] [data-ai-history] { display: flex; flex-direction: column; gap: 12px; }
+    [data-instituva-ai] .ai-chat-message { max-width: 86%; width: fit-content; overflow-wrap: anywhere; padding: 12px 15px; border-radius: 16px; border: 1px solid #e0e6eb; background: white; box-shadow: 0 1px 3px rgba(17,24,39,.04); }
+    [data-instituva-ai] .ai-chat-message--user { align-self: flex-end; border-radius: 16px 16px 4px 16px; background: #e8f3ee; border-color: #c7decf; }
+    [data-instituva-ai] .ai-chat-message--assistant { align-self: flex-start; border-radius: 16px 16px 16px 4px; }
+    [data-instituva-ai] .ai-chat-speaker { font-weight: 700; color: #344456; font-size: .79rem; margin: 0 0 5px; }
+    [data-instituva-ai] .ai-chat-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+    [data-instituva-ai] .ai-chat-reply { align-self: flex-start; width: min(100%, 780px); max-width: 100%; border: 1px solid #dce6eb; border-radius: 16px 16px 16px 4px; padding: 16px; background: white; }
+    [data-instituva-ai] .ai-chat-reply h3 { margin-top: 0; }
+    [data-instituva-ai] [data-ai-answer] { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+    [data-instituva-ai] [data-ai-choices-list] { display: flex; flex-wrap: wrap; gap: 10px; }
+    [data-instituva-ai] .ai-chat-composer { display: flex; flex-direction: column; gap: 8px; }
+    [data-instituva-ai] .ai-chat-composer textarea { width: 100%; resize: vertical; min-height: 76px; }
+    [data-instituva-ai] .ai-chat-composer-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    [data-instituva-ai] .ai-chat-composer-actions .field-hint { margin: 0; }
+    [data-instituva-ai] [data-ai-status] { min-height: 1.3em; }
+    [data-instituva-ai] [hidden] { display: none !important; }
+    @media (max-width: 640px) {
+      [data-instituva-ai] .ai-chat-thread { max-height: 58vh; padding: 12px; }
+      [data-instituva-ai] .ai-chat-message { max-width: 94%; }
+      [data-instituva-ai] .ai-chat-composer-actions .button { width: 100%; }
     }
   </style>
 </head>
@@ -21,31 +47,37 @@
       <main class="page-content">
         <section class="card panel section-stack" data-instituva-ai>
           <p class="page-kicker">INSTITUVA / Soporte inteligente</p>
-          <h2>Asistente INSTITUVA</h2>
-          <p>Orienta a la dirección y administración a investigar incidencias de INSTITUVA, contrastar evidencias y aplicar procedimientos seguros. Las consultas privadas de Asistencia, presupuesto, Colecciones, Inventario, Horarios y Notificaciones requieren permisos específicos. <strong>Nunca modifica registros, permisos ni pagos.</strong></p>
+          <div class="ai-chat-heading">
+            <h2>Asistente INSTITUVA</h2>
+            <span class="ai-readonly-tag">Solo lectura</span>
+          </div>
+          <p>Consulta incidencias, revisa evidencias autorizadas y recibe instrucciones para verificarlas. Las áreas privadas requieren permisos específicos. <strong>Nunca modifica registros, permisos ni pagos.</strong></p>
           <form class="form-grid" data-ai-form>
-            <div class="field">
-              <label for="ai-mode">Tipo de consulta</label>
-              <select id="ai-mode" name="mode">
-                <option value="product">Resolver una incidencia / cómo funciona INSTITUVA</option>
-                <option value="attendance">Diagnóstico privado de Asistencia / Nómina</option>
-                <option value="finance">Consulta de presupuesto financiero (acceso restringido)</option>
-                <option value="collections">Diagnóstico agregado de Colecciones (solo lectura)</option>
-                <option value="inventory">Diagnóstico agregado de Inventario (solo lectura)</option>
-                <option value="assets">Cruce de Colecciones e Inventario (solo conteos autorizados)</option>
-                <option value="schedules">Diagnóstico de Horarios (7 días, solo lectura)</option>
-                <option value="notifications">Mis notificaciones (30 días, solo lectura)</option>
-              </select>
+            <div class="ai-chat-toolbar">
+              <div class="field">
+                <label for="ai-mode">Tipo de consulta</label>
+                <select id="ai-mode" name="mode">
+                  <option value="product">Resolver una incidencia / cómo funciona INSTITUVA</option>
+                  <option value="attendance">Diagnóstico privado de Asistencia / Nómina</option>
+                  <option value="finance">Consulta de presupuesto financiero (acceso restringido)</option>
+                  <option value="collections">Diagnóstico agregado de Colecciones (solo lectura)</option>
+                  <option value="inventory">Diagnóstico agregado de Inventario (solo lectura)</option>
+                  <option value="assets">Cruce de Colecciones e Inventario (solo conteos autorizados)</option>
+                  <option value="schedules">Diagnóstico de Horarios (7 días, solo lectura)</option>
+                  <option value="notifications">Mis notificaciones (30 días, solo lectura)</option>
+                </select>
+              </div>
+              <button type="button" class="button secondary" data-ai-new-chat>Nueva conversación</button>
             </div>
             <div data-ai-private hidden>
-            <div class="field">
-              <label for="ai-employee">Nombre del empleado (opcional si lo indicas en la pregunta)</label>
-              <input id="ai-employee" name="employee_name" type="text" minlength="3" maxlength="120" autocomplete="off" placeholder="Ejemplo: Juan o Juan Vélez">
-            </div>
-            <div class="field">
-              <label for="ai-date">Fecha de la incidencia (puedes escribir «ayer» en la pregunta)</label>
-              <input id="ai-date" name="day" type="date">
-            </div>
+              <div class="field">
+                <label for="ai-employee">Empleado (opcional si lo indicas en tu mensaje)</label>
+                <input id="ai-employee" name="employee_name" type="text" minlength="3" maxlength="120" autocomplete="off" placeholder="Juan o Juan Vélez">
+              </div>
+              <div class="field">
+                <label for="ai-date">Fecha de la incidencia (o escribe «ayer»)</label>
+                <input id="ai-date" name="day" type="date">
+              </div>
             </div>
             <div class="field" data-ai-schedules hidden>
               <label for="ai-start-day">Fecha inicial de los horarios (7 días)</label>
@@ -55,43 +87,54 @@
               <label for="ai-year">Año de los registros presupuestarios</label>
               <input id="ai-year" name="year" type="number" min="2020" max="2100" step="1">
             </div>
-            <div class="field">
-              <label for="ai-question">¿Qué necesitas saber?</label>
-              <textarea id="ai-question" name="question" rows="3" minlength="8" maxlength="1000" required placeholder="Ejemplo: ¿Qué pasó con el ponche de ayer de Juan?"></textarea>
-            </div>
-            <button type="submit" class="button submit-button">Consultar sin modificar datos</button>
-          </form>
-          <p class="form-message" role="status" data-ai-status></p>
-          <section class="card section-stack" data-ai-employee-choices hidden>
-            <h3>Confirmar empleado</h3>
-            <p data-ai-choices-question></p>
-            <div class="row" data-ai-choices-list></div>
-            <p class="field-hint">Solo se muestran empleados autorizados del museo actual. Seleccionar un nombre no modifica registros.</p>
-          </section>
-          <section class="card" data-ai-result hidden>
-            <h3>Diagnóstico</h3>
-            <div data-ai-answer style="white-space:pre-wrap"></div>
-            <p class="field-hint" data-ai-evidence></p>
-            <section class="card section-stack" data-ai-guide hidden>
-              <h4>¿Quieres que te guíe paso a paso?</h4>
-              <p>Primero revisa el diagnóstico. Si quieres, te mostraré una comprobación o acción manual a la vez. Avanzar no consulta más datos ni ejecuta cambios.</p>
-              <button type="button" class="button" data-ai-guide-start>Comenzar guía</button>
-              <div class="section-stack" data-ai-guide-panel hidden>
-                <p class="field-hint" data-ai-guide-progress aria-live="polite"></p>
-                <p data-ai-guide-step></p>
-                <div class="row">
-                  <button type="button" class="button" data-ai-guide-back>Anterior</button>
-                  <button type="button" class="button" data-ai-guide-next>Siguiente paso</button>
-                </div>
-                <p class="field-hint">Solo una persona con permisos puede efectuar cambios. El asistente no ejecuta nada.</p>
+            <div class="ai-chat-thread" data-ai-thread role="log" aria-label="Conversación temporal con INSTITUVA">
+              <div data-ai-history>
+                <article class="ai-chat-message ai-chat-message--assistant" data-ai-welcome>
+                  <p class="ai-chat-speaker">INSTITUVA AI</p>
+                  <p class="ai-chat-body">Hola. Describe lo que sucede en INSTITUVA y revisaremos cómo investigarlo sin modificar datos. Si hay varios empleados con el mismo nombre, te pediré que elijas.</p>
+                </article>
               </div>
-            </section>
-            <details class="field-hint" data-ai-sources-details hidden>
-              <summary>Fuentes documentales consultadas</summary>
-              <ul data-ai-sources></ul>
-            </details>
-          </section>
-          <p class="field-hint">Las respuestas son orientación y deben contrastarse con los registros originales. No sustituyen una autorización de personal. Los datos privados se consultan únicamente bajo el museo y los permisos de la sesión. El catálogo técnico es parcial y se amplía mediante revisiones documentadas.</p>
+              <section class="ai-chat-reply section-stack" data-ai-employee-choices hidden>
+                <h3>INSTITUVA AI</h3>
+                <p data-ai-choices-question></p>
+                <div data-ai-choices-list></div>
+                <p class="field-hint">Solo empleados autorizados de tu museo. Seleccionar un nombre no modifica registros.</p>
+              </section>
+              <section class="ai-chat-reply section-stack" data-ai-result hidden>
+                <h3>INSTITUVA AI · Diagnóstico</h3>
+                <div data-ai-answer></div>
+                <p class="field-hint" data-ai-evidence></p>
+                <section class="card section-stack" data-ai-guide hidden>
+                  <h4>¿Quieres que te guíe paso a paso?</h4>
+                  <p>Una comprobación o acción manual a la vez. Avanzar no consulta más datos ni ejecuta cambios.</p>
+                  <button type="button" class="button" data-ai-guide-start>Comenzar guía</button>
+                  <div class="section-stack" data-ai-guide-panel hidden>
+                    <p class="field-hint" data-ai-guide-progress aria-live="polite"></p>
+                    <p data-ai-guide-step></p>
+                    <div class="row">
+                      <button type="button" class="button" data-ai-guide-back>Anterior</button>
+                      <button type="button" class="button" data-ai-guide-next>Siguiente paso</button>
+                    </div>
+                    <p class="field-hint">Solo una persona autorizada puede aplicar cambios. El asistente no ejecuta nada.</p>
+                  </div>
+                </section>
+                <details class="field-hint" data-ai-sources-details hidden>
+                  <summary>Fuentes documentales consultadas</summary>
+                  <ul data-ai-sources></ul>
+                </details>
+              </section>
+            </div>
+            <div class="ai-chat-composer">
+              <label for="ai-question">Escribe tu mensaje</label>
+              <textarea id="ai-question" name="question" rows="3" minlength="8" maxlength="1000" required placeholder="Ejemplo: ¿Qué pasó con el ponche de ayer de Juan?"></textarea>
+              <div class="ai-chat-composer-actions">
+                <p class="field-hint">Enter para enviar · Shift+Enter para salto de línea</p>
+                <button type="submit" class="button submit-button">Enviar consulta</button>
+              </div>
+            </div>
+            <p class="form-message" role="status" data-ai-status></p>
+          </form>
+          <p class="field-hint">Conversación temporal en este navegador: no se guarda historial ni se envían mensajes anteriores al servicio. Cada consulta se autoriza por separado. Las respuestas son orientación; verifica siempre los registros originales.</p>
         </section>
       </main>
       <footer class="site-footer" data-footer></footer>
@@ -100,7 +143,7 @@
   <script src="js/config.js"></script>
   <script src="js/time-format.js?v=us-time-20261028"></script>
   <script src="js/services/supabase.js?v=external-accountant-20261123"></script>
-  <script src="js/instituva-ai.js?v=20261126-same-museum-employee-name"></script>
+  <script src="js/instituva-ai.js?v=20261126-conversational-chat"></script>
   <script src="js/app.js?v=20261126-ai-ui-status"></script>
 </body>
 </html>
