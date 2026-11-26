@@ -6,7 +6,7 @@
 // INSTITUVA_AI_E2E_CONFIRM_STAGING=<exact staging ref>.
 // No production URL, no changes to any existing employee, role, audit or permission.
 import assert from "node:assert/strict";
-import {randomBytes} from "node:crypto";
+import {randomBytes,randomUUID} from "node:crypto";
 import {assertStagingLegacyApiKeys,STAGING_REF,STAGING_URL} from "./instituva-ai-staging-key-guard.mjs";
 
 const allowedMuseum="3a605399-ff3b-4214-884f-d42aaadb0856";
@@ -38,7 +38,9 @@ async function api(path,{method="GET",token=key,apikey=token===key?key:anon,body
 const rest=(table,filter="",select="*")=>api("/rest/v1/"+table+"?select="+select+filter);
 const insert=async(table,body)=>{
  const r=await api("/rest/v1/"+table,{method:"POST",body});
- if(!Array.isArray(r.data)||!r.data[0]?.id)throw Error("SYNTHETIC_INSERT_NOT_VERIFIED_"+table);
+ if(!Array.isArray(r.data)||!r.data[0]?.id ||
+    (body.id && r.data[0].id!==body.id))
+   throw Error("SYNTHETIC_INSERT_NOT_VERIFIED_"+table);
  return r.data[0];
 };
 const del=async(path)=>{
@@ -103,36 +105,41 @@ async function grant(actorId,codes){
  created.permissions.push(...matched.map(p=>({permission_id:p.id,code:p.code})));
 }
 async function setupEmployee(museum,first,last){
- const employee=await insert("employees",{
-   museum_id:museum,first_name:first,last_name:last,
+ const id=randomUUID();
+ // Track BEFORE writing: even a dropped HTTP response leaves a known cleanup key.
+ created.employees.push({id,museum});
+ await insert("employees",{
+   id,museum_id:museum,first_name:first,last_name:last,
    position:"Empleado de prueba",department:"Pruebas",status:"activo"
  });
- created.employees.push({id:employee.id,museum});
- return employee.id;
+ return id;
 }
 async function setupEvidence(velezId,actorId){
+ created.settings.push(allowedMuseum);
  const setting=await api("/rest/v1/attendance_settings",{
    method:"POST",body:{museum_id:allowedMuseum,timezone:"America/Puerto_Rico"}
  });
  check("disposable attendance timezone created",setting.data?.length===1);
- created.settings.push(allowedMuseum);
  const yesterday=PRday(-1),before=PRday(-2);
- const shift=await insert("employee_shifts",{
-   museum_id:allowedMuseum,employee_id:velezId,shift_date:yesterday,
+ const shiftId=randomUUID();
+ created.shifts.push(shiftId);
+ await insert("employee_shifts",{
+   id:shiftId,museum_id:allowedMuseum,employee_id:velezId,shift_date:yesterday,
    starts_at:yesterday+"T12:00:00Z",ends_at:yesterday+"T21:00:00Z",
    status:"scheduled",expected_lunch_minutes:60,created_by:actorId
  });
- created.shifts.push(shift.id);
- const entry=await insert("employee_time_entries",{
-   museum_id:allowedMuseum,employee_id:velezId,
+ const entryId=randomUUID();
+ created.entries.push(entryId);
+ await insert("employee_time_entries",{
+   id:entryId,museum_id:allowedMuseum,employee_id:velezId,
    clock_in:before+"T12:02:00Z",clock_out:null,created_by:actorId
  });
- created.entries.push(entry.id);
- const alert=await insert("attendance_operational_alerts",{
-   museum_id:allowedMuseum,employee_id:velezId,shift_id:shift.id,
+ const alertId=randomUUID();
+ created.alerts.push(alertId);
+ await insert("attendance_operational_alerts",{
+   id:alertId,museum_id:allowedMuseum,employee_id:velezId,shift_id:shiftId,
    alert_date:yesterday,alert_type:"missing_clock_in",status:"active"
  });
- created.alerts.push(alert.id);
 }
 const postAi=(token,payload)=>api("/functions/v1/instituva-ai-assistant",{
  method:"POST",token,apikey:anon,body:payload,allowError:true
@@ -140,13 +147,14 @@ const postAi=(token,payload)=>api("/functions/v1/instituva-ai-assistant",{
 try{
  await preflight();
  const actorSession=await actor();
- const m2=await insert("museums",{
-   name:marker+"-other-museum",slug:marker+"-other-museum",active:true
+ const museum2=randomUUID();
+ created.museums.push(museum2);
+ await insert("museums",{
+   id:museum2,name:marker+"-other-museum",slug:marker+"-other-museum",active:true
  });
- created.museums.push(m2.id);
  const velez=await setupEmployee(allowedMuseum,"Juan","Vélez");
  const torres=await setupEmployee(allowedMuseum,"Juan","Torres");
- const foreign=await setupEmployee(m2.id,"Juan","Ajeno");
+ const foreign=await setupEmployee(museum2,"Juan","Ajeno");
  await setupEvidence(velez,actorSession.id);
  await grant(actorSession.id,["attendance.history.read","finance.read",
     "employees.read.all","time.read.all"]);
