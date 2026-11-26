@@ -75,7 +75,7 @@ test("auth gate precedes lazy staging-only dock load and skips login and AI ifra
  const loader=app.indexOf('dockScript.src="js/instituva-ai-dock.js');
  assert.ok(gate>0 && loader>gate);
  const slice=app.slice(gate,loader);
- assert.match(slice,/museoEnvironment\.name === "staging"/);
+ assert.match(slice,/instituvaAiUiEnabled/);
  assert.match(slice,/getCurrentPage\(\) !== "asistente-ia.html"/);
  assert.match(slice,/document\.querySelector\("\[data-header\]"\)/);
  assert.match(app,/new URLSearchParams\(window\.location\.search\)\.get\("dock"\) === "1"/);
