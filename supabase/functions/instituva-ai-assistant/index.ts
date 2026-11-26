@@ -67,7 +67,7 @@ Deno.serve(async (req: Request) => {
     const question=clean(input.question,MAX_QUESTION + 1);
     const plan=planNaturalQuery(question,input as Record<string,unknown>);
     const mode=plan.mode;
-    if (!mode || question.length<8 || question.length>MAX_QUESTION) throw Error("INVALID_REQUEST");
+    if (!mode || question.length<(mode==="attendance" && input.conversation_context?2:8) || question.length>MAX_QUESTION) throw Error("INVALID_REQUEST");
     if (mode==="attendance" || mode==="finance" || mode==="collections" || mode==="inventory" || mode==="schedules" || mode==="notifications") {
       const required = requiredPermissionsForMode(mode);
       for (const permission of required) {
@@ -340,10 +340,12 @@ Deno.serve(async (req: Request) => {
     // never infer a name from unrelated private records or another tenant.
     const name=clean(input.employee_name,120) || plan.employeeName || inferEmployeeName(question) || "";
     if (!name) return send({code:"EMPLOYEE_NAME_REQUIRED",
-      error:"¿De qué empleado se trata? Indica el nombre para consultar su asistencia."},422);
+      error:"¿De qué empleado se trata? Indica el nombre para consultar su asistencia.",
+      conversation_context:plan.range?{mode:"attendance",start_day:plan.range.start,end_day:plan.range.endExclusive}:{mode:"attendance",day:plan.day||""}},422);
     const inferredDay=plan.range?.start || plan.day || attendanceDayFromQuestion(input.day,question);
     if (!inferredDay) return send({code:"ATTENDANCE_DATE_REQUIRED",
-      error:"¿De qué fecha necesitas el ponche? Puedes indicar hoy, ayer o seleccionar la fecha."},422);
+      error:"¿De qué fecha necesitas la asistencia? Puedes indicar un día o un mes, por ejemplo noviembre.",
+      conversation_context:{mode:"attendance",employee_name:name}},422);
     const day=validAttendanceDay(inferredDay);
     if (name.length<2 || !/^[\p{L}\p{M}.' -]+$/u.test(name)) throw Error("INVALID_REQUEST");
     const parsedDay=Date.parse(day+"T04:00:00Z");
@@ -422,7 +424,7 @@ Deno.serve(async (req: Request) => {
         mode:"attendance",employee_name:clean(employee.first_name+" "+employee.last_name,120),
         start_day:start,end_day:endExclusive
       };
-      const full=summary.verified_days===summary.days_with_punches &&
+      const full=summary.days_with_punches>0 && summary.verified_days===summary.days_with_punches &&
         summary.days_without_confirmed_lunch===0 && summary.incomplete_days===0;
       const title="Asistencia de "+clean(employee.first_name+" "+employee.last_name,120)+
         " del "+summary.start_day+" al "+summary.end_day_inclusive+".";
