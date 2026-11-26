@@ -448,6 +448,7 @@ test("attendance punch correction references across dates are read narrowly and 
 function mountAiUiForTest(providerResponse,options={}) {
  const handlers={},resubmits=[],windowListeners={},redirects=[];
  const authState={session:options.initialSession||null};
+ const authContext={museum:options.museum||"staging-synthetic-museum",grants:(options.permissions||[]).slice()};
  const bodyClasses=new Set();
  const element=(extra={})=>({
    hidden:false,textContent:"",required:false,value:"",disabled:false,
@@ -528,18 +529,23 @@ function mountAiUiForTest(providerResponse,options={}) {
      querySelector(selector){return selector==="[data-instituva-ai]"?root:null;},
      createElement(tag){return element({tagName:tag});},
      body:{classList:{add(name){bodyClasses.add(name);}}},
-     addEventListener(){}
+     hidden:false,
+     addEventListener(name,cb){handlers["document:"+name]=cb;}
    },
    window:{
      location:{
        search:options.search||"",origin:"https://staging.example.invalid",
        replace(url){redirects.push(url);}
      },
-     addEventListener(name,cb){windowListeners[name]=cb;}
+     addEventListener(name,cb){windowListeners[name]=cb;},
+     setInterval(cb,ms){handlers["interval:"+ms]=cb;return 1;}
    },
    URLSearchParams,
    getSupabaseSession(){return authState.session;},
    supabaseSessionKey:"staging-session-key",
+   currentPermissions:new Set(options.permissions||[]),
+   supabasePost:async()=>authContext.museum,
+   fetchCurrentSupabasePermissions:async()=>authContext.grants.slice(),
    museoEnvironment:{name:"staging"},
    hasPermission(permission){return (options.permissions||[]).includes(permission);},
    FormData:class {
@@ -567,7 +573,7 @@ function mountAiUiForTest(providerResponse,options={}) {
  return {handlers,status,result,answer,formattedAnswer,sources,sourceDetails,button,mode,requests,
    guide,guidePanel,guideProgress,guideStep,guideStart,guideBack,guideNext,
    choices,choicesQuestion,choicesList,employee,day,resubmits,
-   history,thread,welcome,newChat,questionInput,contextEl,windowListeners,authState,redirects,bodyClasses};
+   history,thread,welcome,newChat,questionInput,contextEl,windowListeners,authState,authContext,redirects,bodyClasses};
 }
 
 test("AI frontend preserves rejected service message after submit and clears only on mode change",async()=>{
@@ -1073,7 +1079,8 @@ test("separate assistant clears previous user messages on logout in another tab"
  assert.equal(mounted.result.hidden,true);
  assert.equal(mounted.history.children.length,1);
  assert.equal(mounted.button.disabled,true);
- assert.deepEqual(mounted.redirects,["login.html?environment=staging"]);
+ assert.equal(mounted.redirects.length,0,"session invalidation clears chat in place");
+ assert.match(mounted.status.textContent,/cuenta o sesión cambió/i);
 });
 
 test("same user refreshing token across tabs does not erase active chat",async()=>{
@@ -1111,4 +1118,59 @@ test("standalone popup uses compact chat-only layout without changing data acces
 test("ordinary AI tab has normal navigation, no popup-only class",()=>{
  const mounted=mountAiUiForTest({ok:true,status:200,async json(){return {}}},{search:"?context=general"});
  assert.equal(mounted.bodyClasses.has("ai-popout-window"),false);
+});
+
+
+test("revoked permissions clear even previously rendered private diagnostic",async()=>{
+ const mounted=mountAiUiForTest({ok:true,status:200,async json(){return {
+   mode:"product",answer:"Información que ya estaba visible",
+   read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+   evidence:{},sources:[]
+ }; }},{question:"¿Qué información presenta el sistema?",initialSession:{
+   access_token:"signed-staging-token",user:{id:"user-alpha"}
+ },permissions:["finance.read","attendance.history.read"]});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.result.hidden,false);
+ mounted.authContext.grants=["attendance.history.read"];
+ await mounted.windowListeners.focus();
+ assert.equal(mounted.result.hidden,true,"old diagnostic must disappear");
+ assert.equal(mounted.answer.textContent,"","hidden text must be removed from DOM");
+ assert.equal(mounted.evidence.textContent,"","evidence must be cleared from DOM");
+ assert.equal(mounted.history.children.length,1,"chat history must be erased");
+ assert.equal(mounted.button.disabled,true);
+ assert.equal(mounted.newChat.disabled,true);
+});
+
+test("same user changing museum clears chat without accepting an old diagnosis",async()=>{
+ const mounted=mountAiUiForTest({ok:true,status:200,async json(){return {
+   mode:"product",answer:"Conocimiento general",
+   read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+   evidence:{},sources:[]
+ }; }},{question:"¿Cómo funcionan las consultas?",initialSession:{
+   access_token:"signed-staging-token",user:{id:"user-alpha"}
+ }});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.result.hidden,false);
+ mounted.authContext.museum="another-authorized-museum";
+ await mounted.windowListeners.focus();
+ assert.equal(mounted.history.children.length,1);
+ assert.equal(mounted.result.hidden,true);
+ assert.equal(mounted.answer.textContent,"");
+ assert.equal(mounted.button.disabled,true);
+});
+
+test("unavailable authorization service fails closed and does not show a completed answer",async()=>{
+ const mounted=mountAiUiForTest({ok:true,status:200,async json(){return {
+   mode:"product",answer:"Información privada no reutilizable",
+   read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+   sources:[],evidence:{}
+ }; }},{question:"¿Cómo se consulta asistencia?",initialSession:{
+   access_token:"signed-staging-token",user:{id:"user-alpha"}
+ }});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ mounted.authContext.museum=null;
+ await mounted.windowListeners.focus();
+ assert.equal(mounted.result.hidden,true);
+ assert.equal(mounted.button.disabled,true);
+ assert.equal(mounted.answer.textContent,"");
 });
