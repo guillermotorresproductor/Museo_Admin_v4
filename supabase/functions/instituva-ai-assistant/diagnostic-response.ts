@@ -51,6 +51,16 @@ export function parseDiagnosticResponse(raw:unknown):DiagnosticResponse{
     limitaciones:list(data.limitaciones,1,4)
   };
 }
+// All guide steps come only from the parsed, bounded advisory response.
+// The client advances these steps locally; no model/tool or operational action is invoked.
+export type ManualGuideStep={phase:"verificar"|"accion_manual";text:string};
+export function buildManualGuide(d:DiagnosticResponse):ManualGuideStep[]{
+  return [
+    ...d.verificaciones.map(text=>({phase:"verificar" as const,text})),
+    ...d.recomendaciones_manuales.map(text=>({phase:"accion_manual" as const,text}))
+  ];
+}
+
 export function formatDiagnosticResponse(d:DiagnosticResponse):string{
   const section=(heading:string,items:readonly string[])=>
     heading+"\n"+(items.length?items.map((item,i)=>(i+1)+". "+item).join("\n"):"Sin hipótesis adicionales verificables.");
