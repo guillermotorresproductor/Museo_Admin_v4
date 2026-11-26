@@ -14,6 +14,7 @@ function bindInstituvaAi() {
   const status=root.querySelector("[data-ai-status]");
   const result=root.querySelector("[data-ai-result]");
   const answer=root.querySelector("[data-ai-answer]");
+  const formattedAnswer=root.querySelector("[data-ai-answer-formatted]");
   const evidence=root.querySelector("[data-ai-evidence]");
   const sources=root.querySelector("[data-ai-sources]");
   const sourceDetails=root.querySelector("[data-ai-sources-details]");
@@ -41,6 +42,53 @@ function bindInstituvaAi() {
     article.appendChild(text);
     history.appendChild(article);
     scrollChat();
+  };
+  // Format only the closed server-produced diagnosis structure. If it changes,
+  // fall back to the original text without guessing sections or interpreting HTML.
+  const renderFormattedAnswer=(raw)=>{
+    formattedAnswer.replaceChildren();
+    formattedAnswer.hidden=true;
+    answer.hidden=false;
+    const headings=[
+      "Análisis inicial",
+      "Hipótesis (no confirmadas)",
+      "Verificaciones pendientes",
+      "Acciones manuales propuestas (NO ejecutadas)",
+      "Limitaciones de la evidencia"
+    ];
+    const chunks=String(raw).split("\n\n");
+    if(chunks.length!==6 ||
+      !chunks[0].startsWith("INSTITUVA — DIAGNÓSTICO PRELIMINAR\n") ||
+      !headings.every((heading,index)=>chunks[index+1].startsWith(heading+"\n")))
+      return;
+    const intro=document.createElement("p");
+    intro.className="ai-diagnostic-intro";
+    intro.textContent=chunks[0].split("\n").slice(1).join(" ").trim();
+    formattedAnswer.appendChild(intro);
+    for(let index=0;index<headings.length;index++){
+      const section=document.createElement("section");
+      section.className="ai-diagnostic-section";
+      const title=document.createElement("h4");
+      title.textContent=headings[index];
+      section.appendChild(title);
+      const lines=chunks[index+1].slice(headings[index].length+1).split("\n");
+      if(index>0 && lines.every(line=>/^\d+\.\s+\S/.test(line))){
+        const list=document.createElement("ol");
+        for(const line of lines){
+          const item=document.createElement("li");
+          item.textContent=line.replace(/^\d+\.\s+/,"");
+          list.appendChild(item);
+        }
+        section.appendChild(list);
+      } else {
+        const paragraph=document.createElement("p");
+        paragraph.textContent=lines.join("\n");
+        section.appendChild(paragraph);
+      }
+      formattedAnswer.appendChild(section);
+    }
+    answer.hidden=true;
+    formattedAnswer.hidden=false;
   };
   const archiveResult=()=>{
     if(result.hidden)return;
@@ -271,6 +319,9 @@ function bindInstituvaAi() {
     resetGuide();
     clearChoices();
     answer.textContent="";
+    formattedAnswer.replaceChildren();
+    formattedAnswer.hidden=true;
+    answer.hidden=false;
     evidence.textContent="";
     sources.replaceChildren();
     sourceDetails.hidden=true;
@@ -300,6 +351,7 @@ function bindInstituvaAi() {
           body.mode!==queryMode || !Array.isArray(body.sources))
         throw Error("Respuesta del servicio no válida.");
       answer.textContent=body.answer;
+      renderFormattedAnswer(body.answer);
       if (body.mode==="attendance") {
         const dayOffPunchCoincidence=body.evidence?.schedule_day_off_with_punches===true;
         evidence.textContent=`Fuente: asistencia de ${String(body.evidence?.employee||"").slice(0,120)}; fecha ${String(body.evidence?.date||day)}. Ponches efectivos: ${Number(body.evidence?.punch_count||0)}. Intentos rechazados: ${Number(body.evidence?.rejected_attempt_count||0)} (secuencia inválida: ${Number(body.evidence?.invalid_sequence_attempts||0)}). Alertas activas: ${Number(body.evidence?.active_alert_count||0)}; revisadas o resueltas: ${Number(body.evidence?.reviewed_or_resolved_alert_count||0)}. ${dayOffPunchCoincidence?"Observación: día libre registrado y ponches en la misma fecha; cotejar turnos y correcciones manualmente, no prueba incumplimiento. ":""}El conteo no confirma una causa. Solo lectura.`;
