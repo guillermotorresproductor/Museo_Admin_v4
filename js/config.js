@@ -3,7 +3,7 @@
 const museoEnvironments = Object.freeze({
   production: Object.freeze({
     name: "production",
-    aiAssistantUiEnabled: false, // Controlled release gate: OFF until role and E2E validation.
+    aiAssistantUiEnabled: true, // Production UI: authenticated four-role allowlist; server independently enforces.
     supabaseUrl: "https://kfokfjngozgcwjpzxcsu.supabase.co",
     supabasePublishableKey: "sb_publishable_wBGL3o2YcfbR_dvhT3mTnw_OXuHB0y3",
     institutionalData: Object.freeze({
