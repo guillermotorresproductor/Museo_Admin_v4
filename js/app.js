@@ -1,4 +1,5 @@
 const appPages = {
+  "asistente-ia.html": { title: "Asistente INSTITUVA", subtitle: "Diagnóstico autorizado de solo lectura." },
   "index.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
   "dashboard.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
   "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Música." },
@@ -422,6 +423,15 @@ function enforceAuthenticatedPageAccess() {
     return true;
   }
   if (!currentPermissionsLoaded) return true;
+  if (page === "asistente-ia.html") {
+    if (!instituvaAiUiEnabled) {
+      showProtectedAccessDenied("INSTITUVA AI no está habilitado.");
+      return true;
+    }
+    // The independent assistant checks the precise employee profile after
+    // loading the authorized session-scoped employee cache.
+    return false;
+  }
   // Independent invitation screen: existing director/admin museum profiles
   // pass only with BOTH existing administrative permissions. This check
   // runs before the employee-module routing branch, which otherwise
@@ -8590,6 +8600,20 @@ async function initApp() {
   document.body.classList.add("app-ready");
   await syncEmployeeCacheFromSupabase().catch(() => null);
   updateCurrentUserFromEmployeeCache();
+  const aiAuthorizedRoles = new Set(["administrador_general","director_ejecutivo","gerente_administrativo","gerente_museografica"]);
+  const aiSessionUserId = getSupabaseSession()?.user?.id || "";
+  const aiActiveStaff = getEmployeeRecords().find(e => e.authUserId === aiSessionUserId && e.statusCode === "activo" && aiAuthorizedRoles.has(e.accessProfile));
+  const canUseAi = instituvaAiUiEnabled && Boolean(aiActiveStaff);
+  if (getCurrentPage() === "asistente-ia.html" && !canUseAi) {
+    showProtectedAccessDenied("Su perfil no autoriza utilizar INSTITUVA AI.");
+    return;
+  }
+  if (getCurrentPage() === "asistente-ia.html" && canUseAi && typeof bindInstituvaAi === "function") bindInstituvaAi();
+  if (canUseAi && getCurrentPage() !== "asistente-ia.html" && document.querySelector(".app-shell") && document.querySelector("[data-header]")) {
+    const aiDockScript = document.createElement("script");
+    aiDockScript.src = "js/instituva-ai-dock.js?v=20261126-isolated-gate-1";
+    document.head.appendChild(aiDockScript);
+  }
   renderHeader();
   renderInlineIcons();
   bindHeaderActions();
@@ -8605,7 +8629,7 @@ async function initApp() {
   await bindEmployeeProfile();
   bindSidebarToggle();
   bindNotificationMenu();
-  bindIdleLogout();
+  if (!(getCurrentPage() === "asistente-ia.html" && new URLSearchParams(window.location.search).get("dock") === "1")) bindIdleLogout();
   bindRentalCatalog();
   bindRentalGeneralRules();
   bindRentalSpacePage();

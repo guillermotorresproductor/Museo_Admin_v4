@@ -1,0 +1,53 @@
+/* INSTITUVA AI: isolated add-on; no changes to module forms or controls. */
+.ai-dock-launch {
+  position: fixed; z-index: 1100; right: 22px; bottom: 24px;
+  min-height: 48px; padding: 12px 20px; border: 0; border-radius: 999px;
+  background: #124f38; color: #fff; font: 800 .98rem/1.35 Inter, "Segoe UI", Arial, sans-serif;
+  box-shadow: 0 8px 28px rgba(15,23,42,.24); cursor: pointer;
+}
+.ai-dock-launch:hover,.ai-dock-launch:focus-visible { background: #0c3d2b; outline-offset: 3px; }
+.ai-dock-panel {
+  --ai-dock-width: min(42vw, 560px);
+  position: fixed; z-index: 1100; right: 0; top: 0; bottom: 0;
+  display: flex; flex-direction: column; width: var(--ai-dock-width);
+  border-left: 1px solid #d1dce3; background: #fff;
+  box-shadow: -9px 0 28px rgba(15,23,42,.13); overflow: hidden;
+}
+.ai-dock-panel--wide { --ai-dock-width: min(58vw, 820px); }
+.ai-dock-panel[hidden],.ai-dock-launch[hidden] { display: none !important; }
+.ai-dock-header {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 12px; padding: 13px 16px;
+  border-bottom: 1px solid #e4eaee; background: #f9fbfb;
+}
+.ai-dock-header strong,.ai-dock-header span { display: block; }
+.ai-dock-header strong { font-size: 1.03rem; color: #132b23; }
+.ai-dock-header span { font-size: .78rem; color: #526477; }
+.ai-dock-controls { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-dock-control {
+  padding: 8px 10px; border: 1px solid #cbd9d3; border-radius: 8px;
+  background: #fff; color: #183528; font-size: .83rem; font-weight: 700;
+  cursor: pointer;
+}
+.ai-dock-control:hover,.ai-dock-control:focus-visible {
+  border-color: #3a8061; background: #eef8f1;
+}
+.ai-dock-panel iframe { display: block; width: 100%; flex: 1 1 auto; min-height: 0; border: 0; background: #fff; }
+.ai-dock-disclaimer {
+  margin: 0; padding: 8px 12px; border-top: 1px solid #e4eaee;
+  color: #526477; font-size: .74rem; line-height: 1.35; background: #f9fbfb;
+}
+@media (min-width: 1100px) {
+  body.ai-dock-open .main-area {
+    margin-right: min(42vw, 560px);
+    transition: margin-right 120ms ease-out;
+  }
+  body.ai-dock-open.ai-dock-wide .main-area { margin-right: min(58vw, 820px); }
+  body.ai-dock-open .site-header { padding-right: 20px; padding-left: 20px; }
+  body.ai-dock-open .page-content { padding-right: 20px; padding-left: 20px; }
+}
+@media (max-width: 1099px) {
+  .ai-dock-panel,.ai-dock-panel--wide { width: min(100vw, 560px); }
+  .ai-dock-control { font-size: .79rem; }
+}
+@media print { .ai-dock-launch,.ai-dock-panel { display: none !important; } }
