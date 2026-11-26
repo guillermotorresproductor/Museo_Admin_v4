@@ -715,3 +715,86 @@ test("rejected punch attempts are strictly employee/tenant scoped and reduced to
  assert.match(source,/const resultSet=new Set/);
  assert.doesNotMatch(source,/fetch\(|createClient|\.insert\(|\.update\(|\.delete\(/);
 });
+
+test("personal question from general help requires permissions before any employee lookup",async()=>{
+ const mounted=mountAiUiForTest({
+   ok:true,async json(){throw Error("must not fetch unauthorized roster");}
+ },{question:"¿Qué pasó con el ponche de ayer de Juan?"});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.mode.value,"attendance","personal question must not use general mode");
+ assert.equal(mounted.requests.length,0,"unauthorized request leaked");
+ assert.match(mounted.status.textContent,/no tiene permiso/);
+});
+
+test("same-museum Juan ambiguity offers an explicit choice then analyzes only selected employee",async()=>{
+ const t="fa710000-2026-4000-8000-000000000201";
+ const v="fa710000-2026-4000-8000-000000000202";
+ const mounted=mountAiUiForTest([
+  {ok:false,status:409,async json(){return {
+   code:"EMPLOYEE_SELECTION_REQUIRED",
+   question:"¿Te refieres a Juan Torres o Juan Vélez?",
+   options:[{employee_id:t,name:"Juan Torres"},{employee_id:v,name:"Juan Vélez"}]
+  };}},
+  {ok:true,status:200,async json(){return {
+    mode:"attendance",answer:"Diagnóstico solo de Juan Vélez.",
+    read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+    evidence:{employee:"Juan Vélez",date:"2026-11-25",punch_count:0},sources:["attendance_events"],
+    guide_steps:[{phase:"verificar",text:"Confirmar jornada abierta."}]
+  };}}
+ ],{question:"¿Qué pasó con el ponche de ayer de Juan?",
+    permissions:["attendance.history.read","finance.read"]});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.requests.length,1);
+ assert.equal(JSON.parse(mounted.requests[0].options.body).mode,"attendance");
+ assert.equal(mounted.choices.hidden,false);
+ assert.equal(mounted.result.hidden,true);
+ assert.match(mounted.choicesQuestion.textContent,/Juan Torres o Juan Vélez/);
+ assert.deepEqual(mounted.choicesList.items.map(x=>x.textContent),["Juan Torres","Juan Vélez"]);
+ mounted.choicesList.items[1].listeners.click();
+ await Promise.all(mounted.resubmits);
+ assert.equal(mounted.requests.length,2,"only one extra authenticated lookup");
+ const selected=JSON.parse(mounted.requests[1].options.body);
+ assert.equal(selected.employee_id,v);
+ assert.equal(selected.employee_name,"Juan Vélez");
+ assert.equal(selected.mode,"attendance");
+ assert.equal(selected.question,"¿Qué pasó con el ponche de ayer de Juan?");
+ assert.equal(mounted.choices.hidden,true);
+ assert.equal(mounted.result.hidden,false);
+ assert.equal(mounted.answer.textContent,"Diagnóstico solo de Juan Vélez.");
+ assert.equal(mounted.guide.hidden,false);
+ assert.doesNotMatch(ui,/innerHTML|\.insert\(|\.update\(|\.delete\(/);
+});
+
+test("foreign or malformed selection is never rendered as executable HTML",async()=>{
+ const mounted=mountAiUiForTest({
+   ok:false,status:409,async json(){return {
+    code:"EMPLOYEE_SELECTION_REQUIRED",
+    question:"<img src=x onerror=alert(1)>",
+    options:[{employee_id:"forged",name:"<script>"},
+      {employee_id:"fa710000-2026-4000-8000-000000000202",name:"Juan Torres"}]
+   };}
+ },{question:"¿Qué pasó con el ponche de ayer de Juan?",
+    permissions:["attendance.history.read","finance.read"]});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.choices.hidden,true);
+ assert.equal(mounted.choicesList.items.length,0);
+ assert.equal(mounted.result.hidden,true);
+ assert.equal(mounted.requests.length,1);
+});
+
+test("server disambiguation is limited to a verified museum and a separate directory grant",()=>{
+ const s=endpoint.indexOf("const firstNameOnly=");
+ const e=endpoint.indexOf("const [shifts,events,alerts",s);
+ assert.ok(s>0 && e>s);
+ const branch=endpoint.slice(s,e);
+ assert.match(branch,/requested_permission:"employees.read.all"/);
+ assert.match(branch,/module_code:"administration"/);
+ assert.match(branch,/const nameSource=firstNameOnly \? caller : admin/);
+ assert.match(branch,/\.eq\("museum_id",museumId\)\.eq\("status","activo"\)/);
+ assert.match(branch,/assertTenantRows\(employees\|\|\[\],museumId\)/);
+ assert.match(branch,/resolveScopedEmployeeName\(/);
+ assert.match(branch,/input\.employee_id \?\? null/);
+ assert.match(branch,/code:"EMPLOYEE_SELECTION_REQUIRED"/);
+ assert.match(branch,/code:"EMPLOYEE_NAME_TOO_BROAD"/);
+ assert.doesNotMatch(branch,/\.insert\(|\.update\(|\.delete\(/);
+});
