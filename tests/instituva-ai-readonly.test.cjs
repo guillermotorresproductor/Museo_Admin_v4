@@ -1,6 +1,7 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
+const vm=require("node:vm");
 const endpoint=fs.readFileSync("supabase/functions/instituva-ai-assistant/index.ts","utf8");
 const ui=fs.readFileSync("js/instituva-ai.js","utf8");
 const html=fs.readFileSync("asistente-ia.html","utf8");
@@ -437,4 +438,117 @@ test("attendance punch correction references across dates are read narrowly and 
  assert.match(resolver,/assertEmployeeTenantRows\(supersedingEvents,museumId,employeeId\)/);
  assert.match(resolver,/original\.shift_id!==e\.shift_id/);
  assert.doesNotMatch(resolver,/fetch\(|createClient|\.insert\(|\.update\(|\.delete\(/);
+});
+
+/*
+ * Small DOM-free regression harness. These tests never call Supabase or OpenAI.
+ * They exercise the same browser form handler that previously cleared 503 errors.
+ */
+function mountAiUiForTest(providerResponse) {
+ const handlers={};
+ const element=(extra={})=>({hidden:false,textContent:"",required:false,...extra});
+ const status=element();
+ const result=element({hidden:true});
+ const answer=element();
+ const evidence=element();
+ const sourceDetails=element({hidden:true});
+ const sources=element({
+   items:[],
+   replaceChildren(){this.items=[];},
+   appendChild(item){this.items.push(item);}
+ });
+ const button=element({disabled:false});
+ const mode=element({value:"product",addEventListener(name,callback){handlers["mode:"+name]=callback;}});
+ const start=element(),year=element(),employee=element(),day=element();
+ const controls={
+   '[name="mode"]':mode,'[name="start_day"]':start,'[name="year"]':year,
+   '[name="employee_name"]':employee,'[name="day"]':day,
+   'button[type="submit"]':button
+ };
+ const form={
+   querySelector(selector){return controls[selector];},
+   addEventListener(name,callback){handlers["form:"+name]=callback;}
+ };
+ const rootItems={
+   "[data-ai-form]":form,"[data-ai-private]":element(),
+   "[data-ai-finance]":element(),"[data-ai-schedules]":element(),
+   "[data-ai-status]":status,"[data-ai-result]":result,
+   "[data-ai-answer]":answer,"[data-ai-evidence]":evidence,
+   "[data-ai-sources]":sources,"[data-ai-sources-details]":sourceDetails
+ };
+ const root={querySelector(selector){return rootItems[selector];}};
+ const requests=[];
+ const sandbox={
+   document:{
+     querySelector(selector){return selector==="[data-instituva-ai]"?root:null;},
+     createElement(tag){return element({tagName:tag});}
+   },
+   hasPermission(){return false;},
+   FormData:class {
+     get(name){return name==="mode"?mode.value:name==="question"?
+       "Una jornada abierta impide registrar ponches":"";}
+   },
+   async supabaseAuthHeaders(){return {Authorization:"Bearer signed-test-jwt"};},
+   supabaseUrl:"https://staging.example.invalid",
+   fetch:async (url,options)=>{
+     requests.push({url,options});
+     return providerResponse;
+   }
+ };
+ vm.runInNewContext(ui+"\nbindInstituvaAi();",sandbox,{filename:"js/instituva-ai.js"});
+ return {handlers,status,result,answer,sources,sourceDetails,button,mode,requests};
+}
+
+test("AI frontend preserves rejected service message after submit and clears only on mode change",async()=>{
+ const mounted=mountAiUiForTest({
+   ok:false,
+   async json(){return {error:"El asistente todavía no está activado para este museo."};}
+ });
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.status.textContent,
+   "El asistente todavía no está activado para este museo.");
+ assert.equal(mounted.result.hidden,true);
+ assert.equal(mounted.button.disabled,false);
+ assert.equal(mounted.requests.length,1);
+ assert.match(mounted.requests[0].url,/\/functions\/v1\/instituva-ai-assistant$/);
+ const payload=JSON.parse(mounted.requests[0].options.body);
+ assert.deepEqual(Object.keys(payload).sort(),["mode","question"]);
+ mounted.handlers["mode:change"]();
+ assert.equal(mounted.status.textContent,"");
+});
+
+test("AI frontend displays only same-mode read-only diagnosis and literal source references",async()=>{
+ const sources=["docs/guia@abcdef [versión revisada]","<script>alert('no')</script>"];
+ const mounted=mountAiUiForTest({
+   ok:true,
+   async json(){return {
+     mode:"product",answer:"Diagnóstico preliminar de prueba",
+     read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+     evidence:{source_count:2},sources
+   };}
+ });
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.answer.textContent,"Diagnóstico preliminar de prueba");
+ assert.equal(mounted.result.hidden,false);
+ assert.equal(mounted.sourceDetails.hidden,false);
+ assert.deepEqual(mounted.sources.items.map(x=>x.textContent),sources);
+ assert.match(mounted.status.textContent,/Consulta completada/);
+ assert.equal(mounted.button.disabled,false);
+ assert.match(html,/data-ai-sources-details/);
+ assert.match(app,/"asistente-ia.html": \{ title: "Asistente INSTITUVA"/);
+});
+
+test("AI frontend rejects a response whose mode does not match the requested evidence scope",async()=>{
+ const mounted=mountAiUiForTest({
+   ok:true,
+   async json(){return {
+     mode:"finance",answer:"Datos privados inesperados",
+     read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+     sources:[],evidence:{}
+   };}
+ });
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.result.hidden,true);
+ assert.equal(mounted.answer.textContent,"");
+ assert.equal(mounted.status.textContent,"Respuesta del servicio no válida.");
 });
