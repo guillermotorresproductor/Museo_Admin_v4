@@ -1,7 +1,8 @@
 // Opt-in authenticated E2E for name disambiguation in the EXACT AI staging museum.
 // Requires only temporary synthetic employees, shift, alert and open time entry.
 // Never creates immutable attendance_attempts/events; those are tested in rolled-back SQL.
-// Never logs passwords, JWTs, service keys, actual user names or prompt content.
+// Never logs JWTs or service keys. Opt-in manual UI mode displays only a
+// freshly generated disposable login in the local interactive staging terminal.
 // Required local variables: INSTITUVA_AI_TEST_SERVICE_KEY, INSTITUVA_AI_TEST_ANON_KEY,
 // INSTITUVA_AI_E2E_CONFIRM_STAGING=<exact staging ref>.
 // No production URL, no changes to any existing employee, role, audit or permission.
@@ -9,6 +10,9 @@ import assert from "node:assert/strict";
 import {randomBytes,randomUUID} from "node:crypto";
 import {assertStagingLegacyApiKeys,STAGING_REF,STAGING_URL} from "./instituva-ai-staging-key-guard.mjs";
 
+const manualUi=process.argv.length===3 && process.argv[2]==="--manual-ui";
+if(process.argv.length>2 && !manualUi)throw Error("UNRECOGNIZED_TEST_MODE");
+if(manualUi && !process.stdin.isTTY)throw Error("MANUAL_UI_REQUIRES_LOCAL_TERMINAL");
 const allowedMuseum="3a605399-ff3b-4214-884f-d42aaadb0856";
 const key=process.env.INSTITUVA_AI_TEST_SERVICE_KEY;
 const anon=process.env.INSTITUVA_AI_TEST_ANON_KEY;
@@ -90,7 +94,7 @@ async function actor(){
    method:"POST",token:anon,apikey:anon,body:{email,password}
  });
  assert.ok(session.data?.access_token,"real signed test JWT missing");
- return {id:made.data.id,token:session.data.access_token};
+ return {id:made.data.id,token:session.data.access_token,...(manualUi?{email,password}:{})};
 }
 async function grant(actorId,codes){
  const perms=await rest("permissions","","id,code");
@@ -199,6 +203,35 @@ try{
  console.log(JSON.stringify({status:"PASS",staging:STAGING_REF,checks:checks.length,
    signed_jwt:true,museums_isolated:true,choice_required:true,
    selected_employee_diagnosis:true,provider_calls:1,operational_writes_by_ai:0}));
+ if(manualUi){
+   // All sensitive credentials stay in this local terminal and only for this run.
+   console.log("\nPRUEBA VISUAL STAGING - CUENTA TEMPORAL");
+   console.log("URL: http://127.0.0.1:8765/login.html?environment=staging&next=asistente-ia.html");
+   console.log("CORREO TEMPORAL: "+actorSession.email);
+   console.log("CLAVE TEMPORAL: "+actorSession.password);
+   console.log("Pregunta: ¿Qué pasó con el ponche de ayer de Juan?");
+   console.log("Al terminar, pulsa ENTER aqui para limpiar todo.");
+   console.log("Cierre automatico de precaucion a los 20 minutos.");
+   await new Promise(resolve=>{
+     let finished=false;
+     const close=()=>{
+       if(finished)return;
+       finished=true;
+       process.stdin.off("data",onData);
+       process.off("SIGINT",onSignal);
+       clearTimeout(timer);
+       process.stdin.pause();
+       resolve();
+     };
+     const onData=()=>close();
+     const onSignal=()=>close();
+     const timer=setTimeout(close,20*60*1000);
+     process.stdin.once("data",onData);
+     process.once("SIGINT",onSignal);
+     process.stdin.resume();
+   });
+ }
+
 }catch(error){
  failed=true;
  console.error("AI NAME E2E FAILED:",error instanceof Error?error.message:"unknown");
