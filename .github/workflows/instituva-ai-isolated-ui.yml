@@ -26,3 +26,20 @@ jobs:
           node --check js/instituva-ai-dock.js
       - name: Check isolated UI release guards
         run: node --test tests/instituva-ai-isolated-release.test.cjs
+
+      - name: Verify production Edge rejects requests without a signed session
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://kfokfjngozgcwjpzxcsu.supabase.co/functions/v1/instituva-ai-assistant"
+          result=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' \
+            --request POST --header 'Content-Type: application/json' \
+            --data '{"mode":"product","question":"Explica el funcionamiento de Instituva"}' "$endpoint")
+          echo "No-session HTTP status: $result"
+          test "$result" = "401"
+          result=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' \
+            --request POST --header 'Authorization: Bearer invalid-test-jwt' \
+            --header 'Content-Type: application/json' \
+            --data '{"mode":"product","question":"Explica el funcionamiento de Instituva"}' "$endpoint")
+          echo "Invalid-session HTTP status: $result"
+          test "$result" = "401"
