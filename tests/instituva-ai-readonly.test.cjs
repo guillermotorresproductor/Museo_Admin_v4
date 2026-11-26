@@ -458,6 +458,7 @@ function mountAiUiForTest(providerResponse,options={}) {
  const status=element();
  const result=element({hidden:true});
  const answer=element();
+ const formattedAnswer=element({hidden:true});
  const evidence=element();
  const sourceDetails=element({hidden:true});
  const sources=element({
@@ -501,7 +502,8 @@ function mountAiUiForTest(providerResponse,options={}) {
    "[data-ai-form]":form,"[data-ai-private]":element(),
    "[data-ai-finance]":element(),"[data-ai-schedules]":element(),
    "[data-ai-status]":status,"[data-ai-result]":result,
-   "[data-ai-answer]":answer,"[data-ai-evidence]":evidence,
+   "[data-ai-answer]":answer,"[data-ai-answer-formatted]":formattedAnswer,
+   "[data-ai-evidence]":evidence,
    "[data-ai-sources]":sources,"[data-ai-sources-details]":sourceDetails,
    "[data-ai-employee-choices]":choices,
    "[data-ai-choices-question]":choicesQuestion,
@@ -544,7 +546,7 @@ function mountAiUiForTest(providerResponse,options={}) {
    }
  };
  vm.runInNewContext(ui+"\nbindInstituvaAi();",sandbox,{filename:"js/instituva-ai.js"});
- return {handlers,status,result,answer,sources,sourceDetails,button,mode,requests,
+ return {handlers,status,result,answer,formattedAnswer,sources,sourceDetails,button,mode,requests,
    guide,guidePanel,guideProgress,guideStep,guideStart,guideBack,guideNext,
    choices,choicesQuestion,choicesList,employee,day,resubmits,
    history,thread,welcome,newChat,questionInput};
@@ -962,4 +964,55 @@ test("chat selection avoids duplicate question bubbles and clears selected emplo
  assert.equal(mounted.result.hidden,false);
  assert.equal(mounted.requests.length,2);
  assert.equal(JSON.parse(mounted.requests[1].options.body).employee_id,id);
+});
+
+
+test("closed-model diagnosis is displayed as accessible sections using literal text",async()=>{
+ const raw=[
+   "INSTITUVA — DIAGNÓSTICO PRELIMINAR",
+   "Orientación de solo lectura. No se ejecutó ninguna operación sobre los registros operacionales.",
+   "",
+   "Análisis inicial\nSe necesita revisar la jornada abierta.",
+   "",
+   "Hipótesis (no confirmadas)\n1. El cierre podría faltar.",
+   "",
+   "Verificaciones pendientes\n1. Consultar el historial autorizado.",
+   "",
+   "Acciones manuales propuestas (NO ejecutadas)\n1. Solicitar revisión <script>alert(1)</script>.",
+   "",
+   "Limitaciones de la evidencia\n1. No se confirmó el motivo."
+ ].join("\n");
+ const mounted=mountAiUiForTest({ok:true,status:200,async json(){return {
+   mode:"product",answer:raw,
+   read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+   evidence:{},sources:[]
+ }; }},{question:"¿Cómo investigar una jornada abierta?"});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.answer.textContent,raw,"original text must remain intact for archiving");
+ assert.equal(mounted.answer.hidden,true);
+ assert.equal(mounted.formattedAnswer.hidden,false);
+ assert.equal(mounted.formattedAnswer.children.length,6,"intro plus five semantic sections");
+ const first=mounted.formattedAnswer.children[1];
+ assert.equal(first.tagName,"section");
+ assert.equal(first.children[0].tagName,"h4");
+ assert.equal(first.children[0].textContent,"Análisis inicial");
+ const manual=mounted.formattedAnswer.children[4];
+ assert.equal(manual.children[1].tagName,"ol");
+ assert.equal(manual.children[1].children[0].textContent,
+   "Solicitar revisión <script>alert(1)</script>.");
+ assert.doesNotMatch(ui,/innerHTML|document\.write/);
+});
+
+test("unrecognized diagnosis format falls back to original plain text",async()=>{
+ const mounted=mountAiUiForTest({ok:true,status:200,async json(){return {
+   mode:"product",answer:"Texto seguro del asistente.",
+   read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+   evidence:{},sources:[]
+ }; }},{question:"¿Cómo funcionan las consultas?"});
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.answer.textContent,"Texto seguro del asistente.");
+ assert.equal(mounted.answer.hidden,false);
+ assert.equal(mounted.formattedAnswer.hidden,true);
+ assert.equal(mounted.formattedAnswer.children.length,0);
+ assert.match(html,/data-ai-answer-formatted/);
 });
