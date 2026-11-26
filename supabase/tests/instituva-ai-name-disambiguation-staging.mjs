@@ -228,7 +228,26 @@ try{
      if(r.data?.length!==0)cleanupErrors.push("Employee fixture remains");
    }catch{cleanupErrors.push("Employee cleanup unverifiable");}
  }
+ const verifyEmpty=async(table,field,id,tag)=>{
+   try{
+     const r=await rest(table,"&"+field+"=eq."+id,field);
+     if(!Array.isArray(r.data)||r.data.length!==0)
+       cleanupErrors.push(tag+" remains or could not be verified");
+   }catch{cleanupErrors.push(tag+" cleanup unverifiable");}
+ };
+ for(const id of created.alerts)
+   await verifyEmpty("attendance_operational_alerts","id",id,"alert");
+ for(const id of created.entries)
+   await verifyEmpty("employee_time_entries","id",id,"time entry");
+ for(const id of created.shifts)
+   await verifyEmpty("employee_shifts","id",id,"shift");
+ for(const id of created.settings)
+   await verifyEmpty("attendance_settings","museum_id",id,"attendance settings");
+ for(const e of created.employees)
+   await verifyEmpty("audit_logs","record_id",e.id,"synthetic employee audit log");
  for(const id of created.users){
+   await verifyEmpty("user_roles","user_id",id,"role");
+   await verifyEmpty("user_permissions","user_id",id,"permission");
    try{
      const r=await api("/auth/v1/admin/users/"+id,{allowError:true});
      if(r.status!==404)cleanupErrors.push("Auth fixture remains");
