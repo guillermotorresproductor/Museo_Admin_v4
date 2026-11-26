@@ -17,6 +17,48 @@ function bindInstituvaAi() {
   const evidence=root.querySelector("[data-ai-evidence]");
   const sources=root.querySelector("[data-ai-sources]");
   const sourceDetails=root.querySelector("[data-ai-sources-details]");
+  const choices=root.querySelector("[data-ai-employee-choices]");
+  const choicesQuestion=root.querySelector("[data-ai-choices-question]");
+  const choicesList=root.querySelector("[data-ai-choices-list]");
+  let selectedEmployeeId=null;
+  const clearChoices=()=>{
+    choices.hidden=true;
+    choicesQuestion.textContent="";
+    choicesList.replaceChildren();
+  };
+  const showChoices=(body)=>{
+    const options=body.options;
+    if(!Array.isArray(options)||options.length<2||options.length>10)return false;
+    if(!options.every(item=>item && typeof item.employee_id==="string" &&
+       /^[a-f0-9-]{36}$/i.test(item.employee_id) &&
+       typeof item.name==="string" && item.name.length>=3 && item.name.length<=120))
+      return false;
+    if(new Set(options.map(x=>x.employee_id)).size!==options.length)return false;
+    choicesList.replaceChildren();
+    choicesQuestion.textContent=String(body.question||"¿De cuál empleado se trata?").slice(0,900);
+    for(const option of options){
+      const select=document.createElement("button");
+      select.type="button";
+      select.className="button";
+      select.textContent=option.name;
+      select.addEventListener("click",()=>{
+        employee.value=option.name;
+        selectedEmployeeId=option.employee_id;
+        clearChoices();
+        form.requestSubmit();
+      });
+      choicesList.appendChild(select);
+    }
+    choices.hidden=false;
+    return true;
+  };
+  const isPrivateAttendanceQuestion=(question)=>{
+    const q=question.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+    return /\b(ponch[a-z]*|asistencia|jornada|marcaciones)\b/.test(q) &&
+      /\b(de|del|para)\s+([a-z]{2,}\s+){0,3}[a-z]{2,}/.test(q);
+  };
+  employee.addEventListener("input",()=>{selectedEmployeeId=null;clearChoices();});
+  clearChoices();
   const guide=root.querySelector("[data-ai-guide]");
   const guidePanel=root.querySelector("[data-ai-guide-panel]");
   const guideStart=root.querySelector("[data-ai-guide-start]");
@@ -88,8 +130,9 @@ function bindInstituvaAi() {
     schedulesFields.hidden=!schedules;
     scheduleStart.required=schedules;
     year.required=finance;
-    employee.required=attendance;
-    date.required=attendance;
+    // The private question may provide the name and a relative date ("ayer").
+    employee.required=false;
+    date.required=false;
     const collections=mode.value==="collections";
     const inventory=mode.value==="inventory";
     const assets=mode.value==="assets";
@@ -105,6 +148,8 @@ function bindInstituvaAi() {
   mode.addEventListener("change",()=>{
     result.hidden=true;
     resetGuide();
+    selectedEmployeeId=null;
+    clearChoices();
     updateMode(true);
   });
   updateMode();
@@ -113,13 +158,24 @@ function bindInstituvaAi() {
     event.preventDefault();
     if (busy) return;
     const data=new FormData(form);
-    const queryMode=String(data.get("mode")||"product");
+    const originalMode=String(data.get("mode")||"product");
     const question=String(data.get("question")||"").trim();
+    // An explicitly personal punch question from general help is routed to
+    // the private mode; server-side permissions remain mandatory.
+    const queryMode=originalMode==="product" && isPrivateAttendanceQuestion(question)
+      ? "attendance" : originalMode;
+    if(queryMode!==originalMode){mode.value=queryMode;updateMode(true);}
+    const selectedId=selectedEmployeeId;
+    selectedEmployeeId=null;
     const employee_name=String(data.get("employee_name")||"").trim();
     const day=String(data.get("day")||"");
     const start_day=String(data.get("start_day")||"");
     const fiscalYear=Number(data.get("year"));
-    if (!question || (queryMode==="attendance" && (!canDiagnose || !employee_name || !day))) return;
+    if(!question)return;
+    if(queryMode==="attendance" && !canDiagnose){
+      status.textContent="Tu perfil no tiene permiso para consultar asistencia privada de empleados.";
+      return;
+    }
     if (queryMode==="finance" && (!canReadFinance || !Number.isInteger(fiscalYear) || fiscalYear<2020 || fiscalYear>2100)) return;
     if (queryMode==="collections" && !canReadCollections) return;
     if (queryMode==="inventory" && !canReadInventory) return;
@@ -131,6 +187,7 @@ function bindInstituvaAi() {
     button.disabled=true;
     result.hidden=true;
     resetGuide();
+    clearChoices();
     answer.textContent="";
     evidence.textContent="";
     sources.replaceChildren();
@@ -140,8 +197,9 @@ function bindInstituvaAi() {
       const headers=await supabaseAuthHeaders();
       const request={mode:queryMode,question};
       if (queryMode==="attendance") {
-        request.employee_name=employee_name;
-        request.day=day;
+        if(employee_name)request.employee_name=employee_name;
+        if(day)request.day=day;
+        if(selectedId)request.employee_id=selectedId;
       }
       if (queryMode==="finance") request.year=fiscalYear;
       if (queryMode==="schedules") request.start_day=start_day;
@@ -149,6 +207,11 @@ function bindInstituvaAi() {
         method:"POST",headers,body:JSON.stringify(request),cache:"no-store"
       });
       const body=await res.json().catch(()=>({}));
+      if(!res.ok && res.status===409 &&
+         body.code==="EMPLOYEE_SELECTION_REQUIRED" && showChoices(body)){
+        status.textContent="Selecciona el empleado correcto para continuar; todavía no se ha consultado su expediente.";
+        return;
+      }
       if (!res.ok) throw Error(body.error||"El diagnóstico no está disponible.");
       if (body.read_only!==true || body.actions_executed!==false ||
           body.diagnostic_contract!=="read_only_v1" || typeof body.answer!=="string" ||
