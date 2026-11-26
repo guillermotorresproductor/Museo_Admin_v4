@@ -15,8 +15,8 @@ test("complete production app remains intact; initialization and other modules p
   for(const f of ["bindFinanceModule()","bindInventoryModule()","bindReportsModule()","bindEmployeePortal()"])
     assert.ok(app.includes(f),f+" must remain");
 });
-test("production interface defaults off and cannot load without authenticated session",()=>{
-  assert.match(config,/production: Object.freeze\(\{[\s\S]{0,100}aiAssistantUiEnabled: false/);
+test("production interface rollout is gated by authenticated linked staff",()=>{
+  assert.match(config,/production: Object.freeze\(\{[\s\S]{0,100}aiAssistantUiEnabled: true/);
   assert.match(config,/const instituvaAiUiEnabled = museoEnvironment.aiAssistantUiEnabled === true;/);
   assert.ok(app.indexOf("if (enforceAuthenticatedPageAccess()) return;")<app.indexOf("const aiAuthorizedRoles"));
 });
