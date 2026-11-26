@@ -19,6 +19,20 @@ jobs:
           node-version: '22'
       - name: Test conversational planner and bounded period calculations
         run: node --experimental-strip-types --test tests/instituva-ai-conversational-staging.test.mjs tests/instituva-ai-conversational-ui.test.cjs
+      - name: Staging Edge keeps signed-session access mandatory
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://lonpdmxdvbxuagqxztig.supabase.co/functions/v1/instituva-ai-assistant"
+          result=$(curl --silent --show-error --max-time 20 -o /dev/null -w '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' \
+            --data '{"mode":"auto","question":"Cuantas horas trabajo Roberto en noviembre"}' "$endpoint")
+          test "$result" = "401"
+          result=$(curl --silent --show-error --max-time 20 -o /dev/null -w '%{http_code}' \
+            -X POST -H 'Authorization: Bearer invalid-test-jwt' \
+            -H 'Content-Type: application/json' \
+            --data '{"mode":"auto","question":"Cuantas horas trabajo Roberto en noviembre"}' "$endpoint")
+          test "$result" = "401"
       - name: Preserve production read-only isolation
         shell: bash
         run: |
