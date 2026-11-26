@@ -665,3 +665,26 @@ test("provider is instructed to explain first, solve second and offer an optiona
  assert.match(diagnostic,/d\.verificaciones\.map/);
  assert.match(diagnostic,/d\.recomendaciones_manuales\.map/);
 });
+
+test("rejected punch attempts are strictly employee/tenant scoped and reduced to enum counts",()=>{
+ const source=fs.readFileSync("supabase/functions/instituva-ai-assistant/attendance-attempt-summary.ts","utf8");
+ const branchStart=endpoint.indexOf('admin.from("attendance_attempts")');
+ const branchEnd=endpoint.indexOf(']);',branchStart);
+ assert.ok(branchStart>0 && branchEnd>branchStart,"attendance attempts source exists");
+ const q=endpoint.slice(branchStart,branchEnd);
+ assert.match(q,/\.select\("museum_id,employee_id,requested_event,result"\)/);
+ assert.match(q,/\.eq\("museum_id",museumId\)\.eq\("employee_id",employee\.id\)/);
+ assert.match(q,/\.gte\("occurred_at",day\+"T04:00:00Z"\)/);
+ assert.match(q,/\.lt\("occurred_at",nextAttendanceDay\(day\)\+"T04:00:00Z"\)/);
+ assert.match(q,/\.limit\(61\)/);
+ assert.doesNotMatch(q,/presence_evidence|presence_method|reason_code|actor_user_id|admin\.rpc|\.insert\(|\.update\(|\.delete\(/);
+ assert.match(endpoint,/safeAttempts=assertEmployeeTenantRows\(attempts\.data\|\|\[\],museumId,employee\.id\)/);
+ assert.match(endpoint,/safeAttempts\.length>=61/);
+ assert.match(endpoint,/summarizeAttendanceAttemptOutcomes\(safeAttempts,museumId,employee\.id\)/);
+ assert.match(endpoint,/attendance_attempts_summary:attemptCounts/);
+ assert.match(endpoint,/invalid_sequence_attempts:attemptCounts\.invalid_sequence_attempts/);
+ assert.match(ui,/Intentos rechazados:/);
+ assert.match(source,/assertEmployeeTenantRows\(rows,museumId,employeeId\)/);
+ assert.match(source,/const resultSet=new Set/);
+ assert.doesNotMatch(source,/fetch\(|createClient|\.insert\(|\.update\(|\.delete\(/);
+});
