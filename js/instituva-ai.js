@@ -246,6 +246,13 @@ function bindInstituvaAi() {
   const resetConversation=()=>{
     history.replaceChildren(welcome);
     result.hidden=true;
+    answer.textContent="";
+    answer.hidden=false;
+    formattedAnswer.replaceChildren();
+    formattedAnswer.hidden=true;
+    evidence.textContent="";
+    sources.replaceChildren();
+    sourceDetails.hidden=true;
     resetGuide();
     selectedEmployeeId=null;
     clearChoices();
@@ -306,26 +313,78 @@ function bindInstituvaAi() {
   });
   updateMode();
 
-  // A standalone AI window may survive navigation in another tab. When that
-  // tab logs out or signs in as a different user, stop displaying old data.
-  // No conversation content or credentials are transmitted or persisted.
+  // An independent window can outlive its originating module. Capture the
+  // original user and effective access grants, then recheck the live database
+  // before sending or displaying a response, on focus and periodically.
+  // This check never queries employee or financial records.
   const mountedUserId=typeof getSupabaseSession==="function"
     ? String(getSupabaseSession()?.user?.id||"") : "";
+  const mountedGrants=typeof currentPermissions!=="undefined"
+    ? Array.from(currentPermissions).sort().join("\\n") : "";
+  let verifiedMuseum=null;
+  let verificationInFlight=null;
+  let accessRevoked=false;
+  const revokeAiContext=(reason="La sesión, el museo o los permisos cambiaron.")=>{
+    if(accessRevoked)return;
+    accessRevoked=true;
+    resetConversation();
+    newChat.disabled=true;
+    form.querySelector('button[type="submit"]').disabled=true;
+    status.textContent=reason+" Por seguridad, abre nuevamente el asistente.";
+  };
+  const verifyAiContext=async()=>{
+    if(accessRevoked)return false;
+    if(!mountedUserId)return false;
+    let local;
+    try {local=getSupabaseSession();}catch{return revokeAiContext(),false;}
+    if(!local?.access_token || local.user?.id!==mountedUserId){
+      revokeAiContext("La cuenta o sesión cambió.");return false;
+    }
+    if(verificationInFlight)return verificationInFlight;
+    verificationInFlight=(async()=>{
+      try{
+        const [museum,grants]=await Promise.all([
+          supabasePost("/rest/v1/rpc/current_user_museum_id",{}),
+          fetchCurrentSupabasePermissions()
+        ]);
+        const latest=getSupabaseSession();
+        const currentGrants=Array.isArray(grants)?grants.slice().sort().join("\\n"):"";
+        if(!latest?.access_token || latest.user?.id!==mountedUserId ||
+           typeof museum!=="string" || !museum ||
+           currentGrants!==mountedGrants ||
+           (verifiedMuseum && museum!==verifiedMuseum)){
+          revokeAiContext();return false;
+        }
+        verifiedMuseum=museum;
+        return !accessRevoked;
+      }catch{
+        revokeAiContext("No se pudieron verificar los permisos de esta sesión.");
+        return false;
+      }
+    })().finally(()=>{verificationInFlight=null;});
+    return verificationInFlight;
+  };
   if(mountedUserId){
+    // A matching token refresh must not erase the conversation. A different
+    // user/museum/grant set or failed verification always clears it.
     window.addEventListener("storage",event=>{
-      if(event.key!==supabaseSessionKey)return;
-      const currentSession=getSupabaseSession();
-      if(currentSession?.access_token && currentSession.user?.id===mountedUserId)return;
-      resetConversation();
-      form.querySelector('button[type="submit"]').disabled=true;
-      status.textContent="La sesión cambió o terminó. Debes entrar nuevamente.";
-      window.location.replace("login.html?environment="+encodeURIComponent(museoEnvironment.name));
+      if(event.key===supabaseSessionKey)void verifyAiContext();
     });
+    window.addEventListener("focus",()=>{void verifyAiContext();});
+    document.addEventListener("visibilitychange",()=>{
+      if(!document.hidden)void verifyAiContext();
+    });
+    window.setInterval(()=>{
+      if(!document.hidden)void verifyAiContext();
+    },60000);
+    // No private result can be shown until this succeeds.
+    void verifyAiContext();
   }
 
   form.addEventListener("submit",async(event)=>{
     event.preventDefault();
-    if (busy) return;
+    if (busy || accessRevoked) return;
+    if(mountedUserId && !(await verifyAiContext()))return;
     const data=new FormData(form);
     const originalMode=String(data.get("mode")||"product");
     const question=String(data.get("question")||"").trim();
@@ -384,6 +443,8 @@ function bindInstituvaAi() {
         method:"POST",headers,body:JSON.stringify(request),cache:"no-store"
       });
       const body=await res.json().catch(()=>({}));
+      if(mountedUserId && !(await verifyAiContext()))return;
+      if(accessRevoked)return;
       if(!res.ok && res.status===409 &&
          body.code==="EMPLOYEE_SELECTION_REQUIRED" && showChoices(body)){
         status.textContent="Selecciona el empleado correcto para continuar; todavía no se ha consultado su expediente.";
