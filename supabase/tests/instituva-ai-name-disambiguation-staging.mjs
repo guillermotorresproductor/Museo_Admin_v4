@@ -100,7 +100,7 @@ async function grant(actorId,codes){
  const r=await api("/rest/v1/user_permissions",{method:"POST",body:rows});
  check("temporary explicit read grants created",
    Array.isArray(r.data)&&r.data.length===rows.length);
- created.permissions.push(...rows);
+ created.permissions.push(...matched.map(p=>({permission_id:p.id,code:p.code})));
 }
 async function setupEmployee(museum,first,last){
  const employee=await insert("employees",{
@@ -185,7 +185,7 @@ try{
  // First-name directory access must be separate from attendance permission.
  await del("/rest/v1/user_permissions?museum_id=eq."+allowedMuseum+
    "&user_id=eq."+actorSession.id+"&permission_id=eq."+
-   created.permissions.find(p=>permsCode(p)==="employees.read.all")?.permission_id);
+   created.permissions.find(p=>p.code==="employees.read.all")?.permission_id);
  const denied=await postAi(actorSession.token,{mode:"attendance",question});
  check("without employees directory grant no first-name disclosure",denied.status===403);
  console.log(JSON.stringify({status:"PASS",staging:STAGING_REF,checks:checks.length,
@@ -240,8 +240,4 @@ try{
    console.log("PASS: disposable AI name E2E fixtures cleaned");
    if(failed)process.exitCode=1;
  }
-}
-// Avoid logging permission identities in request traces.
-function permsCode(p){
- return p.code||"";
 }
