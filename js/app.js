@@ -8590,6 +8590,33 @@ async function initApp() {
     return;
   }
   if (enforceAuthenticatedPageAccess()) return;
+  // The AI companion is self-contained. Never initialize unrelated museum
+  // modules inside the iframe: an exception there could leave the page hidden.
+  if (getCurrentPage() === "asistente-ia.html") {
+    try {
+      // Fail closed if the employee record cannot be verified.
+      const loaded = await syncEmployeeCacheFromSupabase();
+      if (!loaded) throw Error("EMPLOYEE_LOOKUP_UNAVAILABLE");
+      const allowedProfiles = new Set([
+        "administrador_general", "director_ejecutivo",
+        "gerente_administrativo", "gerente_museografica"
+      ]);
+      const userId = getSupabaseSession()?.user?.id || "";
+      const allowedEmployee = getEmployeeRecords().some(employee =>
+        employee.authUserId === userId && employee.statusCode === "activo" &&
+        allowedProfiles.has(employee.accessProfile));
+      if (!instituvaAiUiEnabled || !allowedEmployee) {
+        showProtectedAccessDenied("Su perfil no autoriza utilizar INSTITUVA AI.");
+        return;
+      }
+      if (typeof bindInstituvaAi !== "function") throw Error("AI_SCRIPT_UNAVAILABLE");
+      bindInstituvaAi();
+      document.body.classList.add("app-ready");
+    } catch {
+      showProtectedAccessDenied("No se pudo inicializar INSTITUVA AI. Actualice la página o contacte al administrador.");
+    }
+    return;
+  }
   renderSidebar();
   renderHeader();
   renderFooter();
