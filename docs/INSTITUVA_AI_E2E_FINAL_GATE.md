@@ -45,3 +45,16 @@ Para aprobar: ambos ensayos reales completados, no hay errores de limpieza ni fu
 ## Estado de acceso (25 noviembre 2026)
 
 Con la conexión disponible se pudo obtener la clave **pública** de staging y confirmar sus claims `anon` y referencia del proyecto, pero no una clave privada `service_role` ni un JWT de usuario autorizado. Estos ensayos quedan preparados **sin ser ejecutados**; en ningún caso deben figurar como aprobados hasta correr con credenciales exclusivas de staging.
+
+
+## Auditoría de preparación de producción — 26 noviembre 2026 (SIN DESPLIEGUE)
+
+- Entornos comprobados directamente: staging `lonpdmxdvbxuagqxztig`; producción `kfokfjngozgcwjpzxcsu`. **No intercambiar proyectos ni claves.**
+- Producción registra 68 migraciones y staging 91; sus historiales divergen en Asistencia, Finanzas y otros módulos. **Prohibido usar `supabase db push` o sincronización general** para instalar IA.
+- La producción carece de `public.ai_assistant_usage`, `public.ai_assistant_claim_internal_v1(uuid,uuid)` y la Edge Function `instituva-ai-assistant`: la publicación requiere instalación inicial aislada.
+- Dependencias de autorización en producción confirmadas (solo SELECT): `public.museums`, `public.profiles`, `current_user_museum_id()`, `has_permission(text)`, `collection_can_read()` y `module_profile_allows(text)`. También existen las tablas de evidencia de los módulos.
+- Se observaron diferencias de esquema entre staging y producción en `employees`, `employee_shifts`, `employee_notifications`, `finance_records` y restricciones de `profiles`. Las columnas verificadas de las lecturas IA de Finanzas, Inventario, Notificaciones y perfil existen en producción; **se requiere validación de comportamiento/RLS antes de activar cada módulo**.
+- El botón flotante IA está limitado actualmente a staging en `js/app.js`. Fusionar la rama sin una activación explícita y probada de interfaz no habilita la IA para producción.
+- El operador mostró respaldos físicos diarios de Supabase Database del 19 al 26 de noviembre. Estos respaldos **no incluyen objetos Storage**; no se ha probado restauración y no se afirma recuperación integral.
+- **Estado de salida: NO AUTORIZADO PARA EJECUCIÓN AUTOMÁTICA** hasta disponer de instalación exclusivamente aditiva y transaccional para IA, reversión ensayada en un entorno aislado, validación de los permisos contra el esquema productivo, configuración de secretos/allowlist por un canal privado, verificación del esquema y evidencia de recuperación adecuada.
+- Este registro es una auditoría de lectura y documentación; **no se han aplicado SQL, cambios de RLS, despliegues Edge ni fusiones de PR a producción**.
