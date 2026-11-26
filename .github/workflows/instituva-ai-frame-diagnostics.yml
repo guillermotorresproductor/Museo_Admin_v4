@@ -1,0 +1,28 @@
+name: INSTITUVA AI iframe deployment diagnostics
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/instituva-ai-frame-diagnostics.yml'
+      - 'asistente-ia.html'
+      - 'js/instituva-ai-dock.js'
+  workflow_dispatch:
+jobs:
+  inspect-host:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify public assistant document and frame headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://mmdpr.org/asistente-ia.html?dock=1&environment=production"
+          curl --location --silent --show-error --max-time 25 -D /tmp/ai-headers -o /tmp/ai-html "$url"
+          echo '--- STATUS AND SECURITY HEADERS ---'
+          grep -Ei '^HTTP/|^content-security-policy:|^x-frame-options:|^location:|^cache-control:' /tmp/ai-headers || true
+          echo '--- HTML CHECKS ---'
+          wc -c /tmp/ai-html
+          if grep -q 'data-instituva-ai' /tmp/ai-html; then echo 'assistant root: PRESENT'; else echo 'assistant root: MISSING'; fi
+          if grep -q 'js/app.js?v=20261126-ai-ui-status' /tmp/ai-html; then echo 'assistant script version: ORIGINAL'; else echo 'assistant script version: OTHER'; fi
+          echo '--- SCRIPT STATUS ---'
+          curl --location --silent --show-error --max-time 25 -D /tmp/js-headers -o /tmp/app-js "https://mmdpr.org/js/app.js?v=20261126-ai-ui-status"
+          grep -Ei '^HTTP/|^cache-control:' /tmp/js-headers || true
+          if grep -q 'The AI companion is self-contained' /tmp/app-js; then echo 'live iframe startup hotfix: PRESENT'; else echo 'live iframe startup hotfix: MISSING'; fi
