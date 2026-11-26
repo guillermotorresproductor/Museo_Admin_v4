@@ -145,39 +145,21 @@
             <span class="ai-readonly-tag">Solo lectura</span>
           </div>
           <form class="form-grid" data-ai-form>
-            <div class="ai-chat-toolbar">
-              <div class="field">
-                <label for="ai-mode">Tipo de consulta</label>
-                <select id="ai-mode" name="mode">
-                  <option value="product">Resolver una incidencia / cómo funciona INSTITUVA</option>
-                  <option value="attendance">Diagnóstico privado de Asistencia / Nómina</option>
-                  <option value="finance">Consulta de presupuesto financiero (acceso restringido)</option>
-                  <option value="collections">Diagnóstico agregado de Colecciones (solo lectura)</option>
-                  <option value="inventory">Diagnóstico agregado de Inventario (solo lectura)</option>
-                  <option value="assets">Cruce de Colecciones e Inventario (solo conteos autorizados)</option>
-                  <option value="schedules">Diagnóstico de Horarios (7 días, solo lectura)</option>
-                  <option value="notifications">Mis notificaciones (30 días, solo lectura)</option>
-                </select>
-              </div>
+            <div class="ai-chat-toolbar" style="justify-content:flex-end">
+              <input type="hidden" name="mode" value="auto">
               <button type="button" class="button secondary" data-ai-new-chat>Nueva conversación</button>
             </div>
-            <div data-ai-private hidden>
-              <div class="field">
-                <label for="ai-employee">Empleado (opcional si lo indicas en tu mensaje)</label>
-                <input id="ai-employee" name="employee_name" type="text" minlength="3" maxlength="120" autocomplete="off" placeholder="Juan o Juan Vélez">
-              </div>
-              <div class="field">
-                <label for="ai-date">Fecha de la incidencia (o escribe «ayer»)</label>
-                <input id="ai-date" name="day" type="date">
-              </div>
+            <!-- Legacy form inputs are retained only as internal compatibility nodes.
+                 Natural language is interpreted server-side; nothing is requested in fields. -->
+            <div data-ai-private hidden style="display:none">
+              <input name="employee_name" type="text">
+              <input name="day" type="date">
             </div>
-            <div class="field" data-ai-schedules hidden>
-              <label for="ai-start-day">Fecha inicial de los horarios (7 días)</label>
-              <input id="ai-start-day" name="start_day" type="date">
+            <div data-ai-schedules hidden style="display:none">
+              <input name="start_day" type="date">
             </div>
-            <div class="field" data-ai-finance hidden>
-              <label for="ai-year">Año de los registros presupuestarios</label>
-              <input id="ai-year" name="year" type="number" min="2020" max="2100" step="1">
+            <div data-ai-finance hidden style="display:none">
+              <input name="year" type="number">
             </div>
             <div class="ai-chat-thread" data-ai-thread role="log" aria-label="Conversación temporal con INSTITUVA">
               <div data-ai-history>
@@ -234,7 +216,7 @@
   <script src="js/config.js?v=20261126-ai-frame-3"></script>
   <script src="js/time-format.js?v=us-time-20261028"></script>
   <script src="js/services/supabase.js?v=external-accountant-20261123"></script>
-  <script src="js/instituva-ai.js?v=20261126-clear-composer-1"></script>
+  <script src="js/instituva-ai.js?v=20261126-conversation-staging-1"></script>
   <script src="js/app.js?v=20261126-ai-frame-3"></script>
 </body>
 </html>
