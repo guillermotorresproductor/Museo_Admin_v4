@@ -109,11 +109,21 @@
     expand.setAttribute("aria-pressed",String(expanded));
   });
   popout.addEventListener("click",()=>{
-    // Named first-party window survives navigation in the parent module tab.
-    // The identity/session remains governed by the existing page and Supabase.
-    const opened=window.open(destination(true),"instituva-ai-workspace",
+    // Resolve the named window without navigating it. Sending its URL again
+    // would silently reload the existing window and erase its private chat.
+    const opened=window.open("","instituva-ai-workspace",
       "popup=yes,width=1050,height=860,resizable=yes,scrollbars=yes");
-    if(opened)opened.focus();
+    if(!opened)return;
+    let alreadyOurAssistant=false;
+    try{
+      const current=new URL(opened.location.href);
+      alreadyOurAssistant=current.origin===window.location.origin &&
+        current.pathname.endsWith("/asistente-ia.html") &&
+        current.searchParams.get("popup")==="1" &&
+        current.searchParams.get("environment")===museoEnvironment.name;
+    }catch{ /* blank or cross-origin window: navigate only to first-party page */ }
+    if(!alreadyOurAssistant)opened.location.replace(destination(true));
+    opened.focus();
   });
   document.addEventListener("keydown",event=>{
     if(event.key==="Escape" && !panel.hidden && event.target!==iframe)
