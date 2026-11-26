@@ -133,6 +133,7 @@ function bindInstituvaAi() {
     saveConversation();
   };
   let selectedEmployeeId=null;
+  let pendingChoiceQuestion="";
   const clearChoices=()=>{
     choices.hidden=true;
     choicesQuestion.textContent="";
@@ -156,6 +157,8 @@ function bindInstituvaAi() {
       select.addEventListener("click",()=>{
         employee.value=option.name;
         selectedEmployeeId=option.employee_id;
+        // Reuse the original question for the authorized selection retry.
+        questionInput.value=pendingChoiceQuestion;
         appendMessage("user",option.name);
         clearChoices();
         form.requestSubmit();
@@ -523,6 +526,10 @@ function bindInstituvaAi() {
     // create a duplicate question bubble or transmit conversation history.
     archiveResult();
     if(!selectedId)appendMessage("user",question);
+    // A successfully accepted submission must immediately free the composer.
+    // Keep the question in this request-local variable for diagnostics/retries.
+    pendingChoiceQuestion=question;
+    questionInput.value="";
     busy=true;
     newChat.disabled=true;
     const button=form.querySelector('button[type="submit"]');
