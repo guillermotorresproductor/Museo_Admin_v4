@@ -51,7 +51,7 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
  if(!employeeName && context?.mode==="attendance")employeeName=context.employee_name||null;
  let range:ConversationPlan["range"]=null;
  let day:string|null=null;
- const month=months.findIndex(m=>new RegExp("\\b"+m+"\\b").test(text));
+ const month=months.findIndex(m=>new RegExp("\\b"+m+"\\b").test(text) || (m==="noviembre" && /\\bnov\\b/.test(text)));
  if(month>=0){
    const yearMatch=text.match(/\b(20\d{2})\b/);
    const year=yearMatch?Number(yearMatch[1]):Number(localToday(now).slice(0,4));
@@ -62,8 +62,11 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
    const last=explicitRange?Number(explicitRange[2]):max;
    if(first<1||last>max||first>last)throw Error("INVALID_REQUEST");
    const start=validAttendanceDay(prefix+String(first).padStart(2,"0"));
-   const end=nextAttendanceDay(validAttendanceDay(prefix+String(last).padStart(2,"0")));
-   if(end>nextAttendanceDay(localToday(now)))throw Error("INVALID_REQUEST");
+   const requestedEnd=nextAttendanceDay(validAttendanceDay(prefix+String(last).padStart(2,"0")));
+   const todayExclusive=nextAttendanceDay(localToday(now));
+   if(start>=todayExclusive)throw Error("INVALID_REQUEST");
+   // The current month is partial: never count future days as missing work.
+   const end=requestedEnd>todayExclusive?todayExclusive:requestedEnd;
    range={start,endExclusive:end};
  }else if(context?.mode==="attendance"&&context.start_day&&context.end_day&&
      !/\b(hoy|ayer|fecha|dia\s+\d{1,2})\b/.test(text)){
