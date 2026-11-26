@@ -12,6 +12,7 @@ const sqlCollections=fs.readFileSync("supabase/migrations/20261125233000_ai_coll
 const sqlInventory=fs.readFileSync("supabase/migrations/20261125234500_ai_inventory_readonly_quota.sql","utf8");
 const sqlSchedules=fs.readFileSync("supabase/migrations/20261125235500_ai_schedules_readonly_quota.sql","utf8");
 const sqlNotifications=fs.readFileSync("supabase/migrations/20261126000500_ai_notifications_self_quota.sql","utf8");
+const sqlInternal=fs.readFileSync("supabase/migrations/20261126200000_ai_internal_service_quota.sql","utf8");
 const runbooks=fs.readFileSync("supabase/functions/instituva-ai-assistant/incident-runbooks.ts","utf8");
 const kb=fs.readFileSync("supabase/functions/instituva-ai-assistant/product-knowledge.ts","utf8");
 const stagingHarness=fs.readFileSync("supabase/tests/instituva-ai-auth-staging.mjs","utf8");
@@ -124,11 +125,28 @@ test("AI quota v2 enforces mode-specific privileges without modifying permission
  assert.match(sqlV2,/month_count>=500 or user_count>=100/);
  assert.match(sqlV2,/revoke all on function public\.ai_assistant_claim_slot_v2\(uuid,text\) from public,anon/);
  assert.doesNotMatch(sqlV2,/alter table public\.(?:finance_|employees|profiles)|update public\.finance_|delete from public\.finance_/i);
- assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_slot_v2"/);
- assert.match(endpoint,/p_mode:mode/);
  assert.match(endpoint,/requiredPermissionsForMode\(mode\)/);
  assert.match(ui,/canReadFinance=hasPermission\("finance\.read"\)/);
  assert.match(ui,/finance && !canReadFinance/);
+});
+
+test("AI direct quota endpoints are revoked and only service may claim slots",()=>{
+ assert.match(sqlInternal,/create or replace function public\.ai_assistant_claim_internal_v1/);
+ assert.match(sqlInternal,/security invoker/);
+ assert.match(sqlInternal,/current_user <> 'service_role'/);
+ assert.match(sqlInternal,/pr\.id=p_user_id and pr\.museum_id=p_museum_id/);
+ assert.match(sqlInternal,/pg_catalog\.pg_advisory_xact_lock/);
+ assert.match(sqlInternal,/month_count>=500 or user_count>=100/);
+ assert.match(sqlInternal,/grant execute on function public\.ai_assistant_claim_internal_v1\(uuid,uuid\)\s+to service_role/);
+ for(const name of ["ai_assistant_claim_slot","ai_assistant_claim_slot_v2",
+   "ai_assistant_claim_collections_slot_v1","ai_assistant_claim_inventory_slot_v1",
+   "ai_assistant_claim_schedules_slot_v1","ai_assistant_claim_notifications_slot_v1"]){
+   assert.ok(sqlInternal.includes("revoke execute on function public."+name+"("),
+      name+" direct execution must be revoked");
+ }
+ assert.match(endpoint,/admin\.rpc\(\s*"ai_assistant_claim_internal_v1",\{p_museum_id:museumId,p_user_id:user\.id\}/);
+ assert.doesNotMatch(endpoint,/caller\.rpc\("ai_assistant_claim_/);
+ assert.doesNotMatch(sqlInternal,/alter table public\.(?:employees|finance_|attendance_|collection_|inventory_)/);
 });
 
 test("institutional incident guidance is source-labeled and does not reach private data",()=>{
@@ -208,7 +226,6 @@ test("collections diagnosis is permission-scoped, bounded and aggregate-only",()
  assert.match(endpoint,/snapshot=summarizeCollections/);
  assert.match(endpoint,/assertTenantRows\(\(data\|\|\[\]\) as unknown as Array<\{museum_id:string\}>,museumId\)/);
  assert.match(endpoint,/if\(offset===2500\) throw Error\("UPSTREAM_FAILURE"\)/);
- assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_collections_slot_v1"/);
  assert.doesNotMatch(endpoint,/admin\.from\("collection_/);
  assert.match(ui,/canReadCollections=hasPermission\("collections\.read"\)/);
  assert.match(html,/value="collections"/);
@@ -248,7 +265,6 @@ test("inventory quota explicitly requires inventory reader and shares original a
  assert.match(sqlInventory,/revoke all on function public\.ai_assistant_claim_inventory_slot_v1\(uuid\) from public,anon/);
  assert.match(sqlInventory,/grant execute on function public\.ai_assistant_claim_inventory_slot_v1\(uuid\) to authenticated/);
  assert.doesNotMatch(sqlInventory,/alter table public\.(?:inventory_|finance_|employee_)/i);
- assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_inventory_slot_v1"/);
 });
 
 test("weekly schedule diagnostics stay within explicit RLS and 7-day window",()=>{
@@ -260,7 +276,6 @@ test("weekly schedule diagnostics stay within explicit RLS and 7-day window",()=
  assert.match(endpoint,/\.eq\("museum_id",museumId\)\.gte\("shift_date",startDay\)\.lt\("shift_date",endExclusive\)/);
  assert.match(endpoint,/assertTenantRows\(\(data\|\|\[\]\) as unknown as ScheduleEvidenceRow\[\],museumId\)/);
  assert.match(endpoint,/snapshot=summarizeSchedules\(scheduleRows,museumId,startDay,endExclusive\)/);
- assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_schedules_slot_v1"/);
  assert.doesNotMatch(endpoint,/admin\.from\("employee_shifts"\).*schedules/m);
  assert.match(ui,/canReadSchedules=hasPermission\("time\.read\.all"\)/);
  assert.match(html,/value="schedules"/);
@@ -294,7 +309,6 @@ test("self-notifications quota remains invoker-only and inherits the atomic glob
  assert.match(sqlNotifications,/public\.ai_assistant_claim_slot_v2\(p_museum_id,'product'\)/);
  assert.match(sqlNotifications,/revoke all on function public\.ai_assistant_claim_notifications_slot_v1\(uuid\) from public,anon/);
  assert.doesNotMatch(sqlNotifications,/update public\.(?:employee_notifications|attendance_|finance_)/i);
- assert.match(endpoint,/caller\.rpc\("ai_assistant_claim_notifications_slot_v1"/);
 });
 
 test("diagnosis must distinguish evidence, uncertain causes and unexecuted proposals",()=>{
