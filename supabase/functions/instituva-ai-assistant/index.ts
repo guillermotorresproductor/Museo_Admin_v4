@@ -492,18 +492,13 @@ Deno.serve(async (req: Request) => {
     }
     const key = Deno.env.get("OPENAI_API_KEY");
     if (!key) throw Error("NOT_CONFIGURED");
-    // Atomic monthly quota: 500 per museum / 100 per authorized user.
-    // Only this isolated technical counter is written, not museum operational data.
-    // Combined assets is additionally gated by inventory permission and module RLS;
-    // reuse the collections invoker quota wrapper without granting a new RPC.
-    const { data: slot, error: quotaError } = (mode==="collections" || mode==="assets")
-      ? await caller.rpc("ai_assistant_claim_collections_slot_v1",{p_museum_id:museumId})
-      : mode==="inventory" ? await caller.rpc("ai_assistant_claim_inventory_slot_v1",{p_museum_id:museumId})
-      : mode==="schedules" ? await caller.rpc("ai_assistant_claim_schedules_slot_v1",{p_museum_id:museumId})
-      : mode==="notifications" ? await caller.rpc("ai_assistant_claim_notifications_slot_v1",{p_museum_id:museumId})
-      : await caller.rpc("ai_assistant_claim_slot_v2",{
-        p_museum_id:museumId,p_mode:mode
-      });
+    // The authenticated caller's grants, museum, and module-profile checks
+    // have already passed. Claim the same atomic quota with a service-only
+    // RPC, so a browser cannot consume another museum's or user's capacity.
+    // No operational records are written.
+    const {data:slot,error:quotaError}=await admin.rpc(
+      "ai_assistant_claim_internal_v1",{p_museum_id:museumId,p_user_id:user.id}
+    );
     if (quotaError) throw Error("UPSTREAM_FAILURE");
     if (slot !== true) throw Error("RATE_LIMITED");
 
