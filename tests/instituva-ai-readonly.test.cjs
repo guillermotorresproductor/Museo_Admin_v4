@@ -87,7 +87,7 @@ test("general mode does not reach private employee retrieval",()=>{
  const perms=endpoint.indexOf('if (mode==="attendance" || mode==="finance" || mode==="collections" || mode==="inventory" || mode==="schedules" || mode==="notifications")');
  const auth=endpoint.indexOf('caller.rpc("has_permission"',perms);
  assert.ok(perms>0 && auth>perms);
- assert.match(endpoint,/return send\(\{answer,evidence,sources,mode,read_only:true,\s*actions_executed:false,diagnostic_contract:"read_only_v1"\}\)/);
+ assert.match(endpoint,/return send\(\{answer,evidence,sources,mode,read_only:true,\s*actions_executed:false,diagnostic_contract:"read_only_v1",guide_steps\}\)/);
 });
 
 test("product knowledge distinguishes pinned main evidence from unverified legacy references",()=>{
@@ -458,6 +458,13 @@ function mountAiUiForTest(providerResponse) {
    appendChild(item){this.items.push(item);}
  });
  const button=element({disabled:false});
+ const guide=element({hidden:true});
+ const guidePanel=element({hidden:true});
+ const guideProgress=element();
+ const guideStep=element();
+ const guideStart=element({addEventListener(name,cb){handlers["guide-start:"+name]=cb;}});
+ const guideBack=element({addEventListener(name,cb){handlers["guide-back:"+name]=cb;}});
+ const guideNext=element({addEventListener(name,cb){handlers["guide-next:"+name]=cb;}});
  const mode=element({value:"product",addEventListener(name,callback){handlers["mode:"+name]=callback;}});
  const start=element(),year=element(),employee=element(),day=element();
  const controls={
@@ -474,7 +481,11 @@ function mountAiUiForTest(providerResponse) {
    "[data-ai-finance]":element(),"[data-ai-schedules]":element(),
    "[data-ai-status]":status,"[data-ai-result]":result,
    "[data-ai-answer]":answer,"[data-ai-evidence]":evidence,
-   "[data-ai-sources]":sources,"[data-ai-sources-details]":sourceDetails
+   "[data-ai-sources]":sources,"[data-ai-sources-details]":sourceDetails,
+   "[data-ai-guide]":guide,"[data-ai-guide-panel]":guidePanel,
+   "[data-ai-guide-progress]":guideProgress,"[data-ai-guide-step]":guideStep,
+   "[data-ai-guide-start]":guideStart,"[data-ai-guide-back]":guideBack,
+   "[data-ai-guide-next]":guideNext
  };
  const root={querySelector(selector){return rootItems[selector];}};
  const requests=[];
@@ -496,7 +507,7 @@ function mountAiUiForTest(providerResponse) {
    }
  };
  vm.runInNewContext(ui+"\nbindInstituvaAi();",sandbox,{filename:"js/instituva-ai.js"});
- return {handlers,status,result,answer,sources,sourceDetails,button,mode,requests};
+ return {handlers,status,result,answer,sources,sourceDetails,button,mode,requests,guide,guidePanel,guideProgress,guideStep,guideStart,guideBack,guideNext};
 }
 
 test("AI frontend preserves rejected service message after submit and clears only on mode change",async()=>{
@@ -588,4 +599,69 @@ test("unauthorized combined request is prevented by UI without sending any reque
  assert.match(mounted.status.textContent,/no tiene permiso/);
  await mounted.handlers["form:submit"]({preventDefault(){}});
  assert.equal(mounted.requests.length,0);
+});
+
+test("AI invites guided review after explanation, advances locally and never performs a write",async()=>{
+ const steps=[
+   {phase:"verificar",text:"Comprobar el mensaje de la pantalla."},
+   {phase:"accion_manual",text:"Pedir revisión al responsable autorizado."}
+ ];
+ const mounted=mountAiUiForTest({
+   ok:true,
+   async json(){return {mode:"product",answer:"Explicación del problema y solución propuesta.",
+     read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+     sources:["docs/proceso.md"],guide_steps:steps};}
+ });
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.answer.textContent,"Explicación del problema y solución propuesta.");
+ assert.equal(mounted.guide.hidden,false);
+ assert.equal(mounted.guidePanel.hidden,true,"must ask consent before showing steps");
+ assert.equal(mounted.requests.length,1,"one backend diagnostic only");
+ mounted.handlers["guide-start:click"]();
+ assert.equal(mounted.guidePanel.hidden,false);
+ assert.match(mounted.guideProgress.textContent,/Paso 1 de 2/);
+ assert.equal(mounted.guideStep.textContent,steps[0].text);
+ assert.equal(mounted.guideBack.disabled,true);
+ mounted.handlers["guide-next:click"]();
+ assert.match(mounted.guideProgress.textContent,/Paso 2 de 2/);
+ assert.equal(mounted.guideStep.textContent,steps[1].text);
+ mounted.handlers["guide-back:click"]();
+ assert.equal(mounted.guideStep.textContent,steps[0].text);
+ mounted.handlers["guide-next:click"]();
+ mounted.handlers["guide-next:click"]();
+ assert.equal(mounted.guidePanel.hidden,true);
+ assert.match(mounted.guideStart.textContent,/Revisar los pasos otra vez/);
+ assert.equal(mounted.requests.length,1,"wizard must not call backend again");
+ assert.doesNotMatch(ui,/innerHTML|\.submit\(|\.update\(|\.delete\(/);
+ assert.match(html,/data-ai-guide-start/);
+ assert.match(html,/data-ai-guide-next/);
+});
+
+test("AI rejects malformed guided steps and hides prior diagnosis when mode changes",async()=>{
+ const mounted=mountAiUiForTest({
+   ok:true,
+   async json(){return {mode:"product",answer:"Diagnóstico documental.",
+     read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+     sources:[],guide_steps:[{phase:"execute",text:"No permitido"}]};}
+ });
+ await mounted.handlers["form:submit"]({preventDefault(){}});
+ assert.equal(mounted.guide.hidden,true,"unrecognized instructions must not render");
+ assert.equal(mounted.result.hidden,false);
+ mounted.mode.value="finance";
+ mounted.handlers["mode:change"]();
+ assert.equal(mounted.guide.hidden,true);
+ assert.equal(mounted.result.hidden,true,"previous mode response must not remain displayed");
+ assert.equal(mounted.requests.length,1);
+});
+
+test("provider is instructed to explain first, solve second and offer an optional guided route",()=>{
+ assert.match(endpoint,/Experiencia de atención humana/);
+ assert.match(endpoint,/QUÉ le pasa al usuario/);
+ assert.match(endpoint,/CÓMO abordarlo/);
+ assert.match(endpoint,/La interfaz ofrecerá una guía opcional/);
+ assert.match(endpoint,/const guide_steps=buildManualGuide\(diagnosis\)/);
+ const diagnostic=fs.readFileSync("supabase/functions/instituva-ai-assistant/diagnostic-response.ts","utf8");
+ assert.match(diagnostic,/buildManualGuide/);
+ assert.match(diagnostic,/d\.verificaciones\.map/);
+ assert.match(diagnostic,/d\.recomendaciones_manuales\.map/);
 });
