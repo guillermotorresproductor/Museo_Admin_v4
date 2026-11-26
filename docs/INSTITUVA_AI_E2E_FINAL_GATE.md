@@ -58,3 +58,16 @@ Con la conexión disponible se pudo obtener la clave **pública** de staging y c
 - El operador mostró respaldos físicos diarios de Supabase Database del 19 al 26 de noviembre. Estos respaldos **no incluyen objetos Storage**; no se ha probado restauración y no se afirma recuperación integral.
 - **Estado de salida: NO AUTORIZADO PARA EJECUCIÓN AUTOMÁTICA** hasta disponer de instalación exclusivamente aditiva y transaccional para IA, reversión ensayada en un entorno aislado, validación de los permisos contra el esquema productivo, configuración de secretos/allowlist por un canal privado, verificación del esquema y evidencia de recuperación adecuada.
 - Este registro es una auditoría de lectura y documentación; **no se han aplicado SQL, cambios de RLS, despliegues Edge ni fusiones de PR a producción**.
+
+
+## Actualización de despliegue parcial controlado — 26 noviembre 2026
+
+Esta sección sustituye el estado de producción de las anotaciones anteriores. El objetivo final **no está completado**.
+
+- Se preparó en `supabase/rollouts/instituva-ai-production-bootstrap.sql` una instalación **exclusiva del ledger de cuotas y RPC interna de IA**, sin `DROP`, `TRUNCATE` ni modificaciones operacionales. Las 10 suites de regresión del PR aprobaron el commit `712bf3a`.
+- Prueba de compilación y reversión: en staging se ejecutó el SQL con nombres de objetos de verificación dentro de `BEGIN; ... ROLLBACK;`. La consulta posterior confirmó que ambos objetos de ensayo no existen.
+- **Cambio real en producción** `kfokfjngozgcwjpzxcsu`: migración aislada `instituva_ai_isolated_service_quota_bootstrap` aplicada correctamente, exclusivamente aditiva. Confirmación posterior: tabla `public.ai_assistant_usage` existe, sin filas, con RLS y sin políticas de cliente; RPC `public.ai_assistant_claim_internal_v1` existe y su EXECUTE está denegado a anon/authenticated y permitido a service_role.
+- **Cambio real en producción**: Edge Function `instituva-ai-assistant` publicada en versión 1, `verify_jwt=true`, utilizando los 18 archivos del despliegue de staging v36; comprobada nuevamente tras la publicación. El código exige autenticación, permisos, perfil de museo y las variables `INSTITUVA_AI_ENABLED` / `INSTITUVA_AI_MUSEUM_IDS`.
+- **No se verificó la configuración de secretos de producción ni se habilitó el allowlist de IA**; no afirmar que la función puede contestar solicitudes autorizadas. Tampoco se fusionó el PR #125, ni se publicó la interfaz de IA en `mmdpr.org`. El flag `production.aiAssistantUiEnabled` continúa en `false`.
+- No se ejecutaron las otras migraciones de staging ni operaciones de escritura a Finanzas, Asistencia, Colecciones, Inventario o nómina. La existencia de respaldos físicos de base de datos está comprobada visualmente; una restauración integral y respaldo Storage no están certificados.
+- Próxima condición para completar publicación: configurar secretos del proveedor en producción por canal seguro, confirmar el allowlist exacto del museo autorizado y completar un smoke test JWT de producción; después publicar frontend con activación controlada y prueba de no regresión. No exponer secretos en GitHub ni el chat.
