@@ -1116,6 +1116,14 @@ test("separate assistant clears previous user messages on logout in another tab"
  assert.match(mounted.status.textContent,/cuenta o sesión cambió/i);
 });
 
+test("AI context revalidation serializes auth RPCs to avoid refresh-token rotation races",()=>{
+ assert.match(ui,/const museum=await supabasePost\("\/rest\/v1\/rpc\/current_user_museum_id",\{\}\)/);
+ assert.match(ui,/const grants=await fetchCurrentSupabasePermissions\(\)/);
+ assert.doesNotMatch(ui,/Promise\.all\(\[\s*supabasePost\("\/rest\/v1\/rpc\/current_user_museum_id"/);
+ assert.match(ui,/window\.setInterval/);
+ assert.match(ui,/if\(mountedUserId && !\(await verifyAiContext\(\)\)\)return/);
+});
+
 test("same user refreshing token across tabs does not erase active chat",async()=>{
  const mounted=mountAiUiForTest({ok:true,status:200,async json(){return {
    mode:"product",answer:"Información de prueba",
