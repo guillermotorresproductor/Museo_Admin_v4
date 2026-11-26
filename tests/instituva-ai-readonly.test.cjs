@@ -570,7 +570,7 @@ function mountAiUiForTest(providerResponse,options={}) {
  };
  sandbox.window.parent=sandbox.window; // top-level page unless explicitly mocked
  vm.runInNewContext(ui+"\nbindInstituvaAi();",sandbox,{filename:"js/instituva-ai.js"});
- return {handlers,status,result,answer,formattedAnswer,sources,sourceDetails,button,mode,requests,
+ return {handlers,status,result,answer,formattedAnswer,evidence,sources,sourceDetails,button,mode,requests,
    guide,guidePanel,guideProgress,guideStep,guideStart,guideBack,guideNext,
    choices,choicesQuestion,choicesList,employee,day,resubmits,
    history,thread,welcome,newChat,questionInput,contextEl,windowListeners,authState,authContext,redirects,bodyClasses};
