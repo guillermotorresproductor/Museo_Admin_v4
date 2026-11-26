@@ -32,7 +32,7 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
  const explicit=typeof input.mode==="string"?input.mode:"auto";
  const modes=["attendance","finance","collections","inventory","assets","schedules","notifications","product"];
  if(explicit!=="auto"&&!modes.includes(explicit))throw Error("INVALID_REQUEST");
- const attendance=/\b(horas? trabajad|ponch|asistencia|almuerzo|llegad|llego tarde|llegaron tarde|tardanza|jornada|entrad|salida|turno trabajado|nomina|horas adicionales)\b/.test(text) ||
+ const attendance=/\b(?:horas?\s+trabajad[ao]s?|trabaj[oó]|ponch\w*|asistencia|almuerzo|llegad\w*|llego tarde|llegaron tarde|tardanz\w*|jornad\w*|entrad\w*|salid\w*|turno trabajado|nomina|horas adicionales)\b/.test(text) ||
    /\b(cuantas|cuantos)\s+(horas|dias)\b/.test(text);
  const finance=/\b(presupuesto|ingresos|gastos|balance|finanzas|cuentas por pagar)\b/.test(text);
  const collections=/\b(colecciones|piezas museograficas|obras de la coleccion)\b/.test(text);
@@ -51,7 +51,7 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
  if(!employeeName && context?.mode==="attendance")employeeName=context.employee_name||null;
  let range:ConversationPlan["range"]=null;
  let day:string|null=null;
- const month=months.findIndex(m=>new RegExp("\\b"+m+"\\b").test(text) || (m==="noviembre" && /\\bnov\\b/.test(text)));
+ const month=months.findIndex(m=>new RegExp("\\b"+m+"\\b").test(text) || (m==="noviembre" && text.split(/\s+/).includes("nov")));
  if(month>=0){
    const yearMatch=text.match(/\b(20\d{2})\b/);
    const year=yearMatch?Number(yearMatch[1]):Number(localToday(now).slice(0,4));
