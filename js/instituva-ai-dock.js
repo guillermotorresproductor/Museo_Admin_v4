@@ -82,10 +82,7 @@
   iframe.referrerPolicy="same-origin";
   iframe.loading="lazy";
   // Iframe remains mounted when minimized, preserving in-page conversation.
-  const footer=document.createElement("p");
-  footer.className="ai-dock-disclaimer";
-  footer.textContent="«Ventana aparte» conserva la conversación mientras la mantengas abierta. No se guardan mensajes en el servidor.";
-  panel.append(header,iframe,footer);
+  panel.append(header,iframe);
   document.body.append(launch,panel);
 
   let expanded=false;
