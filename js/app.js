@@ -1,6 +1,7 @@
 const appPages = {
   "index.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
   "dashboard.html": { title: "Dashboard", subtitle: "Panel principal del sistema." },
+  "asistente-ia.html": { title: "Asistente INSTITUVA", subtitle: "Diagnósticos institucionales y evidencia autorizada, solo lectura." },
   "login.html": { title: "Entrar a mi cuenta", subtitle: "Acceso administrativo del Museo de la Música." },
   "empleados.html": { title: "Solicitud de Empleo", subtitle: "Formulario para candidatos." },
   "ujieres.html": { title: "Calendario de Ujieres", subtitle: "Calendario mensual de ujieres, horarios y áreas asignadas." },
@@ -430,6 +431,11 @@ function enforceAuthenticatedPageAccess() {
     if (hasPermission("users.invite") && hasPermission("roles.assign")) return false;
     showProtectedAccessDenied("Su perfil no autoriza administrar contables externos.");
     return true;
+  }
+  if (page === "asistente-ia.html") {
+    // General product help is available to authenticated INSTITUVA accounts.
+    // Private evidence is independently permission-gated by the Edge Function.
+    return false;
   }
   if (hasModuleProfile()) {
     if (page === "dashboard.html" || page === "index.html") return false;
@@ -1996,6 +2002,15 @@ function bindIdleLogout() {
     if (!document.hidden) schedule();
   });
 
+  window.addEventListener("message",(event)=>{
+    const frame=document.querySelector("[data-ai-dock-frame]");
+    if (event.origin !== window.location.origin || !frame ||
+        event.source !== frame.contentWindow ||
+        event.data?.type !== "instituva-ai-dock-interaction") return;
+    // Only actual mouse/keyboard interaction inside this first-party iframe
+    // resets the ordinary inactivity timer. No heartbeat is permitted.
+    schedule();
+  });
   schedule();
 }
 
@@ -8588,6 +8603,21 @@ async function initApp() {
   renderInlineIcons();
   bindHeaderActions();
   document.body.classList.add("app-ready");
+  // The administration shortcut is never visible in production. It becomes
+  // available only after the existing authenticated page permission gate.
+  const aiAdminEntry=document.querySelector("[data-instituva-ai-admin-entry]");
+  if(aiAdminEntry && instituvaAiUiEnabled){
+    aiAdminEntry.style.display="";
+    aiAdminEntry.hidden=false;
+  }
+  // Staging-only pilot. Load UI only AFTER authentication, permission refresh
+  // and the original page-access gate. Never mount in login or AI iframe.
+  if (instituvaAiUiEnabled && getCurrentPage() !== "asistente-ia.html"
+      && document.querySelector(".app-shell") && document.querySelector("[data-header]")) {
+    const dockScript=document.createElement("script");
+    dockScript.src="js/instituva-ai-dock.js?v=20261126-authenticated-dock-2";
+    document.head.appendChild(dockScript);
+  }
   await syncEmployeeCacheFromSupabase().catch(() => null);
   updateCurrentUserFromEmployeeCache();
   renderHeader();
@@ -8600,12 +8630,18 @@ async function initApp() {
   bindNotificationsModule();
   bindFinanceModule();
   if (typeof bindExternalAccountants === "function") bindExternalAccountants();
+  if (typeof bindInstituvaAi === "function") bindInstituvaAi();
   bindExecutiveDirectionModule();
   bindReportsModule();
   await bindEmployeeProfile();
   bindSidebarToggle();
   bindNotificationMenu();
-  bindIdleLogout();
+  // The parent module owns inactivity logout when the assistant is embedded.
+  // A second idle timer in its iframe could otherwise log out an active user.
+  if (!(getCurrentPage() === "asistente-ia.html" &&
+        new URLSearchParams(window.location.search).get("dock") === "1")) {
+    bindIdleLogout();
+  }
   bindRentalCatalog();
   bindRentalGeneralRules();
   bindRentalSpacePage();

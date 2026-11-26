@@ -3,6 +3,7 @@
 const museoEnvironments = Object.freeze({
   production: Object.freeze({
     name: "production",
+    aiAssistantUiEnabled: false, // Explicit production release gate; defaults OFF.
     supabaseUrl: "https://kfokfjngozgcwjpzxcsu.supabase.co",
     supabasePublishableKey: "sb_publishable_wBGL3o2YcfbR_dvhT3mTnw_OXuHB0y3",
     institutionalData: Object.freeze({
@@ -12,6 +13,7 @@ const museoEnvironments = Object.freeze({
   }),
   staging: Object.freeze({
     name: "staging",
+    aiAssistantUiEnabled: true,
     supabaseUrl: "https://lonpdmxdvbxuagqxztig.supabase.co",
     supabasePublishableKey: "sb_publishable_M6ByE4TQKwaQIuLfyHdHhQ_HOxWqebX",
     institutionalData: Object.freeze({
@@ -32,7 +34,16 @@ const museoHostEnvironments = Object.freeze({
 });
 
 function lockedMuseoEnvironment(host = window.location.hostname) {
-  return museoHostEnvironments[String(host || "").toLowerCase()] || "";
+  const normalizedHost = String(host || "").toLowerCase();
+  const officialEnvironment = museoHostEnvironments[normalizedHost];
+  if (officialEnvironment) return officialEnvironment;
+  // Only Cloudflare PR preview subdomains are staging. Never treat the
+  // project's root pages.dev hostname or official production hosts as staging.
+  if (/^[a-z0-9-]+\.instituva-app\.pages\.dev$/.test(normalizedHost) ||
+      /^[a-z0-9-]+\.instituva-museo-demo\.pages\.dev$/.test(normalizedHost)) {
+    return "staging";
+  }
+  return "";
 }
 
 function isMuseumProductionHost(host = window.location.hostname) {
@@ -54,6 +65,8 @@ if (hostEnvironment) {
 
 const museoEnvironmentName = hostEnvironment || sessionStorage.getItem("museo-admin-environment") || "production";
 const museoEnvironment = museoEnvironments[museoEnvironmentName] || museoEnvironments.production;
+// Presentation only: backend independently enforces JWT, museum allowlist and permissions.
+const instituvaAiUiEnabled = museoEnvironment.aiAssistantUiEnabled === true;
 
 const institutionalDataQuery = new URLSearchParams(window.location.search).get("institutionalData");
 if (institutionalDataQuery === "1") {

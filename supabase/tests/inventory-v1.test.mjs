@@ -143,7 +143,7 @@ test("el registro de equipos usa listas cerradas y conserva los datos que ya no 
   for (const category of ["Utilería", "Eléctricos", "Mantenimiento", "Producción"]) {
     assert.match(html, new RegExp(`<option>${category}</option>`));
   }
-  for (const location of ["Almacén 1", "Sala Itinerante \\(Ball Room\\)", "Oficina", "Oficina de Producción", "Taller", "Área de Mantenimiento"]) {
+  for (const location of ["Almacén 1", "Sala Itinerante", "Ballroom Fin de Fiesta Guaynabo", "Oficina", "Oficina de Producción", "Taller", "Área de Mantenimiento"]) {
     assert.match(html, new RegExp(`<option>${location}</option>`));
   }
   assert.match(html, /<select id="inventory-category" name="category" required>/);

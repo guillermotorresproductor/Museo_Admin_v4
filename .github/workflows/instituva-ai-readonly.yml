@@ -1,0 +1,101 @@
+name: INSTITUVA AI tenant-safe diagnostics
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/instituva-ai-assistant/index.ts'
+      - 'supabase/functions/instituva-ai-assistant/product-knowledge.ts'
+      - 'supabase/functions/instituva-ai-assistant/incident-runbooks.ts'
+      - 'supabase/functions/instituva-ai-assistant/incident-runbooks.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/tenant-guard.ts'
+      - 'supabase/functions/instituva-ai-assistant/tenant-guard.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/employee-name-resolution.ts'
+      - 'supabase/functions/instituva-ai-assistant/employee-name-resolution.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-day.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-day.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/collections-summary.ts'
+      - 'supabase/functions/instituva-ai-assistant/collections-summary.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/inventory-summary.ts'
+      - 'supabase/functions/instituva-ai-assistant/inventory-summary.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/schedules-summary.ts'
+      - 'supabase/functions/instituva-ai-assistant/schedules-summary.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/notifications-summary.ts'
+      - 'supabase/functions/instituva-ai-assistant/notifications-summary.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/diagnostic-response.ts'
+      - 'supabase/functions/instituva-ai-assistant/diagnostic-response.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/provider-response.ts'
+      - 'supabase/functions/instituva-ai-assistant/provider-response.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/functional-scenarios.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/finance-categories.ts'
+      - 'supabase/functions/instituva-ai-assistant/finance-categories.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-attempt-summary.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-attempt-summary.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-alert-summary.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-alert-summary.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-schedule-crosscheck.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-schedule-crosscheck.test.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-event-corrections.ts'
+      - 'supabase/functions/instituva-ai-assistant/attendance-event-corrections.test.ts'
+      - 'supabase/migrations/20261125170000_ai_assistant_usage_quota.sql'
+      - 'supabase/migrations/20261125194500_ai_assistant_mode_quota.sql'
+      - 'supabase/migrations/20261125233000_ai_collections_readonly_quota.sql'
+      - 'supabase/migrations/20261125234500_ai_inventory_readonly_quota.sql'
+      - 'supabase/migrations/20261125235500_ai_schedules_readonly_quota.sql'
+      - 'supabase/migrations/20261126000500_ai_notifications_self_quota.sql'
+      - 'js/instituva-ai.js'
+      - 'js/instituva-ai-dock.js'
+      - 'css/instituva-ai-dock.css'
+      - 'js/app.js'
+      - 'asistente-ia.html'
+      - 'administracion.html'
+      - 'tests/instituva-ai-readonly.test.cjs'
+      - 'tests/instituva-ai-dock.test.cjs'
+      - 'supabase/tests/instituva-ai-name-disambiguation-staging.mjs'
+      - 'supabase/tests/instituva-ai-auth-staging.mjs'
+      - 'supabase/tests/instituva-ai-http-deny-staging.test.mjs'
+      - 'supabase/tests/instituva-ai-staging-key-guard.mjs'
+      - 'supabase/tests/instituva-ai-staging-key-guard.test.mjs'
+      - 'supabase/tests/instituva-ai-model-smoke-staging.mjs'
+      - '.github/workflows/instituva-ai-readonly.yml'
+jobs:
+  secure-diagnostic:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check js/instituva-ai.js
+      - run: node --check js/instituva-ai-dock.js
+      - run: node --test tests/instituva-ai-dock.test.cjs
+      - run: node --check js/app.js
+      - run: node --check supabase/tests/instituva-ai-name-disambiguation-staging.mjs
+      - run: node --check supabase/tests/instituva-ai-auth-staging.mjs
+      - run: node --test supabase/tests/instituva-ai-http-deny-staging.test.mjs
+      # Synthetic metadata-only tests. Never inject admin secrets into PR CI.
+      - run: node --test supabase/tests/instituva-ai-staging-key-guard.test.mjs
+      - run: node --check supabase/tests/instituva-ai-model-smoke-staging.mjs
+      - run: node --test tests/instituva-ai-readonly.test.cjs
+      - run: node --test tests/external-accountant-readonly.test.cjs
+      - run: node --test tests/external-accountant-admin-route.test.cjs
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check supabase/functions/instituva-ai-assistant/index.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/incident-runbooks.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/tenant-guard.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/employee-name-resolution.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/attendance-day.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/collections-summary.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/inventory-summary.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/schedules-summary.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/notifications-summary.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/diagnostic-response.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/provider-response.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/functional-scenarios.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/finance-categories.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/attendance-attempt-summary.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/attendance-alert-summary.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/attendance-schedule-crosscheck.test.ts
+      - run: deno test supabase/functions/instituva-ai-assistant/attendance-event-corrections.test.ts
