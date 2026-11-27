@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import {planNaturalQuery} from "../functions/instituva-ai-assistant/conversational-plan.ts";
 import {findProductKnowledge, PRODUCT_KNOWLEDGE} from "../functions/instituva-ai-assistant/product-knowledge.ts";
 import {findIncidentRunbooks} from "../functions/instituva-ai-assistant/incident-runbooks.ts";
+import {requiredPermissionsForMode,assertTenantRows,assertEmployeeTenantRows,assertActiveMuseumProfile} from "../functions/instituva-ai-assistant/tenant-guard.ts";
 
 const now=new Date("2026-11-26T16:00:00-04:00");
 const plan=(question, extras={})=>planNaturalQuery(question,{mode:"auto",...extras},now);
@@ -41,4 +42,26 @@ test("runbooks only propose manual verifications, not executed actions",()=>{
     assert.ok(guide.verify.length && guide.safeActions.length && guide.uncertainty);
     assert.ok(guide.source && guide.commit);
   }
+});
+
+const museumA="00000000-0000-0000-0000-000000000001";
+const museumB="00000000-0000-0000-0000-000000000002";
+const employeeA="00000000-0000-0000-0000-000000000011";
+const employeeB="00000000-0000-0000-0000-000000000022";
+test("cross-museum synthetic evidence fails closed, including mixed batches",()=>{
+  const mixed=[{museum_id:museumA},{museum_id:museumB}];
+  assert.throws(()=>assertTenantRows(mixed,museumA),/FORBIDDEN/);
+  assert.throws(()=>assertEmployeeTenantRows([{museum_id:museumA,employee_id:employeeB}],museumA,employeeA),/FORBIDDEN/);
+  assert.deepEqual(assertEmployeeTenantRows([{museum_id:museumA,employee_id:employeeA}],museumA,employeeA),[{museum_id:museumA,employee_id:employeeA}]);
+});
+test("inactive, mismatched or malformed caller profile does not resolve tenant",()=>{
+  assert.throws(()=>assertActiveMuseumProfile({id:employeeA,museum_id:museumB,status:"inactive"},employeeA),/FORBIDDEN/);
+  assert.throws(()=>assertActiveMuseumProfile({id:employeeB,museum_id:museumA,status:"active"},employeeA),/FORBIDDEN/);
+  assert.equal(assertActiveMuseumProfile({id:employeeA,museum_id:museumA,status:"active"},employeeA),museumA);
+});
+test("read permissions never broaden cross-domain access",()=>{
+  assert.deepEqual(requiredPermissionsForMode("product"),[]);
+  assert.deepEqual(requiredPermissionsForMode("attendance"),["attendance.history.read","finance.read"]);
+  assert.deepEqual(requiredPermissionsForMode("assets"),["collections.read","modules.inventory.read"]);
+  assert.throws(()=>requiredPermissionsForMode("unknown"),/FORBIDDEN/);
 });
