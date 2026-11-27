@@ -448,9 +448,29 @@ Deno.serve(async (req: Request) => {
       const lateness="Entradas posteriores al inicio del turno programado: "+
         summary.entries_after_scheduled_start+" de "+summary.comparable_schedule_days+
         " días comparables. Esto no equivale a una determinación disciplinaria de tardanza.";
-      const answer=title+"\n\n"+work+"\n\n"+caveat+"\n\n"+lateness+
+      const arrivalAnswer=title+"\n\n"+
+        "Entradas posteriores al inicio programado: "+summary.entries_after_scheduled_start+
+        " de "+summary.comparable_schedule_days+" jornadas con horario comparable. "+
+        (summary.comparable_schedule_days===0 ?
+          "No hay horarios comparables suficientes para evaluar entradas posteriores." :
+          "Este resultado compara horas de entrada, no determina tardanza disciplinaria.")+
+        "\n\n"+caveat+
+        "\n\nNo se modificó ningún registro.";
+      const incidentsAnswer=title+"\n\n"+
+        "Incidencias documentales que requieren revisión:\n"+
+        "- Jornadas incompletas: "+summary.incomplete_days+"\n"+
+        "- Jornadas sin almuerzo verificable: "+summary.days_without_confirmed_lunch+"\n"+
+        "- Días programados sin marcaciones: "+summary.scheduled_days_without_punches+"\n"+
+        "- Entradas posteriores al inicio de horario: "+summary.entries_after_scheduled_start+
+        " de "+summary.comparable_schedule_days+" comparables.\n"+
+        "- Ponches sustituidos por correcciones: "+summary.superseded_punch_count+
+        ".\n\nEstos datos son señales para cotejo administrativo, no demuestran incumplimientos. "+
+        "No se modificó ningún registro.";
+      const hoursAnswer=title+"\n\n"+work+"\n\n"+caveat+"\n\n"+lateness+
         "\n\nSe excluyeron ponches sustituidos: "+summary.superseded_punch_count+
         ". No se modificó ningún registro.";
+      const answer=plan.attendanceIntent==="arrival"?arrivalAnswer:
+        plan.attendanceIntent==="incidents"?incidentsAnswer:hoursAnswer;
       return send({answer,evidence:{domain:"attendance",...summary,employee:responseConversationContext.employee_name},
         sources:["attendance_events [solo empleado/museo/período autorizado]",
                  "employee_shifts [comparación de horario, no certificación de nómina]"],
