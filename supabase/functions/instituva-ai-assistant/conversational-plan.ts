@@ -27,7 +27,8 @@ const safeContext=(v:unknown):{mode:string;employee_name:string;start_day:string
  if(!v||typeof v!=="object"||Array.isArray(v))return null;
  const c=v as Record<string,unknown>;
  if(typeof c.mode!=="string" || !["attendance","finance","collections","inventory","assets","schedules","notifications","product","payroll"].includes(c.mode))return null;
- if(c.mode!=="attendance" && Object.keys(c).some(key=>key!=="mode"))return null;
+ if(c.mode!=="attendance" && c.mode!=="payroll" && Object.keys(c).some(key=>key!=="mode"))return null;
+ if(c.mode==="payroll" && Object.keys(c).some(key=>!["mode","employee_name"].includes(key)))return null;
  const name=typeof c.employee_name==="string" && c.employee_name.length<=120 && /^[\p{L}\p{M}.' -]*$/u.test(c.employee_name)?c.employee_name:"";
  const day=typeof c.day==="string"?c.day:"";
  const start=typeof c.start_day==="string"?c.start_day:"";
@@ -73,7 +74,7 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
  if(employeeName && employeeName.split(" ").some(x=>nameStops.has(normalized(x))))employeeName=null;
  if(!employeeName && /^[\p{L}\p{M}.' -]{2,120}$/u.test(question.trim()) && question.trim().split(/\s+/).length<=3) employeeName=question.trim();
  if(typeof input.employee_name==="string"&&input.employee_name.trim())employeeName=input.employee_name.trim().slice(0,120);
- if(!employeeName && context?.mode==="attendance")employeeName=context.employee_name||null;
+ if(!employeeName && (context?.mode==="attendance" || context?.mode==="payroll"))employeeName=context.employee_name||null;
  let range:ConversationPlan["range"]=null;
  let day:string|null=null;
  const month=months.findIndex(m=>new RegExp("\\b"+m+"\\b").test(text) || (m==="noviembre" && text.split(/\s+/).includes("nov")));
