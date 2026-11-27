@@ -432,7 +432,8 @@ Deno.serve(async (req: Request) => {
         start_day:start,end_day:endExclusive
       };
       const full=summary.days_with_punches>0 && summary.verified_days===summary.days_with_punches &&
-        summary.days_without_confirmed_lunch===0 && summary.incomplete_days===0;
+        summary.days_without_confirmed_lunch===0 && summary.incomplete_days===0 &&
+        summary.scheduled_days_without_punches===0;
       const title="Asistencia de "+clean(employee.first_name+" "+employee.last_name,120)+
         " del "+summary.start_day+" al "+summary.end_day_inclusive+".";
       const work="Horas netas verificables: "+Math.floor(summary.verified_net_minutes/60)+
@@ -440,8 +441,10 @@ Deno.serve(async (req: Request) => {
         "en "+summary.verified_days+" jornada(s) con cuatro marcaciones válidas.";
       const caveat=full?
         "El total corresponde a las jornadas verificables; no certifica nómina ni pago de horas extra.":
-        "TOTAL PARCIAL: hay "+summary.incomplete_days+" jornadas incompletas y "+
-          summary.days_without_confirmed_lunch+" sin almuerzo verificado; no se puede afirmar un total mensual definitivo.";
+        "TOTAL PARCIAL: hay "+summary.incomplete_days+" jornadas incompletas, "+
+          summary.days_without_confirmed_lunch+" sin almuerzo verificado y "+
+          summary.scheduled_days_without_punches+" días programados sin marcaciones. "+
+          "No se puede afirmar un total mensual definitivo.";
       const lateness="Entradas posteriores al inicio del turno programado: "+
         summary.entries_after_scheduled_start+" de "+summary.comparable_schedule_days+
         " días comparables. Esto no equivale a una determinación disciplinaria de tardanza.";
