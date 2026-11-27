@@ -49,3 +49,11 @@ test("modernized chat presentation stays within assistant-specific selectors",()
  assert.match(html,/aria-label="Enviar mensaje"/);
  assert.match(html,/20261126-modern-chat-1/);
 });
+
+test("diagnostic history has conversational presentation without changing source contract",()=>{
+ assert.match(js,/const historyAnswer=\(raw\)=>/);
+ assert.match(js,/role==="assistant"\?historyAnswer\(message\)/);
+ assert.match(js,/headings\.every\(\(heading,index\)=>chunks\[index\+1\]\.startsWith\(heading\+"\\n"\)\)/);
+ assert.match(js,/labels=\["","Posibles causas","Qué comprobar","Qué puedes hacer","Lo que falta confirmar"\]/);
+ assert.match(js,/const refs=Array\.from\(sources\.children\|\|\[\]\)/);
+});
