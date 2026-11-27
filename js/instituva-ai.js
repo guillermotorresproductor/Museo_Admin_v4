@@ -64,7 +64,7 @@ function bindInstituvaAi() {
     heading.textContent=role==="user"?"Tú":"INSTITUVA AI";
     const text=document.createElement("p");
     text.className="ai-chat-body";
-    text.textContent=(role==="assistant"?presentationAnswer(message):String(message)).slice(0,14000);
+    text.textContent=(role==="assistant"?historyAnswer(message):String(message)).slice(0,14000);
     article.appendChild(heading);
     article.appendChild(text);
     history.appendChild(article);
@@ -78,6 +78,30 @@ function bindInstituvaAi() {
     /^INSTITUVA — DIAGNÓSTICO PRELIMINAR\nOrientación de solo lectura\. No se ejecutó ninguna operación sobre los registros operacionales\.\n/,
     "INSTITUVA — DIAGNÓSTICO PRELIMINAR\n"
   );
+  // Convert the server's already validated diagnosis into ordinary chat history.
+  // All statements remain intact; only stock headings/numbering are simplified.
+  const historyAnswer=(raw)=>{
+    const s=presentationAnswer(raw);
+    const headings=[
+      "Análisis inicial",
+      "Hipótesis (no confirmadas)",
+      "Verificaciones pendientes",
+      "Acciones manuales propuestas (NO ejecutadas)",
+      "Limitaciones de la evidencia"
+    ];
+    const chunks=s.split("\n\n");
+    if(chunks.length!==6 ||
+      !chunks[0].startsWith("INSTITUVA — DIAGNÓSTICO PRELIMINAR\n") ||
+      !headings.every((heading,index)=>chunks[index+1].startsWith(heading+"\n")))
+      return s;
+    const labels=["","Posibles causas","Qué comprobar","Qué puedes hacer","Lo que falta confirmar"];
+    return chunks.slice(1).map((chunk,index)=>{
+      const content=chunk.slice(headings[index].length+1).trim();
+      if(!content || (index===1 && content==="Sin hipótesis adicionales verificables."))return "";
+      const plain=content.split("\n").map(line=>line.replace(/^\d+\.\s+/,"• ")).join("\n");
+      return index===0?plain:labels[index]+":\n"+plain;
+    }).filter(Boolean).join("\n\n");
+  };
   const renderFormattedAnswer=(raw)=>{
     formattedAnswer.replaceChildren();
     formattedAnswer.hidden=true;
