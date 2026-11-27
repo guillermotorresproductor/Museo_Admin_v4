@@ -37,8 +37,7 @@ test("real chat DOM sends natural language, clears composer, and reuses scoped c
     conversation_context:context,guide_steps:[]
    })};
   };
-  w.eval(ai);
-  w.eval("bindInstituvaAi()");
+  w.eval(ai+"\nbindInstituvaAi();");
   await waitFor(()=>w.document.querySelector('[data-ai-form] button[type="submit"]')?.disabled===false);
   const question=w.document.querySelector('[name="question"]');
   const form=w.document.querySelector("[data-ai-form]");
