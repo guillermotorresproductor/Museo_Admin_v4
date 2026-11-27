@@ -32,14 +32,14 @@
     url.searchParams.set("environment",museoEnvironment.name);
     url.searchParams.set("context",context);
     // Force fresh assistant HTML after a verified production hotfix.
-    url.searchParams.set("ai_ui","20261126-frame-3");
+    url.searchParams.set("ai_ui","20261126-modern-chat-1");
     url.searchParams.set(popup ? "popup" : "dock","1");
     return url.href;
   };
 
   const stylesheet=document.createElement("link");
   stylesheet.rel="stylesheet";
-  stylesheet.href="css/instituva-ai-dock.css?v=20261126-dock-1";
+  stylesheet.href="css/instituva-ai-dock.css?v=20261126-modern-dock-1";
   document.head.appendChild(stylesheet);
 
   const button=(label,cssClass)=>{
