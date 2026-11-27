@@ -165,7 +165,11 @@ Deno.serve(async (req: Request) => {
       if(oneWord){
         const {data:visible,error:grantError}=await caller.rpc("has_permission",
           {requested_permission:"employees.read.all"});
-        if(grantError||visible!==true)throw Error("FORBIDDEN");
+        if(grantError||visible!==true)return send({
+          code:"EMPLOYEE_FULL_NAME_REQUIRED",
+          error:"Indica nombre y apellidos del empleado para consultar su nómina calculada.",
+          conversation_context:{mode:"payroll"}
+        },422);
       }
       const scope=oneWord?caller:admin;
       const {data:names,error:namesError}=await scope.from("employees")
