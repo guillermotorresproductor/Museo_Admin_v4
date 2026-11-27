@@ -14,6 +14,6 @@ test("AI-enabled app/config cache versions are consistent across major museum mo
 test("production still mounts dock exclusively after exact staff role validation",()=>{
   const app=fs.readFileSync("js/app.js","utf8");
   assert.match(app,/const canUseAi = instituvaAiUiEnabled && Boolean\(aiActiveStaff\);/);
-  assert.match(app,/aiDockScript\.src = "js\/instituva-ai-dock\.js\?v=20261127-floating-orb-2";/);
+  assert.match(app,/aiDockScript\.src = "js\/instituva-ai-dock\.js\?v=20261127-approved-orb-3";/);
   assert.match(app,/aiAuthorizedRoles\.has\(e\.accessProfile\)/);
 });
