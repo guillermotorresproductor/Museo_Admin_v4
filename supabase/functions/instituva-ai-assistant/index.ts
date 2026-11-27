@@ -353,33 +353,68 @@ Deno.serve(async (req: Request) => {
       sources=["inventory_items [resumen de registros, sin datos individuales]",
         "inventory_items.photo_path [únicamente conteo; no rutas]"];
     } else if (mode==="assets") {
-      // First cross-domain evidence route: only two RLS-scoped HEAD counts,
-      // never individual items, photos, prices, paths or identities.
-      // Both domain grants and both module-profile boundaries were checked above.
-      const [collectionCount,inventoryCount]=await Promise.all([
-        caller.from("collection_items").select("id",{count:"exact",head:true})
-          .eq("museum_id",museumId),
-        caller.from("inventory_items").select("id",{count:"exact",head:true})
-          .eq("museum_id",museumId)
-      ]);
-      if(collectionCount.error || inventoryCount.error ||
-         !Number.isSafeInteger(collectionCount.count) ||
-         !Number.isSafeInteger(inventoryCount.count) ||
-         (collectionCount.count as number)<0 || (inventoryCount.count as number)<0)
+      // Cross-domain aggregate investigation. Both grants and BOTH restrictive
+      // module gates are checked above. Every query uses the caller's JWT,
+      // never the service role. No item identities, titles, serials, location,
+      // values, photos or custodians reach the model.
+      const readScoped=async(table:"collection_items"|"collection_photos"|
+        "collection_history"|"inventory_items",columns:string)=>{
+        const rows:Array<Record<string,unknown>>=[];
+        for(let offset=0;offset<=2500;offset+=500){
+          const {data,error}=await caller.from(table).select(columns)
+            .eq("museum_id",museumId).order("id",{ascending:true}).range(offset,offset+499);
+          if(error)throw Error("UPSTREAM_FAILURE");
+          const page=assertTenantRows((data||[]) as Array<{museum_id:string}>,museumId);
+          rows.push(...page);
+          if(page.length<500)return rows;
+          if(offset===2500)throw Error("UPSTREAM_FAILURE");
+        }
         throw Error("UPSTREAM_FAILURE");
-      const collectionsVisible=collectionCount.count as number;
-      const inventoryVisible=inventoryCount.count as number;
-      snapshot={
-        type:"cross_domain_assets_visibility",
-        collections:{visible_record_count:collectionsVisible},
-        inventory:{visible_record_count:inventoryVisible},
-        scope:"Solo filas visibles por RLS al usuario autenticado y museo actual.",
-        warning:"Son módulos y unidades diferentes. Sus conteos no pueden restarse para declarar faltantes, duplicados, pérdidas ni equivalencias entre piezas y equipos. No hay inspección física, precios, fotos ni datos personales."
       };
-      evidence={domain:"assets",collections_visible_count:collectionsVisible,
-        inventory_visible_count:inventoryVisible,scope:"rls_authorized_counts_only"};
-      sources=["collection_items [solo conteo RLS del museo]",
-        "inventory_items [solo conteo RLS del museo]"];
+      const [items,photos,history,invent,missingNull,missingEmpty]=await Promise.all([
+        readScoped("collection_items","id,museum_id,status"),
+        readScoped("collection_photos","id,museum_id,item_id"),
+        readScoped("collection_history","id,museum_id,item_id"),
+        readScoped("inventory_items","id,museum_id,record_type,status,quantity,archived_at"),
+        caller.from("inventory_items").select("id",{count:"exact",head:true})
+          .eq("museum_id",museumId).is("photo_path",null),
+        caller.from("inventory_items").select("id",{count:"exact",head:true})
+          .eq("museum_id",museumId).eq("photo_path","")
+      ]);
+      if(missingNull.error||missingEmpty.error||
+        !Number.isSafeInteger(missingNull.count)||
+        !Number.isSafeInteger(missingEmpty.count)||
+        (missingNull.count as number)<0||(missingEmpty.count as number)<0)
+        throw Error("UPSTREAM_FAILURE");
+      const c=summarizeCollections(
+        items as Array<{id:string;museum_id:string;status:string}>,
+        photos as Array<{museum_id:string;item_id:string}>,
+        history as Array<{museum_id:string;item_id:string}>,museumId);
+      const i=summarizeInventory(invent as InventoryEvidenceRow[],museumId,
+        (missingNull.count as number)+(missingEmpty.count as number));
+      snapshot={
+        type:"cross_domain_assets_administrative_audit",
+        collections:{record_count:c.item_count,photo_count:c.photo_count,
+          history_count:c.history_count,items_without_photos:c.items_without_photos,
+          items_without_history:c.items_without_history,statuses:c.statuses},
+        inventory:{record_count:i.record_count,quantity_total:i.quantity_total,
+          records_without_photo:i.missing_photo_records,
+          archived_records:i.archived_records,statuses:i.statuses},
+        warning:"Son dos dominios distintos y NO hay relación individual comprobada entre piezas y equipos. Fotografía faltante, historial ausente o archivo administrativo NO prueban pérdida, daño ni incumplimiento. No se consultaron valores, precios, identidades, ubicaciones, fotografías ni documentos.",
+        scope:"Registros visibles únicamente por RLS al usuario autenticado en el museo vigente."
+      };
+      evidence={domain:"assets",collections_visible_count:c.item_count,
+        inventory_visible_count:i.record_count,
+        collections_without_photo:c.items_without_photos,
+        collections_without_history:c.items_without_history,
+        inventory_without_photo:i.missing_photo_records,
+        inventory_archived_records:i.archived_records,
+        scope:"rls_authorized_aggregate_audit"};
+      sources=["collection_items [estatus y conteo visible por RLS]",
+        "collection_photos [vínculos para conteo, sin imágenes]",
+        "collection_history [vínculos para conteo, sin contenido]",
+        "inventory_items [estatus y conteos, sin documentos ni rutas]",
+        "inventory_items.photo_path [solo conteo de valores vacíos]"];
     } else if (mode==="schedules") {
       // Existing RLS enforces permitted museum and time.read.all. No
       // service-role bypass, employee names, notes, punches or payroll.
