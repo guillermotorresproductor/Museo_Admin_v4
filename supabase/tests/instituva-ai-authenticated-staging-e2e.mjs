@@ -1,6 +1,7 @@
 // INSTITUVA AI authenticated staging E2E: reads only, no fixture creation.
 // Required: INSTITUVA_STAGING_JWT_A, INSTITUVA_STAGING_JWT_B,
-//           INSTITUVA_STAGING_EMPLOYEE_A (synthetic employee UUID in museum A).
+//           INSTITUVA_STAGING_EMPLOYEE_A (synthetic employee UUID in museum A),
+//           INSTITUVA_STAGING_EMPLOYEE_A_NAME (full name of the same synthetic employee).
 // Never paste JWTs in chat or commit them. No credentials or response bodies logged.
 // This test does not establish zero DB writes from internal quota accounting.
 // Invoke: node --test supabase/tests/instituva-ai-authenticated-staging-e2e.mjs
@@ -12,11 +13,12 @@ const authEndpoint="https://lonpdmxdvbxuagqxztig.supabase.co/auth/v1/user";
 const jwtA=process.env.INSTITUVA_STAGING_JWT_A;
 const jwtB=process.env.INSTITUVA_STAGING_JWT_B;
 const employeeA=process.env.INSTITUVA_STAGING_EMPLOYEE_A;
+const employeeAName=process.env.INSTITUVA_STAGING_EMPLOYEE_A_NAME?.trim();
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const timeout=()=>AbortSignal.timeout(30000);
 const fail=(why)=>{throw new Error(why)};
-if(!jwtA || !jwtB || !uuid.test(employeeA||"")) {
-  fail("Missing two authorized staging JWTs or synthetic employee UUID. E2E NOT EXECUTED.");
+if(!jwtA || !jwtB || !uuid.test(employeeA||"") || !employeeAName || !/^[\p{L}\p{M}.' -]{3,120}$/u.test(employeeAName) || employeeAName.split(/\s+/).length<2) {
+  fail("Missing two authorized staging JWTs, synthetic employee UUID or full name. E2E NOT EXECUTED.");
 }
 if(jwtA===jwtB)fail("Two distinct fixture sessions are required.");
 const getProfile=async jwt=>{
@@ -53,13 +55,16 @@ test("authorized institutional knowledge has a read-only contract and citations"
    assert.ok(Array.isArray(r.body.sources) && r.body.sources.length>0,"Verifiable source references required");
  }
 });
-test("cross-museum employee selector cannot return a successful private diagnosis",async()=>{
- const r=await ask(jwtB,"Revisa los ponches de este empleado hoy",{
-   mode:"attendance",employee_id:employeeA
+test("cross-museum named employee lookup is denied rather than returning any private evidence",async()=>{
+ const r=await ask(jwtB,"Revisa los ponches de "+employeeAName+" hoy",{
+   mode:"attendance",employee_name:employeeAName,employee_id:employeeA
  });
+ // A missing employee cannot prove isolation unless the name+ID belong to a
+ // known synthetic record in tenant A; fixture provenance is a prerequisite.
  assert.notEqual(r.status,200,"Cross-tenant request must never return authorized private evidence");
- assert.ok([403,404,409,422].includes(r.status),"Fail closed, got HTTP "+r.status);
- assert.notEqual(r.body.read_only,false);
+ assert.ok([403,404,409].includes(r.status),"Unexpected status for cross-tenant case: HTTP "+r.status);
+ assert.ok(!("evidence" in r.body) && !("sources" in r.body),
+   "Denied cross-tenant case must not expose evidence or source records");
 });
 test("user-supplied museum_id cannot expand the authenticated tenant scope",async()=>{
  const r=await ask(jwtA,"¿Quién tiene permiso para corregir ponches?",{
