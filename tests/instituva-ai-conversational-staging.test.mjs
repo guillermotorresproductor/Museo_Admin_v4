@@ -148,7 +148,7 @@ test("suspected absences are never misrepresented as confirmed employee nonatten
  const p=planNaturalQuery("¿Cuántos días faltó Roberto en noviembre?",{mode:"auto",conversation_context:c},now);
  assert.equal(p.mode,"attendance");
  assert.equal(p.attendanceIntent,"absence");
- assert.equal(p.employeeName,"Roberto");
+ assert.equal(p.employeeName,"Roberto Díaz");
  assert.deepEqual(p.range,{start:"2026-11-01",endExclusive:"2026-11-27"});
 });
 test("overtime question does not claim payroll compensation or extrapolate from punches",()=>{
