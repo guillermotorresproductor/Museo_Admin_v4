@@ -9,6 +9,8 @@ import {findProductKnowledge, PRODUCT_KNOWLEDGE} from "../functions/instituva-ai
 import {findIncidentRunbooks} from "../functions/instituva-ai-assistant/incident-runbooks.ts";
 import {requiredPermissionsForMode,assertTenantRows,assertEmployeeTenantRows,assertActiveMuseumProfile} from "../functions/instituva-ai-assistant/tenant-guard.ts";
 import {comparisonWindows,compareAuthorizedPayroll} from "../functions/instituva-ai-assistant/payroll-comparison.ts";
+import {summarizeCollections} from "../functions/instituva-ai-assistant/collections-summary.ts";
+import {summarizeInventory} from "../functions/instituva-ai-assistant/inventory-summary.ts";
 
 const now=new Date("2026-11-26T16:00:00-04:00");
 const plan=(question, extras={})=>planNaturalQuery(question,{mode:"auto",...extras},now);
@@ -221,4 +223,39 @@ test("daily payroll comparisons fail closed on malformed or out-of-period record
     assert.throws(()=>compareAuthorizedPayroll({employees:[row([bad])]},
       {employees:[previous]},id,"Empleado de Prueba",windows),/UPSTREAM_FAILURE/);
   }
+});
+
+test("cross-module aggregate inventory and collections remain independent",()=>{
+ const museum=museumA;
+ const pieces=[
+  {id:"c1",museum_id:museum,status:"ingreso"},
+  {id:"c2",museum_id:museum,status:"catalogada"}
+ ];
+ const photos=[{museum_id:museum,item_id:"c1"}];
+ const history=[{museum_id:museum,item_id:"c1"}];
+ const collections=summarizeCollections(pieces,photos,history,museum);
+ const inventory=summarizeInventory([
+  {id:"i1",museum_id:museum,record_type:"equipo",status:"activo",quantity:4,archived_at:null},
+  {id:"i2",museum_id:museum,record_type:"equipo",status:"archivado",quantity:1,archived_at:"2026-11-01"}
+ ],museum,1);
+ assert.equal(collections.item_count,2);
+ assert.equal(collections.items_without_photos,1);
+ assert.equal(collections.items_without_history,1);
+ assert.equal(inventory.record_count,2);
+ assert.equal(inventory.quantity_total,5);
+ assert.equal(inventory.archived_records,1);
+ assert.equal(inventory.missing_photo_records,1);
+ assert.notEqual(collections.item_count,inventory.quantity_total);
+});
+test("cross-module synthetic records never cross museum boundaries",()=>{
+ const items=[{id:"c1",museum_id:museumA,status:"catalogada"}];
+ assert.throws(()=>summarizeCollections(items,[{museum_id:museumB,item_id:"c1"}],[],museumA),/FORBIDDEN/);
+ assert.throws(()=>summarizeInventory([{id:"i1",museum_id:museumB,
+   record_type:"equipo",status:"activo",quantity:1,archived_at:null}],museumA,0),/FORBIDDEN/);
+ assert.throws(()=>summarizeInventory([{id:"i1",museum_id:museumA,
+   record_type:"equipo",status:"activo",quantity:1,archived_at:null}],museumA,2),/UPSTREAM_FAILURE/);
+});
+test("combined assets route requires both independent module permissions",()=>{
+ assert.equal(plan("¿Qué diferencias hay entre colecciones e inventario?").mode,"assets");
+ assert.deepEqual(requiredPermissionsForMode("assets"),["collections.read","modules.inventory.read"]);
 });
