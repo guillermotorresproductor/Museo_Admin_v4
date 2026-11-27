@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {planNaturalQuery} from "../functions/instituva-ai-assistant/conversational-plan.ts";
+import {formatDiagnosticResponse,parseDiagnosticResponse} from "../functions/instituva-ai-assistant/diagnostic-response.ts";
 import {findProductKnowledge, PRODUCT_KNOWLEDGE} from "../functions/instituva-ai-assistant/product-knowledge.ts";
 import {findIncidentRunbooks} from "../functions/instituva-ai-assistant/incident-runbooks.ts";
 import {requiredPermissionsForMode,assertTenantRows,assertEmployeeTenantRows,assertActiveMuseumProfile} from "../functions/instituva-ai-assistant/tenant-guard.ts";
@@ -64,4 +65,24 @@ test("read permissions never broaden cross-domain access",()=>{
   assert.deepEqual(requiredPermissionsForMode("attendance"),["attendance.history.read","finance.read"]);
   assert.deepEqual(requiredPermissionsForMode("assets"),["collections.read","modules.inventory.read"]);
   assert.throws(()=>requiredPermissionsForMode("unknown"),/FORBIDDEN/);
+});
+
+test("brief verified answers have no obligatory report, hypotheses or disclaimers",()=>{
+  const data=parseDiagnosticResponse(JSON.stringify({
+    resumen:"El inventario tiene 12 equipos registrados.",
+    hipotesis:[],verificaciones:[],recomendaciones_manuales:[],limitaciones:[]
+  }));
+  assert.equal(formatDiagnosticResponse(data),"El inventario tiene 12 equipos registrados.");
+});
+test("important uncertainty is still shown when relevant",()=>{
+  const data=parseDiagnosticResponse(JSON.stringify({
+    resumen:"Hay 2 alertas activas.",
+    hipotesis:[],verificaciones:["Cotejar la fecha de las alertas."],
+    recomendaciones_manuales:[],limitaciones:["El conteo no demuestra la causa."]
+  }));
+  const answer=formatDiagnosticResponse(data);
+  assert.match(answer,/Hay 2 alertas activas/);
+  assert.match(answer,/Qué comprobar/);
+  assert.match(answer,/El conteo no demuestra la causa/);
+  assert.doesNotMatch(answer,/DIAGNÓSTICO PRELIMINAR|Orientación de solo lectura/);
 });

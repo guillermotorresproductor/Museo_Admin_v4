@@ -46,9 +46,9 @@ export function parseDiagnosticResponse(raw:unknown):DiagnosticResponse{
   return {
     resumen:line(data.resumen,900),
     hipotesis:list(data.hipotesis,0,4),
-    verificaciones:list(data.verificaciones,1,5),
-    recomendaciones_manuales:list(data.recomendaciones_manuales,1,5),
-    limitaciones:list(data.limitaciones,1,4)
+    verificaciones:list(data.verificaciones,0,5),
+    recomendaciones_manuales:list(data.recomendaciones_manuales,0,5),
+    limitaciones:list(data.limitaciones,0,4)
   };
 }
 // All guide steps come only from the parsed, bounded advisory response.
@@ -61,21 +61,16 @@ export function buildManualGuide(d:DiagnosticResponse):ManualGuideStep[]{
   ];
 }
 
+// The API remains a verified, closed five-field JSON contract, but the user sees
+// a direct answer. Empty advisory sections never become boilerplate.
 export function formatDiagnosticResponse(d:DiagnosticResponse):string{
   const section=(heading:string,items:readonly string[])=>
-    heading+"\n"+(items.length?items.map((item,i)=>(i+1)+". "+item).join("\n"):"Sin hipótesis adicionales verificables.");
+    items.length?heading+"\n"+items.map(item=>"- "+item).join("\n"):"";
   return [
-    "INSTITUVA — DIAGNÓSTICO PRELIMINAR",
-    "Orientación de solo lectura. No se ejecutó ninguna operación sobre los registros operacionales.",
-    "",
-    "Análisis inicial\n"+d.resumen,
-    "",
-    section("Hipótesis (no confirmadas)",d.hipotesis),
-    "",
-    section("Verificaciones pendientes",d.verificaciones),
-    "",
-    section("Acciones manuales propuestas (NO ejecutadas)",d.recomendaciones_manuales),
-    "",
-    section("Limitaciones de la evidencia",d.limitaciones)
-  ].join("\n");
+    d.resumen,
+    section("Qué comprobar",d.verificaciones),
+    section("Qué hacer",d.recomendaciones_manuales),
+    section("Posibles causas (sin confirmar)",d.hipotesis),
+    section("Dato pendiente",d.limitaciones)
+  ].filter(Boolean).join("\n\n");
 }
