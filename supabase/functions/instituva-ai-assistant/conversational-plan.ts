@@ -17,13 +17,13 @@ export const isClearlyExternalQuestion=(question:string):boolean=>{
 };
 const isContextualFollowup=(q:string)=>{
  if(q.length>110)return false;
- return /^(?:[¿¡]\\s*)?(?:y\\b|entonces\\b|tambien\\b|en ese caso\\b|de esos\\b|de esas\\b|los mismos\\b|las mismas\\b|cuantos hay\\b|cuantas hay\\b|que ocurre con eso\\b|que paso con eso\\b|encontraste alguna irregularidad\\b|hay alguna irregularidad\\b|que debo revisar\\b|que significa eso\\b|puedes explicar (?:eso|esa diferencia)\\b|por que (?:ocurrio|paso eso)\\b|que recomiendas\\b)/.test(q);
+ return /^(?:[¿¡]\s*)?(?:y\b|entonces\b|tambien\b|en ese caso\b|de esos\b|de esas\b|los mismos\b|las mismas\b|cuantos hay\b|cuantas hay\b|que ocurre con eso\b|que paso con eso\b|encontraste alguna irregularidad\b|hay alguna irregularidad\b|que debo revisar\b|que significa eso\b|puedes explicar (?:eso|esa diferencia)\b|por que (?:ocurrio|paso eso)\b|que recomiendas\b)/.test(q);
 };
 // A reply to the assistant's employee-name request is not a new subject.
 // Reuse only the existing private domain label; authorization, museum and
 // employee identity are always checked again at the server boundary.
 const isEmployeeNameReply=(question:string)=>
- /^[\\p{Lu}][\\p{L}\\p{M}.'-]{1,50}(?:\\s+[\\p{Lu}][\\p{L}\\p{M}.'-]{1,50}){0,2}$/u.test(question.trim());
+ /^[\p{Lu}][\p{L}\p{M}.'-]{1,50}(?:\s+[\p{Lu}][\p{L}\p{M}.'-]{1,50}){0,2}$/u.test(question.trim());
 const months=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const nameStops=new Set(["de","del","en","desde","hasta","durante","noviembre","octubre","septiembre","diciembre","enero","febrero","marzo","abril","mayo","junio","julio","agosto","trabajo","trabajado","trabajaron","trabajados","horas","dias","dia","cuantas","cuantos","el","la","los","las","a","y","este","mes","ano","mismo","periodo"]);
 const localToday=(now:Date)=>{
