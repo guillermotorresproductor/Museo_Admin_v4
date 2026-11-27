@@ -15,7 +15,10 @@ const minutes=(value:unknown):number=>{
 const date=(d:Date)=>validAttendanceDay(d.toISOString().slice(0,10));
 export const comparisonWindows=(now=new Date())=>{
   if(!Number.isFinite(now.getTime()))throw Error("INVALID_REQUEST");
-  const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Puerto_Rico",year:"numeric",month:"2-digit",day:"2-digit"}).format(now);
+  const parts=new Intl.DateTimeFormat("en-US",{timeZone:"America/Puerto_Rico",
+    year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(now);
+  const part=(kind:string)=>parts.find(x=>x.type===kind)?.value||"";
+  const today=part("year")+"-"+part("month")+"-"+part("day");
   validAttendanceDay(today);
   const utc=new Date(today+"T00:00:00Z");
   const mondayOffset=(utc.getUTCDay()+6)%7;
