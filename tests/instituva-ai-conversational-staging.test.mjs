@@ -119,3 +119,25 @@ test("a later explicit employee replaces prior conversational employee only by a
  assert.equal(p.employeeName,"María");
  assert.deepEqual(p.range,{start:"2026-11-01",endExclusive:"2026-11-27"});
 });
+
+
+test("follow-up answers requested arrival evidence instead of repeating hours",()=>{
+ const c={mode:"attendance",employee_name:"Roberto Díaz",start_day:"2026-11-01",end_day:"2026-11-27"};
+ const p=planNaturalQuery("¿Y cuántos días llegó tarde?",{mode:"auto",conversation_context:c},now);
+ assert.equal(p.mode,"attendance");
+ assert.equal(p.attendanceIntent,"arrival");
+ assert.equal(p.employeeName,"Roberto Díaz");
+ assert.deepEqual(p.range,{start:"2026-11-01",endExclusive:"2026-11-27"});
+});
+test("investigate irregularities as a scoped follow-up without inventing new date or employee",()=>{
+ const c={mode:"attendance",employee_name:"Roberto Díaz",start_day:"2026-11-01",end_day:"2026-11-27"};
+ const p=planNaturalQuery("¿Encontraste alguna irregularidad?",{mode:"auto",conversation_context:c},now);
+ assert.equal(p.mode,"attendance");
+ assert.equal(p.attendanceIntent,"incidents");
+ assert.equal(p.employeeName,"Roberto Díaz");
+ assert.deepEqual(p.range,{start:"2026-11-01",endExclusive:"2026-11-27"});
+});
+test("generic wage question never enters private attendance computation",()=>{
+ const p=planNaturalQuery("¿Cuánto representa eso en nómina?",{mode:"auto",conversation_context:{mode:"attendance",employee_name:"Roberto Díaz",start_day:"2026-11-01",end_day:"2026-11-27"}},now);
+ assert.equal(p.mode,"product");
+});
