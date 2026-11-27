@@ -219,7 +219,11 @@ Deno.serve(async (req: Request) => {
           "list_attendance_history [utilizada internamente por payroll_actual]",
           "employee_compensation [resuelta internamente; ninguna tarifa individual expuesta]"],
         read_only:true,actions_executed:false,
-        diagnostic_contract:"read_only_v1",guide_steps:[],
+        diagnostic_contract:"read_only_v1",guide_steps:[
+          {phase:"verificar",text:"Comparar las jornadas y horas computadas en Asistencia para ambos períodos."},
+          {phase:"verificar",text:"Revisar las incidencias, correcciones y minutos adicionales aprobados en Nómina."},
+          {phase:"accion_manual",text:"Si la diferencia no queda explicada, solicitar revisión del cálculo a una persona autorizada; el asistente no corrige registros ni aprueba pagos."}
+        ],
         conversation_context:responseConversationContext});
     }
     if (mode==="product") {
