@@ -188,6 +188,17 @@ Deno.serve(async (req: Request) => {
         options:resolution.options,read_only:true,actions_executed:false
       },409);
       const selected=resolution.employee;
+      if(/\b(?:mes|mensual|meses)\b/.test(question.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()))
+        return send({answer:"Actualmente puedo comparar semanas de nómina calculada. Para comparar meses completos necesito una consulta mensual específica y autorizada.",
+          mode:"payroll",sources:[],evidence:{domain:"payroll",comparison_available:false},
+          read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+          guide_steps:[],conversation_context:{mode:"payroll",employee_name:clean(selected.first_name+" "+selected.last_name,120)}});
+      // Reuse the assistant's atomic per-user/per-museum query quota.
+      const {data:slot,error:quotaError}=await admin.rpc(
+        "ai_assistant_claim_internal_v1",{p_museum_id:museumId,p_user_id:user.id}
+      );
+      if(quotaError)throw Error("UPSTREAM_FAILURE");
+      if(slot!==true)throw Error("RATE_LIMITED");
       const windows=comparisonWindows();
       // Bounded weekly windows prevent broad personnel/compensation requests.
       const [recent,earlier]=await Promise.all([
