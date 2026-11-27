@@ -45,6 +45,51 @@ const onlyEmployee=(raw:unknown,id:string):PayrollRow|null=>{
   if(typeof x.state!=="string"||x.state.length>70)throw Error("UPSTREAM_FAILURE");
   return x;
 };
+// Validate and reduce the exact employee's daily payroll evidence. Exclude
+// free-text names, notes, rates, budget labels and other employees from output.
+type DayEvidence={day:string;state:string;worked_minutes:number;approved_minutes:number;amount:number};
+const permittedStates=new Set(["COMPLETA","PENDIENTE DE CORRECCIÓN","EN CURSO",
+  "SIN PONCHAR","SIN TURNO","SIN TARIFA","EXCLUIDA"]);
+const safeDaily=(row:PayrollRow,from:string,to:string):DayEvidence[]=>{
+  if(!Array.isArray(row.days)||row.days.length>40)throw Error("UPSTREAM_FAILURE");
+  const output:DayEvidence[]=[];
+  for(const raw of row.days){
+    if(!raw||typeof raw!=="object"||Array.isArray(raw))throw Error("UPSTREAM_FAILURE");
+    const v=raw as Record<string,unknown>;
+    const day=typeof v.shift_date==="string"?validAttendanceDay(v.shift_date):"";
+    if(!day||day<from||day>to)throw Error("UPSTREAM_FAILURE");
+    if(typeof v.state!=="string"||!permittedStates.has(v.state))throw Error("UPSTREAM_FAILURE");
+    const amount=numeric(v.amount);
+    const worked_minutes=minutes(v.worked_minutes);
+    const approved_minutes=minutes(v.approved_minutes);
+    output.push({day,state:v.state,worked_minutes,approved_minutes,amount});
+  }
+  output.sort((a,b)=>a.day.localeCompare(b.day));
+  return output;
+};
+const dailyFindings=(a:PayrollRow,b:PayrollRow,windows:ReturnType<typeof comparisonWindows>)=>{
+  const current=safeDaily(a,windows.current.from,windows.current.to);
+  const previous=safeDaily(b,windows.previous.from,windows.previous.to);
+  const statusCounts=(rows:DayEvidence[])=>rows.reduce((acc,row)=>{
+    if(row.state!=="COMPLETA")acc[row.state]=(acc[row.state]||0)+1;
+    return acc;
+  },{} as Record<string,number>);
+  const incompleteA=statusCounts(current),incompleteB=statusCounts(previous);
+  const flagged=Object.keys(incompleteA).length>0||Object.keys(incompleteB).length>0;
+  const extraCurrent=current.filter(d=>d.approved_minutes>0).length;
+  const extraPrevious=previous.filter(d=>d.approved_minutes>0).length;
+  const describe=(set:Record<string,number>)=>Object.entries(set)
+    .map(([state,count])=>state+": "+count).join("; ")||"sin incidencias de estado";
+  const observations=[
+    "Jornadas del cálculo oficial: "+current.length+" esta semana y "+previous.length+" la anterior.",
+    "Jornadas con minutos adicionales aprobados: "+extraCurrent+" frente a "+extraPrevious+"."
+  ];
+  if(flagged)observations.push("Estados que requieren cotejo: actual ("+
+    describe(incompleteA)+"), anterior ("+describe(incompleteB)+").");
+  return {observations,flagged,day_count_current:current.length,
+    day_count_previous:previous.length,exception_days_current:Object.values(incompleteA).reduce((n,v)=>n+v,0),
+    exception_days_previous:Object.values(incompleteB).reduce((n,v)=>n+v,0)};
+};
 const currency=(n:number)=>new Intl.NumberFormat("es-PR",{style:"currency",currency:"USD"}).format(n);
 const hours=(m:number)=>(m/60).toFixed(2)+" h";
 export function compareAuthorizedPayroll(current:unknown,previous:unknown,employeeId:string,employeeName:string,
@@ -62,6 +107,7 @@ export function compareAuthorizedPayroll(current:unknown,previous:unknown,employ
     answer:"El empleado figura con compensación salarial mensual en al menos uno de los períodos. Una comparación de semanas parciales no permite explicar su salario mensual; consulta un período mensual completo autorizado.",
     evidence:{domain:"payroll",comparison_available:false,reason:"monthly_salary_not_comparable"}
   };
+  const dayEvidence=dailyFindings(a,b,windows);
   const diff=Math.round((a.actual_amount-b.actual_amount)*100)/100;
   const worked=a.worked_minutes-b.worked_minutes;
   const approved=a.approved_minutes-b.approved_minutes;
@@ -69,10 +115,11 @@ export function compareAuthorizedPayroll(current:unknown,previous:unknown,employ
   const observations=[
     "Horas registradas computadas: "+hours(a.worked_minutes)+" frente a "+hours(b.worked_minutes)+".",
     "Minutos adicionales aprobados: "+a.approved_minutes+" frente a "+b.approved_minutes+"."
+    ,...dayEvidence.observations
   ];
   const cautions=[
     windows.partial?"La semana actual aún está en curso; los períodos tienen distinta duración.":"La comparación usa el cálculo actual, no un pago confirmado.",
-    stateFlags.length?"Hay estados pendientes o incompletos; revisar las jornadas y autorizaciones antes de atribuir una causa.":"",
+    stateFlags.length||dayEvidence.flagged?"Hay estados pendientes o incompletos; revisar las jornadas y autorizaciones antes de atribuir una causa.":"",
     "Las diferencias observadas no demuestran por sí solas su causa, ni acreditan depósito, cheque o conciliación."
   ].filter(Boolean);
   const answer="Nómina calculada para "+employeeName+": "+currency(a.actual_amount)+
@@ -86,5 +133,8 @@ export function compareAuthorizedPayroll(current:unknown,previous:unknown,employ
     current_amount:a.actual_amount,previous_amount:b.actual_amount,difference:diff,
     current_worked_minutes:a.worked_minutes,previous_worked_minutes:b.worked_minutes,
     current_approved_minutes:a.approved_minutes,previous_approved_minutes:b.approved_minutes,
-    current_state:a.state,previous_state:b.state,partial_current:windows.partial}};
+    current_state:a.state,previous_state:b.state,partial_current:windows.partial,
+    current_days:dayEvidence.day_count_current,previous_days:dayEvidence.day_count_previous,
+    current_exception_days:dayEvidence.exception_days_current,
+    previous_exception_days:dayEvidence.exception_days_previous}};
 }
