@@ -15,7 +15,15 @@ export const isClearlyExternalQuestion=(question:string):boolean=>{
  if(/\b(instituva|museo|nomina|asistencia|finanzas|colecciones|inventario|horarios|emplead[oa]s?|ponche|sistema|modulo)\b/.test(q))return false;
  return /\b(?:restaurantes?|receta de cocina|preparar una cena|pronostico del tiempo|clima de hoy|horoscopo|signo zodiacal|resultado del partido|marcador de futbol|reservar hotel|vuelos baratos|mi automovil|mi carro|mi vehiculo|cambiar aceite del carro|contrato de arrendamiento de mi apartamento)\b/.test(q);
 };
-const isContextualFollowup=(q:string)=>/^(?:[¿¡]\s*)?(?:y\b|entonces\b|tambien\b|en ese caso\b|de esos\b|de esas\b|los mismos\b|las mismas\b|cuantos hay\b|cuantas hay\b|que ocurre con eso\b|que paso con eso\b|encontraste alguna irregularidad\b|hay alguna irregularidad\b)/.test(q);
+const isContextualFollowup=(q:string)=>{
+ if(q.length>110)return false;
+ return /^(?:[¿¡]\\s*)?(?:y\\b|entonces\\b|tambien\\b|en ese caso\\b|de esos\\b|de esas\\b|los mismos\\b|las mismas\\b|cuantos hay\\b|cuantas hay\\b|que ocurre con eso\\b|que paso con eso\\b|encontraste alguna irregularidad\\b|hay alguna irregularidad\\b|que debo revisar\\b|que significa eso\\b|puedes explicar (?:eso|esa diferencia)\\b|por que (?:ocurrio|paso eso)\\b|que recomiendas\\b)/.test(q);
+};
+// A reply to the assistant's employee-name request is not a new subject.
+// Reuse only the existing private domain label; authorization, museum and
+// employee identity are always checked again at the server boundary.
+const isEmployeeNameReply=(question:string)=>
+ /^[\\p{Lu}][\\p{L}\\p{M}.'-]{1,50}(?:\\s+[\\p{Lu}][\\p{L}\\p{M}.'-]{1,50}){0,2}$/u.test(question.trim());
 const months=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const nameStops=new Set(["de","del","en","desde","hasta","durante","noviembre","octubre","septiembre","diciembre","enero","febrero","marzo","abril","mayo","junio","julio","agosto","trabajo","trabajado","trabajaron","trabajados","horas","dias","dia","cuantas","cuantos","el","la","los","las","a","y","este","mes","ano","mismo","periodo"]);
 const localToday=(now:Date)=>{
@@ -60,7 +68,7 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
    /\b(?:ponch\w*|asistencia|marcacion(?:es)?)\b/.test(text);
  const hasSpecificPeriod=/\b(?:hoy|ayer|anteayer|20\d{2}-\d{2}-\d{2}|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/.test(text);
  let mode:ConversationPlan["mode"]=explicit==="auto"?
-   ((policyQuestion&&!hasSpecificPeriod)||payrollPolicy?"product":payrollCompare?"payroll":attendance?"attendance":finance?"finance":collections&&inventory?"assets":collections?"collections":inventory?"inventory":schedules?"schedules":notifications?"notifications":context && isContextualFollowup(text)?context.mode as ConversationPlan["mode"]:"product")
+   ((policyQuestion&&!hasSpecificPeriod)||payrollPolicy?"product":payrollCompare?"payroll":attendance?"attendance":finance?"finance":collections&&inventory?"assets":collections?"collections":inventory?"inventory":schedules?"schedules":notifications?"notifications":context && (isContextualFollowup(text) || (["attendance","payroll"].includes(context.mode) && isEmployeeNameReply(question)))?context.mode as ConversationPlan["mode"]:"product")
    :explicit as ConversationPlan["mode"];
  if(/\b(cuanto representa|cuanto cobrar|pago de nomina|salario|tarifa por hora)\b/.test(text) && explicit==="auto" && !payrollCompare)
    mode="product"; // No wage or payroll transaction inference from attendance.
