@@ -7,26 +7,26 @@
 }
 .ai-dock-launch:hover,.ai-dock-launch:focus-visible { background: #0c3d2b; outline-offset: 3px; }
 .ai-dock-panel {
-  --ai-dock-width: min(42vw, 560px);
+  --ai-dock-width: min(49vw, 650px);
   position: fixed; z-index: 1100; right: 0; top: 0; bottom: 0;
   display: flex; flex-direction: column; width: var(--ai-dock-width);
-  border-left: 1px solid #d1dce3; background: #fff;
-  box-shadow: -9px 0 28px rgba(15,23,42,.13); overflow: hidden;
+  border-left: 1px solid #e4eae7; background: #fff;
+  box-shadow: -16px 0 48px rgba(15,23,42,.10); overflow: hidden;
 }
-.ai-dock-panel--wide { --ai-dock-width: min(58vw, 820px); }
+.ai-dock-panel--wide { --ai-dock-width: min(70vw, 930px); }
 .ai-dock-panel[hidden],.ai-dock-launch[hidden] { display: none !important; }
 .ai-dock-header {
   display: flex; justify-content: space-between; align-items: center;
-  flex-wrap: wrap; gap: 12px; padding: 13px 16px;
-  border-bottom: 1px solid #e4eaee; background: #f9fbfb;
+  flex-wrap: wrap; gap: 12px; padding: 13px 19px;
+  border-bottom: 1px solid #edf1ee; background: #fff;
 }
 .ai-dock-header strong,.ai-dock-header span { display: block; }
-.ai-dock-header strong { font-size: 1.03rem; color: #132b23; }
-.ai-dock-header span { font-size: .78rem; color: #526477; }
+.ai-dock-header strong { font-size: .98rem; font-weight: 740; letter-spacing: -.02em; color: #18382e; }
+.ai-dock-header span { font-size: .69rem; color: #758480; }
 .ai-dock-controls { display: flex; flex-wrap: wrap; gap: 6px; }
 .ai-dock-control {
-  padding: 8px 10px; border: 1px solid #cbd9d3; border-radius: 8px;
-  background: #fff; color: #183528; font-size: .83rem; font-weight: 700;
+  padding: 7px 10px; border: 1px solid #e3ebe6; border-radius: 9px;
+  background: #fff; color: #456459; font-size: .76rem; font-weight: 600;
   cursor: pointer;
 }
 .ai-dock-control:hover,.ai-dock-control:focus-visible {
@@ -39,15 +39,15 @@
 }
 @media (min-width: 1100px) {
   body.ai-dock-open .main-area {
-    margin-right: min(42vw, 560px);
+    margin-right: min(49vw, 650px);
     transition: margin-right 120ms ease-out;
   }
-  body.ai-dock-open.ai-dock-wide .main-area { margin-right: min(58vw, 820px); }
+  body.ai-dock-open.ai-dock-wide .main-area { margin-right: min(70vw, 930px); }
   body.ai-dock-open .site-header { padding-right: 20px; padding-left: 20px; }
   body.ai-dock-open .page-content { padding-right: 20px; padding-left: 20px; }
 }
 @media (max-width: 1099px) {
-  .ai-dock-panel,.ai-dock-panel--wide { width: min(100vw, 560px); }
+  .ai-dock-panel,.ai-dock-panel--wide { width: min(100vw, 650px); }
   .ai-dock-control { font-size: .79rem; }
 }
 @media print { .ai-dock-launch,.ai-dock-panel { display: none !important; } }
