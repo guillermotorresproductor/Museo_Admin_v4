@@ -16,7 +16,7 @@ import { summarizeAttendanceAlertStates } from "./attendance-alert-summary.ts";
 import { summarizeAttendanceAttemptOutcomes } from "./attendance-attempt-summary.ts";
 import { summarizeAttendanceScheduleCrosscheck } from "./attendance-schedule-crosscheck.ts";
 import { resolveEffectiveAttendanceEvents } from "./attendance-event-corrections.ts";
-import {planNaturalQuery} from "./conversational-plan.ts";
+import {planNaturalQuery,isClearlyExternalQuestion} from "./conversational-plan.ts";
 import {summarizeAttendancePeriod} from "./attendance-range-summary.ts";
 const send = (body:unknown,status=200) => new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json","Cache-Control":"no-store"}});
 
@@ -132,8 +132,20 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Institution-only domain boundary: clearly personal/off-topic requests
+    // never reach the model or read operational records. Ambiguous requests
+    // still require verified product references or existing guarded read paths.
+    if (isClearlyExternalQuestion(question)) return send({
+      answer:"Solo puedo ayudarte con INSTITUVA y la administración institucional de museos.",
+      mode:"product",evidence:{domain:"instituva",source_count:0},
+      sources:[],guide_steps:[],read_only:true,actions_executed:false,
+      diagnostic_contract:"read_only_v1",conversation_context:null
+    });
     // Fixed read-only evidence paths. General product questions never read employee tables.
-    let responseConversationContext:Record<string,unknown>|null=null;
+    // Carry only a bounded domain label between turns. Never transmit past
+    // chat messages or private evidence as conversational context.
+    let responseConversationContext:Record<string,unknown>|null=
+      mode==="attendance" ? null : {mode};
     let snapshot: Record<string,unknown> = {};
     let evidence: Record<string,unknown> = {};
     let sources: string[] = [];
