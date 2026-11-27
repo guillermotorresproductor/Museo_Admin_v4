@@ -1,0 +1,20 @@
+name: INSTITUVA AI signed staging end-to-end pilot
+on:
+  pull_request:
+    paths:
+      - 'tests/instituva-ai-authenticated-staging-e2e.cjs'
+      - '.github/workflows/instituva-ai-authenticated-staging.yml'
+jobs:
+  signed-staging:
+    if: github.event.pull_request.draft == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify actual Supabase Auth JWT and read-only 3-turn diagnosis
+        env:
+          INSTITUVA_E2E_STAGING_ONLY: lonpdmxdvbxuagqxztig
+        run: node tests/instituva-ai-authenticated-staging-e2e.cjs
