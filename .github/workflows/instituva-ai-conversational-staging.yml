@@ -5,6 +5,7 @@ on:
       - 'supabase/functions/instituva-ai-assistant/**'
       - 'tests/instituva-ai-conversational-staging.test.mjs'
       - 'tests/instituva-ai-conversational-ui.test.cjs'
+      - 'tests/instituva-ai-staging-pilot-gate.test.cjs'
       - 'js/instituva-ai.js'
       - 'asistente-ia.html'
       - '.github/workflows/instituva-ai-conversational-staging.yml'
@@ -18,7 +19,7 @@ jobs:
         with:
           node-version: '22'
       - name: Test conversational planner and bounded period calculations
-        run: node --experimental-strip-types --test tests/instituva-ai-conversational-staging.test.mjs tests/instituva-ai-conversational-ui.test.cjs
+        run: node --experimental-strip-types --test tests/instituva-ai-conversational-staging.test.mjs tests/instituva-ai-conversational-ui.test.cjs tests/instituva-ai-staging-pilot-gate.test.cjs
       - name: Staging Edge keeps signed-session access mandatory
         shell: bash
         run: |
