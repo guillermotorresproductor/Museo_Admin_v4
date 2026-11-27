@@ -141,3 +141,20 @@ test("generic wage question never enters private attendance computation",()=>{
  const p=planNaturalQuery("¿Cuánto representa eso en nómina?",{mode:"auto",conversation_context:{mode:"attendance",employee_name:"Roberto Díaz",start_day:"2026-11-01",end_day:"2026-11-27"}},now);
  assert.equal(p.mode,"product");
 });
+
+
+test("suspected absences are never misrepresented as confirmed employee nonattendance",()=>{
+ const c={mode:"attendance",employee_name:"Roberto Díaz",start_day:"2026-11-01",end_day:"2026-11-27"};
+ const p=planNaturalQuery("¿Cuántos días faltó Roberto en noviembre?",{mode:"auto",conversation_context:c},now);
+ assert.equal(p.mode,"attendance");
+ assert.equal(p.attendanceIntent,"absence");
+ assert.equal(p.employeeName,"Roberto");
+ assert.deepEqual(p.range,{start:"2026-11-01",endExclusive:"2026-11-27"});
+});
+test("overtime question does not claim payroll compensation or extrapolate from punches",()=>{
+ const c={mode:"attendance",employee_name:"Roberto Díaz",start_day:"2026-11-01",end_day:"2026-11-27"};
+ const p=planNaturalQuery("¿Cuántas horas extras trabajó?",{mode:"auto",conversation_context:c},now);
+ assert.equal(p.mode,"attendance");
+ assert.equal(p.attendanceIntent,"overtime");
+ assert.equal(p.employeeName,"Roberto Díaz");
+});
