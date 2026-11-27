@@ -22,7 +22,7 @@ test("employee disambiguation choice resends original question without losing ch
   assert.match(ai,/if\s*\(!res\.ok && res\.status===409 &&[\s\S]{0,200}showChoices\(body\)/);
 });
 test("new browser clients load updated composer code; server read-only contract remains",()=>{
-  assert.match(html,/js\/instituva-ai\.js\?v=20261126-modern-chat-1/);
+  assert.match(html,/js\/instituva-ai\.js\?v=20261126-modern-chat-2/);
   assert.match(ai,/body\.read_only!==true \|\| body\.actions_executed!==false/);
   assert.match(ai,/stored\.museum!==verifiedMuseum/);
   assert.match(ai,/stored\.grants!==mountedGrants/);
