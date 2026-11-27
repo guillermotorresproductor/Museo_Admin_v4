@@ -15,7 +15,7 @@ export const isClearlyExternalQuestion=(question:string):boolean=>{
  if(/\b(instituva|museo|nomina|asistencia|finanzas|colecciones|inventario|horarios|emplead[oa]s?|ponche|sistema|modulo)\b/.test(q))return false;
  return /\b(?:restaurantes?|receta de cocina|preparar una cena|pronostico del tiempo|clima de hoy|horoscopo|signo zodiacal|resultado del partido|marcador de futbol|reservar hotel|vuelos baratos|mi automovil|mi carro|mi vehiculo|cambiar aceite del carro|contrato de arrendamiento de mi apartamento)\b/.test(q);
 };
-const isContextualFollowup=(q:string)=>/^(?:[¿¡]\s*)?(?:y\b|entonces\b|tambien\b|en ese caso\b|de esos\b|de esas\b|los mismos\b|las mismas\b|cuantos hay\b|cuantas hay\b|que ocurre con eso\b|que paso con eso\b)/.test(q);
+const isContextualFollowup=(q:string)=>/^(?:[¿¡]\s*)?(?:y\b|entonces\b|tambien\b|en ese caso\b|de esos\b|de esas\b|los mismos\b|las mismas\b|cuantos hay\b|cuantas hay\b|que ocurre con eso\b|que paso con eso\b|encontraste alguna irregularidad\b|hay alguna irregularidad\b)/.test(q);
 const months=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const nameStops=new Set(["de","del","en","desde","hasta","durante","noviembre","octubre","septiembre","diciembre","enero","febrero","marzo","abril","mayo","junio","julio","agosto","trabajo","trabajado","trabajaron","trabajados","horas","dias","dia","cuantas","cuantos","el","la","los","las","a","y","este","mes","ano","mismo","periodo"]);
 const localToday=(now:Date)=>{
