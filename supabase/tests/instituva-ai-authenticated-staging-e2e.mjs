@@ -44,9 +44,23 @@ const ask=async(jwt,question,extra={})=>{
  assert.ok(body && typeof body==="object","Assistant response must be JSON");
  return {status:res.status,body};
 };
-test("two synthetic sessions authenticate independently",async()=>{
- const [a,b]=await Promise.all([getProfile(jwtA),getProfile(jwtB)]);
+const getMuseum=async jwt=>{
+ const res=await fetch("https://lonpdmxdvbxuagqxztig.supabase.co/rest/v1/rpc/current_user_museum_id",{
+   method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+jwt,apikey:publicKey},
+   body:"{}",signal:timeout()
+ });
+ if(!res.ok)fail("Authenticated tenant verification failed: HTTP "+res.status);
+ const museum=await res.json();
+ assert.ok(uuid.test(museum),"Fixture must resolve to a valid tenant UUID");
+ return museum;
+};
+test("two synthetic sessions authenticate in different museums",async()=>{
+ const [[a,b],[museumA,museumB]]=await Promise.all([
+   Promise.all([getProfile(jwtA),getProfile(jwtB)]),
+   Promise.all([getMuseum(jwtA),getMuseum(jwtB)])
+ ]);
  assert.notEqual(a,b,"Tests must use distinct authenticated users");
+ assert.notEqual(museumA,museumB,"Two DIFFERENT museum tenants are required, not just two accounts");
 });
 test("authorized institutional knowledge has a read-only contract and citations",async()=>{
  for(const jwt of [jwtA,jwtB]){
