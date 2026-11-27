@@ -469,8 +469,23 @@ Deno.serve(async (req: Request) => {
       const hoursAnswer=title+"\n\n"+work+"\n\n"+caveat+"\n\n"+lateness+
         "\n\nSe excluyeron ponches sustituidos: "+summary.superseded_punch_count+
         ". No se modificó ningún registro.";
+      const absenceAnswer=title+"\n\n"+
+        "Días programados sin marcaciones verificadas: "+summary.scheduled_days_without_punches+
+        ". Este dato requiere cotejar licencias, permisos, días libres, correcciones y horarios antes de determinar ausencias. "+
+        "No demuestra que el empleado faltara al trabajo.\n\n"+
+        "Jornadas con marcaciones incompletas: "+summary.incomplete_days+
+        ". Ningún registro fue modificado.";
+      const overtimeAnswer=title+"\n\n"+
+        "Horas netas verificables: "+Math.floor(summary.verified_net_minutes/60)+
+        " h "+String(summary.verified_net_minutes%60).padStart(2,"0")+
+        " min en "+summary.verified_days+" jornadas completas.\n\n"+
+        "No es posible certificar horas extras a partir de las marcaciones por sí solas. "+
+        "Se requiere cotejo de la política aplicable, horarios, autorizaciones y jornadas incompletas.\n\n"+
+        caveat+" Ningún registro fue modificado.";
       const answer=plan.attendanceIntent==="arrival"?arrivalAnswer:
-        plan.attendanceIntent==="incidents"?incidentsAnswer:hoursAnswer;
+        plan.attendanceIntent==="incidents"?incidentsAnswer:
+        plan.attendanceIntent==="absence"?absenceAnswer:
+        plan.attendanceIntent==="overtime"?overtimeAnswer:hoursAnswer;
       return send({answer,evidence:{domain:"attendance",...summary,employee:responseConversationContext.employee_name},
         sources:["attendance_events [solo empleado/museo/período autorizado]",
                  "employee_shifts [comparación de horario, no certificación de nómina]"],
