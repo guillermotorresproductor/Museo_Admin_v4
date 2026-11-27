@@ -110,7 +110,7 @@ test("payroll comparison is routed separately from attendance and budget",()=>{
   assert.equal(plan("¿Es mayor la nómina de Roberto Díaz esta semana?").employeeName,"Roberto Díaz");
   assert.equal(plan("¿Cuál es la nómina presupuestada?").mode,"attendance");
   assert.equal(plan("¿Qué diferencia hay en el presupuesto de finanzas?").mode,"finance");
-  assert.equal(plan("¿Cómo se calcula la nómina en INSTITUVA?").mode,"attendance");
+  assert.equal(plan("¿Cómo se calcula la nómina?").mode,"product");
   assert.equal(plan("¿Y la diferencia?",{conversation_context:{mode:"payroll",employee_name:"Roberto Díaz"}}).mode,"payroll");
   assert.equal(plan("¿Y la diferencia?",{conversation_context:{mode:"payroll",employee_name:"Roberto Díaz"}}).employeeName,"Roberto Díaz");
   assert.equal(plan("¿Y la diferencia?",{conversation_context:{mode:"payroll",employee_name:"Roberto Díaz",employee_id:"malicious"}}).mode,"product");
