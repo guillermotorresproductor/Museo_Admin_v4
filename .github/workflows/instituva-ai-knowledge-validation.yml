@@ -34,3 +34,20 @@ jobs:
           deno-version: v2.x
       - name: Type-check assistant Edge function without execution
         run: deno check supabase/functions/instituva-ai-assistant/index.ts
+  staging-unauthorized-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Reject unauthenticated request after staged deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://lonpdmxdvbxuagqxztig.supabase.co/functions/v1/instituva-ai-assistant"
+          for auth in absent invalid; do
+            if [ "$auth" = invalid ]; then
+              status=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer invalid-test-jwt' -H 'Content-Type: application/json' --data '{"mode":"auto","question":"Politica general de horarios"}' "$endpoint")
+            else
+              status=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' --data '{"mode":"auto","question":"Politica general de horarios"}' "$endpoint")
+            fi
+            test "$status" = 401
+          done
