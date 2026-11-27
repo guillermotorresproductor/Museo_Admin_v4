@@ -11,7 +11,7 @@ assert.equal(url,"https://lonpdmxdvbxuagqxztig.supabase.co");
 assert.match(key||"",/^sb_publishable_[A-Za-z0-9_-]{20,}$/);
 assert.equal(process.env.INSTITUVA_E2E_STAGING_ONLY,"lonpdmxdvbxuagqxztig");
 const marker="instituva-e2e-"+randomBytes(9).toString("hex");
-const email=marker+"@example.invalid";
+const email=marker+"@example.com";
 const password="P4!"+randomBytes(26).toString("base64url");
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function api(path,body,accessToken){
