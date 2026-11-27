@@ -30,7 +30,13 @@ const clean = (s: unknown, max = 300) =>
 const asLocal = (time: unknown) => time ? new Date(String(time)).toLocaleString("es-PR", { timeZone:"America/Puerto_Rico", dateStyle:"short",timeStyle:"short", hour12:true }) : null;
 const allowedMuseum = (museum: string) => {
   const ids = (Deno.env.get("INSTITUVA_AI_MUSEUM_IDS") || "").split(",").map(v=>v.trim()).filter(Boolean);
-  return Deno.env.get("INSTITUVA_AI_ENABLED") === "true" && ids.includes(museum);
+  // Explicit staging-only pilot museum. Never enable additional production museums.
+  // This is still enforced AFTER signed-user, active staff, and domain grants.
+  const stagingPilot = Deno.env.get("SUPABASE_URL") ===
+      "https://lonpdmxdvbxuagqxztig.supabase.co" &&
+    museum === "00000000-0000-0000-0000-000000000001";
+  return stagingPilot ||
+    (Deno.env.get("INSTITUVA_AI_ENABLED") === "true" && ids.includes(museum));
 };
 const denied = (error: unknown) => {
   const code = String((error as Error)?.message || "");
