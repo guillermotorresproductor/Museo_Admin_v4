@@ -39,7 +39,7 @@
 
   const stylesheet=document.createElement("link");
   stylesheet.rel="stylesheet";
-  stylesheet.href="css/instituva-ai-dock.css?v=20261127-floating-orb-2";
+  stylesheet.href="css/instituva-ai-dock.css?v=20261127-approved-orb-3";
   document.head.appendChild(stylesheet);
 
   const button=(label,cssClass)=>{
@@ -57,7 +57,7 @@
   mark.setAttribute("aria-hidden","true");
   const symbol=document.createElement("img");
   symbol.className="ai-dock-launch-symbol";
-  symbol.src="assets/brand/instituva-ai-symbol.svg";
+  symbol.src="assets/brand/instituva-ai-symbol.svg?v=20261127-approved-orb-3";
   symbol.alt="";
   symbol.setAttribute("aria-hidden","true");
   mark.appendChild(symbol);
