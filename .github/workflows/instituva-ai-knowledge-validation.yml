@@ -24,3 +24,13 @@ jobs:
           node-version: '24'
       - name: Offline knowledge and natural-language routing regression
         run: node --test supabase/tests/instituva-ai-knowledge-routing.test.mjs
+  edge-typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check assistant Edge function without execution
+        run: deno check supabase/functions/instituva-ai-assistant/index.ts
