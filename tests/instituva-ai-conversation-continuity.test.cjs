@@ -32,11 +32,23 @@ test("session state discarded at logout or authorization revocation",()=>{
 test("dock automatically reopens after navigating the same tab",()=>{
   assert.match(dock,/sessionStorage\.setItem\(dockStateKey,open\?"1":"0"\)/);
   assert.match(dock,/sessionStorage\.getItem\(dockStateKey\)==="1"\)setOpen\(true\)/);
-  assert.match(app,/js\/instituva-ai-dock\.js\?v=20261126-modern-dock-1/);
+  assert.match(app,/js\/instituva-ai-dock\.js\?v=20261127-floating-orb-1/);
   assert.match(html,/js\/instituva-ai\.js\?v=20261126-modern-chat-2/);
 });
 test("server still receives current query only, not conversation history",()=>{
   assert.match(ai,/const request=\{mode:queryMode,question\}/);
   assert.doesNotMatch(ai,/request\.messages\s*=|request\.history\s*=/);
   assert.match(ai,/read_only/);
+});
+
+test("floating Instituva AI orb replaces pill and disappears when chat opens",()=>{
+  assert.match(dock,/ai-dock-launch-mark/);
+  assert.match(dock,/textPath\.textContent="INSTITUVA AI"/);
+  assert.match(dock,/launch\.hidden=open/);
+  assert.match(dock,/panel\.hidden=!open/);
+  assert.match(dock,/launch\.addEventListener\("click",\(\)=>setOpen\(true\)\)/);
+  const style=fs.readFileSync("css/instituva-ai-dock.css","utf8");
+  assert.match(style,/animation: ai-dock-float/);
+  assert.match(style,/prefers-reduced-motion/);
+  assert.doesNotMatch(style,/background:\s*#124f38/);
 });

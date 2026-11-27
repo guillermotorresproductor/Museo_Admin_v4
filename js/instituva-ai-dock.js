@@ -39,7 +39,7 @@
 
   const stylesheet=document.createElement("link");
   stylesheet.rel="stylesheet";
-  stylesheet.href="css/instituva-ai-dock.css?v=20261126-modern-dock-1";
+  stylesheet.href="css/instituva-ai-dock.css?v=20261127-floating-orb-1";
   document.head.appendChild(stylesheet);
 
   const button=(label,cssClass)=>{
@@ -49,7 +49,38 @@
     node.textContent=label;
     return node;
   };
-  const launch=button("INSTITUVA AI","ai-dock-launch");
+  // Compact floating launcher: brand emblem + curved name, no fixed green pill.
+  // Purely presentational; existing authentication and iframe gates are unchanged.
+  const launch=button("","ai-dock-launch");
+  const mark=document.createElement("span");
+  mark.className="ai-dock-launch-mark";
+  mark.setAttribute("aria-hidden","true");
+  const monogram=document.createElement("span");
+  monogram.className="ai-dock-launch-monogram";
+  monogram.textContent="I";
+  const chevron=document.createElement("span");
+  chevron.className="ai-dock-launch-chevron";
+  chevron.textContent="‹›";
+  mark.append(monogram,chevron);
+  const svgNs="http://www.w3.org/2000/svg";
+  const arc=document.createElementNS(svgNs,"svg");
+  arc.setAttribute("class","ai-dock-launch-arc");
+  arc.setAttribute("viewBox","0 0 120 120");
+  arc.setAttribute("aria-hidden","true");
+  const defs=document.createElementNS(svgNs,"defs");
+  const curve=document.createElementNS(svgNs,"path");
+  curve.id="ai-dock-launch-curve";
+  curve.setAttribute("d","M 18,69 A 42,42 0 0,1 102,69");
+  defs.appendChild(curve);
+  const textNode=document.createElementNS(svgNs,"text");
+  const textPath=document.createElementNS(svgNs,"textPath");
+  textPath.setAttribute("href","#ai-dock-launch-curve");
+  textPath.setAttribute("startOffset","50%");
+  textPath.setAttribute("text-anchor","middle");
+  textPath.textContent="INSTITUVA AI";
+  textNode.appendChild(textPath);
+  arc.append(defs,textNode);
+  launch.append(mark,arc);
   launch.dataset.aiDockLaunch="";
   launch.setAttribute("aria-controls","instituva-ai-dock");
   launch.setAttribute("aria-expanded","false");
