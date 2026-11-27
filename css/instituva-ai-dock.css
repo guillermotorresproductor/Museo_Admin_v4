@@ -20,15 +20,7 @@
   box-shadow: 0 17px 38px rgba(8,24,47,.32), 0 0 19px rgba(0,218,206,.3);
 }
 .ai-dock-launch-mark { position: absolute; inset: 23px 26px 18px; display: grid; place-items: center; }
-.ai-dock-launch-monogram {
-  font: 900 64px/.93 Georgia, "Times New Roman", serif; color: #f4f8ff;
-  text-shadow: 0 1px 9px rgba(255,255,255,.18);
-}
-.ai-dock-launch-chevron {
-  position: absolute; top: 23px; left: 17px;
-  color: #04d9cd; font: 900 19px/1 Inter, Arial, sans-serif;
-  letter-spacing: -8px; transform: scaleX(.85);
-}
+.ai-dock-launch-symbol { width: 100%; height: 100%; object-fit: contain; display: block; }
 .ai-dock-launch-arc { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .ai-dock-launch-arc text { fill: #f7fdff; font: 800 11px Inter, "Segoe UI", Arial, sans-serif; letter-spacing: 1.4px; }
 @keyframes ai-dock-float {

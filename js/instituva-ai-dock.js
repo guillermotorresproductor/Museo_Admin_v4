@@ -39,7 +39,7 @@
 
   const stylesheet=document.createElement("link");
   stylesheet.rel="stylesheet";
-  stylesheet.href="css/instituva-ai-dock.css?v=20261127-floating-orb-1";
+  stylesheet.href="css/instituva-ai-dock.css?v=20261127-floating-orb-2";
   document.head.appendChild(stylesheet);
 
   const button=(label,cssClass)=>{
@@ -55,13 +55,12 @@
   const mark=document.createElement("span");
   mark.className="ai-dock-launch-mark";
   mark.setAttribute("aria-hidden","true");
-  const monogram=document.createElement("span");
-  monogram.className="ai-dock-launch-monogram";
-  monogram.textContent="I";
-  const chevron=document.createElement("span");
-  chevron.className="ai-dock-launch-chevron";
-  chevron.textContent="‹›";
-  mark.append(monogram,chevron);
+  const symbol=document.createElement("img");
+  symbol.className="ai-dock-launch-symbol";
+  symbol.src="assets/brand/instituva-ai-symbol.svg";
+  symbol.alt="";
+  symbol.setAttribute("aria-hidden","true");
+  mark.appendChild(symbol);
   const svgNs="http://www.w3.org/2000/svg";
   const arc=document.createElementNS(svgNs,"svg");
   arc.setAttribute("class","ai-dock-launch-arc");
