@@ -64,7 +64,7 @@ function bindInstituvaAi() {
     heading.textContent=role==="user"?"Tú":"INSTITUVA AI";
     const text=document.createElement("p");
     text.className="ai-chat-body";
-    text.textContent=(role==="assistant"?presentationAnswer(message):String(message)).slice(0,14000);
+    text.textContent=(role==="assistant"?historyAnswer(message):String(message)).slice(0,14000);
     article.appendChild(heading);
     article.appendChild(text);
     history.appendChild(article);
@@ -78,10 +78,36 @@ function bindInstituvaAi() {
     /^INSTITUVA — DIAGNÓSTICO PRELIMINAR\nOrientación de solo lectura\. No se ejecutó ninguna operación sobre los registros operacionales\.\n/,
     "INSTITUVA — DIAGNÓSTICO PRELIMINAR\n"
   );
+  // Convert the server's already validated diagnosis into ordinary chat history.
+  // All statements remain intact; only stock headings/numbering are simplified.
+  const historyAnswer=(raw)=>{
+    const s=presentationAnswer(raw);
+    const headings=[
+      "Análisis inicial",
+      "Hipótesis (no confirmadas)",
+      "Verificaciones pendientes",
+      "Acciones manuales propuestas (NO ejecutadas)",
+      "Limitaciones de la evidencia"
+    ];
+    const chunks=s.split("\n\n");
+    if(chunks.length!==6 ||
+      !chunks[0].startsWith("INSTITUVA — DIAGNÓSTICO PRELIMINAR\n") ||
+      !headings.every((heading,index)=>chunks[index+1].startsWith(heading+"\n")))
+      return s;
+    const labels=["","Posibles causas","Qué comprobar","Qué puedes hacer","Lo que falta confirmar"];
+    return chunks.slice(1).map((chunk,index)=>{
+      const content=chunk.slice(headings[index].length+1).trim();
+      if(!content || (index===1 && content==="Sin hipótesis adicionales verificables."))return "";
+      const plain=content.split("\n").map(line=>line.replace(/^\d+\.\s+/,"• ")).join("\n");
+      return index===0?plain:labels[index]+":\n"+plain;
+    }).filter(Boolean).join("\n\n");
+  };
   const renderFormattedAnswer=(raw)=>{
     formattedAnswer.replaceChildren();
     formattedAnswer.hidden=true;
     answer.hidden=false;
+    // Preserve the server's validated, five-part diagnosis contract.
+    // Display it as a brief conversation rather than a technical report.
     const headings=[
       "Análisis inicial",
       "Hipótesis (no confirmadas)",
@@ -94,17 +120,18 @@ function bindInstituvaAi() {
       !chunks[0].startsWith("INSTITUVA — DIAGNÓSTICO PRELIMINAR\n") ||
       !headings.every((heading,index)=>chunks[index+1].startsWith(heading+"\n")))
       return;
-    const intro=document.createElement("p");
-    intro.className="ai-diagnostic-intro";
-    intro.textContent=chunks[0].split("\n").slice(1).join(" ").trim();
-    if(intro.textContent)formattedAnswer.appendChild(intro);
+    const labels=["","Posibles causas","Qué comprobar","Qué puedes hacer","Lo que falta confirmar"];
     for(let index=0;index<headings.length;index++){
+      const content=chunks[index+1].slice(headings[index].length+1).trim();
+      if(!content || (index===1 && content==="Sin hipótesis adicionales verificables."))continue;
       const section=document.createElement("section");
       section.className="ai-diagnostic-section";
-      const title=document.createElement("h4");
-      title.textContent=headings[index];
-      section.appendChild(title);
-      const lines=chunks[index+1].slice(headings[index].length+1).split("\n");
+      if(index>0){
+        const title=document.createElement("h4");
+        title.textContent=labels[index];
+        section.appendChild(title);
+      }
+      const lines=content.split("\n");
       if(index>0 && lines.every(line=>/^\d+\.\s+\S/.test(line))){
         const list=document.createElement("ol");
         for(const line of lines){
@@ -113,7 +140,7 @@ function bindInstituvaAi() {
           list.appendChild(item);
         }
         section.appendChild(list);
-      } else {
+      }else{
         const paragraph=document.createElement("p");
         paragraph.textContent=lines.join("\n");
         section.appendChild(paragraph);

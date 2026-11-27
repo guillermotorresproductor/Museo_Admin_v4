@@ -40,8 +40,14 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
  const inventory=/\b(inventario|equipos|mobiliario|activos fisicos)\b/.test(text);
  const schedules=/\b(horarios|turnos programados|solapamientos)\b/.test(text);
  const notifications=/\b(notificaciones|avisos internos|mis alertas)\b/.test(text);
+ // Questions about the general correction policy do not authorize a private
+ // employee lookup. Date-specific requests retain the guarded attendance route.
+ const policyQuestion=/\b(?:quien(?:es)?|por que|porque|permiso(?:s)?|autorizad\w*|regla(?:s)?|politica(?:s)?|procedimiento(?:s)?|puede(?:n)?|debe(?:n)?)\b/.test(text) &&
+   /\b(?:corregir|correccion(?:es)?|editar|modificar)\b/.test(text) &&
+   /\b(?:ponch\w*|asistencia|marcacion(?:es)?)\b/.test(text);
+ const hasSpecificPeriod=/\b(?:hoy|ayer|anteayer|20\d{2}-\d{2}-\d{2}|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/.test(text);
  let mode:ConversationPlan["mode"]=explicit==="auto"?
-   (attendance?"attendance":finance?"finance":collections&&inventory?"assets":collections?"collections":inventory?"inventory":schedules?"schedules":notifications?"notifications":context?.mode==="attendance"?"attendance":"product")
+   (policyQuestion&&!hasSpecificPeriod?"product":attendance?"attendance":finance?"finance":collections&&inventory?"assets":collections?"collections":inventory?"inventory":schedules?"schedules":notifications?"notifications":context?.mode==="attendance"?"attendance":"product")
    :explicit as ConversationPlan["mode"];
  if(/\b(cuanto representa|cuanto cobrar|pago de nomina|salario|tarifa por hora)\b/.test(text) && explicit==="auto")
    mode="product"; // No wage or payroll transaction inference from attendance.

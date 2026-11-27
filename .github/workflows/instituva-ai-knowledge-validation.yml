@@ -1,0 +1,55 @@
+name: INSTITUVA AI knowledge and routing validation
+
+on:
+  push:
+    branches:
+      - feat/instituva-ai-knowledge-integration-20261126
+  pull_request:
+    paths:
+      - "supabase/functions/instituva-ai-assistant/**"
+      - "supabase/tests/instituva-ai-knowledge-routing.test.mjs"
+      - ".github/workflows/instituva-ai-knowledge-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  knowledge-routing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate authenticated E2E harness syntax without credentials
+        run: node --check supabase/tests/instituva-ai-authenticated-staging-e2e.mjs
+      - name: Offline knowledge and natural-language routing regression
+        run: node --test supabase/tests/instituva-ai-knowledge-routing.test.mjs
+  edge-typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check assistant Edge function without execution
+        run: deno check supabase/functions/instituva-ai-assistant/index.ts
+  staging-unauthorized-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Reject unauthenticated request after staged deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://lonpdmxdvbxuagqxztig.supabase.co/functions/v1/instituva-ai-assistant"
+          for auth in absent invalid; do
+            if [ "$auth" = invalid ]; then
+              status=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer invalid-test-jwt' -H 'Content-Type: application/json' --data '{"mode":"auto","question":"Politica general de horarios"}' "$endpoint")
+            else
+              status=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' --data '{"mode":"auto","question":"Politica general de horarios"}' "$endpoint")
+            fi
+            test "$status" = 401
+          done
