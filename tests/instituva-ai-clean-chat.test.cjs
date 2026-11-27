@@ -35,5 +35,5 @@ test("existing read-only API contract and session isolation are preserved",()=>{
   assert.match(ai,/stored\.grants!==mountedGrants/);
   assert.match(ai,/const displayAnswer=presentationAnswer\(body\.answer\)/);
   assert.match(ai,/const displayAnswer=presentationAnswer\(item\.answer\)/);
-  assert.match(html,/js\/instituva-ai\.js\?v=20261126-modern-chat-2/);
+  assert.match(html,/js\/instituva-ai\.js\?v=20261127-conversation-scope-1/);
 });
