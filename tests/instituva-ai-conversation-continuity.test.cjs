@@ -40,3 +40,15 @@ test("server still receives current query only, not conversation history",()=>{
   assert.doesNotMatch(ai,/request\.messages\s*=|request\.history\s*=/);
   assert.match(ai,/read_only/);
 });
+
+test("floating Instituva AI orb replaces pill and disappears when chat opens",()=>{
+  assert.match(dock,/ai-dock-launch-mark/);
+  assert.match(dock,/textPath\.textContent="INSTITUVA AI"/);
+  assert.match(dock,/launch\.hidden=open/);
+  assert.match(dock,/panel\.hidden=!open/);
+  assert.match(dock,/launch\.addEventListener\("click",\(\)=>setOpen\(true\)\)/);
+  const style=fs.readFileSync("css/instituva-ai-dock.css","utf8");
+  assert.match(style,/animation: ai-dock-float/);
+  assert.match(style,/prefers-reduced-motion/);
+  assert.doesNotMatch(style,/background:\s*#124f38/);
+});
