@@ -50,3 +50,46 @@ test("missing lunch does not masquerade as confirmed net work",()=>{
  assert.equal(d.verified_net_minutes,0);
  assert.equal(d.days_without_confirmed_lunch,1);
 });
+
+
+test("different shift fragments in a day never become verified hours",()=>{
+ const m="00000000-0000-4000-8000-000000000001",e="00000000-0000-4000-8000-000000000002";
+ const kinds=["clock_in","lunch_out","lunch_in","clock_out"];
+ const times=["12:00","16:00","17:00","21:00"];
+ const events=kinds.map((event_type,i)=>({
+  id:String(i),museum_id:m,employee_id:e,shift_id:i>=2?"shift-two":"shift-one",
+  event_type,occurred_at:"2026-11-24T"+times[i]+":00Z",supersedes_event_id:null
+ }));
+ const sum=summarizeAttendancePeriod(events,[],[],m,e,"2026-11-24","2026-11-25");
+ assert.equal(sum.verified_net_minutes,0);
+ assert.equal(sum.incomplete_days,1);
+});
+test("scheduled day without punches is reported as missing evidence, never zero worked",()=>{
+ const m="00000000-0000-4000-8000-000000000001",e="00000000-0000-4000-8000-000000000002";
+ const shifts=[{museum_id:m,employee_id:e,shift_date:"2026-11-24",starts_at:"2026-11-24T12:00:00Z",ends_at:"2026-11-24T21:00:00Z",status:"scheduled"}];
+ const d=summarizeAttendancePeriod([],[],shifts,m,e,"2026-11-24","2026-11-25");
+ assert.equal(d.days_with_punches,0);
+ assert.equal(d.scheduled_days_without_punches,1);
+ assert.equal(d.verified_net_minutes,0);
+ assert.equal(d.verified_days,0);
+});
+test("superseded attendance punch is not double-counted",()=>{
+ const m="00000000-0000-4000-8000-000000000001",e="00000000-0000-4000-8000-000000000002";
+ const events=[
+  {id:"in",event_type:"clock_in",occurred_at:"2026-11-24T12:00:00Z",supersedes_event_id:null},
+  {id:"lunch-old",event_type:"lunch_out",occurred_at:"2026-11-24T15:00:00Z",supersedes_event_id:null},
+  {id:"lunch-new",event_type:"lunch_out",occurred_at:"2026-11-24T16:00:00Z",supersedes_event_id:"lunch-old"},
+  {id:"back",event_type:"lunch_in",occurred_at:"2026-11-24T17:00:00Z",supersedes_event_id:null},
+  {id:"out",event_type:"clock_out",occurred_at:"2026-11-24T21:00:00Z",supersedes_event_id:null}
+ ].map(x=>({...x,museum_id:m,employee_id:e,shift_id:"shift-one"}));
+ const d=summarizeAttendancePeriod(events,[events[2]],[],m,e,"2026-11-24","2026-11-25");
+ assert.equal(d.verified_net_minutes,480);
+ assert.equal(d.superseded_punch_count,1);
+ assert.equal(d.incomplete_days,0);
+});
+test("a correction from another museum or employee fails closed",()=>{
+ const m="00000000-0000-4000-8000-000000000001",e="00000000-0000-4000-8000-000000000002";
+ const unrelated={id:"attack",museum_id:m,employee_id:"00000000-0000-4000-8000-000000000003",
+  shift_id:"sh",supersedes_event_id:"a",event_type:"clock_in",occurred_at:"2026-11-24T12:00:00Z"};
+ assert.throws(()=>summarizeAttendancePeriod([], [unrelated], [],m,e,"2026-11-24","2026-11-25"),/FORBIDDEN/);
+});
