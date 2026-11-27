@@ -159,9 +159,9 @@ Deno.serve(async (req: Request) => {
       if (!name) return send({code:"EMPLOYEE_NAME_REQUIRED",
         error:"¿De qué empleado necesitas comparar la nómina calculada?",
         conversation_context:{mode:"payroll"}},422);
-      if(name.length<2 || !/^[\\p{L}\\p{M}.' -]+$/u.test(name))
+      if(name.length<2 || !/^[\p{L}\p{M}.' -]+$/u.test(name))
         throw Error("INVALID_REQUEST");
-      const oneWord=name.trim().split(/\\s+/).length===1;
+      const oneWord=name.trim().split(/\s+/).length===1;
       if(oneWord){
         const {data:visible,error:grantError}=await caller.rpc("has_permission",
           {requested_permission:"employees.read.all"});
