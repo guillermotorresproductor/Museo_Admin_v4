@@ -29,7 +29,7 @@ test("selected name ambiguity and backend authorizations are retained",()=>{
  assert.match(js,/request\.employee_id=selectedId/);
  assert.match(js,/body\.diagnostic_contract!=="read_only_v1"/);
  assert.match(js,/body\.read_only!==true \|\| body\.actions_executed!==false/);
- assert.match(html,/js\/instituva-ai\.js\?v=20261126-modern-chat-1/);
+ assert.match(html,/js\/instituva-ai\.js\?v=20261126-modern-chat-2/);
 });
 
 
@@ -47,7 +47,7 @@ test("modernized chat presentation stays within assistant-specific selectors",()
  assert.match(html,/ai-visually-hidden/);
  assert.match(html,/data-ai-sources-details/);
  assert.match(html,/aria-label="Enviar mensaje"/);
- assert.match(html,/20261126-modern-chat-1/);
+ assert.match(html,/20261126-modern-chat-2/);
 });
 
 test("diagnostic history has conversational presentation without changing source contract",()=>{
