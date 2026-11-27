@@ -2,7 +2,7 @@ import {validAttendanceDay,nextAttendanceDay} from "./attendance-day.ts";
 
 export type ConversationPlan={
   mode:"attendance"|"finance"|"collections"|"inventory"|"assets"|"schedules"|"notifications"|"product";
-  attendanceIntent:"hours"|"arrival"|"incidents"|"general";
+  attendanceIntent:"hours"|"arrival"|"incidents"|"absence"|"overtime"|"general";
   employeeName:string|null;
   day:string|null;
   range:{start:string;endExclusive:string}|null;
@@ -33,7 +33,7 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
  const explicit=typeof input.mode==="string"?input.mode:"auto";
  const modes=["attendance","finance","collections","inventory","assets","schedules","notifications","product"];
  if(explicit!=="auto"&&!modes.includes(explicit))throw Error("INVALID_REQUEST");
- const attendance=/\b(?:horas?\s+trabajad[ao]s?|trabaj[oó]|ponch\w*|asistencia|almuerzo|llegad\w*|llego tarde|llegaron tarde|tardanz\w*|jornad\w*|entrad\w*|salid\w*|turno trabajado|nomina|horas adicionales)\b/.test(text) ||
+ const attendance=/\b(?:horas?\s+trabajad[ao]s?|trabaj[oó]|ponch\w*|asistencia|almuerzo|llegad\w*|llego tarde|llegaron tarde|tardanz\w*|jornad\w*|entrad\w*|salid\w*|turno trabajado|nomina|horas adicionales|sobretiempo|ausencia(?:s)?|ausente(?:s)?|falt[oó])\b/.test(text) ||
    /\b(cuantas|cuantos)\s+(horas|dias)\b/.test(text);
  const finance=/\b(presupuesto|ingresos|gastos|balance|finanzas|cuentas por pagar)\b/.test(text);
  const collections=/\b(colecciones|piezas museograficas|obras de la coleccion)\b/.test(text);
@@ -46,6 +46,8 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
  if(/\b(cuanto representa|cuanto cobrar|pago de nomina|salario|tarifa por hora)\b/.test(text) && explicit==="auto")
    mode="product"; // No wage or payroll transaction inference from attendance.
  const attendanceIntent:ConversationPlan["attendanceIntent"]=
+   /\b(?:horas?\s+(?:extra|extras|adicionales)|tiempo\s+extra|sobretiempo)/.test(text)?"overtime":
+   /\b(?:falt[oó]|faltas?\s+al\s+trabajo|ausencia(?:s)?|ausente(?:s)?|no\s+asistio)/.test(text)?"absence":
    /\b(?:irregularidad(?:es)?|incidencia(?:s)?|anomalia(?:s)?|problema(?:s)?|faltantes?|sin\s+almuerzo|sin\s+ponch)/.test(text)?"incidents":
    /\b(?:tarde|tardanza(?:s)?|llegad[ao]\s+tarde|entrada(?:s)?\s+posterior(?:es)?)/.test(text)?"arrival":
    /\b(?:horas?|tiempo\s+trabajad[ao]|jornada(?:s)?\s+trabajad[ao]s?)/.test(text)?"hours":"general";
