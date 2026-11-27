@@ -82,6 +82,8 @@ function bindInstituvaAi() {
     formattedAnswer.replaceChildren();
     formattedAnswer.hidden=true;
     answer.hidden=false;
+    // Preserve the server's validated, five-part diagnosis contract.
+    // Display it as a brief conversation rather than a technical report.
     const headings=[
       "Análisis inicial",
       "Hipótesis (no confirmadas)",
@@ -94,17 +96,18 @@ function bindInstituvaAi() {
       !chunks[0].startsWith("INSTITUVA — DIAGNÓSTICO PRELIMINAR\n") ||
       !headings.every((heading,index)=>chunks[index+1].startsWith(heading+"\n")))
       return;
-    const intro=document.createElement("p");
-    intro.className="ai-diagnostic-intro";
-    intro.textContent=chunks[0].split("\n").slice(1).join(" ").trim();
-    if(intro.textContent)formattedAnswer.appendChild(intro);
+    const labels=["","Posibles causas","Qué comprobar","Qué puedes hacer","Lo que falta confirmar"];
     for(let index=0;index<headings.length;index++){
+      const content=chunks[index+1].slice(headings[index].length+1).trim();
+      if(!content || (index===1 && content==="Sin hipótesis adicionales verificables."))continue;
       const section=document.createElement("section");
       section.className="ai-diagnostic-section";
-      const title=document.createElement("h4");
-      title.textContent=headings[index];
-      section.appendChild(title);
-      const lines=chunks[index+1].slice(headings[index].length+1).split("\n");
+      if(index>0){
+        const title=document.createElement("h4");
+        title.textContent=labels[index];
+        section.appendChild(title);
+      }
+      const lines=content.split("\n");
       if(index>0 && lines.every(line=>/^\d+\.\s+\S/.test(line))){
         const list=document.createElement("ol");
         for(const line of lines){
@@ -113,7 +116,7 @@ function bindInstituvaAi() {
           list.appendChild(item);
         }
         section.appendChild(list);
-      } else {
+      }else{
         const paragraph=document.createElement("p");
         paragraph.textContent=lines.join("\n");
         section.appendChild(paragraph);
