@@ -37,6 +37,7 @@ const safeContext=(v:unknown):{mode:string;employee_name:string;start_day:string
  if(typeof c.mode!=="string" || !["attendance","finance","collections","inventory","assets","schedules","notifications","product","payroll"].includes(c.mode))return null;
  if(c.mode!=="attendance" && c.mode!=="payroll" && Object.keys(c).some(key=>key!=="mode"))return null;
  if(c.mode==="payroll" && Object.keys(c).some(key=>!["mode","employee_name"].includes(key)))return null;
+ if(c.mode==="attendance" && Object.keys(c).some(key=>!["mode","employee_name","day","start_day","end_day"].includes(key)))return null;
  const name=typeof c.employee_name==="string" && c.employee_name.length<=120 && /^[\p{L}\p{M}.' -]*$/u.test(c.employee_name)?c.employee_name:"";
  const day=typeof c.day==="string"?c.day:"";
  const start=typeof c.start_day==="string"?c.start_day:"";
