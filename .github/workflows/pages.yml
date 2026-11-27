@@ -33,6 +33,11 @@ jobs:
         with:
           path: .
 
+      # GitHub Actions can return zero artifacts immediately after a successful upload.
+      # Allow its artifact index to converge before the Pages deployment lookup.
+      - name: Allow artifact metadata to propagate
+        run: sleep 20
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
