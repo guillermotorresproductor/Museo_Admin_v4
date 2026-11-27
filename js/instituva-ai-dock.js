@@ -39,7 +39,7 @@
 
   const stylesheet=document.createElement("link");
   stylesheet.rel="stylesheet";
-  stylesheet.href="css/instituva-ai-dock.css?v=20261127-floating-orb-1";
+  stylesheet.href="css/instituva-ai-dock.css?v=20261127-floating-orb-2";
   document.head.appendChild(stylesheet);
 
   const button=(label,cssClass)=>{
