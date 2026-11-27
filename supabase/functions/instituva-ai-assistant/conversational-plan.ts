@@ -45,7 +45,11 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
    :explicit as ConversationPlan["mode"];
  if(/\b(cuanto representa|cuanto cobrar|pago de nomina|salario|tarifa por hora)\b/.test(text) && explicit==="auto")
    mode="product"; // No wage or payroll transaction inference from attendance.
- const attendanceIntent:ConversationPlan["attendanceIntent"]=\n   /\\b(?:irregularidad(?:es)?|incidencia(?:s)?|anomalia(?:s)?|problema(?:s)?|faltantes?|sin\\s+almuerzo|sin\\s+ponch)/.test(text)?"incidents":\n   /\\b(?:tarde|tardanza(?:s)?|llegad[ao]\\s+tarde|entrada(?:s)?\\s+posterior(?:es)?)/.test(text)?"arrival":\n   /\\b(?:horas?|tiempo\\s+trabajad[ao]|jornada(?:s)?\\s+trabajad[ao]s?)/.test(text)?"hours":"general";\n const candidate=question.match(/\b(?:de|del|trabajo|trabaj[oó]|lleg[oó]|ponch[oó]|marc[oó])\s+([\p{Lu}][\p{L}\p{M}.'-]{1,40})(?:\s+([\p{Lu}][\p{L}\p{M}.'-]{1,40}))?/u);
+ const attendanceIntent:ConversationPlan["attendanceIntent"]=
+   /\b(?:irregularidad(?:es)?|incidencia(?:s)?|anomalia(?:s)?|problema(?:s)?|faltantes?|sin\s+almuerzo|sin\s+ponch)/.test(text)?"incidents":
+   /\b(?:tarde|tardanza(?:s)?|llegad[ao]\s+tarde|entrada(?:s)?\s+posterior(?:es)?)/.test(text)?"arrival":
+   /\b(?:horas?|tiempo\s+trabajad[ao]|jornada(?:s)?\s+trabajad[ao]s?)/.test(text)?"hours":"general";
+ const candidate=question.match(/\b(?:de|del|trabajo|trabaj[oó]|lleg[oó]|ponch[oó]|marc[oó])\s+([\p{Lu}][\p{L}\p{M}.'-]{1,40})(?:\s+([\p{Lu}][\p{L}\p{M}.'-]{1,40}))?/u);
  let employeeName=candidate?(candidate[1]+(candidate[2]?" "+candidate[2]:"")):null;
  if(employeeName && employeeName.split(" ").some(x=>nameStops.has(normalized(x))))employeeName=null;
  if(!employeeName && /^[\p{L}\p{M}.' -]{2,120}$/u.test(question.trim()) && question.trim().split(/\s+/).length<=3) employeeName=question.trim();
