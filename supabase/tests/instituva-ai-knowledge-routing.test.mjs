@@ -259,3 +259,22 @@ test("combined assets route requires both independent module permissions",()=>{
  assert.equal(plan("¿Qué diferencias hay entre colecciones e inventario?").mode,"assets");
  assert.deepEqual(requiredPermissionsForMode("assets"),["collections.read","modules.inventory.read"]);
 });
+
+test("employee-name clarification resumes guarded payroll or attendance investigation",()=>{
+  assert.equal(plan("Roberto Díaz",{conversation_context:{mode:"payroll"}}).mode,"payroll");
+  assert.equal(plan("Roberto Díaz",{conversation_context:{mode:"payroll"}}).employeeName,"Roberto Díaz");
+  assert.equal(plan("Roberto Díaz",{conversation_context:{mode:"attendance",day:"2026-11-26"}}).mode,"attendance");
+  assert.equal(plan("Roberto Díaz",{conversation_context:{mode:"attendance",day:"2026-11-26"}}).day,"2026-11-26");
+  assert.equal(plan("Roberto Díaz",{conversation_context:{mode:"finance"}}).mode,"product");
+  assert.equal(plan("Roberto Díaz").mode,"product");
+});
+test("natural short follow-ups retain only a validated domain",()=>{
+  for(const prompt of ["¿Qué debo revisar?","¿Puedes explicar esa diferencia?","¿Qué significa eso?","¿Por qué ocurrió?","¿Qué recomiendas?"]){
+    assert.equal(plan(prompt,{conversation_context:{mode:"assets"}}).mode,"assets",prompt);
+  }
+  assert.equal(plan("¿Y en inventario?",{conversation_context:{mode:"assets"}}).mode,"inventory");
+  assert.equal(plan("¿Y en finanzas?",{conversation_context:{mode:"assets"}}).mode,"finance");
+  assert.equal(plan("¿Qué debo revisar?",{conversation_context:{mode:"attendance",employee_name:"Roberto",employee_id:"forged"}}).mode,"product");
+  assert.equal(plan("¿Qué debo revisar?").mode,"product");
+  assert.equal(plan("Revisemos el procedimiento general de control de inventario y su documentación institucional sin datos de personas",{conversation_context:{mode:"payroll",employee_name:"Roberto Díaz"}}).mode,"inventory");
+});
