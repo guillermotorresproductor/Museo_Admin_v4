@@ -1,0 +1,26 @@
+name: INSTITUVA AI knowledge and routing validation
+
+on:
+  push:
+    branches:
+      - feat/instituva-ai-knowledge-integration-20261126
+  pull_request:
+    paths:
+      - "supabase/functions/instituva-ai-assistant/**"
+      - "supabase/tests/instituva-ai-knowledge-routing.test.mjs"
+      - ".github/workflows/instituva-ai-knowledge-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  knowledge-routing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Offline knowledge and natural-language routing regression
+        run: node --test supabase/tests/instituva-ai-knowledge-routing.test.mjs
