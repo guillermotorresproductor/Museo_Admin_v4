@@ -172,3 +172,53 @@ test("salary compensation is never misrepresented as weekly wage",()=>{
   assert.equal(out.evidence.comparison_available,false);
   assert.match(out.answer,/salario mensual/);
 });
+
+test("cross-module payroll explains authorized daily statuses without leaking shift or rate",()=>{
+  const windows=comparisonWindows(new Date("2026-11-27T18:00:00Z"));
+  const id="00000000-0000-0000-0000-000000000011";
+  const row=(amount,worked,approved,days)=>({
+    employee_id:id,name:"Nombre privado",compensation_type:"hourly",
+    actual_amount:amount,worked_minutes:worked,payable_minutes:worked,
+    approved_minutes:approved,state:"CALCULADA",days
+  });
+  const current=row(375,980,60,[
+    {shift_date:"2026-11-23",state:"COMPLETA",worked_minutes:480,
+      approved_minutes:60,amount:185,hourly_rate:99999,notes:"Secreto"},
+    {shift_date:"2026-11-24",state:"PENDIENTE DE CORRECCIÓN",
+      worked_minutes:0,approved_minutes:0,amount:0,shift_id:"secret-id"},
+    {shift_date:"2026-11-25",state:"COMPLETA",
+      worked_minutes:500,approved_minutes:0,amount:190}
+  ]);
+  const past=row(310,900,0,[
+    {shift_date:"2026-11-16",state:"COMPLETA",
+      worked_minutes:450,approved_minutes:0,amount:155},
+    {shift_date:"2026-11-17",state:"COMPLETA",
+      worked_minutes:450,approved_minutes:0,amount:155}
+  ]);
+  const result=compareAuthorizedPayroll({employees:[current]},
+    {employees:[past]},id,"Empleado de Prueba",windows);
+  assert.equal(result.evidence.difference,65);
+  assert.equal(result.evidence.current_exception_days,1);
+  assert.equal(result.evidence.current_days,3);
+  assert.match(result.answer,/PENDIENTE DE CORRECCIÓN: 1/);
+  assert.match(result.answer,/Jornadas con minutos adicionales aprobados: 1 frente a 0/);
+  assert.doesNotMatch(JSON.stringify(result),/Secreto|secret-id|99999|Nombre privado/);
+  assert.match(result.answer,/no demuestran por sí solas su causa/);
+});
+test("daily payroll comparisons fail closed on malformed or out-of-period records",()=>{
+  const windows=comparisonWindows(new Date("2026-11-27T18:00:00Z"));
+  const id="00000000-0000-0000-0000-000000000011";
+  const row=(days)=>({employee_id:id,name:"Prueba",compensation_type:"hourly",
+    actual_amount:100,worked_minutes:480,payable_minutes:480,
+    approved_minutes:0,state:"CALCULADA",days});
+  const previous=row([{shift_date:"2026-11-16",state:"COMPLETA",
+    worked_minutes:480,approved_minutes:0,amount:100}]);
+  for(const bad of [
+    {shift_date:"2026-11-28",state:"COMPLETA",worked_minutes:480,approved_minutes:0,amount:100},
+    {shift_date:"2026-11-24",state:"DESCONOCIDO",worked_minutes:480,approved_minutes:0,amount:100},
+    {shift_date:"2026-11-24",state:"COMPLETA",worked_minutes:480,approved_minutes:-1,amount:100}
+  ]){
+    assert.throws(()=>compareAuthorizedPayroll({employees:[row([bad])]},
+      {employees:[previous]},id,"Empleado de Prueba",windows),/UPSTREAM_FAILURE/);
+  }
+});
