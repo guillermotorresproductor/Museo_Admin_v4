@@ -32,7 +32,7 @@ test("session state discarded at logout or authorization revocation",()=>{
 test("dock automatically reopens after navigating the same tab",()=>{
   assert.match(dock,/sessionStorage\.setItem\(dockStateKey,open\?"1":"0"\)/);
   assert.match(dock,/sessionStorage\.getItem\(dockStateKey\)==="1"\)setOpen\(true\)/);
-  assert.match(app,/js\/instituva-ai-dock\.js\?v=20261126-modern-dock-1/);
+  assert.match(app,/js\/instituva-ai-dock\.js\?v=20261127-floating-orb-1/);
   assert.match(html,/js\/instituva-ai\.js\?v=20261126-modern-chat-2/);
 });
 test("server still receives current query only, not conversation history",()=>{
