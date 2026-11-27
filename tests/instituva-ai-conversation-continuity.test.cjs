@@ -52,3 +52,16 @@ test("floating Instituva AI orb replaces pill and disappears when chat opens",()
   assert.match(style,/prefers-reduced-motion/);
   assert.doesNotMatch(style,/background:\s*#124f38/);
 });
+
+test("approved orb uses original emblem styling and clear safe offsets",()=>{
+  const css=fs.readFileSync("css/instituva-ai-dock.css","utf8");
+  const symbol=fs.readFileSync("assets/brand/instituva-ai-symbol.svg","utf8");
+  assert.match(css,/right: 45px; bottom: 65px/);
+  assert.match(css,/right: max\(25px, env\(safe-area-inset-right/);
+  assert.match(css,/@keyframes ai-dock-float/);
+  assert.match(symbol,/id="iv-silver"/);
+  assert.match(symbol,/id="iv-cyan"/);
+  assert.match(dock,/instituva-ai-symbol\.svg\?v=20261127-approved-orb-3/);
+  assert.match(dock,/launch\.hidden=open/);
+  assert.match(dock,/panel\.hidden=!open/);
+});
