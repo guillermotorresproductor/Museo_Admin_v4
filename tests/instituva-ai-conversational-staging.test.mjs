@@ -93,3 +93,29 @@ test("a correction from another museum or employee fails closed",()=>{
   shift_id:"sh",supersedes_event_id:"a",event_type:"clock_in",occurred_at:"2026-11-24T12:00:00Z"};
  assert.throws(()=>summarizeAttendancePeriod([], [unrelated], [],m,e,"2026-11-24","2026-11-25"),/FORBIDDEN/);
 });
+
+
+test("ambiguous employee names require selection and never return foreign-museum options",async()=>{
+ const {resolveScopedEmployeeName}=await import("../supabase/functions/instituva-ai-assistant/employee-name-resolution.ts");
+ const m="00000000-0000-4000-8000-000000000001";
+ const e1={id:"00000000-0000-4000-8000-000000000002",museum_id:m,first_name:"Roberto",last_name:"Díaz"};
+ const e2={id:"00000000-0000-4000-8000-000000000003",museum_id:m,first_name:"Roberto",last_name:"Pérez"};
+ const ambiguous=resolveScopedEmployeeName([e1,e2],m,"Roberto");
+ assert.equal(ambiguous.kind,"ambiguous");
+ assert.equal(ambiguous.options.length,2);
+ const chosen=resolveScopedEmployeeName([e1,e2],m,"Roberto",e1.id);
+ assert.equal(chosen.kind,"selected");
+ assert.equal(chosen.employee.id,e1.id);
+ const foreign={...e1,museum_id:"00000000-0000-4000-8000-000000000004"};
+ assert.throws(()=>resolveScopedEmployeeName([e1,foreign],m,"Roberto"),/FORBIDDEN/);
+ assert.equal(resolveScopedEmployeeName([e1],m,"Luis").kind,"not_found");
+});
+test("a later explicit employee replaces prior conversational employee only by authorized matching",()=>{
+ const p=planNaturalQuery("¿Cuántas horas trabajó María en noviembre?",{
+  mode:"auto",conversation_context:{mode:"attendance",employee_name:"Roberto Díaz",
+  start_day:"2026-11-01",end_day:"2026-11-27"}
+ },now);
+ assert.equal(p.mode,"attendance");
+ assert.equal(p.employeeName,"María");
+ assert.deepEqual(p.range,{start:"2026-11-01",endExclusive:"2026-11-27"});
+});
