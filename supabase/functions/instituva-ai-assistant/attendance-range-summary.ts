@@ -27,7 +27,8 @@ export function summarizeAttendancePeriod(events:Row[],replacements:Row[],shifts
     list.sort((a,b)=>Date.parse(a.occurred_at)-Date.parse(b.occurred_at));
     const kinds=list.map(x=>x.event_type);
     let net:number|null=null, status="incomplete";
-    if(kinds.join(",")==="clock_in,lunch_out,lunch_in,clock_out"){
+    if(kinds.join(",")==="clock_in,lunch_out,lunch_in,clock_out" &&
+       new Set(list.map(event=>event.shift_id)).size===1){
       const morning=minutesBetween(list[0].occurred_at,list[1].occurred_at);
       const afternoon=minutesBetween(list[2].occurred_at,list[3].occurred_at);
       const breakMinutes=minutesBetween(list[1].occurred_at,list[2].occurred_at);
@@ -47,15 +48,21 @@ export function summarizeAttendancePeriod(events:Row[],replacements:Row[],shifts
     }else{unmatchedShifts++;}
     diagnostics.push({day,status,net_minutes:net,late_start:late});
   }
+  const scheduledDates=new Set(safeShifts.filter(s=>
+    (s.status==="scheduled" || s.status==="published") &&
+    s.shift_date>=start && s.shift_date<endExclusive
+  ).map(s=>s.shift_date));
+  const scheduledDaysWithoutPunches=[...scheduledDates].filter(day=>!days.has(day)).length;
   return {
     start_day:start,end_day_inclusive:new Date(Date.parse(endExclusive+"T00:00:00Z")-86400000).toISOString().slice(0,10),
-    days_with_punches:days.size,verified_net_minutes:verifiedNetMinutes,
+    days_with_punches:days.size,scheduled_days_without_punches:scheduledDaysWithoutPunches,
+    verified_net_minutes:verifiedNetMinutes,
     verified_days:verifiedDays,incomplete_days:incompleteDays,
     days_without_confirmed_lunch:unverifiedLunchDays,
     entries_after_scheduled_start:lateStarts,comparable_schedule_days:lateComparableDays,
     days_without_comparable_shift:unmatchedShifts,
     superseded_punch_count:supersededCount,
-    coverage:"Verified hours are only summed on days with all four valid chronological punch types; other days are excluded, not treated as zero.",
+    coverage:"Horas sumadas únicamente para jornadas con cuatro marcaciones cronológicas del mismo turno. Las jornadas incompletas o turnos programados sin marcaciones no se computan como cero horas trabajadas.",
     day_details:diagnostics
   };
 }
