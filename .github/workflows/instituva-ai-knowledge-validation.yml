@@ -22,6 +22,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Validate authenticated E2E harness syntax without credentials
+        run: node --check supabase/tests/instituva-ai-authenticated-staging-e2e.mjs
       - name: Offline knowledge and natural-language routing regression
         run: node --test supabase/tests/instituva-ai-knowledge-routing.test.mjs
   edge-typecheck:
