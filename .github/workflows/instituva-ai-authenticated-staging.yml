@@ -1,12 +1,14 @@
 name: INSTITUVA AI signed staging end-to-end pilot
 on:
-  pull_request:
-    paths:
-      - 'tests/instituva-ai-authenticated-staging-e2e.cjs'
-      - '.github/workflows/instituva-ai-authenticated-staging.yml'
+  workflow_dispatch:
+    inputs:
+      confirm_staging:
+        description: 'Type the exact staging project reference before executing a new Auth signup'
+        required: true
+        type: string
 jobs:
   signed-staging:
-    if: github.event.pull_request.draft == true
+    if: inputs.confirm_staging == 'lonpdmxdvbxuagqxztig'
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
