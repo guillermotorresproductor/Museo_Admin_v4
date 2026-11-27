@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Símbolo INSTITUVA">
+<g fill="none" stroke="#f9fcff" stroke-width="5.3" stroke-linecap="square">
+<path d="M40 29C19 37 19 83 40 91"/><path d="M80 29C101 37 101 83 80 91"/>
+</g>
+<path fill="#fff" d="M41 12H79Q84 12 84 17V22Q84 26 80 26H73V43L53 56 73 68V94H81Q85 94 85 98V105Q85 109 81 109H39Q35 109 35 105V98Q35 94 39 94H47V76L67 63 47 51V26H40Q36 26 36 22V17Q36 12 41 12Z"/>
+<path fill="#05c7ce" d="M60 55L74 47V61Z"/><path fill="#0494b8" d="M60 55L74 61V47Z" opacity=".55"/>
+<path fill="#04c9c1" d="M49 65L62 73 49 81Z"/>
+</svg>
