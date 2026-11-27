@@ -1,5 +1,5 @@
 // Pure, fail-closed permission and tenant checks. No database or network access.
-export type AiDiagnosticMode = "product"|"attendance"|"finance"|"collections"|"inventory"|"schedules"|"notifications"|"assets";
+export type AiDiagnosticMode = "product"|"attendance"|"finance"|"collections"|"inventory"|"schedules"|"notifications"|"assets"|"payroll";
 export const requiredPermissionsForMode=(mode:AiDiagnosticMode):readonly string[]=>{
   if(mode==="product")return [];
   if(mode==="finance")return ["finance.read"];
@@ -10,6 +10,7 @@ export const requiredPermissionsForMode=(mode:AiDiagnosticMode):readonly string[
   if(mode==="schedules")return ["time.read.all"];
   if(mode==="notifications")return ["notifications.read.self"];
   if(mode==="attendance")return ["attendance.history.read","finance.read"];
+  if(mode==="payroll")return ["attendance.history.read","finance.read","compensation.read"];
   throw Error("FORBIDDEN");
 };
 export const assertActiveMuseumProfile=(profile:{
