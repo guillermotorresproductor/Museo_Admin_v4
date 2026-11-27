@@ -1,7 +1,7 @@
 import {validAttendanceDay,nextAttendanceDay} from "./attendance-day.ts";
 
 export type ConversationPlan={
-  mode:"attendance"|"finance"|"collections"|"inventory"|"assets"|"schedules"|"notifications"|"product";
+  mode:"attendance"|"finance"|"collections"|"inventory"|"assets"|"schedules"|"notifications"|"product"|"payroll";
   attendanceIntent:"hours"|"arrival"|"incidents"|"absence"|"overtime"|"general";
   employeeName:string|null;
   day:string|null;
@@ -26,7 +26,7 @@ const localToday=(now:Date)=>{
 const safeContext=(v:unknown):{mode:string;employee_name:string;start_day:string;end_day:string;day:string}|null=>{
  if(!v||typeof v!=="object"||Array.isArray(v))return null;
  const c=v as Record<string,unknown>;
- if(typeof c.mode!=="string" || !["attendance","finance","collections","inventory","assets","schedules","notifications","product"].includes(c.mode))return null;
+ if(typeof c.mode!=="string" || !["attendance","finance","collections","inventory","assets","schedules","notifications","product","payroll"].includes(c.mode))return null;
  if(c.mode!=="attendance" && Object.keys(c).some(key=>key!=="mode"))return null;
  const name=typeof c.employee_name==="string" && c.employee_name.length<=120 && /^[\p{L}\p{M}.' -]*$/u.test(c.employee_name)?c.employee_name:"";
  const day=typeof c.day==="string"?c.day:"";
@@ -40,8 +40,10 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
  const text=normalized(question);
  const context=safeContext(input.conversation_context);
  const explicit=typeof input.mode==="string"?input.mode:"auto";
- const modes=["attendance","finance","collections","inventory","assets","schedules","notifications","product"];
+ const modes=["attendance","finance","collections","inventory","assets","schedules","notifications","product","payroll"];
  if(explicit!=="auto"&&!modes.includes(explicit))throw Error("INVALID_REQUEST");
+ const payrollCompare=/\bnomina\b/.test(text) &&
+   /\b(?:mayor|menor|mas|menos|diferencia|diferente|aumento|aumento|comparar|comparacion|esta semana|semana pasada)\b/.test(text);
  const attendance=/\b(?:horas?\s+trabajad[ao]s?|trabaj[oó]|ponch\w*|asistencia|almuerzo|llegad\w*|llego tarde|llegaron tarde|tardanz\w*|jornad\w*|entrad\w*|salid\w*|turno trabajado|nomina|horas adicionales|sobretiempo|ausencia(?:s)?|ausente(?:s)?|falt[oó])\b/.test(text) ||
    /\b(cuantas|cuantos)\s+(horas|dias)\b/.test(text);
  const finance=/\b(presupuesto|ingresos|gastos|balance|finanzas|cuentas por pagar)\b/.test(text);
@@ -56,9 +58,9 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
    /\b(?:ponch\w*|asistencia|marcacion(?:es)?)\b/.test(text);
  const hasSpecificPeriod=/\b(?:hoy|ayer|anteayer|20\d{2}-\d{2}-\d{2}|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/.test(text);
  let mode:ConversationPlan["mode"]=explicit==="auto"?
-   (policyQuestion&&!hasSpecificPeriod?"product":attendance?"attendance":finance?"finance":collections&&inventory?"assets":collections?"collections":inventory?"inventory":schedules?"schedules":notifications?"notifications":context && isContextualFollowup(text)?context.mode as ConversationPlan["mode"]:"product")
+   (policyQuestion&&!hasSpecificPeriod?"product":payrollCompare?"payroll":attendance?"attendance":finance?"finance":collections&&inventory?"assets":collections?"collections":inventory?"inventory":schedules?"schedules":notifications?"notifications":context && isContextualFollowup(text)?context.mode as ConversationPlan["mode"]:"product")
    :explicit as ConversationPlan["mode"];
- if(/\b(cuanto representa|cuanto cobrar|pago de nomina|salario|tarifa por hora)\b/.test(text) && explicit==="auto")
+ if(/\b(cuanto representa|cuanto cobrar|pago de nomina|salario|tarifa por hora)\b/.test(text) && explicit==="auto" && !payrollCompare)
    mode="product"; // No wage or payroll transaction inference from attendance.
  const attendanceIntent:ConversationPlan["attendanceIntent"]=
    /\b(?:horas?\s+(?:extra|extras|adicionales)|tiempo\s+extra|sobretiempo)/.test(text)?"overtime":
