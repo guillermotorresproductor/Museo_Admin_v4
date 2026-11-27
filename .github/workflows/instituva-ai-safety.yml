@@ -1,0 +1,25 @@
+name: INSTITUVA AI — isolated safety tests
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/instituva-ai-assistant/**'
+      - 'tests/instituva-ai-*.test.mjs'
+      - '.github/workflows/instituva-ai-safety.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Pure tests (no database or secrets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate payroll, tenant boundaries and conversational context
+        run: node --experimental-strip-types --test tests/instituva-ai-*.test.mjs
