@@ -43,6 +43,7 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
  const explicit=typeof input.mode==="string"?input.mode:"auto";
  const modes=["attendance","finance","collections","inventory","assets","schedules","notifications","product","payroll"];
  if(explicit!=="auto"&&!modes.includes(explicit))throw Error("INVALID_REQUEST");
+ const payrollPolicy=/\b(?:como se calcula|como funciona|reglas de|procedimiento de|politica de)\s+(?:la\s+)?nomina\b/.test(text);
  const payrollCompare=/\bnomina\b/.test(text) &&
    /\b(?:mayor|menor|mas|menos|diferencia|diferente|aumento|aumento|comparar|comparacion|esta semana|semana pasada)\b/.test(text);
  const attendance=/\b(?:horas?\s+trabajad[ao]s?|trabaj[oó]|ponch\w*|asistencia|almuerzo|llegad\w*|llego tarde|llegaron tarde|tardanz\w*|jornad\w*|entrad\w*|salid\w*|turno trabajado|nomina|horas adicionales|sobretiempo|ausencia(?:s)?|ausente(?:s)?|falt[oó])\b/.test(text) ||
@@ -59,7 +60,7 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
    /\b(?:ponch\w*|asistencia|marcacion(?:es)?)\b/.test(text);
  const hasSpecificPeriod=/\b(?:hoy|ayer|anteayer|20\d{2}-\d{2}-\d{2}|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/.test(text);
  let mode:ConversationPlan["mode"]=explicit==="auto"?
-   (policyQuestion&&!hasSpecificPeriod?"product":payrollCompare?"payroll":attendance?"attendance":finance?"finance":collections&&inventory?"assets":collections?"collections":inventory?"inventory":schedules?"schedules":notifications?"notifications":context && isContextualFollowup(text)?context.mode as ConversationPlan["mode"]:"product")
+   ((policyQuestion&&!hasSpecificPeriod)||payrollPolicy?"product":payrollCompare?"payroll":attendance?"attendance":finance?"finance":collections&&inventory?"assets":collections?"collections":inventory?"inventory":schedules?"schedules":notifications?"notifications":context && isContextualFollowup(text)?context.mode as ConversationPlan["mode"]:"product")
    :explicit as ConversationPlan["mode"];
  if(/\b(cuanto representa|cuanto cobrar|pago de nomina|salario|tarifa por hora)\b/.test(text) && explicit==="auto" && !payrollCompare)
    mode="product"; // No wage or payroll transaction inference from attendance.
