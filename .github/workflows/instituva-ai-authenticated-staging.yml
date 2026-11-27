@@ -1,0 +1,22 @@
+name: INSTITUVA AI signed staging end-to-end pilot
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_staging:
+        description: 'Type the exact staging project reference before executing a new Auth signup'
+        required: true
+        type: string
+jobs:
+  signed-staging:
+    if: inputs.confirm_staging == 'lonpdmxdvbxuagqxztig'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify actual Supabase Auth JWT and read-only 3-turn diagnosis
+        env:
+          INSTITUVA_E2E_STAGING_ONLY: lonpdmxdvbxuagqxztig
+        run: node tests/instituva-ai-authenticated-staging-e2e.cjs

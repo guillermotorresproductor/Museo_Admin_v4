@@ -9,7 +9,7 @@ test("iframe HTML loads a fresh assistant app and config",()=>{
   for(const asset of ["js/config.js","js/app.js"]) {
     assert.match(html,new RegExp(asset.replaceAll(".","\\.")+"\\?v=20261126-ai-frame-3"));
   }
-  assert.match(html,/js\/instituva-ai\.js\?v=20261126-clear-composer-1/);
+  assert.match(html,/js\/instituva-ai\.js\?v=20261126-conversation-staging-1/);
   assert.match(dock,/searchParams\.set\("ai_ui","20261126-frame-3"\)/);
 });
 test("fail-closed fallback does not expose an unauthenticated chat",()=>{
