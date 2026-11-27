@@ -18,6 +18,7 @@ import { summarizeAttendanceScheduleCrosscheck } from "./attendance-schedule-cro
 import { resolveEffectiveAttendanceEvents } from "./attendance-event-corrections.ts";
 import {planNaturalQuery,isClearlyExternalQuestion} from "./conversational-plan.ts";
 import {summarizeAttendancePeriod} from "./attendance-range-summary.ts";
+import {comparisonWindows,compareAuthorizedPayroll} from "./payroll-comparison.ts";
 const send = (body:unknown,status=200) => new Response(JSON.stringify(body),{status,headers:{...corsHeaders,"Content-Type":"application/json","Cache-Control":"no-store"}});
 
 // INSTITUVA AI v1: closed query vocabulary, read-only, opt-in per tenant.
@@ -73,8 +74,8 @@ Deno.serve(async (req: Request) => {
     const question=clean(input.question,MAX_QUESTION + 1);
     const plan=planNaturalQuery(question,input as Record<string,unknown>);
     const mode=plan.mode;
-    if (!mode || question.length<(mode==="attendance" && input.conversation_context?2:8) || question.length>MAX_QUESTION) throw Error("INVALID_REQUEST");
-    if (mode==="attendance" || mode==="finance" || mode==="collections" || mode==="inventory" || mode==="schedules" || mode==="notifications") {
+    if (!mode || question.length<((mode==="attendance"||mode==="payroll") && input.conversation_context?2:8) || question.length>MAX_QUESTION) throw Error("INVALID_REQUEST");
+    if (mode==="attendance" || mode==="payroll" || mode==="finance" || mode==="collections" || mode==="inventory" || mode==="schedules" || mode==="notifications") {
       const required = requiredPermissionsForMode(mode);
       for (const permission of required) {
         const {data,error} = await caller.rpc("has_permission",{requested_permission:permission});
@@ -112,7 +113,7 @@ Deno.serve(async (req: Request) => {
     // Attendance requires the same administration module boundary before
     // any privileged service-role employee/attendance read. A domain grant
     // alone must not bypass the user's restricted module profile.
-    const rlsModule=mode==="finance" || mode==="attendance"?"administration":
+    const rlsModule=mode==="finance" || mode==="attendance" || mode==="payroll"?"administration":
       mode==="collections"?"collections":
       mode==="inventory"?"inventory":null;
     if (rlsModule!==null) {
@@ -145,10 +146,82 @@ Deno.serve(async (req: Request) => {
     // Carry only a bounded domain label between turns. Never transmit past
     // chat messages or private evidence as conversational context.
     let responseConversationContext:Record<string,unknown>|null=
-      mode==="attendance" ? null : {mode};
+      mode==="attendance" || mode==="payroll" ? null : {mode};
     let snapshot: Record<string,unknown> = {};
     let evidence: Record<string,unknown> = {};
     let sources: string[] = [];
+    if (mode==="payroll") {
+      // Use only the EXISTING payroll_actual computation, with the caller JWT.
+      // Its own permission checks and current_user_museum_id remain mandatory.
+      // No payroll calculation, compensation row or personnel directory is
+      // accessed through a service-role RPC.
+      const name=clean(input.employee_name,120) || plan.employeeName || "";
+      if (!name) return send({code:"EMPLOYEE_NAME_REQUIRED",
+        error:"¿De qué empleado necesitas comparar la nómina calculada?",
+        conversation_context:{mode:"payroll"}},422);
+      if(name.length<2 || !/^[\\p{L}\\p{M}.' -]+$/u.test(name))
+        throw Error("INVALID_REQUEST");
+      const oneWord=name.trim().split(/\\s+/).length===1;
+      if(oneWord){
+        const {data:visible,error:grantError}=await caller.rpc("has_permission",
+          {requested_permission:"employees.read.all"});
+        if(grantError||visible!==true)return send({
+          code:"EMPLOYEE_FULL_NAME_REQUIRED",
+          error:"Indica nombre y apellidos del empleado para consultar su nómina calculada.",
+          conversation_context:{mode:"payroll"}
+        },422);
+      }
+      const scope=oneWord?caller:admin;
+      const {data:names,error:namesError}=await scope.from("employees")
+        .select("id,first_name,last_name,museum_id")
+        .eq("museum_id",museumId).eq("status","activo")
+        .order("id",{ascending:true}).limit(300);
+      if(namesError)throw Error("UPSTREAM_FAILURE");
+      const resolution=resolveScopedEmployeeName(
+        assertTenantRows(names||[],museumId),museumId,name,input.employee_id??null
+      );
+      if(resolution.kind==="not_found")throw Error("EMPLOYEE_NOT_FOUND");
+      if(resolution.kind==="need_more_name")return send({
+        code:"EMPLOYEE_NAME_TOO_BROAD",
+        error:"Indica nombre y apellidos para identificar al empleado autorizado."
+      },409);
+      if(resolution.kind==="ambiguous")return send({
+        code:"EMPLOYEE_SELECTION_REQUIRED",
+        error:"¿A cuál de estos empleados te refieres?",
+        question:"Selecciona al empleado para comparar su nómina calculada.",
+        options:resolution.options,read_only:true,actions_executed:false
+      },409);
+      const selected=resolution.employee;
+      if(/\b(?:mes|mensual|meses)\b/.test(question.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()))
+        return send({answer:"Actualmente puedo comparar semanas de nómina calculada. Para comparar meses completos necesito una consulta mensual específica y autorizada.",
+          mode:"payroll",sources:[],evidence:{domain:"payroll",comparison_available:false},
+          read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+          guide_steps:[],conversation_context:{mode:"payroll",employee_name:clean(selected.first_name+" "+selected.last_name,120)}});
+      // Reuse the assistant's atomic per-user/per-museum query quota.
+      const {data:slot,error:quotaError}=await admin.rpc(
+        "ai_assistant_claim_internal_v1",{p_museum_id:museumId,p_user_id:user.id}
+      );
+      if(quotaError)throw Error("UPSTREAM_FAILURE");
+      if(slot!==true)throw Error("RATE_LIMITED");
+      const windows=comparisonWindows();
+      // Bounded weekly windows prevent broad personnel/compensation requests.
+      const [recent,earlier]=await Promise.all([
+        caller.rpc("payroll_actual",{p_from:windows.current.from,p_to:windows.current.to}),
+        caller.rpc("payroll_actual",{p_from:windows.previous.from,p_to:windows.previous.to})
+      ]);
+      if(recent.error||earlier.error)throw Error("UPSTREAM_FAILURE");
+      const fullname=clean(selected.first_name+" "+selected.last_name,120);
+      const comparison=compareAuthorizedPayroll(recent.data,earlier.data,
+        selected.id,fullname,windows);
+      responseConversationContext={mode:"payroll",employee_name:fullname};
+      return send({answer:comparison.answer,mode:"payroll",evidence:comparison.evidence,
+        sources:["payroll_actual [cálculo existente, ejecutado con JWT autorizado]",
+          "list_attendance_history [utilizada internamente por payroll_actual]",
+          "employee_compensation [resuelta internamente; ninguna tarifa individual expuesta]"],
+        read_only:true,actions_executed:false,
+        diagnostic_contract:"read_only_v1",guide_steps:[],
+        conversation_context:responseConversationContext});
+    }
     if (mode==="product") {
       const sections=findProductKnowledge(question);
       const incidents=findIncidentRunbooks(question);

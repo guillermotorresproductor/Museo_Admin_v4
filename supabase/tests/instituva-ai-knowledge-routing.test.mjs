@@ -8,6 +8,7 @@ import {formatDiagnosticResponse,parseDiagnosticResponse} from "../functions/ins
 import {findProductKnowledge, PRODUCT_KNOWLEDGE} from "../functions/instituva-ai-assistant/product-knowledge.ts";
 import {findIncidentRunbooks} from "../functions/instituva-ai-assistant/incident-runbooks.ts";
 import {requiredPermissionsForMode,assertTenantRows,assertEmployeeTenantRows,assertActiveMuseumProfile} from "../functions/instituva-ai-assistant/tenant-guard.ts";
+import {comparisonWindows,compareAuthorizedPayroll} from "../functions/instituva-ai-assistant/payroll-comparison.ts";
 
 const now=new Date("2026-11-26T16:00:00-04:00");
 const plan=(question, extras={})=>planNaturalQuery(question,{mode:"auto",...extras},now);
@@ -102,4 +103,72 @@ test("clearly personal requests do not use the institutional assistant",()=>{
   assert.equal(isClearlyExternalQuestion("¿Cómo reparar mi automóvil?"),true);
   assert.equal(isClearlyExternalQuestion("¿Cómo gestionar el inventario del museo?"),false);
   assert.equal(isClearlyExternalQuestion("¿Qué permisos hay en INSTITUVA?"),false);
+});
+
+test("payroll comparison is routed separately from attendance and budget",()=>{
+  assert.equal(plan("¿Por qué la nómina de Roberto es mayor esta semana?").mode,"payroll");
+  assert.equal(plan("¿Es mayor la nómina de Roberto Díaz esta semana?").employeeName,"Roberto Díaz");
+  assert.equal(plan("¿Cuál es la nómina presupuestada?").mode,"attendance");
+  assert.equal(plan("¿Qué diferencia hay en el presupuesto de finanzas?").mode,"finance");
+  assert.equal(plan("¿Cómo se calcula la nómina?").mode,"product");
+  assert.equal(plan("¿Y la diferencia?",{conversation_context:{mode:"payroll",employee_name:"Roberto Díaz"}}).mode,"payroll");
+  assert.equal(plan("¿Y la diferencia?",{conversation_context:{mode:"payroll",employee_name:"Roberto Díaz"}}).employeeName,"Roberto Díaz");
+  assert.equal(plan("¿Y la diferencia?",{conversation_context:{mode:"payroll",employee_name:"Roberto Díaz",employee_id:"malicious"}}).mode,"product");
+});
+test("payroll requires independent authorized compensation, finance and attendance grants",()=>{
+  assert.deepEqual(requiredPermissionsForMode("payroll"),["attendance.history.read","finance.read","compensation.read"]);
+});
+test("Puerto Rico week comparison never includes future days",()=>{
+  const windows=comparisonWindows(new Date("2026-11-27T18:00:00Z"));
+  assert.deepEqual(windows,{
+    current:{from:"2026-11-23",to:"2026-11-27"},
+    previous:{from:"2026-11-16",to:"2026-11-22"},partial:true
+  });
+  const sunday=comparisonWindows(new Date("2026-11-29T18:00:00Z"));
+  assert.equal(sunday.current.to,"2026-11-29");
+  assert.equal(sunday.partial,false);
+});
+test("comparison uses only explicitly selected employee's authorized result",()=>{
+  const w=comparisonWindows(new Date("2026-11-27T18:00:00Z"));
+  const employee="00000000-0000-0000-0000-000000000011";
+  const other="00000000-0000-0000-0000-000000000022";
+  const row=(id,amount,minutes,approved=0)=>({
+    employee_id:id,name:"Nombre de prueba",compensation_type:"hourly",
+    actual_amount:amount,worked_minutes:minutes,payable_minutes:minutes,
+    approved_minutes:approved,state:"CALCULADA",days:[]
+  });
+  const result=compareAuthorizedPayroll(
+    {employees:[row(other,500000,1000),row(employee,300,480,60)]},
+    {employees:[row(employee,200,420,0),row(other,999999,900)]},
+    employee,"Empleado de Prueba",w
+  );
+  assert.equal(result.evidence.difference,100);
+  assert.equal(result.evidence.current_approved_minutes,60);
+  assert.match(result.answer,/\$300/);
+  assert.doesNotMatch(result.answer,/500000|999999|Nombre de prueba/);
+  assert.match(result.answer,/semana actual aún está en curso/);
+});
+test("payroll snapshots fail closed on duplicates, malformed rates or wrong employee",()=>{
+  const w=comparisonWindows(new Date("2026-11-27T18:00:00Z"));
+  const id="00000000-0000-0000-0000-000000000011";
+  const valid={employee_id:id,name:"Prueba",compensation_type:"hourly",
+    actual_amount:200,worked_minutes:480,payable_minutes:480,
+    approved_minutes:0,state:"CALCULADA",days:[]};
+  assert.throws(()=>compareAuthorizedPayroll({employees:[valid,valid]},
+    {employees:[valid]},id,"Empleado de Prueba",w),/UPSTREAM_FAILURE/);
+  assert.throws(()=>compareAuthorizedPayroll({employees:[{...valid,actual_amount:Infinity}]},
+    {employees:[valid]},id,"Empleado de Prueba",w),/UPSTREAM_FAILURE/);
+  const missing=compareAuthorizedPayroll({employees:[]},{employees:[]},id,"Empleado de Prueba",w);
+  assert.equal(missing.evidence.comparison_available,false);
+  assert.doesNotMatch(missing.answer,/\$0/);
+});
+test("salary compensation is never misrepresented as weekly wage",()=>{
+  const w=comparisonWindows(new Date("2026-11-27T18:00:00Z"));
+  const id="00000000-0000-0000-0000-000000000011";
+  const row={employee_id:id,name:"Prueba",compensation_type:"salary",
+    actual_amount:0,worked_minutes:480,payable_minutes:480,approved_minutes:0,
+    state:"PERIODO PARCIAL",days:[]};
+  const out=compareAuthorizedPayroll({employees:[row]},{employees:[row]},id,"Empleado de Prueba",w);
+  assert.equal(out.evidence.comparison_available,false);
+  assert.match(out.answer,/salario mensual/);
 });

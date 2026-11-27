@@ -316,8 +316,15 @@ function bindInstituvaAi() {
   let conversationContext=null;
   const validatedContext=(raw)=>{
     if(!raw || typeof raw!=="object" || Array.isArray(raw))return null;
-    const allowed=["attendance","finance","collections","inventory","assets","schedules","notifications","product"];
+    const allowed=["attendance","finance","collections","inventory","assets","schedules","notifications","product","payroll"];
     if(!allowed.includes(raw.mode))return null;
+    if(raw.mode==="payroll"){
+      if(Object.keys(raw).some(key=>!["mode","employee_name"].includes(key)))return null;
+      const name=raw.employee_name;
+      if(name===undefined)return {mode:"payroll"};
+      if(typeof name!=="string" || !/^[\p{L}\p{M}.' -]{2,120}$/u.test(name))return null;
+      return {mode:"payroll",employee_name:name};
+    }
     if(raw.mode!=="attendance"){
       // A domain label is sufficient for safe follow-ups; never preserve
       // private employee, evidence or free-form chat history in this context.
@@ -565,14 +572,17 @@ function bindInstituvaAi() {
       if (body.read_only!==true || body.actions_executed!==false ||
           body.diagnostic_contract!=="read_only_v1" || typeof body.answer!=="string" ||
           (queryMode!=="auto" && body.mode!==queryMode) ||
-          (queryMode==="auto" && !["product","attendance","finance","collections","inventory","assets","schedules","notifications"].includes(body.mode)) ||
+          (queryMode==="auto" && !["product","attendance","finance","collections","inventory","assets","schedules","notifications","payroll"].includes(body.mode)) ||
           !Array.isArray(body.sources))
         throw Error("Respuesta del servicio no válida.");
       conversationContext=validatedContext(body.conversation_context);
       const displayAnswer=presentationAnswer(body.answer);
       answer.textContent=displayAnswer;
       renderFormattedAnswer(displayAnswer);
-      if (body.mode==="attendance" && body.evidence?.domain==="attendance") {
+      if (body.mode==="payroll") {
+        // Server-provided comparison is already fully scoped and self-contained.
+        evidence.textContent="";
+      } else if (body.mode==="attendance" && body.evidence?.domain==="attendance") {
         evidence.textContent="";
       } else if (body.mode==="attendance") {
         const dayOffPunchCoincidence=body.evidence?.schedule_day_off_with_punches===true;
