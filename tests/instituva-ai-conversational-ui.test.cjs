@@ -31,3 +31,21 @@ test("selected name ambiguity and backend authorizations are retained",()=>{
  assert.match(js,/body\.read_only!==true \|\| body\.actions_executed!==false/);
  assert.match(html,/js\/instituva-ai\.js\?v=20261126-modern-chat-1/);
 });
+
+
+test("step-by-step guidance is conversational, never a permanent toolbar",()=>{
+ assert.doesNotMatch(html,/data-ai-guide|Comenzar guía|¿Quieres que te guíe paso a paso\?/);
+ assert.doesNotMatch(js,/data-ai-guide|guideSteps|guidePanel|showGuideStep|resetGuide/);
+ assert.match(html,/data-ai-history/);
+ assert.match(html,/data-ai-answer/);
+ assert.match(html,/data-ai-new-chat/);
+ assert.match(html,/ai-chat-composer/);
+});
+test("modernized chat presentation stays within assistant-specific selectors",()=>{
+ assert.match(html,/ai-title-accent/);
+ assert.match(html,/ai-status-dot/);
+ assert.match(html,/ai-visually-hidden/);
+ assert.match(html,/data-ai-sources-details/);
+ assert.match(html,/aria-label="Enviar mensaje"/);
+ assert.match(html,/20261126-modern-chat-1/);
+});
