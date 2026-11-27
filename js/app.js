@@ -8643,7 +8643,7 @@ async function initApp() {
   if (getCurrentPage() === "asistente-ia.html" && canUseAi && typeof bindInstituvaAi === "function") bindInstituvaAi();
   if (canUseAi && getCurrentPage() !== "asistente-ia.html" && document.querySelector(".app-shell") && document.querySelector("[data-header]")) {
     const aiDockScript = document.createElement("script");
-    aiDockScript.src = "js/instituva-ai-dock.js?v=20261127-floating-orb-1";
+    aiDockScript.src = "js/instituva-ai-dock.js?v=20261127-floating-orb-2";
     document.head.appendChild(aiDockScript);
   }
   renderHeader();
