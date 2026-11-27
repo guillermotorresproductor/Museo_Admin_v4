@@ -315,7 +315,14 @@ function bindInstituvaAi() {
   const continuityMaxAgeMs=15*60*1000; // Mirrors the application idle window.
   let conversationContext=null;
   const validatedContext=(raw)=>{
-    if(!raw || typeof raw!=="object" || Array.isArray(raw) || raw.mode!=="attendance")return null;
+    if(!raw || typeof raw!=="object" || Array.isArray(raw))return null;
+    const allowed=["attendance","finance","collections","inventory","assets","schedules","notifications","product"];
+    if(!allowed.includes(raw.mode))return null;
+    if(raw.mode!=="attendance"){
+      // A domain label is sufficient for safe follow-ups; never preserve
+      // private employee, evidence or free-form chat history in this context.
+      return Object.keys(raw).length===1?{mode:raw.mode}:null;
+    }
     const clean={mode:"attendance"};
     for(const key of ["employee_name","day","start_day","end_day"]){
       const value=raw[key];

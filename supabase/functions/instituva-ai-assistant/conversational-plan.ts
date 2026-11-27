@@ -8,6 +8,14 @@ export type ConversationPlan={
   range:{start:string;endExclusive:string}|null;
 };
 const normalized=(s:string)=>s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+// Clearly external personal requests are never sent to the model or any data-read route.
+// This conservative filter does not classify ambiguous questions or museum operations.
+export const isClearlyExternalQuestion=(question:string):boolean=>{
+ const q=normalized(question);
+ if(/\b(instituva|museo|nomina|asistencia|finanzas|colecciones|inventario|horarios|emplead[oa]s?|ponche|sistema|modulo)\b/.test(q))return false;
+ return /\b(?:restaurantes?|receta de cocina|preparar una cena|pronostico del tiempo|clima de hoy|horoscopo|signo zodiacal|resultado del partido|marcador de futbol|reservar hotel|vuelos baratos|mi automovil|mi carro|mi vehiculo|cambiar aceite del carro|contrato de arrendamiento de mi apartamento)\b/.test(q);
+};
+const isContextualFollowup=(q:string)=>/^(?:[¿¡]\s*)?(?:y\b|entonces\b|tambien\b|en ese caso\b|de esos\b|de esas\b|los mismos\b|las mismas\b|cuantos hay\b|cuantas hay\b|que ocurre con eso\b|que paso con eso\b|encontraste alguna irregularidad\b|hay alguna irregularidad\b)/.test(q);
 const months=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const nameStops=new Set(["de","del","en","desde","hasta","durante","noviembre","octubre","septiembre","diciembre","enero","febrero","marzo","abril","mayo","junio","julio","agosto","trabajo","trabajado","trabajaron","trabajados","horas","dias","dia","cuantas","cuantos","el","la","los","las","a","y","este","mes","ano","mismo","periodo"]);
 const localToday=(now:Date)=>{
@@ -19,6 +27,7 @@ const safeContext=(v:unknown):{mode:string;employee_name:string;start_day:string
  if(!v||typeof v!=="object"||Array.isArray(v))return null;
  const c=v as Record<string,unknown>;
  if(typeof c.mode!=="string" || !["attendance","finance","collections","inventory","assets","schedules","notifications","product"].includes(c.mode))return null;
+ if(c.mode!=="attendance" && Object.keys(c).some(key=>key!=="mode"))return null;
  const name=typeof c.employee_name==="string" && c.employee_name.length<=120 && /^[\p{L}\p{M}.' -]*$/u.test(c.employee_name)?c.employee_name:"";
  const day=typeof c.day==="string"?c.day:"";
  const start=typeof c.start_day==="string"?c.start_day:"";
@@ -47,7 +56,7 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
    /\b(?:ponch\w*|asistencia|marcacion(?:es)?)\b/.test(text);
  const hasSpecificPeriod=/\b(?:hoy|ayer|anteayer|20\d{2}-\d{2}-\d{2}|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/.test(text);
  let mode:ConversationPlan["mode"]=explicit==="auto"?
-   (policyQuestion&&!hasSpecificPeriod?"product":attendance?"attendance":finance?"finance":collections&&inventory?"assets":collections?"collections":inventory?"inventory":schedules?"schedules":notifications?"notifications":context?.mode==="attendance"?"attendance":"product")
+   (policyQuestion&&!hasSpecificPeriod?"product":attendance?"attendance":finance?"finance":collections&&inventory?"assets":collections?"collections":inventory?"inventory":schedules?"schedules":notifications?"notifications":context && isContextualFollowup(text)?context.mode as ConversationPlan["mode"]:"product")
    :explicit as ConversationPlan["mode"];
  if(/\b(cuanto representa|cuanto cobrar|pago de nomina|salario|tarifa por hora)\b/.test(text) && explicit==="auto")
    mode="product"; // No wage or payroll transaction inference from attendance.

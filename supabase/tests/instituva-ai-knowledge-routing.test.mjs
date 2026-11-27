@@ -3,7 +3,7 @@
 // Pure local tests: no Supabase URL, credentials or operational records.
 import test from "node:test";
 import assert from "node:assert/strict";
-import {planNaturalQuery} from "../functions/instituva-ai-assistant/conversational-plan.ts";
+import {planNaturalQuery,isClearlyExternalQuestion} from "../functions/instituva-ai-assistant/conversational-plan.ts";
 import {formatDiagnosticResponse,parseDiagnosticResponse} from "../functions/instituva-ai-assistant/diagnostic-response.ts";
 import {findProductKnowledge, PRODUCT_KNOWLEDGE} from "../functions/instituva-ai-assistant/product-knowledge.ts";
 import {findIncidentRunbooks} from "../functions/instituva-ai-assistant/incident-runbooks.ts";
@@ -85,4 +85,21 @@ test("important uncertainty is still shown when relevant",()=>{
   assert.match(answer,/Qué comprobar/);
   assert.match(answer,/El conteo no demuestra la causa/);
   assert.doesNotMatch(answer,/DIAGNÓSTICO PRELIMINAR|Orientación de solo lectura/);
+});
+
+test("brief follow-ups retain only the previous domain; explicit subjects switch domains",()=>{
+  assert.equal(plan("¿Y cuántos hay?",{conversation_context:{mode:"inventory"}}).mode,"inventory");
+  assert.equal(plan("¿Y cuánto queda?",{conversation_context:{mode:"finance"}}).mode,"finance");
+  assert.equal(plan("¿Y en colecciones?",{conversation_context:{mode:"finance"}}).mode,"collections");
+  assert.equal(plan("Explícame la seguridad de INSTITUVA",{conversation_context:{mode:"attendance",employee_name:"Roberto"}}).mode,"product");
+  assert.equal(plan("¿Y las incidencias?",{conversation_context:{mode:"attendance",employee_name:"Roberto"}}).mode,"attendance");
+  assert.equal(plan("¿Y cuánto queda?",{conversation_context:{mode:"finance",employee_name:"Otro"}}).mode,"product");
+});
+test("clearly personal requests do not use the institutional assistant",()=>{
+  assert.equal(isClearlyExternalQuestion("¿Qué restaurantes recomiendas?"),true);
+  assert.equal(isClearlyExternalQuestion("¿Qué tiempo hará?"),false); // fail-safe ambiguity: no false denial
+  assert.equal(isClearlyExternalQuestion("¿Cuál es el pronóstico del tiempo?"),true);
+  assert.equal(isClearlyExternalQuestion("¿Cómo reparar mi automóvil?"),true);
+  assert.equal(isClearlyExternalQuestion("¿Cómo gestionar el inventario del museo?"),false);
+  assert.equal(isClearlyExternalQuestion("¿Qué permisos hay en INSTITUVA?"),false);
 });
