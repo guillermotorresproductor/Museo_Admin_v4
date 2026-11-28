@@ -1,0 +1,5 @@
+INSTITUVA — Staging deployment marker
+Environment: demo.instituva.com only
+Purpose: trigger Cloudflare Pages build after switching production branch to staging.
+No application code, permissions, database, or production changes.
+2026-11-27
