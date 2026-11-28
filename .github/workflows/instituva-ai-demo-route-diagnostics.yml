@@ -1,0 +1,32 @@
+name: INSTITUVA AI - demo route diagnostics (read only)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/instituva-ai-demo-route-diagnostics.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Inspect unauthenticated static documents (no credentials)
+        shell: bash
+        run: |
+          set -uo pipefail
+          for host in demo.instituva.com mmdpr.org; do
+            for path in dashboard.html asistente-ia.html js/config.js js/app.js js/instituva-ai-dock.js; do
+              url="https://${host}/${path}?ai-route-probe=20261127"
+              echo "--- ${host} / ${path} ---"
+              curl --location --silent --show-error --max-time 18 --output /tmp/ai-body --dump-header /tmp/ai-headers --write-out 'status=%{http_code} effective_url=%{url_effective} bytes=%{size_download}\n' "$url" || true
+              grep -Ei '^(HTTP/|location:|content-type:|cache-control:|x-frame-options:)' /tmp/ai-headers 2>/dev/null | tail -n 8 || true
+              case "$path" in
+                dashboard.html) if grep -q 'module-grid' /tmp/ai-body; then echo 'dashboard markup: PRESENT'; else echo 'dashboard markup: MISSING'; fi ;;
+                asistente-ia.html) if grep -q 'data-instituva-ai' /tmp/ai-body; then echo 'assistant root: PRESENT'; else echo 'assistant root: MISSING'; fi ;;
+                js/config.js) if grep -q '"demo.instituva.com": "staging"' /tmp/ai-body; then echo 'host staging lock: PRESENT'; else echo 'host staging lock: MISSING'; fi ;;
+                js/app.js) if grep -q 'The AI companion is self-contained' /tmp/ai-body; then echo 'assistant fastpath: PRESENT'; else echo 'assistant fastpath: MISSING'; fi ;;
+                js/instituva-ai-dock.js) if grep -q 'mountInstituvaAiDock' /tmp/ai-body; then echo 'dock module: PRESENT'; else echo 'dock module: MISSING'; fi ;;
+              esac
+            done
+          done
