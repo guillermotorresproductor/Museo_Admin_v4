@@ -37,7 +37,7 @@ test('single name versus first and last names', () => {
 
 test('payroll replies provide read-only manual guidance', () => {
   assert.ok(source.includes('Comparar las jornadas y horas computadas en Asistencia para ambos períodos.'));
-  assert.ok(source.includes('Revisar las incidencias, correcciones y minutos adicionales aprobados en Nómina.'));
+  assert.ok(source.includes('Revisar las incidencias, correcciones y minutos fuera del límite semanal; comprobar por separado si existen autorizaciones.'));
   assert.ok(source.includes('el asistente no corrige registros ni aprueba pagos.'));
   assert.ok(source.includes('caller.rpc("payroll_actual"'));
   assert.ok(source.includes('requiredPermissionsForMode(mode)'));
