@@ -1,7 +1,7 @@
 import {validAttendanceDay,nextAttendanceDay} from "./attendance-day.ts";
 
 export type ConversationPlan={
-  mode:"attendance"|"finance"|"collections"|"inventory"|"assets"|"schedules"|"notifications"|"product"|"payroll";
+  mode:"attendance"|"finance"|"collections"|"inventory"|"assets"|"schedules"|"notifications"|"product"|"payroll"|"staff";
   attendanceIntent:"hours"|"arrival"|"incidents"|"absence"|"overtime"|"general";
   employeeName:string|null;
   day:string|null;
@@ -34,7 +34,7 @@ const localToday=(now:Date)=>{
 const safeContext=(v:unknown):{mode:string;employee_name:string;start_day:string;end_day:string;day:string}|null=>{
  if(!v||typeof v!=="object"||Array.isArray(v))return null;
  const c=v as Record<string,unknown>;
- if(typeof c.mode!=="string" || !["attendance","finance","collections","inventory","assets","schedules","notifications","product","payroll"].includes(c.mode))return null;
+ if(typeof c.mode!=="string" || !["attendance","finance","collections","inventory","assets","schedules","notifications","product","payroll","staff"].includes(c.mode))return null;
  if(c.mode!=="attendance" && c.mode!=="payroll" && Object.keys(c).some(key=>key!=="mode"))return null;
  if(c.mode==="payroll" && Object.keys(c).some(key=>!["mode","employee_name"].includes(key)))return null;
  if(c.mode==="attendance" && Object.keys(c).some(key=>!["mode","employee_name","day","start_day","end_day"].includes(key)))return null;
@@ -50,7 +50,7 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
  const text=normalized(question);
  const context=safeContext(input.conversation_context);
  const explicit=typeof input.mode==="string"?input.mode:"auto";
- const modes=["attendance","finance","collections","inventory","assets","schedules","notifications","product","payroll"];
+ const modes=["attendance","finance","collections","inventory","assets","schedules","notifications","product","payroll","staff"];
  if(explicit!=="auto"&&!modes.includes(explicit))throw Error("INVALID_REQUEST");
  const payrollPolicy=/\b(?:como se calcula|como funciona|reglas de|procedimiento de|politica de)\s+(?:la\s+)?nomina\b/.test(text);
  const payrollCompare=/\bnomina\b/.test(text) &&
@@ -62,6 +62,9 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
  const inventory=/\b(inventario|equipos|mobiliario|activos fisicos)\b/.test(text);
  const schedules=/\b(horarios|turnos programados|solapamientos)\b/.test(text);
  const notifications=/\b(notificaciones|avisos internos|mis alertas)\b/.test(text);
+ // Aggregate personnel totals only. Never infer access to individual employee records.
+ const staffCount=/\b(?:empleados|empleadas|personal|plantilla)\b/.test(text) &&
+   /\b(?:cuantos|cuantas|cantidad|total|numero|activos|activas|inactivos|inactivas|registrados|registradas)\b/.test(text);
  // Questions about the general correction policy do not authorize a private
  // employee lookup. Date-specific requests retain the guarded attendance route.
  const policyQuestion=/\b(?:quien(?:es)?|por que|porque|permiso(?:s)?|autorizad\w*|regla(?:s)?|politica(?:s)?|procedimiento(?:s)?|puede(?:n)?|debe(?:n)?)\b/.test(text) &&
@@ -69,7 +72,7 @@ export function planNaturalQuery(question:string,input:Record<string,unknown>,no
    /\b(?:ponch\w*|asistencia|marcacion(?:es)?)\b/.test(text);
  const hasSpecificPeriod=/\b(?:hoy|ayer|anteayer|20\d{2}-\d{2}-\d{2}|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/.test(text);
  let mode:ConversationPlan["mode"]=explicit==="auto"?
-   ((policyQuestion&&!hasSpecificPeriod)||payrollPolicy?"product":payrollCompare?"payroll":attendance?"attendance":finance?"finance":collections&&inventory?"assets":collections?"collections":inventory?"inventory":schedules?"schedules":notifications?"notifications":context && (isContextualFollowup(text) || (["attendance","payroll"].includes(context.mode) && isEmployeeNameReply(question)))?context.mode as ConversationPlan["mode"]:"product")
+   ((policyQuestion&&!hasSpecificPeriod)||payrollPolicy?"product":payrollCompare?"payroll":attendance?"attendance":finance?"finance":collections&&inventory?"assets":collections?"collections":inventory?"inventory":schedules?"schedules":notifications?"notifications":staffCount?"staff":context && (isContextualFollowup(text) || (["attendance","payroll"].includes(context.mode) && isEmployeeNameReply(question)))?context.mode as ConversationPlan["mode"]:"product")
    :explicit as ConversationPlan["mode"];
  if(/\b(cuanto representa|cuanto cobrar|pago de nomina|salario|tarifa por hora)\b/.test(text) && explicit==="auto" && !payrollCompare)
    mode="product"; // No wage or payroll transaction inference from attendance.
