@@ -27,6 +27,13 @@ test("ordinary financial, collections and inventory questions preserve existing 
   assert.equal(plan("¿Cuántas piezas hay en colecciones?").mode,"collections");
   assert.equal(plan("¿Cuántos equipos hay en inventario?").mode,"inventory");
 });
+test("employee headcount is an authorized aggregate, never a generic product guess",()=>{
+  assert.equal(plan("¿Cuántos empleados activos tiene actualmente este museo? Indica el total y la fuente consultada.").mode,"staff");
+  assert.equal(plan("¿Cuántas empleadas están registradas en la plantilla?").mode,"staff");
+  assert.deepEqual(requiredPermissionsForMode("staff"),["employees.read.all"]);
+  assert.equal(plan("¿Cuántos equipos hay en inventario?").mode,"inventory");
+  assert.equal(plan("¿Cuántas horas trabajó Ana ayer?").mode,"attendance");
+});
 test("institutional correction policy is discoverable and flagged unverified",()=>{
   const results=findProductKnowledge("quién tiene permiso para corregir ponches",5);
   assert.ok(results.some(x=>x.id==="attendance-correction-roles"));

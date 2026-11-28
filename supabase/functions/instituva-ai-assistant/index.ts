@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
     const plan=planNaturalQuery(question,input as Record<string,unknown>);
     const mode=plan.mode;
     if (!mode || question.length<((mode==="attendance"||mode==="payroll") && input.conversation_context?2:8) || question.length>MAX_QUESTION) throw Error("INVALID_REQUEST");
-    if (mode==="attendance" || mode==="payroll" || mode==="finance" || mode==="collections" || mode==="inventory" || mode==="schedules" || mode==="notifications") {
+    if (mode==="attendance" || mode==="payroll" || mode==="finance" || mode==="collections" || mode==="inventory" || mode==="schedules" || mode==="notifications" || mode==="staff") {
       const required = requiredPermissionsForMode(mode);
       for (const permission of required) {
         const {data,error} = await caller.rpc("has_permission",{requested_permission:permission});
@@ -115,7 +115,8 @@ Deno.serve(async (req: Request) => {
     // alone must not bypass the user's restricted module profile.
     const rlsModule=mode==="finance" || mode==="attendance" || mode==="payroll"?"administration":
       mode==="collections"?"collections":
-      mode==="inventory"?"inventory":null;
+      mode==="inventory"?"inventory":
+      mode==="staff"?"administration":null;
     if (rlsModule!==null) {
       const {data:moduleAllowed,error:moduleError}=await caller.rpc(
         "module_profile_allows",{module_code:rlsModule}
@@ -222,7 +223,36 @@ Deno.serve(async (req: Request) => {
         diagnostic_contract:"read_only_v1",guide_steps:[],
         conversation_context:responseConversationContext});
     }
-    if (mode==="product") {
+    if (mode==="staff") {
+      // Exact aggregate counts, authenticated/RLS-scoped to the user's museum.
+      // Never load names, emails, compensation or unrestricted personnel rows.
+      const {data:slot,error:quotaError}=await admin.rpc(
+        "ai_assistant_claim_internal_v1",{p_museum_id:museumId,p_user_id:user.id}
+      );
+      if(quotaError)throw Error("UPSTREAM_FAILURE");
+      if(slot!==true)throw Error("RATE_LIMITED");
+      const [allStaff,activeStaff]=await Promise.all([
+        caller.from("employees").select("id",{count:"exact",head:true})
+          .eq("museum_id",museumId),
+        caller.from("employees").select("id",{count:"exact",head:true})
+          .eq("museum_id",museumId).eq("status","activo")
+      ]);
+      if(allStaff.error||activeStaff.error ||
+         !Number.isSafeInteger(allStaff.count) || !Number.isSafeInteger(activeStaff.count) ||
+         (allStaff.count as number)<0 || (activeStaff.count as number)<0 ||
+         (activeStaff.count as number)>(allStaff.count as number))
+        throw Error("UPSTREAM_FAILURE");
+      const total=allStaff.count as number;
+      const active=activeStaff.count as number;
+      return send({
+        answer:`Este museo tiene ${active} empleados activos de ${total} registrados. Fuente: Recursos Humanos (public.employees), consulta autorizada y filtrada por museo.`,
+        mode:"staff",
+        evidence:{domain:"staff",museum_scoped:true,total_registered:total,active_employees:active,other_status:total-active},
+        sources:["public.employees (conteos exactos con JWT, RLS y filtro museum_id; estado activo)"],
+        read_only:true,actions_executed:false,diagnostic_contract:"read_only_v1",
+        guide_steps:[],conversation_context:null
+      });
+    } else if (mode==="product") {
       const sections=findProductKnowledge(question);
       const incidents=findIncidentRunbooks(question);
       if (!sections.length && !incidents.length) return send({

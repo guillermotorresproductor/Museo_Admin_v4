@@ -1,7 +1,8 @@
 // Pure, fail-closed permission and tenant checks. No database or network access.
-export type AiDiagnosticMode = "product"|"attendance"|"finance"|"collections"|"inventory"|"schedules"|"notifications"|"assets"|"payroll";
+export type AiDiagnosticMode = "product"|"attendance"|"finance"|"collections"|"inventory"|"schedules"|"notifications"|"assets"|"payroll"|"staff";
 export const requiredPermissionsForMode=(mode:AiDiagnosticMode):readonly string[]=>{
   if(mode==="product")return [];
+  if(mode==="staff")return ["employees.read.all"];
   if(mode==="finance")return ["finance.read"];
   if(mode==="collections")return ["collections.read"];
   if(mode==="inventory")return ["modules.inventory.read"];
