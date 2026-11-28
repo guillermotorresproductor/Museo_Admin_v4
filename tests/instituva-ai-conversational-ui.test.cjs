@@ -29,7 +29,7 @@ test("selected name ambiguity and backend authorizations are retained",()=>{
  assert.match(js,/request\.employee_id=selectedId/);
  assert.match(js,/body\.diagnostic_contract!=="read_only_v1"/);
  assert.match(js,/body\.read_only!==true \|\| body\.actions_executed!==false/);
- assert.match(html,/js\/instituva-ai\.js\?v=20261127-payroll-comparison-1/);
+ assert.match(html,/js\/instituva-ai\.js\?v=20261127-staff-count-1/);
 });
 
 
@@ -47,7 +47,7 @@ test("modernized chat presentation stays within assistant-specific selectors",()
  assert.match(html,/ai-visually-hidden/);
  assert.match(html,/data-ai-sources-details/);
  assert.match(html,/aria-label="Enviar mensaje"/);
- assert.match(html,/20261127-payroll-comparison-1/);
+ assert.match(html,/20261127-staff-count-1/);
 });
 
 test("diagnostic history has conversational presentation without changing source contract",()=>{
@@ -56,4 +56,11 @@ test("diagnostic history has conversational presentation without changing source
  assert.match(js,/headings\.every\(\(heading,index\)=>chunks\[index\+1\]\.startsWith\(heading\+"\\n"\)\)/);
  assert.match(js,/labels=\["","Posibles causas","Qué comprobar","Qué puedes hacer","Lo que falta confirmar"\]/);
  assert.match(js,/const refs=Array\.from\(sources\.children\|\|\[\]\)/);
+});
+
+test("staff-only aggregate responses use the same strict read-only response contract",()=>{
+ assert.match(js,/\["product","attendance","finance","collections","inventory","assets","schedules","notifications","payroll","staff"\]\.includes\(body\.mode\)/);
+ assert.match(js,/\["attendance","finance","collections","inventory","assets","schedules","notifications","product","payroll","staff"\]/);
+ assert.match(js,/body\.read_only!==true \|\| body\.actions_executed!==false/);
+ assert.match(js,/body\.diagnostic_contract!=="read_only_v1"/);
 });

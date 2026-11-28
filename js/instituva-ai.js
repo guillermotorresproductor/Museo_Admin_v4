@@ -316,7 +316,7 @@ function bindInstituvaAi() {
   let conversationContext=null;
   const validatedContext=(raw)=>{
     if(!raw || typeof raw!=="object" || Array.isArray(raw))return null;
-    const allowed=["attendance","finance","collections","inventory","assets","schedules","notifications","product","payroll"];
+    const allowed=["attendance","finance","collections","inventory","assets","schedules","notifications","product","payroll","staff"];
     if(!allowed.includes(raw.mode))return null;
     if(raw.mode==="payroll"){
       if(Object.keys(raw).some(key=>!["mode","employee_name"].includes(key)))return null;
@@ -572,7 +572,7 @@ function bindInstituvaAi() {
       if (body.read_only!==true || body.actions_executed!==false ||
           body.diagnostic_contract!=="read_only_v1" || typeof body.answer!=="string" ||
           (queryMode!=="auto" && body.mode!==queryMode) ||
-          (queryMode==="auto" && !["product","attendance","finance","collections","inventory","assets","schedules","notifications","payroll"].includes(body.mode)) ||
+          (queryMode==="auto" && !["product","attendance","finance","collections","inventory","assets","schedules","notifications","payroll","staff"].includes(body.mode)) ||
           !Array.isArray(body.sources))
         throw Error("Respuesta del servicio no válida.");
       conversationContext=validatedContext(body.conversation_context);
