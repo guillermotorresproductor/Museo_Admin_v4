@@ -221,7 +221,7 @@ Deno.serve(async (req: Request) => {
         read_only:true,actions_executed:false,
         diagnostic_contract:"read_only_v1",guide_steps:[
           {phase:"verificar",text:"Comparar las jornadas y horas computadas en Asistencia para ambos períodos."},
-          {phase:"verificar",text:"Revisar las incidencias, correcciones y minutos adicionales aprobados en Nómina."},
+          {phase:"verificar",text:"Revisar las incidencias, correcciones y minutos fuera del límite semanal; comprobar por separado si existen autorizaciones."},
           {phase:"accion_manual",text:"Si la diferencia no queda explicada, solicitar revisión del cálculo a una persona autorizada; el asistente no corrige registros ni aprueba pagos."}
         ],
         conversation_context:responseConversationContext});
